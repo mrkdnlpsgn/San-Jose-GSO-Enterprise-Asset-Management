@@ -221,6 +221,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
   const isAdmin = user?.role === 'ADMIN'
   const { pathname } = useLocation()
   const hasNewAuditLog = useAuditLogPing(pathname)
+  const othersOnline = useSelector((s) => s.presence.onlineUsers).filter((u) => u !== user?.username)
 
   // Close mobile sidebar on navigation
   useEffect(() => { onMobileClose?.() }, [pathname]) // eslint-disable-line
@@ -253,7 +254,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
             className="rounded-full object-cover bg-white flex-shrink-0 ring-1 ring-slate-200 dark:ring-white/10 w-8 h-8"
           />
           <div className="overflow-hidden">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap leading-tight">San Jose GSO</p>
+            <p className="text-sm font-semibold text-gov-700 dark:text-white whitespace-nowrap leading-tight">San Jose GSO</p>
             <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight mt-px">Inventory Management</p>
             <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight">System</p>
           </div>
@@ -339,6 +340,20 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
       <div
         className={`border-t border-slate-200 dark:border-zinc-800 overflow-hidden transition-all duration-300 max-h-40 px-4 py-4 ${isCollapsed ? 'lg:max-h-0 lg:py-0 lg:px-0' : ''}`}
       >
+        {othersOnline.length > 0 && (
+          <div
+            className="flex items-center gap-1.5 mb-2"
+            title={othersOnline.join(', ')}
+          >
+            <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+            </span>
+            <span className="text-2xs text-slate-500 dark:text-zinc-400 truncate">
+              {othersOnline.length === 1 ? `${othersOnline[0]} is online` : `${othersOnline.length} others online`}
+            </span>
+          </div>
+        )}
         <p className="text-xs text-slate-500 dark:text-zinc-500 whitespace-nowrap">San Jose Municipal Hall</p>
         <p className="text-2xs text-slate-400 dark:text-zinc-600 mt-0.5 whitespace-nowrap">Republic of the Philippines</p>
         <NavLink

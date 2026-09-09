@@ -44,7 +44,7 @@ function Header({ onMenuOpen }) {
       </button>
 
       <div className="flex-1 min-w-0">
-        <h1 className="text-base font-semibold text-slate-900 dark:text-white leading-tight">{title}</h1>
+        <h1 className="text-base font-semibold text-gov-700 dark:text-white leading-tight">{title}</h1>
       </div>
 
       <div className="flex items-center gap-2">

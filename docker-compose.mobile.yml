@@ -25,6 +25,13 @@ services:
       # Persists adb's paired-device keys across container restarts so you
       # don't have to re-enter the pairing code every time.
       - mobile_android_home:/root/.android
+      # Gradle's project-local cache does heavy small-file/mmap I/O, which is
+      # unreliable over Docker Desktop's Windows bind-mount bridge (surfaces
+      # as spurious "Input/output error" cache failures, and stale lock files
+      # that can't even be deleted from the Windows side). Keep it on native
+      # Linux volume storage instead, same reasoning as the dirs above.
+      - mobile_gradle_project:/app/android/.gradle
+      - mobile_gradle_home:/root/.gradle
     working_dir: /app
     stdin_open: true
     tty: true
@@ -38,3 +45,5 @@ volumes:
   mobile_build:
   mobile_pub_cache:
   mobile_android_home:
+  mobile_gradle_project:
+  mobile_gradle_home:

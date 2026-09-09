@@ -434,7 +434,7 @@ CREATE PROCEDURE sp_assets_list(
 )
 BEGIN
     SET p_search = TRIM(p_search);
-    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.`description`,
+    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.serial_number AS serialNumber, a.`description`,
            a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
            a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
            a.accountable_person AS accountablePerson, a.physical_count AS physicalCount,
@@ -449,6 +449,7 @@ BEGIN
       AND (
         p_search IS NULL OR p_search = '' OR
         a.property_number    LIKE CONCAT('%', p_search, '%')
+        OR a.serial_number    LIKE CONCAT('%', p_search, '%')
         OR a.`description`   LIKE CONCAT('%', p_search, '%')
         OR a.accountable_person LIKE CONCAT('%', p_search, '%')
         OR a.location        LIKE CONCAT('%', p_search, '%')
@@ -484,6 +485,7 @@ BEGIN
       AND (
         p_search IS NULL OR p_search = '' OR
         a.property_number    LIKE CONCAT('%', p_search, '%')
+        OR a.serial_number    LIKE CONCAT('%', p_search, '%')
         OR a.`description`   LIKE CONCAT('%', p_search, '%')
         OR a.accountable_person LIKE CONCAT('%', p_search, '%')
         OR a.location        LIKE CONCAT('%', p_search, '%')
@@ -501,7 +503,7 @@ END $$
 DROP PROCEDURE IF EXISTS sp_assets_get_by_id $$
 CREATE PROCEDURE sp_assets_get_by_id(IN p_id INT)
 BEGIN
-    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.`description`,
+    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.serial_number AS serialNumber, a.`description`,
            a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
            a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
            a.accountable_person AS accountablePerson, a.physical_count AS physicalCount,
@@ -517,7 +519,7 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_assets_create $$
 CREATE PROCEDURE sp_assets_create(
-    IN p_property_number VARCHAR(50), IN p_description VARCHAR(255),
+    IN p_property_number VARCHAR(50), IN p_serial_number VARCHAR(100), IN p_description VARCHAR(255),
     IN p_category_id INT, IN p_quantity INT, IN p_acquisition_date DATE,
     IN p_unit_value DECIMAL(12,2), IN p_office_id INT,
     IN p_accountable_person VARCHAR(150), IN p_physical_count INT, IN p_location VARCHAR(150),
@@ -527,12 +529,12 @@ CREATE PROCEDURE sp_assets_create(
 )
 BEGIN
     INSERT INTO assets(
-        property_number, `description`, category_id, quantity, acquisition_date,
+        property_number, serial_number, `description`, category_id, quantity, acquisition_date,
         unit_value, office_id, accountable_person, physical_count, location, `condition`,
         lifecycle_status, qr_code_path, sha256_hash, remarks,
         is_deleted, created_at, updated_at
     ) VALUES (
-        p_property_number, p_description, p_category_id, p_quantity, p_acquisition_date,
+        p_property_number, NULLIF(p_serial_number, ''), p_description, p_category_id, p_quantity, p_acquisition_date,
         p_unit_value, p_office_id, p_accountable_person, p_physical_count, p_location, p_condition,
         p_lifecycle_status, NULLIF(p_qr_code_path, ''), NULLIF(p_sha256_hash, ''), NULLIF(p_remarks, ''),
         FALSE, NOW(), NOW()
@@ -542,7 +544,7 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_assets_update $$
 CREATE PROCEDURE sp_assets_update(
-    IN p_id INT, IN p_property_number VARCHAR(50), IN p_description VARCHAR(255),
+    IN p_id INT, IN p_property_number VARCHAR(50), IN p_serial_number VARCHAR(100), IN p_description VARCHAR(255),
     IN p_category_id INT, IN p_quantity INT, IN p_acquisition_date DATE,
     IN p_unit_value DECIMAL(12,2), IN p_office_id INT,
     IN p_accountable_person VARCHAR(150), IN p_physical_count INT, IN p_location VARCHAR(150),
@@ -551,7 +553,7 @@ CREATE PROCEDURE sp_assets_update(
 )
 BEGIN
     UPDATE assets SET
-        property_number = p_property_number, `description` = p_description,
+        property_number = p_property_number, serial_number = NULLIF(p_serial_number, ''), `description` = p_description,
         category_id = p_category_id, quantity = p_quantity,
         acquisition_date = p_acquisition_date, unit_value = p_unit_value,
         office_id = p_office_id, accountable_person = p_accountable_person,
@@ -581,14 +583,16 @@ BEGIN
         accountable_person_name, location, `condition`, asset_condition, lifecycle_status,
         qr_code_path, sha256_hash, remarks,
         original_created_at, original_updated_at,
-        deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
+        deleted_by_user_id, deleted_by_username, delete_reason, deleted_at,
+        asset_condition
     )
     SELECT a.asset_id, a.property_number, a.`description`, a.category_id, c.category_name,
            a.quantity, a.acquisition_date, a.unit_value, a.office_id, o.office_name,
            a.accountable_person, a.location, a.`condition`, a.`condition`, a.lifecycle_status,
            a.qr_code_path, a.sha256_hash, a.remarks,
            a.created_at, a.updated_at,
-           p_deleted_by, p_deleted_by_username, p_reason, NOW()
+           p_deleted_by, p_deleted_by_username, p_reason, NOW(),
+           a.`condition`
     FROM assets a
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN offices o ON a.office_id = o.office_id

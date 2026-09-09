@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to scan QR codes and take photos of asset/device labels for auto-fill.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to choose a photo of an asset/device label for auto-fill.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

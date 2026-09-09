@@ -50,7 +50,7 @@ function Modal({ title, subtitle, children, onClose, size = 'lg' }) {
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h2>
+            <h2 className="text-sm font-semibold text-gov-700 dark:text-white">{title}</h2>
             {subtitle && (
               <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">{subtitle}</p>
             )}

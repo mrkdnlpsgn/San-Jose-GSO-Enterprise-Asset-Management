@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class MaintenanceLedgerService {
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
     private final AssetHistoryService assetHistoryService;
+    private final SseEmitterService sseEmitterService;
 
     private static final RowMapper<MaintenanceLedger> MAINT_MAPPER = (rs, rn) -> {
         MaintenanceLedger m = new MaintenanceLedger();
@@ -109,6 +111,7 @@ public class MaintenanceLedgerService {
             "Maintenance logged (" + req.getMaintenanceType() + "): " + req.getFindings());
         auditLogService.log("MAINTENANCE_CREATED", "Maintenance", newId, "maintenance",
             "Maintenance for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : req.getAssetId()));
+        sseEmitterService.emitMaintenance("CREATED", saved.getId(), saved);
         return saved;
     }
 
@@ -126,6 +129,7 @@ public class MaintenanceLedgerService {
         MaintenanceLedger saved = findById(id);
         auditLogService.log("MAINTENANCE_UPDATED", "Maintenance", id, "maintenance",
             "Updated maintenance for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : ""));
+        sseEmitterService.emitMaintenance("UPDATED", saved.getId(), saved);
         return saved;
     }
 
@@ -140,6 +144,8 @@ public class MaintenanceLedgerService {
             deleteReason);
         auditLogService.log("MAINTENANCE_DELETED", "Maintenance", id, "maintenance",
             "Deleted maintenance for asset: " + (m.getAsset() != null ? m.getAsset().getPropertyNumber() : ""));
+        sseEmitterService.emitMaintenance("DELETED", id,
+            Map.of("asset", Map.of("propertyNumber", m.getAsset() != null ? m.getAsset().getPropertyNumber() : "")));
     }
 
     private Long getUserIdByUsername(String username) {

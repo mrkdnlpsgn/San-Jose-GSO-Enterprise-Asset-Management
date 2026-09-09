@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
-import { usePolling } from '../../hooks/usePolling'
+import { useEventStream } from '../../hooks/useEventStream'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
@@ -80,7 +80,14 @@ function Disposal() {
   useEffect(() => { fetchRecords(debouncedSearch) }, [debouncedSearch, fetchRecords])
   useEffect(() => { setPage(1) }, [debouncedSearch, filterStatus, filterMethod, assetFilter])
 
-  usePolling(() => fetchRecords(debouncedSearch, { silent: true }), 30000)
+  useEventStream('disposal', ({ action, id, data }) => {
+    if (action === 'DELETED') { setRecords((prev) => prev.filter((r) => r.id !== id)); return }
+    if (!data) { fetchRecords(search); return }
+    setRecords((prev) => {
+      const exists = prev.some((r) => r.id === data.id)
+      return exists ? prev.map((r) => (r.id === data.id ? data : r)) : [data, ...prev]
+    })
+  })
 
   const handleCreate = async (payload, idempotencyKey) => {
     const { data } = await createDisposal(payload, idempotencyKey)

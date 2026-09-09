@@ -40,6 +40,13 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private final Map<String, Deque<Long>> writeBucket  = new ConcurrentHashMap<>();
     private final Map<String, Deque<Long>> authBucket   = new ConcurrentHashMap<>();
 
+    // The SSE stream is a single long-lived connection per client; browser
+    // auto-reconnects on drop could otherwise trip the global bucket.
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/api/events/");
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,

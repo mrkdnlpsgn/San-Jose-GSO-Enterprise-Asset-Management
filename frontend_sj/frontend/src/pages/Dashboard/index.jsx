@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useDispatch } from 'react-redux'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { setAssets } from '../../store/slices/assetSlice'
 import MainLayout from '../../components/layout/MainLayout'
 import { getAssets } from '../../services/assetService'
@@ -9,7 +9,7 @@ import { getUsers } from '../../services/userService'
 import { getRecommendationSummary } from '../../services/aiRecommendationService'
 import { getMaintenance } from '../../services/maintenanceService'
 import { getDisposal } from '../../services/disposalService'
-import { usePolling } from '../../hooks/usePolling'
+import { useEventStream } from '../../hooks/useEventStream'
 
 // ── Count-up hook ─────────────────────────────────────────────────────────────
 function useCountUp(target, active) {
@@ -200,9 +200,10 @@ function computeOfficeDist(assets) {
   const map = {}
   assets.forEach((a) => {
     const key = a.office?.officeName || 'Unassigned'
-    map[key] = (map[key] || 0) + 1
+    if (!map[key]) map[key] = { office: key, officeId: a.office?.id ?? null, count: 0 }
+    map[key].count++
   })
-  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([office, count]) => ({ office, count }))
+  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 6)
 }
 
 function computeTopAccountable(assets) {
@@ -273,7 +274,7 @@ function QuickActions() {
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V5h1v1H5zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zm2 2v-1h1v1H5zM13 3a1 1 0 00-1 1v3a1 1 0 001 1h3a1 1 0 001-1V4a1 1 0 00-1-1h-3zm1 2v1h1V5h-1zM11 7a1 1 0 112 0v1h1a1 1 0 110 2h-2a1 1 0 01-1-1V7zM7 11a1 1 0 100 2h1v1a1 1 0 102 0v-2a1 1 0 00-1-1H7zM13 11a1 1 0 100 2h.01a1 1 0 100-2H13zM15 13a1 1 0 100 2h.01a1 1 0 100-2H15zM13 15a1 1 0 100 2h.01a1 1 0 100-2H13z" clipRule="evenodd" /></svg>,
     },
     {
-      label: 'Reports', desc: 'Export audit reports', to: '/reports',
+      label: 'Reports', desc: 'RPCPPE, IIRUP & more', to: '/reports?report=rpcppe',
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>,
     },
   ]
@@ -292,7 +293,7 @@ function QuickActions() {
   )
 }
 
-function ConditionDistribution({ condDist, total, loading }) {
+function ConditionDistribution({ condDist, total, loading, onSelect }) {
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
       <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
@@ -336,12 +337,18 @@ function ConditionDistribution({ condDist, total, loading }) {
                 const pct = Math.round((count / total) * 100)
                 const cfg = CONDITION_CFG[cond]
                 return (
-                  <div key={cond} className="flex items-center gap-2">
+                  <button
+                    key={cond}
+                    type="button"
+                    onClick={() => onSelect?.(cond)}
+                    title={`View ${cfg.label.toLowerCase()} assets`}
+                    className="w-full flex items-center gap-2 -mx-1.5 px-1.5 py-1 rounded-md group hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-colors duration-150"
+                  >
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                    <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate">{cfg.label}</span>
+                    <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate text-left group-hover:text-slate-700 dark:group-hover:text-zinc-200 transition-colors duration-150">{cfg.label}</span>
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
                     <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -439,7 +446,7 @@ function LifecycleDistribution({ lifecycleDist, total, loading }) {
   )
 }
 
-function OfficeDistribution({ offices, total, loading }) {
+function OfficeDistribution({ offices, total, loading, onSelect }) {
   const max = offices[0]?.count || 1
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
@@ -458,21 +465,29 @@ function OfficeDistribution({ offices, total, loading }) {
         ) : offices.length === 0 ? (
           <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">No office data available.</p>
         ) : (
-          offices.map(({ office, count }) => {
+          offices.map(({ office, officeId, count }) => {
             const pct = Math.round((count / total) * 100)
+            const clickable = officeId != null
             return (
-              <div key={office}>
+              <button
+                key={office}
+                type="button"
+                disabled={!clickable}
+                onClick={() => onSelect?.(officeId)}
+                title={clickable ? `View assets in ${office}` : undefined}
+                className={`w-full text-left group ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+              >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[150px] leading-tight" title={office}>{office}</span>
+                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[150px] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={office}>{office}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
                     <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
                   </div>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                  <div className="h-full w-full rounded-full bg-blue-500 origin-left transition-transform duration-[250ms] ease-out" style={{ transform: `scaleX(${count / max})` }} />
+                  <div className={`h-full w-full rounded-full bg-blue-500 origin-left transition-transform duration-[250ms] ease-out ${clickable ? 'group-hover:bg-blue-400' : ''}`} style={{ transform: `scaleX(${count / max})` }} />
                 </div>
-              </div>
+              </button>
             )
           })
         )}
@@ -481,7 +496,7 @@ function OfficeDistribution({ offices, total, loading }) {
   )
 }
 
-function TopAccountable({ people, loading }) {
+function TopAccountable({ people, loading, onSelect }) {
   const max = people[0]?.count || 1
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
@@ -501,18 +516,24 @@ function TopAccountable({ people, loading }) {
           <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">No accountable persons assigned.</p>
         ) : (
           people.map(({ name, count }, i) => (
-            <div key={name} className="flex items-center gap-3">
+            <button
+              key={name}
+              type="button"
+              onClick={() => onSelect?.(name)}
+              title={`View assets accountable to ${name}`}
+              className="w-full flex items-center gap-3 group"
+            >
               <span className="w-5 h-5 rounded-full bg-brand-500/15 text-brand-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                 {i + 1}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-600 dark:text-zinc-300 truncate leading-tight mb-1.5" title={name}>{name}</p>
+                <p className="text-xs font-medium text-slate-600 dark:text-zinc-300 truncate leading-tight mb-1.5 text-left group-hover:text-slate-900 dark:group-hover:text-white transition-colors duration-150" title={name}>{name}</p>
                 <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                  <div className="h-full w-full rounded-full bg-brand-500 origin-left transition-transform duration-[250ms] ease-out" style={{ transform: `scaleX(${count / max})` }} />
+                  <div className="h-full w-full rounded-full bg-brand-500 origin-left transition-transform duration-[250ms] ease-out group-hover:bg-brand-400" style={{ transform: `scaleX(${count / max})` }} />
                 </div>
               </div>
               <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums flex-shrink-0">{count}</span>
-            </div>
+            </button>
           ))
         )}
       </div>
@@ -700,7 +721,7 @@ function ActivityFeed({ events, loading, className = '' }) {
   )
 }
 
-function CategoryBreakdown({ breakdown, total, loading }) {
+function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
   const max = breakdown[0]?.count || 1
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
@@ -719,21 +740,29 @@ function CategoryBreakdown({ breakdown, total, loading }) {
         ) : breakdown.length === 0 ? (
           <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">No assets yet.</p>
         ) : (
-          breakdown.map(({ category, count }) => {
+          breakdown.map(({ category, categoryId, count }) => {
             const pct = Math.round((count / total) * 100)
+            const clickable = categoryId != null
             return (
-              <div key={category}>
+              <button
+                key={category}
+                type="button"
+                disabled={!clickable}
+                onClick={() => onSelect?.(categoryId)}
+                title={clickable ? `View ${category} assets` : undefined}
+                className={`w-full text-left group ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+              >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[150px] leading-tight" title={category}>{category}</span>
+                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[150px] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={category}>{category}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
                     <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
                   </div>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                  <div className="h-full w-full rounded-full bg-brand-500 origin-left transition-transform duration-[250ms] ease-out" style={{ transform: `scaleX(${count / max})` }} />
+                  <div className={`h-full w-full rounded-full bg-brand-500 origin-left transition-transform duration-[250ms] ease-out ${clickable ? 'group-hover:bg-brand-400' : ''}`} style={{ transform: `scaleX(${count / max})` }} />
                 </div>
-              </div>
+              </button>
             )
           })
         )}
@@ -745,6 +774,7 @@ function CategoryBreakdown({ breakdown, total, loading }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard() {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
 
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(false)
@@ -786,7 +816,18 @@ function Dashboard() {
 
   useEffect(() => { load() }, [load])
 
-  usePolling(() => load({ silent: true }), 30000)
+  // Coalesce bursts of events (e.g. an asset condition change that cascades
+  // into maintenance + disposal records) into a single reload.
+  const reloadTimerRef = useRef(null)
+  const scheduleReload = useCallback(() => {
+    clearTimeout(reloadTimerRef.current)
+    reloadTimerRef.current = setTimeout(() => load({ silent: true }), 300)
+  }, [load])
+  useEffect(() => () => clearTimeout(reloadTimerRef.current), [])
+
+  useEventStream('asset', scheduleReload)
+  useEventStream('maintenance', scheduleReload)
+  useEventStream('disposal', scheduleReload)
 
   // ── Derived analytics ──────────────────────────────────────────────────────
   const totalAssets = assets.length
@@ -846,9 +887,10 @@ function Dashboard() {
     const map = {}
     assets.forEach((a) => {
       const key = a.category?.categoryName || 'Uncategorized'
-      map[key] = (map[key] || 0) + 1
+      if (!map[key]) map[key] = { category: key, categoryId: a.category?.id ?? null, count: 0 }
+      map[key].count++
     })
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([category, count]) => ({ category, count }))
+    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8)
   }, [assets])
 
   const recentEvents = history.slice(0, 8)
@@ -924,9 +966,11 @@ function Dashboard() {
 
       {/* Condition + Lifecycle + Office row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        <ConditionDistribution condDist={condDist} total={totalAssets} loading={loading} />
+        <ConditionDistribution condDist={condDist} total={totalAssets} loading={loading}
+          onSelect={(cond) => navigate(`/assets?condition=${cond}`)} />
         <LifecycleDistribution lifecycleDist={lifecycleDist} total={lifecycleTotal} loading={loading} />
-        <OfficeDistribution offices={officeDist} total={totalAssets} loading={loading} />
+        <OfficeDistribution offices={officeDist} total={totalAssets} loading={loading}
+          onSelect={(officeId) => navigate(`/assets?office=${officeId}`)} />
       </div>
 
       {/* Activity trend */}
@@ -938,9 +982,11 @@ function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5 items-start">
         <ActivityFeed events={recentEvents} loading={loading} className="h-fit self-start" />
         <div className="space-y-5 h-fit self-start">
-          <CategoryBreakdown breakdown={categoryBreakdown} total={totalAssets} loading={loading} />
+          <CategoryBreakdown breakdown={categoryBreakdown} total={totalAssets} loading={loading}
+            onSelect={(categoryId) => navigate(`/assets?category=${categoryId}`)} />
           <AiRecommendationsSummary summary={aiSummaryMap} total={aiSummaryTotal} loading={loading} />
-          <TopAccountable people={topAccountable} loading={loading} />
+          <TopAccountable people={topAccountable} loading={loading}
+            onSelect={(name) => navigate(`/assets?search=${encodeURIComponent(name)}`)} />
         </div>
       </div>
     </MainLayout>

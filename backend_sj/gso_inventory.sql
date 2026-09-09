@@ -129,14 +129,16 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_assets_soft_delete` (IN `p_id` I
         accountable_person_name, location, `condition`, lifecycle_status,
         qr_code_path, sha256_hash, remarks,
         original_created_at, original_updated_at,
-        deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
+        deleted_by_user_id, deleted_by_username, delete_reason, deleted_at,
+        asset_condition
     )
     SELECT a.asset_id, a.property_number, a.`description`, a.category_id, c.category_name,
            a.quantity, a.acquisition_date, a.unit_value, a.office_id, o.office_name,
            a.accountable_person, a.location, a.`condition`, a.lifecycle_status,
            a.qr_code_path, a.sha256_hash, a.remarks,
            a.created_at, a.updated_at,
-           p_deleted_by, p_deleted_by_username, p_reason, NOW()
+           p_deleted_by, p_deleted_by_username, p_reason, NOW(),
+           a.`condition`
     FROM assets a
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN offices o ON a.office_id = o.office_id
@@ -736,9 +738,9 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_users_change_password` (IN `p_id
     UPDATE users SET password_hash = p_password_hash WHERE user_id = p_id;
 END$$
 
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_users_create` (IN `p_username` VARCHAR(50), IN `p_password_hash` VARCHAR(255), IN `p_full_name` VARCHAR(100), IN `p_role` VARCHAR(20), IN `p_office_id` INT, IN `p_is_active` BOOLEAN, OUT `p_id` INT)   BEGIN
-    INSERT INTO users(username, password_hash, full_name, `role`, office_id, is_active, created_at)
-    VALUES(p_username, p_password_hash, p_full_name, p_role, NULLIF(p_office_id, 0), p_is_active, NOW());
+CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_users_create` (IN `p_username` VARCHAR(50), IN `p_email` VARCHAR(255), IN `p_password_hash` VARCHAR(255), IN `p_full_name` VARCHAR(100), IN `p_role` VARCHAR(20), IN `p_office_id` INT, IN `p_is_active` BOOLEAN, OUT `p_id` INT)   BEGIN
+    INSERT INTO users(username, email, password_hash, full_name, `role`, office_id, is_active, created_at, token_version)
+    VALUES(p_username, NULLIF(p_email, ''), p_password_hash, p_full_name, p_role, NULLIF(p_office_id, 0), p_is_active, NOW(), 0);
     SET p_id = LAST_INSERT_ID();
 END$$
 
@@ -848,6 +850,7 @@ INSERT INTO `ai_recommendations` (`recommendation_id`, `asset_id`, `asset_age_ye
 CREATE TABLE `assets` (
   `asset_id` int(11) NOT NULL,
   `property_number` varchar(50) NOT NULL COMMENT 'Official COA-assigned property number',
+  `serial_number` varchar(100) DEFAULT NULL COMMENT 'Manufacturer serial number, e.g. from a device label/sticker',
   `description` varchar(255) NOT NULL COMMENT 'Article / equipment description',
   `category_id` int(11) NOT NULL,
   `quantity` int(11) NOT NULL DEFAULT 1,

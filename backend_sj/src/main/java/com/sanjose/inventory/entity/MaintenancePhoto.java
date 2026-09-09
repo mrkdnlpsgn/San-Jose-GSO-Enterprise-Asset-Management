@@ -37,7 +37,7 @@ public class MaintenancePhoto {
     private Long fileSize;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "uploaded_by")
+    @JoinColumn(name = "uploaded_by", columnDefinition = "INT")
     @JsonIgnore
     private User uploadedBy;
 

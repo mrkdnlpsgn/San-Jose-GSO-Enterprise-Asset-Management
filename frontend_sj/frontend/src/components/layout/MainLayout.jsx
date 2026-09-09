@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import GovMasthead from './GovMasthead'
 import IdleWarningModal from '../common/IdleWarningModal'
 import OnboardingModal, { useOnboarding } from '../common/OnboardingModal'
 import PrivacyAcknowledgmentModal from '../common/PrivacyAcknowledgmentModal'
@@ -57,21 +58,24 @@ function MainLayout({ children }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-zinc-950">
-      <Sidebar
-        isCollapsed={isCollapsed}
-        onToggle={handleToggle}
-        onHelp={resetOnboarding}
-        isMobileOpen={isMobileSidebarOpen}
-        onMobileClose={() => setIsMobileSidebarOpen(false)}
-      />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header onMenuOpen={() => setIsMobileSidebarOpen(true)} />
-        <main className="flex-1 overflow-auto p-4 sm:p-5 lg:p-6 xl:p-8">
-          <div key={pathname} className="animate-fade-slide">
-            {children}
-          </div>
-        </main>
+    <div className="h-screen flex flex-col overflow-hidden bg-white dark:bg-zinc-950">
+      <GovMasthead />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <Sidebar
+          isCollapsed={isCollapsed}
+          onToggle={handleToggle}
+          onHelp={resetOnboarding}
+          isMobileOpen={isMobileSidebarOpen}
+          onMobileClose={() => setIsMobileSidebarOpen(false)}
+        />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Header onMenuOpen={() => setIsMobileSidebarOpen(true)} />
+          <main className="flex-1 overflow-auto p-4 sm:p-5 lg:p-6 xl:p-8">
+            <div key={pathname} className="animate-fade-slide">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
 
       {showWarning && (

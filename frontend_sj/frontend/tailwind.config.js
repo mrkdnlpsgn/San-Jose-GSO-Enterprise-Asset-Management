@@ -23,6 +23,21 @@ export default {
           800: '#11572c',
           900: '#0e4824',
         },
+        // Structural/official-document navy — used for primary headings and the
+        // government masthead bar, kept separate from `brand` (interactive green)
+        // so the two never compete for the same job.
+        gov: {
+          50:  '#eef2f8',
+          100: '#d7e1f0',
+          200: '#b0c4e3',
+          300: '#82a0ce',
+          400: '#5178ac',
+          500: '#325888',
+          600: '#25436b',
+          700: '#1c3355',
+          800: '#152743',
+          900: '#0f1b30',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

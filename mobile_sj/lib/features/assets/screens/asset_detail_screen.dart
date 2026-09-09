@@ -164,6 +164,8 @@ class _DetailsTab extends StatelessWidget {
         _AiRecommendationCard(assetId: asset.id),
         const SizedBox(height: 12),
         _card(context, 'Asset Details', [
+          if (asset.serialNumber != null && asset.serialNumber!.isNotEmpty)
+            _row(context, 'Serial Number', asset.serialNumber!),
           _row(context, 'Category', asset.category.categoryName),
           _row(context, 'Location', asset.office.officeName),
           if (asset.accountablePerson != null) _row(context, 'Accountable Person', asset.accountablePerson!),

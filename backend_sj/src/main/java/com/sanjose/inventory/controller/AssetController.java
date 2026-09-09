@@ -1,8 +1,10 @@
 package com.sanjose.inventory.controller;
 
 import com.sanjose.inventory.dto.AssetImportRow;
+import com.sanjose.inventory.dto.AssetOcrResult;
 import com.sanjose.inventory.dto.AssetRequest;
 import com.sanjose.inventory.entity.Asset;
+import com.sanjose.inventory.service.AssetOcrService;
 import com.sanjose.inventory.service.AssetService;
 import com.sanjose.inventory.service.QrCodeService;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +12,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -21,6 +24,7 @@ public class AssetController {
 
     private final AssetService assetService;
     private final QrCodeService qrCodeService;
+    private final AssetOcrService assetOcrService;
 
     @GetMapping
     public List<Asset> getAll(@RequestParam(required = false) String search,
@@ -62,6 +66,14 @@ public class AssetController {
 
     @PostMapping
     public Asset create(@RequestBody AssetRequest req) { return assetService.create(req); }
+
+    // Reads a photo of an asset tag/sticker (device name + serial number) via
+    // Gemini vision to pre-fill the Add Asset form — nothing is saved here,
+    // the image is processed in memory and discarded.
+    @PostMapping(value = "/scan-label", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public AssetOcrResult scanLabel(@RequestParam("file") MultipartFile file) {
+        return assetOcrService.scan(file);
+    }
 
     // Bulk create from a parsed spreadsheet (see AssetImportRow) — create-only,
     // one bad row is reported as a failure rather than aborting the batch.
