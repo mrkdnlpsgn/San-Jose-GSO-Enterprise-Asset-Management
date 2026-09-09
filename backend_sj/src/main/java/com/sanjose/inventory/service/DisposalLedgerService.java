@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class DisposalLedgerService {
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
     private final AssetHistoryService assetHistoryService;
+    private final SseEmitterService sseEmitterService;
 
     private static final RowMapper<DisposalLedger> DISPOSAL_MAPPER = (rs, rn) -> {
         DisposalLedger d = new DisposalLedger();
@@ -114,6 +116,7 @@ public class DisposalLedgerService {
             "Disposal logged (" + req.getRecommendedMethod() + "): " + req.getReason());
         auditLogService.log("DISPOSAL_CREATED", "Disposal", newId, "disposal",
             "Disposal for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : req.getAssetId()));
+        sseEmitterService.emitDisposal("CREATED", saved.getId(), saved);
         return saved;
     }
 
@@ -133,6 +136,7 @@ public class DisposalLedgerService {
         DisposalLedger saved = findById(id);
         auditLogService.log("DISPOSAL_UPDATED", "Disposal", id, "disposal",
             "Updated disposal for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : ""));
+        sseEmitterService.emitDisposal("UPDATED", saved.getId(), saved);
         return saved;
     }
 
@@ -147,6 +151,8 @@ public class DisposalLedgerService {
             deleteReason);
         auditLogService.log("DISPOSAL_DELETED", "Disposal", id, "disposal",
             "Deleted disposal for asset: " + (d.getAsset() != null ? d.getAsset().getPropertyNumber() : ""));
+        sseEmitterService.emitDisposal("DELETED", id,
+            Map.of("asset", Map.of("propertyNumber", d.getAsset() != null ? d.getAsset().getPropertyNumber() : "")));
     }
 
     private Long getUserIdByUsername(String username) {

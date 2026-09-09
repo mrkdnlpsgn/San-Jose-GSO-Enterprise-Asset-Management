@@ -3,6 +3,7 @@ import Modal from '../../components/common/Modal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { useToast } from '../../context/ToastContext'
 import { getMaintenancePhotos, uploadMaintenancePhoto, deleteMaintenancePhoto } from '../../services/maintenanceService'
+import { resolveUploadUrl } from '../../services/api'
 
 const MAX_SIZE = 10 * 1024 * 1024
 const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
@@ -121,7 +122,7 @@ function EvidenceModal({ record, onClose }) {
             {photos.map((photo) => (
               <div key={photo.id} className="group relative aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700">
                 <img
-                  src={photo.url}
+                  src={resolveUploadUrl(photo.url)}
                   alt={photo.originalFilename || 'Evidence photo'}
                   className="w-full h-full object-cover cursor-pointer transition-transform duration-150 group-hover:scale-105"
                   onClick={() => setPreview(photo)}
@@ -147,7 +148,7 @@ function EvidenceModal({ record, onClose }) {
           className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/80 animate-fade-slide"
           onClick={() => setPreview(null)}
         >
-          <img src={preview.url} alt={preview.originalFilename || 'Evidence photo'} className="max-h-full max-w-full rounded-lg shadow-2xl" />
+          <img src={resolveUploadUrl(preview.url)} alt={preview.originalFilename || 'Evidence photo'} className="max-h-full max-w-full rounded-lg shadow-2xl" />
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-white/70 text-xs">
             {preview.originalFilename} {preview.fileSize ? `· ${formatSize(preview.fileSize)}` : ''}
           </div>

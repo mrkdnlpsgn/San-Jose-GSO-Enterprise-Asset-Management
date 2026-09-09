@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDispatch } from 'react-redux'
+import { useLocation } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
+import { useEventStream } from '../../hooks/useEventStream'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
@@ -40,6 +42,7 @@ const PAGE_SIZE = 8
 function Assets() {
   const dispatch = useDispatch()
   const toast    = useToast()
+  const location = useLocation()
 
   const [items, setItems]           = useState([])
   const [loading, setLoading]       = useState(true)
@@ -49,6 +52,7 @@ function Assets() {
   const [filterCondition, setFilterCondition]   = useState('')
   const [filterLifecycle, setFilterLifecycle]   = useState('')
   const [filterCategory, setFilterCategory]     = useState('')
+  const [filterOffice, setFilterOffice]         = useState('')
   const [showAdd, setShowAdd]       = useState(false)
   const [editing, setEditing]       = useState(null)
   const [deleting, setDeleting]     = useState(null)
@@ -90,8 +94,35 @@ function Assets() {
       .then(([catRes, officeRes]) => { setCategories(catRes.data); setOffices(officeRes.data) })
   }, [])
 
+  // Dashboard charts link here with a pre-set filter, e.g. /assets?condition=REPAIRABLE
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const condition = params.get('condition')
+    const lifecycle = params.get('lifecycle')
+    const category  = params.get('category')
+    const office    = params.get('office')
+    const searchParam = params.get('search')
+    if (condition) setFilterCondition(condition)
+    if (lifecycle) setFilterLifecycle(lifecycle)
+    if (category)  setFilterCategory(category)
+    if (office)    setFilterOffice(office)
+    if (searchParam) setSearch(searchParam)
+  }, [location.search])
+
   useEffect(() => { fetchAssets(debouncedSearch) }, [debouncedSearch, fetchAssets])
-  useEffect(() => { setPage(1) }, [debouncedSearch, filterCondition, filterLifecycle, filterCategory])
+  useEffect(() => { setPage(1) }, [debouncedSearch, filterCondition, filterLifecycle, filterCategory, filterOffice])
+
+  useEventStream('asset', ({ action, id, data }) => {
+    if (action === 'DELETED') {
+      setItems((prev) => prev.filter((a) => a.id !== id))
+      dispatch(removeAsset(id))
+      return
+    }
+    if (!data) { fetchAssets(search); return }
+    const exists = items.some((a) => a.id === data.id)
+    setItems((prev) => (exists ? prev.map((a) => (a.id === data.id ? data : a)) : [data, ...prev]))
+    dispatch(exists ? updateAsset(data) : addAsset(data))
+  })
 
   const handleCreate = async (payload, idempotencyKey) => {
     const { data } = await createAsset(payload, idempotencyKey)
@@ -131,9 +162,10 @@ function Assets() {
       if (filterCondition && a.condition !== filterCondition) return false
       if (filterLifecycle && a.lifecycleStatus !== filterLifecycle) return false
       if (filterCategory && String(a.category?.id) !== filterCategory) return false
+      if (filterOffice && String(a.office?.id) !== filterOffice) return false
       return true
     })
-  }, [items, filterCondition, filterLifecycle, filterCategory])
+  }, [items, filterCondition, filterLifecycle, filterCategory, filterOffice])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -170,6 +202,8 @@ function Assets() {
             options={[['REGISTERED','Registered'],['ASSIGNED','Assigned'],['TRANSFERRED','Transferred'],['UNDER_MAINTENANCE','Under Maintenance'],['DISPOSED','Disposed'],['ARCHIVED','Archived']]} />
           <SelectFilter value={filterCategory} onChange={setFilterCategory} placeholder="All Categories"
             options={categories.map((c) => [String(c.id), c.categoryName])} />
+          <SelectFilter value={filterOffice} onChange={setFilterOffice} placeholder="All Offices"
+            options={offices.map((o) => [String(o.id), o.officeName])} />
         </div>
       </div>
 

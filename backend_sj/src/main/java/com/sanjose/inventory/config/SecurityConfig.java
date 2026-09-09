@@ -111,6 +111,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/disposal/**", "/api/disposal").authenticated()
                 // Asset history: all authenticated
                 .requestMatchers("/api/asset-history/**").authenticated()
+                // SSE stream for real-time asset/maintenance/disposal updates: all authenticated
+                .requestMatchers("/api/events/**").authenticated()
                 // All other endpoints: any authenticated user
                 .anyRequest().authenticated()
             )

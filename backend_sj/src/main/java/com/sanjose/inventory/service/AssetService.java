@@ -17,6 +17,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +27,7 @@ public class AssetService {
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
     private final AssetHistoryService assetHistoryService;
+    private final SseEmitterService sseEmitterService;
 
     private static final RowMapper<Asset> ASSET_MAPPER = (rs, rn) -> {
         Asset a = new Asset();
@@ -106,7 +108,9 @@ public class AssetService {
 
         auditLogService.log("ASSET_CREATED", "Assets", newId, "asset",
             "Created asset: " + saved.getPropertyNumber());
-        return findById(newId); // re-fetch after potential lifecycle update
+        Asset result = findById(newId); // re-fetch after potential lifecycle update
+        sseEmitterService.emitAsset("CREATED", result.getId(), result);
+        return result;
     }
 
     public Asset update(Long id, AssetRequest req) {
@@ -138,7 +142,9 @@ public class AssetService {
 
         auditLogService.log("ASSET_UPDATED", "Assets", id, "asset",
             "Updated asset: " + saved.getPropertyNumber());
-        return findById(id); // re-fetch after potential lifecycle update
+        Asset result = findById(id); // re-fetch after potential lifecycle update
+        sseEmitterService.emitAsset("UPDATED", result.getId(), result);
+        return result;
     }
 
     public void delete(Long id, String deleteReason) {
@@ -152,6 +158,7 @@ public class AssetService {
             deleteReason);
         auditLogService.log("ASSET_DELETED", "Assets", id, "asset",
             "Deleted: " + asset.getPropertyNumber());
+        sseEmitterService.emitAsset("DELETED", id, Map.of("propertyNumber", asset.getPropertyNumber()));
     }
 
     private void handleConditionLedger(Asset asset) {
@@ -172,6 +179,7 @@ public class AssetService {
                 asset.getId(), "UNDER_MAINTENANCE");
             assetHistoryService.logEvent(asset.getId(), "MAINTENANCE", null, null, recorderId,
                 "Flagged repairable, maintenance record auto-created");
+            sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
 
         } else if (asset.getCondition() == Asset.AssetCondition.UNSERVICEABLE) {
             jdbcTemplate.update("CALL sp_maintenance_delete_by_asset(?)", asset.getId());
@@ -187,12 +195,15 @@ public class AssetService {
                 asset.getId(), "DISPOSED");
             assetHistoryService.logEvent(asset.getId(), "DISPOSAL", null, null, recorderId,
                 "Flagged unserviceable, disposal record auto-created");
+            sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
 
         } else if (asset.getCondition() == Asset.AssetCondition.SERVICEABLE) {
             jdbcTemplate.update("CALL sp_maintenance_delete_by_asset(?)", asset.getId());
             jdbcTemplate.update("CALL sp_disposal_delete_by_asset(?)", asset.getId());
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
                 asset.getId(), "ASSIGNED");
+            sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
+            sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
         }
     }
 
