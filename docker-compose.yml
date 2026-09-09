@@ -67,6 +67,13 @@ services:
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: true
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
       MAIL_FROM: ${MAIL_FROM:-}
+      # Actuator's default health check does a live SMTP connectivity probe to
+      # SPRING_MAIL_HOST. That probe is unrelated to whether the API itself is
+      # serving requests, and over slower/less reliable upstream connections
+      # (e.g. a mobile hotspot) it can take 10s+ — well past the Dockerfile
+      # HEALTHCHECK's 3s timeout — flipping the container to "unhealthy" while
+      # the app is functioning normally the whole time.
+      MANAGEMENT_HEALTH_MAIL_ENABLED: false
       NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
       # Login rate limit — shared per source IP across every account attempted
       # from it, not per-username. Raise this if testing multiple accounts from
