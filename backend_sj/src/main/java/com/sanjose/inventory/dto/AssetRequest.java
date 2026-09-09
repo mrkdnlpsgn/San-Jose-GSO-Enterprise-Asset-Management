@@ -7,6 +7,7 @@ import java.time.LocalDate;
 @Data
 public class AssetRequest {
     private String propertyNumber;
+    private String serialNumber;
     private String description;
     private Long categoryId;
     private Integer quantity;

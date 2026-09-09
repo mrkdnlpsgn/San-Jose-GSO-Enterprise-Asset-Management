@@ -39,6 +39,10 @@ dependencies:
   mobile_scanner: ^7.3.0
   # QR code generation for per-asset labels (on-screen + printable)
   qr_flutter: ^4.1.0
+  # Camera/gallery capture for the "Scan Label" OCR feature on Add Asset — no
+  # Windows implementation, so that button is gated the same way mobile_scanner's
+  # camera path already is (kIsWeb || Android || iOS || macOS)
+  image_picker: ^1.1.2
   shared_preferences: ^2.5.5
   package_info_plus: ^10.2.0
 

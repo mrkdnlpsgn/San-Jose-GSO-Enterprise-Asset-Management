@@ -26,6 +26,9 @@ public class Asset {
     @Column(name = "property_number", nullable = false, unique = true, length = 50)
     private String propertyNumber;
 
+    @Column(name = "serial_number", length = 100)
+    private String serialNumber;
+
     @Column(nullable = false, length = 255)
     private String description;
 

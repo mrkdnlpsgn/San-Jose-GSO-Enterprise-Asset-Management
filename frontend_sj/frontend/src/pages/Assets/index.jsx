@@ -10,6 +10,7 @@ import ConfirmDialog from '../../components/common/ConfirmDialog'
 import AddAssetModal from './AddAssetModal'
 import AssetDrawer from './AssetDrawer'
 import AssetImportModal from './AssetImportModal'
+import AssetQrModal from './AssetQrModal'
 import { exportAssetsToExcel } from './assetExcel'
 import { setAssets, addAsset, updateAsset, removeAsset } from '../../store/slices/assetSlice'
 import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset, bulkImportAssets } from '../../services/assetService'
@@ -63,6 +64,7 @@ function Assets() {
   const [selected, setSelected]     = useState(null)
   const [assetDrawerExiting, setAssetDrawerExiting] = useState(false)
   const [page, setPage]             = useState(1)
+  const [qrAsset, setQrAsset]       = useState(null)
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -127,13 +129,15 @@ function Assets() {
     dispatch(exists ? updateAsset(data) : addAsset(data))
   })
 
-  const handleCreate = async (payload, idempotencyKey) => {
+  const handleCreate = async (payload, idempotencyKey, wasScanned) => {
     const { data } = await createAsset(payload, idempotencyKey)
     setItems((prev) => [data, ...prev])
     dispatch(addAsset(data))
     toast.show('Asset created.', 'success')
     if (data.condition === 'REPAIRABLE')    toast.show('Maintenance record auto-created.', 'info')
     if (data.condition === 'UNSERVICEABLE') toast.show('Disposal record auto-created.', 'info')
+    // Completes the scan → review → QR flow — manual entry keeps today's behavior.
+    if (wasScanned) setQrAsset(data)
   }
 
   const handleUpdate = async (payload) => {
@@ -390,6 +394,7 @@ function Assets() {
         />
       )}
       {showImport && <AssetImportModal onClose={() => setShowImport(false)} onImport={handleImport} />}
+      {qrAsset && <AssetQrModal asset={qrAsset} onClose={() => setQrAsset(null)} />}
       {deleting && (
         <ConfirmDialog
           title="Delete this asset?"

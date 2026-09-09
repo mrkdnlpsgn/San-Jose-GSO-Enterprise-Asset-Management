@@ -850,6 +850,7 @@ INSERT INTO `ai_recommendations` (`recommendation_id`, `asset_id`, `asset_age_ye
 CREATE TABLE `assets` (
   `asset_id` int(11) NOT NULL,
   `property_number` varchar(50) NOT NULL COMMENT 'Official COA-assigned property number',
+  `serial_number` varchar(100) DEFAULT NULL COMMENT 'Manufacturer serial number, e.g. from a device label/sticker',
   `description` varchar(255) NOT NULL COMMENT 'Article / equipment description',
   `category_id` int(11) NOT NULL,
   `quantity` int(11) NOT NULL DEFAULT 1,

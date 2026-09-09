@@ -39,6 +39,7 @@ public class AssetService {
         Asset a = new Asset();
         a.setId(rs.getLong("id"));
         a.setPropertyNumber(rs.getString("propertyNumber"));
+        a.setSerialNumber(rs.getString("serialNumber"));
         a.setDescription(rs.getString("description"));
         a.setQuantity(rs.getObject("quantity", Integer.class));
         Date acqDate = rs.getDate("acquisitionDate");
@@ -101,8 +102,8 @@ public class AssetService {
             : generatePropertyNumber(req.getAcquisitionDate() != null ? req.getAcquisitionDate().getYear() : LocalDate.now().getYear());
 
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
-            "CALL sp_assets_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            propertyNumber, req.getDescription(),
+            "CALL sp_assets_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            propertyNumber, req.getSerialNumber(), req.getDescription(),
             req.getCategoryId(), req.getQuantity() != null ? req.getQuantity() : 1,
             req.getAcquisitionDate(), req.getUnitValue(), req.getOfficeId(),
             req.getAccountablePerson(), req.getPhysicalCount(), req.getLocation(),
@@ -235,9 +236,9 @@ public class AssetService {
         Asset.AssetCondition oldCondition = before.getCondition();
         Long oldOfficeId = before.getOffice() != null ? before.getOffice().getId() : null;
 
-        jdbcTemplate.update("CALL sp_assets_update(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbcTemplate.update("CALL sp_assets_update(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id,
-            req.getPropertyNumber(), req.getDescription(),
+            req.getPropertyNumber(), req.getSerialNumber(), req.getDescription(),
             req.getCategoryId(), req.getQuantity() != null ? req.getQuantity() : 1,
             req.getAcquisitionDate(), req.getUnitValue(), req.getOfficeId(),
             req.getAccountablePerson(), req.getPhysicalCount(), req.getLocation(),

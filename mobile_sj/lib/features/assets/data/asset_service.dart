@@ -4,6 +4,10 @@ import '../../../core/api/api_exception.dart';
 import '../model/asset_model.dart';
 import '../model/asset_import_result.dart';
 
+// Fields read off an asset tag/sticker photo via server-side OCR, meant to
+// pre-fill the Add Asset form for review — not saved as-is.
+typedef AssetOcrResult = ({String? description, String? serialNumber});
+
 class AssetService {
   final Dio _dio = ApiClient.instance.dio;
 
@@ -67,6 +71,21 @@ class AssetService {
       final res = await _dio.post('/assets', data: data,
           options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
       return AssetModel.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  // Reads a photo of an asset tag/sticker via server-side OCR (Gemini vision)
+  // — the image is processed in memory on the backend and never persisted.
+  Future<AssetOcrResult> scanLabel(String imagePath) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(imagePath),
+      });
+      final res = await _dio.post('/assets/scan-label', data: formData);
+      final json = res.data as Map<String, dynamic>;
+      return (description: json['description'] as String?, serialNumber: json['serialNumber'] as String?);
     } catch (e) {
       throw ApiException.from(e);
     }

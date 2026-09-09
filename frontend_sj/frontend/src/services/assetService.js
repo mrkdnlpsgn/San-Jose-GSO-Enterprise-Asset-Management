@@ -12,3 +12,11 @@ export const createAsset     = (data, idempotencyKey)      => api.post('/assets'
 export const updateAsset     = (id, data)  => api.put(`/assets/${id}`, data);
 export const deleteAsset     = (id, body)  => api.delete(`/assets/${id}`, { data: body });
 export const bulkImportAssets = (rows)     => api.post('/assets/bulk-import', rows);
+
+// Reads a photo of an asset tag/sticker via server-side OCR — returns
+// { description, serialNumber } to pre-fill the Add Asset form for review.
+export const scanAssetLabel = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/assets/scan-label', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+};

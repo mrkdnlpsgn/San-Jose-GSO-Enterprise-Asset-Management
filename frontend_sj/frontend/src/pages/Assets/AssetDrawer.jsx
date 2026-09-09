@@ -152,6 +152,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {tab === 'details' && (
             <div className="space-y-3">
+              {asset.serialNumber && <Field label="Serial Number" value={asset.serialNumber} />}
               <Field label="Category"          value={asset.category?.categoryName} />
               <Field label="Office"            value={asset.office?.officeName} />
               <Field label="Accountable Person" value={asset.accountablePerson} />

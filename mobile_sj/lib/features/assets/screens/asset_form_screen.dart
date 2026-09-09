@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../model/asset_model.dart';
 import '../data/asset_service.dart';
 import '../provider/asset_provider.dart';
+import '../widgets/asset_qr_sheet.dart';
 import '../../../shared/data/reference_service.dart';
 import '../../../shared/provider/reference_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -13,6 +17,12 @@ import '../../../shared/widgets/main_shell.dart';
 import '../../maintenance/data/maintenance_service.dart';
 import '../../disposal/data/disposal_service.dart';
 import '../../../shared/utils/idempotency.dart';
+
+// image_picker has no live-camera implementation on Windows/Linux (only a
+// file/gallery picker) — mirrors the same gate qr_scanner_screen.dart already
+// uses for mobile_scanner's camera path.
+bool get _cameraCaptureSupported =>
+    kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
 class AssetFormScreen extends ConsumerStatefulWidget {
   final AssetModel? asset; // null = create, non-null = edit
@@ -28,6 +38,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   final String _idempotencyKey = newIdempotencyKey();
 
   late final TextEditingController _propertyNumber;
+  late final TextEditingController _serialNumber;
   late final TextEditingController _description;
   late final TextEditingController _quantity;
   late final TextEditingController _unitValue;
@@ -48,6 +59,9 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   Timer? _categoryDebounce;
   CategoryModel? _suggestedCategory;
 
+  bool _scanning = false;
+  bool _wasScanned = false;
+
   bool get _isEdit => widget.asset != null;
 
   @override
@@ -55,6 +69,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     super.initState();
     final a = widget.asset;
     _propertyNumber = TextEditingController(text: a?.propertyNumber ?? '');
+    _serialNumber = TextEditingController(text: a?.serialNumber ?? '');
     _description = TextEditingController(text: a?.description ?? '');
     _quantity = TextEditingController(text: a?.quantity.toString() ?? '1');
     _unitValue = TextEditingController(text: a?.unitValue.toStringAsFixed(2) ?? '');
@@ -75,11 +90,63 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   @override
   void dispose() {
     _categoryDebounce?.cancel();
-    for (final c in [_propertyNumber, _description, _quantity, _unitValue,
+    for (final c in [_propertyNumber, _serialNumber, _description, _quantity, _unitValue,
         _accountablePerson, _physicalCount, _remarks]) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _scanLabel() async {
+    final source = _cameraCaptureSupported ? await _pickImageSource() : ImageSource.gallery;
+    if (source == null) return;
+
+    final picked = await ImagePicker().pickImage(source: source, imageQuality: 85);
+    if (picked == null) return;
+
+    setState(() => _scanning = true);
+    try {
+      final result = await AssetService().scanLabel(picked.path);
+      if (result.description != null && result.description!.isNotEmpty) {
+        _description.text = result.description!;
+      }
+      if (result.serialNumber != null && result.serialNumber!.isNotEmpty) {
+        _serialNumber.text = result.serialNumber!;
+      }
+      _wasScanned = true;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Label scanned — review the details below.'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) _showError(e.message);
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  Future<ImageSource?> _pickImageSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _onDescriptionChanged() {
@@ -113,6 +180,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       final officeName = offices.where((o) => o.id == _officeId).firstOrNull?.officeName ?? '';
       final data = {
         'propertyNumber': _propertyNumber.text.trim(),
+        'serialNumber': _serialNumber.text.trim().isEmpty ? null : _serialNumber.text.trim(),
         'description': _description.text.trim(),
         'categoryId': _categoryId,
         'quantity': int.parse(_quantity.text.trim()),
@@ -155,6 +223,11 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
         }
       }
 
+      // Completes the scan → review → QR flow — manual entry keeps today's behavior.
+      if (!_isEdit && _wasScanned && mounted) {
+        await showAssetQrSheet(context, saved);
+      }
+
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
       _showError(e.message);
@@ -187,7 +260,20 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
             child: ListView(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
               children: [
+                if (!_isEdit) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: OutlinedButton.icon(
+                      onPressed: _scanning ? null : _scanLabel,
+                      icon: _scanning
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.document_scanner_outlined),
+                      label: Text(_scanning ? 'Scanning label…' : 'Scan Label — auto-fill from a device photo'),
+                    ),
+                  ),
+                ],
                 _field(_propertyNumber, 'Property Number (optional — auto-generated if blank)'),
+                _field(_serialNumber, 'Serial Number (optional)'),
                 _field(_description, 'Description', required: true),
                 _dropdown<CategoryModel>(
                   label: 'Category',

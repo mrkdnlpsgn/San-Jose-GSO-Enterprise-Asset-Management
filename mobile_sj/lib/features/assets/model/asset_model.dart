@@ -34,6 +34,7 @@ class OfficeModel {
 class AssetModel {
   final int id;
   final String propertyNumber;
+  final String? serialNumber;
   final String description;
   final CategoryModel category;
   final int quantity;
@@ -52,6 +53,7 @@ class AssetModel {
   const AssetModel({
     required this.id,
     required this.propertyNumber,
+    this.serialNumber,
     required this.description,
     required this.category,
     required this.quantity,
@@ -75,6 +77,7 @@ class AssetModel {
   factory AssetModel.fromJson(Map<String, dynamic> json) => AssetModel(
         id: json['id'] as int,
         propertyNumber: json['propertyNumber'] as String,
+        serialNumber: json['serialNumber'] as String?,
         description: json['description'] as String,
         category: json['category'] != null
             ? CategoryModel.fromJson(json['category'] as Map<String, dynamic>)
