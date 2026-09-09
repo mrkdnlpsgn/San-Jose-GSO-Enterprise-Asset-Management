@@ -27,6 +27,19 @@ class DisposalService {
     }
   }
 
+  Future<int> count({String? search, String? recommendedMethod, String? disposalStatus}) async {
+    try {
+      final res = await _dio.get('/disposal/count', queryParameters: {
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (recommendedMethod != null && recommendedMethod.isNotEmpty) 'recommendedMethod': recommendedMethod,
+        if (disposalStatus != null && disposalStatus.isNotEmpty) 'disposalStatus': disposalStatus,
+      });
+      return res.data as int;
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
   Future<DisposalModel> getById(int id) async {
     try {
       final res = await _dio.get('/disposal/$id');

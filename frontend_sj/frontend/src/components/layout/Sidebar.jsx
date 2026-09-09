@@ -133,6 +133,38 @@ const systemNavItems = [
       </svg>
     ),
   },
+  {
+    to: '/deleted-records',
+    label: 'Recycle Bin',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+      </svg>
+    ),
+  },
+  {
+    to: '/privacy',
+    label: 'Privacy, Terms & Conditions',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M10 1L3 5v6c0 5.25 3.5 8.75 7 9.5 3.5-.75 7-4.25 7-9.5V5l-7-4zm-1.5 12.5L5 10l1.4-1.4 2.1 2.1 4.1-4.1L14 8l-5.5 5.5z" clipRule="evenodd" />
+      </svg>
+    ),
+  },
+]
+
+// Account management is the one area that stays ADMIN-exclusive.
+const adminNavItems = [
+  {
+    to: '/accounts',
+    alsoActiveOn: ['/my-account'],
+    label: 'Accounts',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+      </svg>
+    ),
+  },
 ]
 
 // Account management is the one area that stays ADMIN-exclusive.
@@ -342,7 +374,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
           to="/privacy"
           className="text-2xs text-slate-400 dark:text-zinc-600 hover:text-brand-500 dark:hover:text-brand-400 mt-1.5 inline-block transition-colors duration-150"
         >
-          Privacy Notice
+          Privacy, Terms & Conditions
         </NavLink>
         {onHelp && (
           <button

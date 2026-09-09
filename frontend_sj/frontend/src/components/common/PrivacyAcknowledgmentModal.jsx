@@ -47,10 +47,10 @@ function PrivacyAcknowledgmentModal({ onAcknowledge, loading = false }) {
         <div className="px-7 pt-7 pb-5 border-b border-slate-200 dark:border-zinc-800">
           <p className="text-2xs font-semibold text-brand-500 uppercase tracking-widest mb-1.5">Required · Republic Act 10173</p>
           <h2 id="privacy-ack-title" className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
-            Data Privacy Notice
+            Privacy, Terms &amp; Conditions
           </h2>
           <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            Please review before continuing to use the system.
+            This is a private, internal government system for authorized GSO/ICT staff only. Please review before continuing.
           </p>
         </div>
 
@@ -69,7 +69,7 @@ function PrivacyAcknowledgmentModal({ onAcknowledge, loading = false }) {
           ))}
           <li className="pl-10">
             <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-brand-500 hover:text-brand-400 transition-colors duration-150">
-              Read the full Data Privacy Notice →
+              Read the full Privacy, Terms &amp; Conditions →
             </Link>
           </li>
         </ol>

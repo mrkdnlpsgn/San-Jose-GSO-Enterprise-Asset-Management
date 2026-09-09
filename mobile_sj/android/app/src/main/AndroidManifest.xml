@@ -5,7 +5,7 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
 
     <application
-        android:label="san_jose_eam_mobile"
+        android:label="SJ Inventory"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

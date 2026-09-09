@@ -24,6 +24,17 @@ final disposalPagedProvider = StateNotifierProvider.autoDispose
   );
 });
 
+final disposalCountProvider = FutureProvider.autoDispose.family<int, String>((ref, search) {
+  final service = ref.watch(disposalServiceProvider);
+  final recommendedMethod = ref.watch(disposalMethodFilterProvider);
+  final disposalStatus = ref.watch(disposalStatusFilterProvider);
+  return service.count(
+    search: search.isEmpty ? null : search,
+    recommendedMethod: recommendedMethod,
+    disposalStatus: disposalStatus,
+  );
+});
+
 final disposalDetailProvider =
     FutureProvider.autoDispose.family<DisposalModel, int>((ref, id) {
   return ref.watch(disposalServiceProvider).getById(id);

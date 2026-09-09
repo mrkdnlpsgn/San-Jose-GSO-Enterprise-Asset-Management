@@ -54,15 +54,15 @@ function Disposal() {
 
   const debouncedSearch = useDebounce(search, 300)
 
-  const fetchRecords = useCallback(async (q = '') => {
-    setLoading(true)
+  const fetchRecords = useCallback(async (q = '', { silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const { data } = await getDisposal(q)
       setRecords(data)
     } catch {
-      toast.show('Failed to load disposal records.', 'error')
+      if (!silent) toast.show('Failed to load disposal records.', 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [toast])
 

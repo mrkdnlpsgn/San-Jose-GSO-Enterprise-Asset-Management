@@ -82,6 +82,11 @@ public class DisposalLedgerService {
             search, size, page * size, recommendedMethod, disposalStatus);
     }
 
+    public long count(String search, String recommendedMethod, String disposalStatus) {
+        return jdbcTemplate.queryForObject("CALL sp_disposal_count(?, ?, ?)", Long.class,
+            search, recommendedMethod, disposalStatus);
+    }
+
     public List<DisposalLedger> findByAsset(Long assetId) {
         return jdbcTemplate.query("CALL sp_disposal_get_by_asset(?)", DISPOSAL_MAPPER, assetId);
     }

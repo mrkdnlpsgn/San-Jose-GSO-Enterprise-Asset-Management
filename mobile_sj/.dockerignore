@@ -1,0 +1,12 @@
+.dart_tool/
+.git/
+build/
+android/.gradle/
+ios/
+macos/
+linux/
+windows/
+web/
+*.iml
+.idea/
+*.apk

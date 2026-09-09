@@ -3,6 +3,7 @@ package com.sanjose.inventory.controller;
 import com.sanjose.inventory.dto.ForceChangePasswordRequest;
 import com.sanjose.inventory.dto.ForgotPasswordConfirmRequest;
 import com.sanjose.inventory.dto.ForgotPasswordRequest;
+import com.sanjose.inventory.dto.LoginVerifyOtpRequest;
 import com.sanjose.inventory.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -45,6 +46,22 @@ public class AuthController {
                 "username", result.get("username")));
         }
 
+        // Correct credentials, but 2FA is enabled on this account — no session yet,
+        // frontend must collect the emailed code via /login/verify-otp.
+        if (Boolean.TRUE.equals(result.get("requiresTwoFactor"))) {
+            return ResponseEntity.ok(Map.of(
+                "requiresTwoFactor", true,
+                "username", result.get("username")));
+        }
+
+        setSessionCookie(response, (String) result.get("token"));
+        return ResponseEntity.ok(Map.of("user", result.get("user")));
+    }
+
+    @PostMapping("/login/verify-otp")
+    public ResponseEntity<Map<String, Object>> verifyLoginOtp(@Valid @RequestBody LoginVerifyOtpRequest req,
+                                                               HttpServletResponse response) {
+        Map<String, Object> result = authService.verifyLoginOtp(req.identifier(), req.otp());
         setSessionCookie(response, (String) result.get("token"));
         return ResponseEntity.ok(Map.of("user", result.get("user")));
     }
@@ -95,8 +112,16 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> me(@AuthenticationPrincipal UserDetails principal) {
         if (principal == null) return ResponseEntity.status(401).build();
-        return ResponseEntity.ok(Map.of("username", principal.getUsername(),
-                                        "authorities", principal.getAuthorities()));
+        Map<String, Object> userMap = authService.getCurrentUserMap(principal.getUsername());
+        if (userMap == null) return ResponseEntity.status(401).build();
+        return ResponseEntity.ok(userMap);
+    }
+
+    @PostMapping("/acknowledge-privacy")
+    public ResponseEntity<Map<String, Object>> acknowledgePrivacy(@AuthenticationPrincipal UserDetails principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        LocalDateTime ack = authService.acknowledgePrivacy(principal.getUsername());
+        return ResponseEntity.ok(Map.of("privacyAcknowledgedAt", ack));
     }
 
     @PostMapping("/acknowledge-privacy")

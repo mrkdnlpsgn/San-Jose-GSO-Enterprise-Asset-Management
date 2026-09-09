@@ -109,6 +109,8 @@ public class SecurityConfig {
                 // Maintenance, Disposal: any authenticated user, including mutations
                 .requestMatchers("/api/maintenance/**", "/api/maintenance").authenticated()
                 .requestMatchers("/api/disposal/**", "/api/disposal").authenticated()
+                // Deleted records archive: read-only, any authenticated user
+                .requestMatchers("/api/deleted-records/**").authenticated()
                 // Asset history: all authenticated
                 .requestMatchers("/api/asset-history/**").authenticated()
                 // SSE stream for real-time asset/maintenance/disposal updates: all authenticated

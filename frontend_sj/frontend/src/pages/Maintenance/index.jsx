@@ -58,15 +58,15 @@ function Maintenance() {
     if (assetId) setAssetFilter(assetId)
   }, [location.search])
 
-  const fetchRecords = useCallback(async (q = '') => {
-    setLoading(true)
+  const fetchRecords = useCallback(async (q = '', { silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const { data } = await getMaintenance(q)
       setRecords(data)
     } catch {
-      toast.show('Failed to load maintenance records.', 'error')
+      if (!silent) toast.show('Failed to load maintenance records.', 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [toast])
 

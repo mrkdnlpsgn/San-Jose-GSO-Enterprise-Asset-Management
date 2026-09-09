@@ -27,6 +27,24 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
         () => _service.forceChangePassword(identifier, currentPassword, newPassword));
   }
 
+  Future<void> completeLoginOtp(String identifier, String otp) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => _service.verifyLoginOtp(identifier, otp));
+  }
+
+  // Re-triggers login with the original credentials so the backend can email a
+  // fresh OTP (subject to its own resend cooldown) — used by the "Resend code"
+  // action on the 2FA screen. Doesn't touch state the way login() does, since
+  // the caller is already past the login screen and shouldn't flash a loading
+  // state or have a RequiresTwoFactor "error" reappear in authProvider.
+  Future<void> resendLoginOtp(String identifier, String password) async {
+    try {
+      await _service.login(identifier, password);
+    } on RequiresTwoFactor {
+      // Expected — this call exists purely for its email side effect.
+    }
+  }
+
   // Clears a MustChangePasswordRequired (or any) error left in state after the
   // caller has already handled it, so it isn't mistaken for a real auth failure.
   void clearError() {
@@ -36,5 +54,16 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
   Future<void> logout() async {
     await _service.logout();
     state = const AsyncData(null);
+  }
+
+  Future<void> acknowledgePrivacy() async {
+    final ackAt = await _service.acknowledgePrivacy();
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(UserModel(
+      username: current.username,
+      role: current.role,
+      privacyAcknowledgedAt: ackAt,
+    ));
   }
 }

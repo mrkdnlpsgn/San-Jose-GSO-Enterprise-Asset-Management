@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 /// Theme-aware neutrals. Registered as a [ThemeExtension] so every screen that
 /// reads them via `context.colors.X` rebuilds automatically when the theme
 /// changes — a plain static constant can't do that, since Dart consts are

@@ -1,0 +1,8 @@
+# Dev container for `flutter run` against a physical device over wireless
+# debugging (adb over Wi-Fi). Not used by the docker-compose.yml release
+# build — see docker-compose.mobile.yml / build-apk workflow for that.
+FROM ghcr.io/cirruslabs/flutter:stable
+
+WORKDIR /app
+
+CMD ["bash", "-c", "flutter pub get && exec bash"]

@@ -9,8 +9,6 @@ import '../../../shared/widgets/error_state.dart';
 
 const _kNarrowBreakpoint = 600.0;
 
-const _kPreviewRowLimit = 20;
-
 class ReportPreviewScreen extends ConsumerStatefulWidget {
   final String reportId;
   const ReportPreviewScreen({super.key, required this.reportId});
@@ -73,7 +71,7 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
             );
           }
 
-          final preview = rows.take(_kPreviewRowLimit).toList();
+          final preview = rows;
           final isNarrow = MediaQuery.sizeOf(context).width < _kNarrowBreakpoint;
 
           return Column(
@@ -84,11 +82,6 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                   children: [
                     Text('${rows.length} ${rows.length == 1 ? 'record' : 'records'}',
                         style: TextStyle(color: context.colors.textSecondary, fontWeight: FontWeight.w600, fontSize: 14)),
-                    if (rows.length > _kPreviewRowLimit) ...[
-                      const SizedBox(width: 8),
-                      Text('(showing first $_kPreviewRowLimit)',
-                          style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
-                    ],
                   ],
                 ),
               ),

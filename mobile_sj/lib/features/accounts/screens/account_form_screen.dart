@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../model/account_model.dart';
 import '../data/account_service.dart';
-import '../../assets/model/asset_model.dart';
-import '../../../shared/provider/reference_provider.dart';
 import '../../../shared/widgets/delete_dialog.dart';
 import '../widgets/reset_password_dialog.dart';
 import '../../../core/theme/app_theme.dart';
@@ -33,8 +30,12 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
   String _role = 'STAFF';
   int? _officeId;
   bool _isActive = true;
+  bool _generatePassword = false;
 
   bool get _isEdit => widget.account != null;
+
+  static final _emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+  bool get _emailValid => _emailRegex.hasMatch(_email.text.trim());
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
+      final usingGenerated = !_isEdit && _generatePassword;
       final data = {
         'username': _username.text.trim(),
         'email': _email.text.trim(),
@@ -69,17 +71,33 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
         'role': _role,
         'officeId': _officeId,
         'isActive': _isActive,
-        if (_password.text.trim().isNotEmpty) 'password': _password.text.trim(),
+        if (usingGenerated) 'generatePassword': true,
+        if (!usingGenerated && _password.text.trim().isNotEmpty) 'password': _password.text.trim(),
       };
       final service = AccountService();
-      final usedDefaultPassword = !_isEdit && _password.text.trim().isEmpty;
       if (_isEdit) {
         await service.update(widget.account!.id, data);
       } else {
         await service.create(data, idempotencyKey: _idempotencyKey);
       }
       if (!mounted) return;
-      if (usedDefaultPassword) await _showDefaultPasswordDialog();
+      if (usingGenerated) {
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: context.colors.surface,
+            title: const Text('Account Created'),
+            content: Text(
+                'A temporary password was generated and emailed to ${_email.text.trim()}. '
+                'The user must change it after logging in for the first time.',
+                style: TextStyle(color: context.colors.textSecondary)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
+            ],
+          ),
+        );
+      }
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
       _showError(e.message);
@@ -88,68 +106,41 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
     }
   }
 
-  Future<void> _showDefaultPasswordDialog() {
-    const defaultPassword = 'changeme123';
-    return showDialog<void>(
+  Future<void> _toggleActive() async {
+    final activating = !_isActive;
+    final confirmed = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: context.colors.surface,
-        title: const Text('Account Created'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${_username.text.trim()} was assigned a default password. Share it with them securely, '
-                'and have them change it after first login.',
-                style: TextStyle(color: context.colors.textSecondary)),
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: context.colors.bg,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: context.colors.border),
-              ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(defaultPassword,
-                        style: TextStyle(fontWeight: FontWeight.w600, fontFamily: 'monospace', fontSize: 15)),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy_rounded, size: 18),
-                    tooltip: 'Copy',
-                    onPressed: () {
-                      Clipboard.setData(const ClipboardData(text: defaultPassword));
-                      ScaffoldMessenger.of(ctx)
-                          .showSnackBar(const SnackBar(content: Text('Password copied')));
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        backgroundColor: ctx.colors.surface,
+        title: Text(activating ? 'Reactivate this account?' : 'Deactivate this account?',
+            style: TextStyle(color: ctx.colors.textPrimary)),
+        content: Text(
+            activating
+                ? '${widget.account!.fullName} will be able to log in again.'
+                : '${widget.account!.fullName} will no longer be able to log in.',
+            style: TextStyle(color: ctx.colors.textTertiary, fontSize: 13)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Done'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: TextStyle(color: ctx.colors.textTertiary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(activating ? 'Reactivate' : 'Deactivate',
+                style: TextStyle(color: activating ? AppTheme.brand : Colors.orange)),
           ),
         ],
       ),
     );
-  }
+    if (confirmed != true || !mounted) return;
 
-  Future<void> _toggleActive() async {
     setState(() => _loading = true);
     try {
       await AccountService().update(widget.account!.id, {
         'fullName': widget.account!.fullName,
         'role': widget.account!.role,
         'officeId': widget.account!.officeId,
-        'isActive': !_isActive,
+        'isActive': activating,
       });
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
@@ -199,7 +190,6 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final officesAsync = ref.watch(officesProvider);
     final isSelf = _isEdit && widget.account!.username == ref.watch(authProvider).value?.username;
 
     return Scaffold(
@@ -226,12 +216,9 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
           ],
         ],
       ),
-      body: officesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
-        error: (e, _) => Center(child: Text(e.toString())),
-        data: (offices) => Form(
-          key: _formKey,
-          child: ListView(
+      body: Form(
+        key: _formKey,
+        child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               if (isSelf)
@@ -254,15 +241,56 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
               _field(_email, 'Email',
                   hint: 'Needed for this user to use "Forgot password"',
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return null;
-                    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v.trim())
-                        ? null : 'Enter a valid email address';
+                    final trimmed = v?.trim() ?? '';
+                    if (trimmed.isEmpty) {
+                      return _generatePassword ? 'Email is required to auto-generate and send a password.' : null;
+                    }
+                    return _emailRegex.hasMatch(trimmed) ? null : 'Enter a valid email address';
                   }),
               _field(_fullName, 'Full Name', required: true),
-              _field(_password, 'Password',
-                  required: !_isEdit,
-                  obscure: true,
-                  hint: _isEdit ? 'Leave blank to keep current password' : 'Leave blank to assign a default password'),
+              if (!_isEdit)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: CheckboxListTile(
+                    value: _generatePassword,
+                    onChanged: (v) => setState(() => _generatePassword = v ?? false),
+                    activeColor: AppTheme.brand,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text('Auto-generate a password and email it to the address above',
+                        style: TextStyle(color: context.colors.textPrimary, fontSize: 13.5)),
+                  ),
+                ),
+              if (_generatePassword)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.brand.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.brand.withValues(alpha: 0.25)),
+                  ),
+                  child: Text(
+                    _emailValid
+                        ? 'A temporary password will be generated and emailed to ${_email.text.trim()}. The user should change it after logging in.'
+                        : 'Enter a valid email above to auto-generate and send a password.',
+                    style: TextStyle(color: context.colors.textSecondary, fontSize: 12.5),
+                  ),
+                )
+              else
+                _field(_password, _isEdit ? 'New Password' : 'Password',
+                    obscure: true,
+                    hint: _isEdit
+                        ? 'Leave blank to keep current password'
+                        : '8+ chars, upper/lowercase, number, symbol',
+                    validator: (v) {
+                      final trimmed = v?.trim() ?? '';
+                      if (trimmed.isEmpty) {
+                        return _isEdit ? null : 'Password is required.';
+                      }
+                      return _passwordComplexityError(trimmed);
+                    }),
               _dropdown<String>(
                 label: 'Role',
                 value: _role,
@@ -270,21 +298,12 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
                 itemLabel: (r) => r,
                 onChanged: (r) => setState(() => _role = r!),
               ),
-              _dropdown<OfficeModel?>(
-                label: 'Office (optional)',
-                value: offices.where((o) => o.id == _officeId).firstOrNull,
-                items: [null, ...offices],
-                itemLabel: (o) => o?.officeName ?? 'None',
-                onChanged: (o) => setState(() => _officeId = o?.id),
-                requireValue: false,
-              ),
-              SwitchListTile(
-                value: _isActive,
-                onChanged: isSelf ? null : (v) => setState(() => _isActive = v),
-                activeThumbColor: AppTheme.brand,
-                title: Text('Active', style: TextStyle(color: context.colors.textPrimary)),
-                contentPadding: EdgeInsets.zero,
-              ),
+              // No office field here at all — matches the web app's account form,
+              // which has never had one. Office assignment isn't part of an
+              // account's identity in this app.
+              // No Active/Inactive control here — that's handled by the dedicated
+              // Deactivate/Reactivate button in the AppBar (edit mode only). New
+              // accounts are always created active.
               const SizedBox(height: 24),
               SizedBox(
                 height: 50,
@@ -300,8 +319,18 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
             ],
           ),
         ),
-      ),
     );
+  }
+
+  // Mirrors backend StrongPasswordValidator.java exactly, so a weak manual
+  // password gets caught here instead of surfacing as a raw 400 on submit.
+  String? _passwordComplexityError(String password) {
+    if (password.length < 8 || password.length > 128) return 'Must be 8-128 characters.';
+    if (!RegExp(r'[A-Z]').hasMatch(password)) return 'Add an uppercase letter (A-Z).';
+    if (!RegExp(r'[a-z]').hasMatch(password)) return 'Add a lowercase letter (a-z).';
+    if (!RegExp(r'[0-9]').hasMatch(password)) return 'Add a number (0-9).';
+    if (!RegExp(r'[@$!%*?&_#^\-]').hasMatch(password)) return 'Add a special character (@\$!%*?&_#^-).';
+    return null;
   }
 
   Widget _field(TextEditingController ctrl, String label,

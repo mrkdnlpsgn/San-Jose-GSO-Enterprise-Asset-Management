@@ -120,6 +120,15 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           _sectionLabel(context, 'ABOUT'),
           const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.brand),
+              title: Text('Privacy, Terms & Conditions', style: TextStyle(color: context.colors.textPrimary)),
+              trailing: Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary),
+              onTap: () => context.push('/legal'),
+            ),
+          ),
+          const SizedBox(height: 12),
           const _AboutCard(),
         ],
       ),

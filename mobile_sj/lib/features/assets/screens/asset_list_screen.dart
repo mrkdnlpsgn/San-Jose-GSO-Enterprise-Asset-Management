@@ -6,10 +6,13 @@ import '../provider/asset_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
+import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/main_shell.dart';
-import '../../../features/auth/provider/auth_provider.dart';
 import '../../../core/platform.dart';
+import '../../../core/api/api_exception.dart';
+import '../data/asset_service.dart';
+import '../utils/asset_excel.dart';
 import '../widgets/asset_filter_sheet.dart';
 
 class AssetListScreen extends ConsumerStatefulWidget {
@@ -21,6 +24,7 @@ class AssetListScreen extends ConsumerStatefulWidget {
 
 class _AssetListScreenState extends ConsumerState<AssetListScreen> {
   final _searchCtrl = TextEditingController();
+  bool _exporting = false;
 
   @override
   void dispose() {
@@ -28,16 +32,53 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
     super.dispose();
   }
 
+  Future<void> _export() async {
+    setState(() => _exporting = true);
+    try {
+      final assets = await AssetService().getAll(size: 100000);
+      if (!mounted) return;
+      if (assets.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No assets to export.'), behavior: SnackBarBehavior.floating),
+        );
+        return;
+      }
+      await exportAssetsToExcel(assets);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red.shade800, behavior: SnackBarBehavior.floating),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final search = ref.watch(assetSearchProvider);
     final state = ref.watch(assetsPagedProvider(search));
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final countAsync = ref.watch(assetCountProvider(search));
     final filtersActive = assetFiltersActive(ref);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Assets'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Assets'),
+            Text(
+              countAsync.when(
+                data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
+                loading: () => ' ',
+                error: (_, __) => ' ',
+              ),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: context.colors.textSecondary),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: AnimatedSwitcher(
@@ -58,8 +99,36 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
           if (isDesktopPlatform)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
-              onPressed: () => ref.invalidate(assetsPagedProvider(search)),
+              onPressed: () {
+                ref.invalidate(assetsPagedProvider(search));
+                ref.invalidate(assetCountProvider(search));
+              },
             ),
+          PopupMenuButton<String>(
+            icon: _exporting
+                ? const SizedBox(width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
+                : const Icon(Icons.more_vert_rounded),
+            onSelected: (value) async {
+              if (value == 'export') {
+                await _export();
+              } else if (value == 'import') {
+                final result = await context.push<bool>('/assets/import');
+                if (result == true) {
+                  ref.invalidate(assetsPagedProvider(search));
+                  ref.invalidate(assetCountProvider(search));
+                }
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'export', child: Row(children: [
+                Icon(Icons.file_download_outlined, size: 18), SizedBox(width: 10), Text('Export'),
+              ])),
+              PopupMenuItem(value: 'import', child: Row(children: [
+                Icon(Icons.file_upload_outlined, size: 18), SizedBox(width: 10), Text('Import'),
+              ])),
+            ],
+          ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(64),
@@ -73,28 +142,36 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
           ),
         ),
       ),
-      floatingActionButton: isAdmin
-          ? Padding(
-              padding: const EdgeInsets.only(bottom: kMainShellBarHeight),
-              child: FloatingActionButton(
-                backgroundColor: AppTheme.brand,
-                child: const Icon(Icons.add_rounded, color: Colors.white),
-                onPressed: () async {
-                  final result = await context.push<bool>('/assets/new');
-                  if (result == true) ref.invalidate(assetsPagedProvider(search));
-                },
-              ),
-            )
-          : null,
-      body: PaginatedListView<AssetModel>(
-        state: state,
-        emptyMessage: 'No assets found.',
-        extraBottomPadding: context.mainShellBottomInset,
-        onLoadMore: () => ref.read(assetsPagedProvider(search).notifier).loadMore(),
-        onRefresh: () => ref.read(assetsPagedProvider(search).notifier).refresh(),
-        itemBuilder: (context, asset, i) => _AssetCard(
-          asset: asset,
-          onTap: () => context.push('/assets/${asset.id}'),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: kMainShellBarHeight),
+        child: FloatingActionButton(
+          backgroundColor: AppTheme.brand,
+          child: const Icon(Icons.add_rounded, color: Colors.white),
+          onPressed: () async {
+            final result = await context.push<bool>('/assets/new');
+            if (result == true) {
+              ref.invalidate(assetsPagedProvider(search));
+              ref.invalidate(assetCountProvider(search));
+            }
+          },
+        ),
+      ),
+      body: AutoRefreshTicker(
+        interval: const Duration(seconds: 30),
+        onTick: () => ref.read(assetsPagedProvider(search).notifier).silentRefresh(),
+        child: PaginatedListView<AssetModel>(
+          state: state,
+          emptyMessage: 'No assets found.',
+          extraBottomPadding: context.mainShellBottomInset,
+          onLoadMore: () => ref.read(assetsPagedProvider(search).notifier).loadMore(),
+          onRefresh: () async {
+            ref.invalidate(assetCountProvider(search));
+            await ref.read(assetsPagedProvider(search).notifier).refresh();
+          },
+          itemBuilder: (context, asset, i) => _AssetCard(
+            asset: asset,
+            onTap: () => context.push('/assets/${asset.id}'),
+          ),
         ),
       ),
     );

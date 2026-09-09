@@ -9,7 +9,10 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
 import java.sql.Timestamp;
@@ -41,6 +44,15 @@ public class AuthService {
     @Value("${auth.forgot-password-otp-resend-cooldown-seconds:60}")
     private int otpResendCooldownSeconds;
 
+    @Value("${auth.login-otp-expiry-minutes:10}")
+    private int loginOtpExpiryMinutes;
+
+    @Value("${auth.login-otp-max-attempts:5}")
+    private int loginOtpMaxAttempts;
+
+    @Value("${auth.login-otp-resend-cooldown-seconds:60}")
+    private int loginOtpResendCooldownSeconds;
+
     private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
     private final JdbcTemplate jdbcTemplate;
@@ -48,11 +60,35 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
     private final AuditLogService auditLogService;
+    private final PlatformTransactionManager transactionManager;
+
+    // A failed-attempt counter (login lockout, OTP attempts) must survive even
+    // though the caller immediately throws right after recording it — under the
+    // enclosing @Transactional method, Spring's default rollback-on-RuntimeException
+    // would otherwise silently undo the increment along with everything else,
+    // defeating the attempt limit entirely (confirmed happening in practice before
+    // this fix: failed_login_attempts and both *_otp_attempts columns stayed at 0
+    // no matter how many wrong passwords/codes were submitted — lockout and OTP
+    // brute-force limits never actually engaged). Running it in its own
+    // REQUIRES_NEW transaction makes it durable regardless of what the caller
+    // does next.
+    private void recordAttemptDurably(Runnable jdbcCall) {
+        TransactionTemplate tt = new TransactionTemplate(transactionManager);
+        tt.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        tt.executeWithoutResult(status -> jdbcCall.run());
+    }
 
     private record LoginUserData(
         Long id, String username, String password, String fullName, String role,
         Boolean isActive, Integer failedLoginAttempts, LocalDateTime accountLockedUntil,
-        Integer tokenVersion, Boolean mustChangePassword, LocalDateTime privacyAcknowledgedAt
+        Integer tokenVersion, Boolean mustChangePassword, LocalDateTime privacyAcknowledgedAt,
+        Boolean twoFactorEnabled
+    ) {}
+
+    private record LoginOtpData(
+        Long id, String username, String fullName, String role, Boolean isActive,
+        Integer tokenVersion, LocalDateTime privacyAcknowledgedAt,
+        String otpHash, LocalDateTime otpExpiresAt, Integer otpAttempts
     ) {}
 
     private record ForgotPasswordUserData(
@@ -79,8 +115,8 @@ public class AuthService {
             throw new LockedException("Account is temporarily locked. Try again after " + lockoutMinutes + " minutes.");
 
         if (!passwordEncoder.matches(password, user.password())) {
-            jdbcTemplate.update("CALL sp_auth_login_failure(?, ?, ?)",
-                user.id(), maxFailedAttempts, lockoutMinutes);
+            recordAttemptDurably(() -> jdbcTemplate.update("CALL sp_auth_login_failure(?, ?, ?)",
+                user.id(), maxFailedAttempts, lockoutMinutes));
             throw new BadCredentialsException("Invalid credentials");
         }
 
@@ -88,8 +124,18 @@ public class AuthService {
 
         // Correct credentials, but this is a temp password (fresh account or admin
         // reset) — withhold the session token until the user picks their own password.
+        // Takes priority over 2FA: finish the forced change first, then 2FA applies
+        // on the next real login.
         if (Boolean.TRUE.equals(user.mustChangePassword())) {
             return Map.of("mustChangePassword", true, "username", user.username());
+        }
+
+        // Correct credentials, 2FA enabled on this account (everyone except admin
+        // and ict_staff, who are trusted fixture/service accounts) — withhold the
+        // session token until the emailed code is verified via verifyLoginOtp().
+        if (Boolean.TRUE.equals(user.twoFactorEnabled())) {
+            issueOrReuseLoginOtp(user);
+            return Map.of("requiresTwoFactor", true, "username", user.username());
         }
 
         String token = jwtUtil.generateToken(user.username(), user.tokenVersion() != null ? user.tokenVersion() : 0);
@@ -100,6 +146,104 @@ public class AuthService {
         userMap.put("fullName", user.fullName());
         userMap.put("role", user.role());
         userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
+
+        return Map.of("token", token, "user", userMap);
+    }
+
+    // Shared by login()'s first hit and any resubmission before the code is verified —
+    // avoids re-emailing a fresh code (and restarting the attempt counter) if the user
+    // just resubmits the login form within the cooldown window.
+    private void issueOrReuseLoginOtp(LoginUserData user) {
+        List<LoginOtpData> rows = jdbcTemplate.query(
+            "CALL sp_auth_get_login_otp(?)", LOGIN_OTP_MAPPER, user.username());
+        LoginOtpData existing = rows.isEmpty() ? null : rows.get(0);
+
+        if (existing != null && existing.otpExpiresAt() != null) {
+            LocalDateTime issuedAt = existing.otpExpiresAt().minusMinutes(loginOtpExpiryMinutes);
+            if (LocalDateTime.now().isBefore(issuedAt.plusSeconds(loginOtpResendCooldownSeconds))) return;
+        }
+
+        // No email on file: nothing to send. Fails closed — the account stays
+        // permanently unable to complete login rather than silently skipping 2FA.
+        List<ForgotPasswordUserData> emailRows = jdbcTemplate.query(
+            "CALL sp_auth_get_user_for_forgot_password_request(?)",
+            (rs, rn) -> new ForgotPasswordUserData(
+                rs.getLong("id"), rs.getString("username"), rs.getString("email"),
+                rs.getObject("isActive", Boolean.class), null, null),
+            user.username());
+        if (emailRows.isEmpty() || emailRows.get(0).email() == null || emailRows.get(0).email().isBlank()) {
+            log.warn("2FA enabled for {} but no email on file — login cannot complete.", user.username());
+            return;
+        }
+
+        String otp = String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(loginOtpExpiryMinutes);
+        jdbcTemplate.update("CALL sp_auth_set_login_otp(?, ?, ?)",
+            user.id(), passwordEncoder.encode(otp), Timestamp.valueOf(expiresAt));
+
+        String html = "<p>Your San Jose GSO Enterprise Asset Management login verification code is:</p>"
+            + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;\">" + otp + "</p>"
+            + "<p>This code expires in " + loginOtpExpiryMinutes + " minutes. "
+            + "If you didn't just try to log in, you can safely ignore this email.</p>";
+        emailService.send(emailRows.get(0).email(), "Your login verification code", html);
+    }
+
+    private static final org.springframework.jdbc.core.RowMapper<LoginOtpData> LOGIN_OTP_MAPPER = (rs, rn) -> {
+        Timestamp expTs = rs.getTimestamp("otpExpiresAt");
+        Timestamp privacyTs = rs.getTimestamp("privacyAcknowledgedAt");
+        return new LoginOtpData(
+            rs.getLong("id"),
+            rs.getString("username"),
+            rs.getString("fullName"),
+            rs.getString("role"),
+            rs.getObject("isActive", Boolean.class),
+            rs.getObject("tokenVersion", Integer.class),
+            privacyTs != null ? privacyTs.toLocalDateTime() : null,
+            rs.getString("otpHash"),
+            expTs != null ? expTs.toLocalDateTime() : null,
+            rs.getObject("otpAttempts", Integer.class)
+        );
+    };
+
+    // Step 2 of login 2FA: verify the emailed code and issue the same session a
+    // normal password-only login would have.
+    @Transactional
+    public Map<String, Object> verifyLoginOtp(String identifier, String otp) {
+        if (identifier == null || identifier.isBlank())
+            throw new BadCredentialsException("Invalid credentials");
+
+        List<LoginOtpData> rows = jdbcTemplate.query("CALL sp_auth_get_login_otp(?)", LOGIN_OTP_MAPPER, identifier);
+
+        // Every failure path throws the identical message — unknown username, no
+        // pending code, expired code, wrong code, and too-many-attempts are all
+        // indistinguishable to the caller (mirrors confirmPasswordReset).
+        if (rows.isEmpty()) throw new IllegalArgumentException("Invalid or expired code.");
+        LoginOtpData data = rows.get(0);
+
+        boolean eligible = Boolean.TRUE.equals(data.isActive())
+            && data.otpHash() != null
+            && data.otpExpiresAt() != null
+            && LocalDateTime.now().isBefore(data.otpExpiresAt())
+            && (data.otpAttempts() == null || data.otpAttempts() < loginOtpMaxAttempts);
+
+        if (!eligible) throw new IllegalArgumentException("Invalid or expired code.");
+
+        if (!passwordEncoder.matches(otp, data.otpHash())) {
+            recordAttemptDurably(() -> jdbcTemplate.update(
+                "CALL sp_auth_increment_login_otp_attempts(?)", data.id()));
+            throw new IllegalArgumentException("Invalid or expired code.");
+        }
+
+        jdbcTemplate.update("CALL sp_auth_clear_login_otp(?)", data.id());
+
+        String token = jwtUtil.generateToken(data.username(), data.tokenVersion() != null ? data.tokenVersion() : 0);
+
+        Map<String, Object> userMap = new HashMap<>();
+        userMap.put("id", data.id());
+        userMap.put("username", data.username());
+        userMap.put("fullName", data.fullName());
+        userMap.put("role", data.role());
+        userMap.put("privacyAcknowledgedAt", data.privacyAcknowledgedAt());
 
         return Map.of("token", token, "user", userMap);
     }
@@ -121,8 +265,8 @@ public class AuthService {
             throw new IllegalStateException("This account does not require a password change.");
 
         if (!passwordEncoder.matches(currentPassword, user.password())) {
-            jdbcTemplate.update("CALL sp_auth_login_failure(?, ?, ?)",
-                user.id(), maxFailedAttempts, lockoutMinutes);
+            recordAttemptDurably(() -> jdbcTemplate.update("CALL sp_auth_login_failure(?, ?, ?)",
+                user.id(), maxFailedAttempts, lockoutMinutes));
             throw new BadCredentialsException("Invalid credentials");
         }
 
@@ -146,6 +290,22 @@ public class AuthService {
         return Map.of("token", token, "user", userMap);
     }
 
+    // Backs GET /api/auth/me — same user-map shape as login()/forceChangePassword()
+    // (in particular, privacyAcknowledgedAt) so a client rehydrating its session
+    // from an existing cookie sees the same fields it would have gotten at login.
+    public Map<String, Object> getCurrentUserMap(String username) {
+        LoginUserData user = lookupForLogin(username);
+        if (user == null) return null;
+
+        Map<String, Object> userMap = new HashMap<>();
+        userMap.put("id", user.id());
+        userMap.put("username", user.username());
+        userMap.put("fullName", user.fullName());
+        userMap.put("role", user.role());
+        userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
+        return userMap;
+    }
+
     private LoginUserData lookupForLogin(String identifier) {
         List<LoginUserData> rows = jdbcTemplate.query(
             "CALL sp_auth_get_user_for_login(?)",
@@ -163,7 +323,8 @@ public class AuthService {
                     lockTs != null ? lockTs.toLocalDateTime() : null,
                     rs.getObject("tokenVersion", Integer.class),
                     rs.getObject("mustChangePassword", Boolean.class),
-                    privacyTs != null ? privacyTs.toLocalDateTime() : null
+                    privacyTs != null ? privacyTs.toLocalDateTime() : null,
+                    rs.getObject("twoFactorEnabled", Boolean.class)
                 );
             },
             identifier);
@@ -255,7 +416,8 @@ public class AuthService {
         if (!eligible) throw new IllegalArgumentException("Invalid or expired code.");
 
         if (!passwordEncoder.matches(otp, data.otpHash())) {
-            jdbcTemplate.update("CALL sp_auth_increment_password_reset_otp_attempts(?)", data.id());
+            recordAttemptDurably(() -> jdbcTemplate.update(
+                "CALL sp_auth_increment_password_reset_otp_attempts(?)", data.id()));
             throw new IllegalArgumentException("Invalid or expired code.");
         }
 

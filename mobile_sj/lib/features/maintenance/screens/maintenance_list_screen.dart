@@ -5,6 +5,7 @@ import '../model/maintenance_model.dart';
 import '../provider/maintenance_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
+import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../features/auth/provider/auth_provider.dart';
@@ -31,12 +32,27 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
   Widget build(BuildContext context) {
     final search = ref.watch(maintenanceSearchProvider);
     final state = ref.watch(maintenancePagedProvider(search));
+    final countAsync = ref.watch(maintenanceCountProvider(search));
     final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
     final filtersActive = maintenanceFiltersActive(ref);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Maintenance'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Maintenance'),
+            Text(
+              countAsync.when(
+                data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
+                loading: () => ' ',
+                error: (_, __) => ' ',
+              ),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: context.colors.textSecondary),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: AnimatedSwitcher(
@@ -57,7 +73,10 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
           if (isDesktopPlatform)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
-              onPressed: () => ref.invalidate(maintenancePagedProvider(search)),
+              onPressed: () {
+                ref.invalidate(maintenancePagedProvider(search));
+                ref.invalidate(maintenanceCountProvider(search));
+              },
             ),
         ],
         bottom: PreferredSize(
@@ -78,18 +97,28 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
               child: const Icon(Icons.add_rounded, color: Colors.white),
               onPressed: () async {
                 final result = await context.push<bool>('/maintenance/new');
-                if (result == true) ref.invalidate(maintenancePagedProvider(search));
+                if (result == true) {
+                  ref.invalidate(maintenancePagedProvider(search));
+                  ref.invalidate(maintenanceCountProvider(search));
+                }
               },
             )
           : null,
-      body: PaginatedListView<MaintenanceModel>(
-        state: state,
-        emptyMessage: 'No maintenance records.',
-        onLoadMore: () => ref.read(maintenancePagedProvider(search).notifier).loadMore(),
-        onRefresh: () => ref.read(maintenancePagedProvider(search).notifier).refresh(),
-        itemBuilder: (context, item, i) => _MaintenanceCard(
-          item: item,
-          onTap: () => context.push('/maintenance/${item.id}'),
+      body: AutoRefreshTicker(
+        interval: const Duration(seconds: 30),
+        onTick: () => ref.read(maintenancePagedProvider(search).notifier).silentRefresh(),
+        child: PaginatedListView<MaintenanceModel>(
+          state: state,
+          emptyMessage: 'No maintenance records.',
+          onLoadMore: () => ref.read(maintenancePagedProvider(search).notifier).loadMore(),
+          onRefresh: () async {
+            ref.invalidate(maintenanceCountProvider(search));
+            await ref.read(maintenancePagedProvider(search).notifier).refresh();
+          },
+          itemBuilder: (context, item, i) => _MaintenanceCard(
+            item: item,
+            onTap: () => context.push('/maintenance/${item.id}'),
+          ),
         ),
       ),
     );

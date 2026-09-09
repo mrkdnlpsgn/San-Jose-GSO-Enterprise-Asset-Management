@@ -9,8 +9,10 @@ import Button from '../../components/common/Button'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import AddAssetModal from './AddAssetModal'
 import AssetDrawer from './AssetDrawer'
+import AssetImportModal from './AssetImportModal'
+import { exportAssetsToExcel } from './assetExcel'
 import { setAssets, addAsset, updateAsset, removeAsset } from '../../store/slices/assetSlice'
-import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset } from '../../services/assetService'
+import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset, bulkImportAssets } from '../../services/assetService'
 import { getCategories } from '../../services/categoryService'
 import { getOffices } from '../../services/officeService'
 
@@ -54,6 +56,7 @@ function Assets() {
   const [filterCategory, setFilterCategory]     = useState('')
   const [filterOffice, setFilterOffice]         = useState('')
   const [showAdd, setShowAdd]       = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [editing, setEditing]       = useState(null)
   const [deleting, setDeleting]     = useState(null)
   const [deleteReason, setDeleteReason] = useState('')
@@ -70,16 +73,16 @@ function Assets() {
     setTimeout(() => { setSelected(null); setAssetDrawerExiting(false) }, 220)
   }, [])
 
-  const fetchAssets = useCallback(async (q = '') => {
-    setLoading(true)
+  const fetchAssets = useCallback(async (q = '', { silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const { data } = await getAssets(q)
       setItems(data)
       dispatch(setAssets(data))
     } catch {
-      toast.show('Failed to load assets.', 'error')
+      if (!silent) toast.show('Failed to load assets.', 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [dispatch, toast])
 
@@ -157,6 +160,28 @@ function Assets() {
     }
   }
 
+  const handleImport = async (rows) => {
+    try {
+      const { data } = await bulkImportAssets(rows)
+      const savedItems = data?.saved ?? []
+      if (savedItems.length > 0) {
+        setItems((prev) => [...savedItems, ...prev])
+        dispatch(setAssets([...savedItems, ...items]))
+        toast.show(`${savedItems.length} asset${savedItems.length !== 1 ? 's' : ''} imported.`, 'success')
+      }
+      return data
+    } catch (err) {
+      toast.show(err.response?.data?.message || 'Import failed.', 'error')
+      return { saved: [], failed: rows.map((row) => ({ row, reason: 'Import request failed.' })) }
+    }
+  }
+
+  const handleExport = () => {
+    if (filtered.length === 0) { toast.show('No assets to export.', 'error'); return }
+    exportAssetsToExcel(filtered)
+    toast.show(`Exported ${filtered.length} asset${filtered.length !== 1 ? 's' : ''}.`, 'success')
+  }
+
   const filtered = useMemo(() => {
     return items.filter((a) => {
       if (filterCondition && a.condition !== filterCondition) return false
@@ -181,12 +206,26 @@ function Assets() {
             <input type="text" placeholder="Search assets…" value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
           </div>
-          <Button size="md" className="self-start sm:self-auto" onClick={() => setShowAdd(true)}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            Add Asset
-          </Button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button variant="secondary" size="md" onClick={handleExport}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm4.293 8.707a1 1 0 011.414-1.414L9 10.586V17a1 1 0 102 0v-6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3z" clipRule="evenodd" />
+              </svg>
+              Export
+            </Button>
+            <Button variant="secondary" size="md" onClick={() => setShowImport(true)}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Import
+            </Button>
+            <Button size="md" onClick={() => setShowAdd(true)}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Add Asset
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -350,6 +389,7 @@ function Assets() {
           onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
         />
       )}
+      {showImport && <AssetImportModal onClose={() => setShowImport(false)} onImport={handleImport} />}
       {deleting && (
         <ConfirmDialog
           title="Delete this asset?"

@@ -24,6 +24,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(ResourceInUseException.class)
+    public ResponseEntity<Map<String, Object>> handleResourceInUse(ResourceInUseException ex) {
+        return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());

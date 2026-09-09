@@ -11,6 +11,7 @@ import QRScanner    from '../pages/QRScanner'
 import Accounts     from '../pages/Accounts'
 import Offices      from '../pages/Offices'
 import Categories   from '../pages/Categories'
+import DeletedRecords from '../pages/DeletedRecords'
 import PrivacyNotice from '../pages/Legal/PrivacyNotice'
 
 function ProtectedRoute({ children }) {
@@ -50,6 +51,7 @@ function AppRoutes() {
       <Route path="/my-account"   element={<ProtectedRoute><Accounts      /></ProtectedRoute>} />
       <Route path="/offices"      element={<ProtectedRoute><Offices       /></ProtectedRoute>} />
       <Route path="/categories"   element={<ProtectedRoute><Categories    /></ProtectedRoute>} />
+      <Route path="/deleted-records" element={<ProtectedRoute><DeletedRecords /></ProtectedRoute>} />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>

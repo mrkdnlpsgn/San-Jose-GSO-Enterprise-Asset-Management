@@ -5,6 +5,7 @@ import '../model/disposal_model.dart';
 import '../provider/disposal_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
+import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../features/auth/provider/auth_provider.dart';
@@ -31,12 +32,27 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
   Widget build(BuildContext context) {
     final search = ref.watch(disposalSearchProvider);
     final state = ref.watch(disposalPagedProvider(search));
+    final countAsync = ref.watch(disposalCountProvider(search));
     final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
     final filtersActive = disposalFiltersActive(ref);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Disposal'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Disposal'),
+            Text(
+              countAsync.when(
+                data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
+                loading: () => ' ',
+                error: (_, __) => ' ',
+              ),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: context.colors.textSecondary),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: AnimatedSwitcher(
@@ -57,7 +73,10 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
           if (isDesktopPlatform)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
-              onPressed: () => ref.invalidate(disposalPagedProvider(search)),
+              onPressed: () {
+                ref.invalidate(disposalPagedProvider(search));
+                ref.invalidate(disposalCountProvider(search));
+              },
             ),
         ],
         bottom: PreferredSize(
@@ -78,18 +97,28 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
               child: const Icon(Icons.add_rounded, color: Colors.white),
               onPressed: () async {
                 final result = await context.push<bool>('/disposal/new');
-                if (result == true) ref.invalidate(disposalPagedProvider(search));
+                if (result == true) {
+                  ref.invalidate(disposalPagedProvider(search));
+                  ref.invalidate(disposalCountProvider(search));
+                }
               },
             )
           : null,
-      body: PaginatedListView<DisposalModel>(
-        state: state,
-        emptyMessage: 'No disposal records.',
-        onLoadMore: () => ref.read(disposalPagedProvider(search).notifier).loadMore(),
-        onRefresh: () => ref.read(disposalPagedProvider(search).notifier).refresh(),
-        itemBuilder: (context, item, i) => _DisposalCard(
-          item: item,
-          onTap: () => context.push('/disposal/${item.id}'),
+      body: AutoRefreshTicker(
+        interval: const Duration(seconds: 30),
+        onTick: () => ref.read(disposalPagedProvider(search).notifier).silentRefresh(),
+        child: PaginatedListView<DisposalModel>(
+          state: state,
+          emptyMessage: 'No disposal records.',
+          onLoadMore: () => ref.read(disposalPagedProvider(search).notifier).loadMore(),
+          onRefresh: () async {
+            ref.invalidate(disposalCountProvider(search));
+            await ref.read(disposalPagedProvider(search).notifier).refresh();
+          },
+          itemBuilder: (context, item, i) => _DisposalCard(
+            item: item,
+            onTap: () => context.push('/disposal/${item.id}'),
+          ),
         ),
       ),
     );

@@ -8,6 +8,11 @@ export const logout         = ()                         => api.post('/auth/logo
 export const forceChangePassword = ({ identifier, currentPassword, newPassword }) =>
   api.post('/auth/force-change-password', { identifier, currentPassword, newPassword })
 
+// Completes a login that was interrupted by 2FA (every account except admin and
+// ict_staff) — proves the emailed code, then issues the session.
+export const verifyLoginOtp = (identifier, otp) =>
+  api.post('/auth/login/verify-otp', { identifier, otp })
+
 // Step 1: email a one-time code to the account's registered address.
 export const requestPasswordReset = (username) =>
   api.post('/auth/forgot-password/request', { username })

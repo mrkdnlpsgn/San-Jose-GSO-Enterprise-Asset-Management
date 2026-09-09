@@ -7,6 +7,8 @@ import { getAssets } from '../../services/assetService'
 import { getAssetHistory } from '../../services/assetHistoryService'
 import { getUsers } from '../../services/userService'
 import { getRecommendationSummary } from '../../services/aiRecommendationService'
+import { getMaintenance } from '../../services/maintenanceService'
+import { getDisposal } from '../../services/disposalService'
 import { useEventStream } from '../../hooks/useEventStream'
 
 // ── Count-up hook ─────────────────────────────────────────────────────────────
@@ -109,14 +111,28 @@ const RECOMMENDATION_CFG = {
   MAINTAIN:            { dot: 'bg-emerald-400', label: 'Maintain' },
 }
 
-const LIFECYCLE_ORDER = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED']
+// REGISTERED merges the old REGISTERED+ASSIGNED asset lifecycle statuses (every
+// asset has a location by default, so that distinction wasn't meaningful here).
+// The maintenance/disposal buckets are no longer asset.lifecycleStatus counts —
+// they're driven by the active (non-deleted) maintenance_ledger/disposal_ledger
+// records themselves, split by their own status fields, so this chart mixes
+// "current asset state" with "current ledger activity" by design.
+const LIFECYCLE_ORDER = [
+  'REGISTERED', 'TRANSFERRED',
+  'MAINT_ONGOING', 'MAINT_SCHEDULED', 'MAINT_REPAIRED',
+  'DISP_PENDING', 'DISP_TRANSFERRED', 'DISP_DESTRUCTED',
+  'ARCHIVED',
+]
 const LIFECYCLE_CFG = {
-  REGISTERED:       { bar: 'bg-blue-500',    dot: 'bg-blue-400',    label: 'Registered',        hex: '#3b82f6' },
-  ASSIGNED:         { bar: 'bg-emerald-500', dot: 'bg-emerald-400', label: 'Assigned',          hex: '#10b981' },
-  TRANSFERRED:      { bar: 'bg-orange-500',  dot: 'bg-orange-400',  label: 'Transferred',       hex: '#f97316' },
-  UNDER_MAINTENANCE:{ bar: 'bg-amber-500',   dot: 'bg-amber-400',   label: 'Under Maintenance', hex: '#f59e0b' },
-  DISPOSED:         { bar: 'bg-red-500',     dot: 'bg-red-400',     label: 'Disposed',          hex: '#ef4444' },
-  ARCHIVED:         { bar: 'bg-zinc-500',    dot: 'bg-zinc-400',    label: 'Archived',          hex: '#71717a' },
+  REGISTERED:        { bar: 'bg-blue-500',    dot: 'bg-blue-400',    label: 'Registered',           hex: '#3b82f6' },
+  TRANSFERRED:        { bar: 'bg-orange-500',  dot: 'bg-orange-400',  label: 'Transferred',          hex: '#f97316' },
+  MAINT_ONGOING:      { bar: 'bg-amber-500',   dot: 'bg-amber-400',   label: 'Ongoing Maintenance',  hex: '#f59e0b' },
+  MAINT_SCHEDULED:    { bar: 'bg-yellow-500',  dot: 'bg-yellow-400',  label: 'Scheduled Maintenance',hex: '#eab308' },
+  MAINT_REPAIRED:     { bar: 'bg-lime-500',    dot: 'bg-lime-400',    label: 'Repaired',             hex: '#84cc16' },
+  DISP_PENDING:       { bar: 'bg-rose-400',    dot: 'bg-rose-300',    label: 'Pending Disposal',     hex: '#fb7185' },
+  DISP_TRANSFERRED:   { bar: 'bg-pink-500',    dot: 'bg-pink-400',    label: 'Transferred Disposal', hex: '#ec4899' },
+  DISP_DESTRUCTED:    { bar: 'bg-red-600',     dot: 'bg-red-500',     label: 'Destructed',           hex: '#dc2626' },
+  ARCHIVED:           { bar: 'bg-zinc-500',    dot: 'bg-zinc-400',    label: 'Archived',             hex: '#71717a' },
 }
 
 const ACTIVITY_RANGES = {
@@ -343,7 +359,7 @@ function ConditionDistribution({ condDist, total, loading, onSelect }) {
   )
 }
 
-function LifecycleDistribution({ lifecycleDist, total, loading, onSelect }) {
+function LifecycleDistribution({ lifecycleDist, total, loading }) {
   const active = !loading && total > 0
   const progress = useAnimatedProgress(1100, active)
   const animatedTotal = useCountUp(total, !loading)
@@ -414,18 +430,12 @@ function LifecycleDistribution({ lifecycleDist, total, loading, onSelect }) {
                 const pct = Math.round((count / total) * 100)
                 const cfg = LIFECYCLE_CFG[s]
                 return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => onSelect?.(s)}
-                    title={`View ${cfg.label.toLowerCase()} assets`}
-                    className="w-full flex items-center gap-2 -mx-1.5 px-1.5 py-1 rounded-md group hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-colors duration-150"
-                  >
+                  <div key={s} className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                    <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate text-left group-hover:text-slate-700 dark:group-hover:text-zinc-200 transition-colors duration-150">{cfg.label}</span>
+                    <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate">{cfg.label}</span>
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
                     <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -772,18 +782,24 @@ function Dashboard() {
   const [history, setHistory]   = useState([])
   const [userCount, setUserCount] = useState(0)
   const [aiSummary, setAiSummary] = useState([])
+  const [maintenanceRecords, setMaintenanceRecords] = useState([])
+  const [disposalRecords, setDisposalRecords] = useState([])
   const [activityRange, setActivityRange] = useState('week')
 
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(false)
+  const load = useCallback(({ silent = false } = {}) => {
+    if (!silent) { setLoading(true); setError(false) }
     Promise.all([
       getAssets().catch(() => null),
       getAssetHistory().catch(() => null),
       getUsers().catch(() => null),
       getRecommendationSummary().catch(() => null),
-    ]).then(([assetRes, histRes, userRes, aiRes]) => {
-      if (!assetRes && !histRes && !userRes) { setError(true); setLoading(false); return }
+      getMaintenance().catch(() => null),
+      getDisposal().catch(() => null),
+    ]).then(([assetRes, histRes, userRes, aiRes, maintRes, dispRes]) => {
+      if (!assetRes && !histRes && !userRes) {
+        if (!silent) { setError(true); setLoading(false) }
+        return
+      }
       const a = assetRes?.data ?? []
       const h = histRes?.data  ?? []
       const u = userRes?.data  ?? []
@@ -792,7 +808,9 @@ function Dashboard() {
       setHistory(h)
       setUserCount(u.length)
       setAiSummary(aiRes?.data ?? [])
-      setLoading(false)
+      setMaintenanceRecords(maintRes?.data ?? [])
+      setDisposalRecords(dispRes?.data ?? [])
+      if (!silent) setLoading(false)
     })
   }, [dispatch])
 
@@ -803,7 +821,7 @@ function Dashboard() {
   const reloadTimerRef = useRef(null)
   const scheduleReload = useCallback(() => {
     clearTimeout(reloadTimerRef.current)
-    reloadTimerRef.current = setTimeout(load, 300)
+    reloadTimerRef.current = setTimeout(() => load({ silent: true }), 300)
   }, [load])
   useEffect(() => () => clearTimeout(reloadTimerRef.current), [])
 
@@ -828,8 +846,38 @@ function Dashboard() {
   const condDist = {}
   assets.forEach((a) => { condDist[a.condition] = (condDist[a.condition] || 0) + 1 })
 
+  // Every asset is counted exactly once, so this always sums to totalAssets.
+  // Registered+Assigned merge into one bucket; an UNDER_MAINTENANCE/DISPOSED
+  // asset is further split into its 3 sub-buckets by looking up that asset's
+  // own active maintenance/disposal ledger record (there's at most one, per
+  // handleConditionLedger's delete-on-transition design) rather than counting
+  // ledger rows independently — a ledger record for an asset that's since
+  // moved on (e.g. repaired and now SERVICEABLE again) isn't double-counted.
+  const maintByAsset = {}
+  maintenanceRecords.forEach((m) => { if (m.asset?.id != null) maintByAsset[m.asset.id] = m })
+  const dispByAsset = {}
+  disposalRecords.forEach((d) => { if (d.asset?.id != null) dispByAsset[d.asset.id] = d })
+
   const lifecycleDist = {}
-  assets.forEach((a) => { lifecycleDist[a.lifecycleStatus] = (lifecycleDist[a.lifecycleStatus] || 0) + 1 })
+  assets.forEach((a) => {
+    const status = a.lifecycleStatus
+    let key
+    if (status === 'REGISTERED' || status === 'ASSIGNED') key = 'REGISTERED'
+    else if (status === 'TRANSFERRED' || status === 'ARCHIVED') key = status
+    else if (status === 'UNDER_MAINTENANCE') {
+      const m = maintByAsset[a.id]
+      key = m?.status === 'SCHEDULED' ? 'MAINT_SCHEDULED'
+        : m?.status === 'COMPLETED' ? 'MAINT_REPAIRED'
+        : 'MAINT_ONGOING'
+    } else if (status === 'DISPOSED') {
+      const d = dispByAsset[a.id]
+      key = d?.disposalStatus !== 'COMPLETED' ? 'DISP_PENDING'
+        : d.recommendedMethod === 'TRANSFER' ? 'DISP_TRANSFERRED'
+        : 'DISP_DESTRUCTED'
+    }
+    if (key) lifecycleDist[key] = (lifecycleDist[key] || 0) + 1
+  })
+  const lifecycleTotal = Object.values(lifecycleDist).reduce((s, c) => s + c, 0)
 
   const officeDist     = useMemo(() => computeOfficeDist(assets), [assets])
   const topAccountable = useMemo(() => computeTopAccountable(assets), [assets])
@@ -920,8 +968,7 @@ function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         <ConditionDistribution condDist={condDist} total={totalAssets} loading={loading}
           onSelect={(cond) => navigate(`/assets?condition=${cond}`)} />
-        <LifecycleDistribution lifecycleDist={lifecycleDist} total={totalAssets} loading={loading}
-          onSelect={(status) => navigate(`/assets?lifecycle=${status}`)} />
+        <LifecycleDistribution lifecycleDist={lifecycleDist} total={lifecycleTotal} loading={loading} />
         <OfficeDistribution offices={officeDist} total={totalAssets} loading={loading}
           onSelect={(officeId) => navigate(`/assets?office=${officeId}`)} />
       </div>

@@ -3,6 +3,7 @@ package com.sanjose.inventory.service;
 import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.CategoryRequest;
 import com.sanjose.inventory.entity.Category;
+import com.sanjose.inventory.exception.ResourceInUseException;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -66,6 +67,16 @@ public class CategoryService {
 
     public void delete(Long id) {
         Category cat = findById(id);
+        // assets.category_id is a NO ACTION FK — deleting while assets are still
+        // assigned to this category would otherwise fail as a raw SQL constraint
+        // error. Check first so the caller gets an actionable message instead.
+        Integer assetCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM assets WHERE category_id = ?", Integer.class, id);
+        if (assetCount != null && assetCount > 0) {
+            throw new ResourceInUseException(
+                "Cannot delete \"" + cat.getCategoryName() + "\" — " + assetCount +
+                " asset(s) are still assigned to it. Reassign or remove those assets first.");
+        }
         jdbcTemplate.update("CALL sp_categories_delete(?)", id);
         auditLogService.log("CATEGORY_DELETED", "Categories", id, "category", cat.getCategoryName());
     }

@@ -165,6 +165,7 @@ function AssetHistory() {
   const [filterType, setFilterType] = useState('')
   const [dateFilter, setDateFilter] = useState('all')
   const [showAdd, setShowAdd]     = useState(false)
+  const [viewing, setViewing]     = useState(null)
   const [page, setPage]           = useState(1)
 
   const debouncedSearch = useDebounce(search, 300)
@@ -312,7 +313,8 @@ function AssetHistory() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
                 {paged.map((h) => (
-                  <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
+                  <tr key={h.id} onClick={() => setViewing(h)}
+                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
                     <td className="px-5 py-3.5">
                       <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{h.asset?.propertyNumber}</p>
                       <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[160px]">{h.asset?.description}</p>
@@ -365,7 +367,34 @@ function AssetHistory() {
           offices={offices}
         />
       )}
+
+      {viewing && (
+        <Modal title="Event Details" subtitle={viewing.asset?.propertyNumber} onClose={() => setViewing(null)} size="md">
+          <div className="space-y-0">
+            <Field label="Asset" value={viewing.asset?.description} />
+            <Field label="Event Type" value={
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${EVENT_BADGE[viewing.eventType] || 'bg-zinc-500/10 text-zinc-400 ring-1 ring-zinc-500/20'}`}>
+                {viewing.eventType}
+              </span>
+            } />
+            <Field label="From Office" value={viewing.fromOffice?.officeName} />
+            <Field label="To Office" value={viewing.toOffice?.officeName} />
+            <Field label="Performed By" value={viewing.performedBy?.fullName || viewing.performedBy?.username} />
+            <Field label="Date" value={formatDate(viewing.eventDate || viewing.createdAt)} />
+            <Field label="Notes" value={viewing.notes} />
+          </div>
+        </Modal>
+      )}
     </MainLayout>
+  )
+}
+
+function Field({ label, value }) {
+  return (
+    <div className="flex items-start gap-2 py-2.5 border-b border-slate-100 dark:border-zinc-800/60 last:border-0">
+      <span className="text-xs text-slate-400 dark:text-zinc-500 w-28 flex-shrink-0 pt-0.5">{label}</span>
+      <span className="text-sm text-slate-900 dark:text-zinc-200 font-medium break-words">{value ?? '—'}</span>
+    </div>
   )
 }
 

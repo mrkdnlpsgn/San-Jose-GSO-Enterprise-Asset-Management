@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -26,9 +27,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final int  WRITE_MAX   = 30;
     private static final long WRITE_WIN   = 60_000L;
 
-    // Tier 3 — auth login: 5 attempts / 15 min per IP  (stricter than before)
-    private static final int  AUTH_MAX    = 5;
-    private static final long AUTH_WIN    = 15 * 60_000L;
+    // Tier 3 — auth login, per IP. Configurable since one dev/admin testing
+    // multiple accounts from the same machine shares this bucket across every
+    // login attempt regardless of username — 20/15min gives real headroom for
+    // that while still bounding brute-force from a single IP.
+    @Value("${auth.rate-limit.max-attempts:20}")
+    private int authMax;
+    @Value("${auth.rate-limit.window-minutes:15}")
+    private int authWindowMinutes;
 
     private final Map<String, Deque<Long>> globalBucket = new ConcurrentHashMap<>();
     private final Map<String, Deque<Long>> writeBucket  = new ConcurrentHashMap<>();
@@ -67,10 +73,13 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             record(writeBucket, ip);
         }
 
-        // Tier 3: login brute-force limit
-        if (uri.equals("/api/auth/login") && method.equals("POST")) {
-            if (isExceeded(authBucket, ip, AUTH_MAX, AUTH_WIN)) {
-                reject(response, "Too many login attempts. Please wait 15 minutes and try again.", 900);
+        // Tier 3: login brute-force limit — also covers verify-otp so guessing the
+        // emailed 2FA code is bounded the same way guessing a password is.
+        if ((uri.equals("/api/auth/login") || uri.equals("/api/auth/login/verify-otp")) && method.equals("POST")) {
+            long authWindowMs = authWindowMinutes * 60_000L;
+            if (isExceeded(authBucket, ip, authMax, authWindowMs)) {
+                reject(response, "Too many login attempts. Please wait " + authWindowMinutes + " minutes and try again.",
+                    authWindowMinutes * 60);
                 return;
             }
             record(authBucket, ip);

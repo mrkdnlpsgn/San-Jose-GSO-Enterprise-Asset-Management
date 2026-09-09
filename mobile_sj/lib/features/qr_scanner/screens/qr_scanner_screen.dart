@@ -67,18 +67,21 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     });
   }
 
-  Future<void> _startScanning() async {
+  // The MobileScanner widget starts/stops the controller itself on
+  // mount/unmount (MobileScannerController.autoStart defaults to true) —
+  // calling controller.start() here too, before setState's rebuild has
+  // actually mounted the widget, raced the platform channel and crashed
+  // the native analyzer with a null reference on every frame.
+  void _startScanning() {
     setState(() {
       _scanning = true;
       _result = null;
       _notFound = false;
     });
-    await _controller?.start();
   }
 
-  Future<void> _stopScanning() async {
-    await _controller?.stop();
-    if (mounted) setState(() => _scanning = false);
+  void _stopScanning() {
+    setState(() => _scanning = false);
   }
 
   void _clear() {

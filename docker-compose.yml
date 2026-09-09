@@ -30,6 +30,7 @@ services:
       retries: 5
     networks:
       - sj_gso_network
+    restart: unless-stopped
 
   # Spring Boot Backend
   backend:
@@ -50,9 +51,39 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-apppassword}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${HIBERNATE_DDL:-validate}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-prod}
+      # JwtUtil has no default for either property (unlike AuthController's
+      # jwt.expiration, which defaults to 28800000) — startup fails without these.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-28800000}
+      # EmailService requires a JavaMailSender bean unconditionally (constructor
+      # injection, not Optional<>) even though actual sending is separately gated
+      # behind notifications.enabled=false by default — Spring only creates that
+      # bean when spring.mail.host is present, so a host must always be set or the
+      # app fails to start regardless of whether notifications are wanted.
+      SPRING_MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: true
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: true
+      MAIL_FROM: ${MAIL_FROM:-}
+      # Actuator's default health check does a live SMTP connectivity probe to
+      # SPRING_MAIL_HOST. That probe is unrelated to whether the API itself is
+      # serving requests, and over slower/less reliable upstream connections
+      # (e.g. a mobile hotspot) it can take 10s+ — well past the Dockerfile
+      # HEALTHCHECK's 3s timeout — flipping the container to "unhealthy" while
+      # the app is functioning normally the whole time.
+      MANAGEMENT_HEALTH_MAIL_ENABLED: false
+      NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
+      # Login rate limit — shared per source IP across every account attempted
+      # from it, not per-username. Raise this if testing multiple accounts from
+      # one machine keeps tripping the "too many login attempts" lockout.
+      AUTH_RATE_LIMIT_MAX_ATTEMPTS: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:-20}
+      AUTH_RATE_LIMIT_WINDOW_MINUTES: ${AUTH_RATE_LIMIT_WINDOW_MINUTES:-15}
       # AI Insight tab (asset lifecycle recommendations) needs a free key from
-      # aistudio.google.com/apikey — set GEMINI_API_KEY in .env to enable it.
+      # aistudio.google.com/apikey — set GEMINI_API_KEY and AI_RECOMMENDATIONS_ENABLED=true in .env to enable it.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AI_RECOMMENDATIONS_ENABLED: ${AI_RECOMMENDATIONS_ENABLED:-false}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     networks:

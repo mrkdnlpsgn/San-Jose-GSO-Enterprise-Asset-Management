@@ -32,4 +32,62 @@ class ReferenceService {
       throw ApiException.from(e);
     }
   }
+
+  Future<CategoryModel> createCategory(String categoryName, String? description, {String? idempotencyKey}) async {
+    try {
+      final res = await _dio.post('/categories',
+          data: {'categoryName': categoryName, 'description': description},
+          options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
+      return CategoryModel.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<CategoryModel> updateCategory(int id, String categoryName, String? description) async {
+    try {
+      final res = await _dio.put('/categories/$id',
+          data: {'categoryName': categoryName, 'description': description});
+      return CategoryModel.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<void> deleteCategory(int id) async {
+    try {
+      await _dio.delete('/categories/$id');
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<OfficeModel> createOffice(String officeName, int? headUserId, {String? idempotencyKey}) async {
+    try {
+      final res = await _dio.post('/offices',
+          data: {'officeName': officeName, 'headUserId': headUserId},
+          options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
+      return OfficeModel.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<OfficeModel> updateOffice(int id, String officeName, int? headUserId) async {
+    try {
+      final res = await _dio.put('/offices/$id',
+          data: {'officeName': officeName, 'headUserId': headUserId});
+      return OfficeModel.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<void> deleteOffice(int id) async {
+    try {
+      await _dio.delete('/offices/$id');
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
 }

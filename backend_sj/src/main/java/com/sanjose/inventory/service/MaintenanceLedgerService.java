@@ -74,6 +74,11 @@ public class MaintenanceLedgerService {
             search, size, page * size, maintenanceType, status);
     }
 
+    public long count(String search, String maintenanceType, String status) {
+        return jdbcTemplate.queryForObject("CALL sp_maintenance_count(?, ?, ?)", Long.class,
+            search, maintenanceType, status);
+    }
+
     public List<MaintenanceLedger> findByAsset(Long assetId) {
         return jdbcTemplate.query("CALL sp_maintenance_get_by_asset(?)", MAINT_MAPPER, assetId);
     }

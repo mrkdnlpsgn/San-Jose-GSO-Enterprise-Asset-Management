@@ -24,6 +24,17 @@ final maintenancePagedProvider = StateNotifierProvider.autoDispose
   );
 });
 
+final maintenanceCountProvider = FutureProvider.autoDispose.family<int, String>((ref, search) {
+  final service = ref.watch(maintenanceServiceProvider);
+  final maintenanceType = ref.watch(maintenanceTypeFilterProvider);
+  final status = ref.watch(maintenanceStatusFilterProvider);
+  return service.count(
+    search: search.isEmpty ? null : search,
+    maintenanceType: maintenanceType,
+    status: status,
+  );
+});
+
 final maintenanceDetailProvider =
     FutureProvider.autoDispose.family<MaintenanceModel, int>((ref, id) {
   return ref.watch(maintenanceServiceProvider).getById(id);

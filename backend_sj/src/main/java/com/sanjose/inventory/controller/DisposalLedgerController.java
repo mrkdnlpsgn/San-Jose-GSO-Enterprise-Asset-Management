@@ -26,6 +26,13 @@ public class DisposalLedgerController {
         return disposalLedgerService.findAll(search, page, size, recommendedMethod, disposalStatus);
     }
 
+    @GetMapping("/count")
+    public long count(@RequestParam(required = false) String search,
+                       @RequestParam(required = false) String recommendedMethod,
+                       @RequestParam(required = false) String disposalStatus) {
+        return disposalLedgerService.count(search, recommendedMethod, disposalStatus);
+    }
+
     @GetMapping("/{id}")
     public DisposalLedger getById(@PathVariable Long id) {
         return disposalLedgerService.findById(id);

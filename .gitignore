@@ -31,7 +31,13 @@ npm-debug.log*
 .project
 .settings/
 .classpath
+.factorypath
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Personal source material used to build the bulk asset import — the resulting
+# data lives in backend_sj/gso_inventory.sql, this folder is not needed to run
+# the project (also contains the grading rubric PDF, not for a public repo)
+more_data_and_criteria/

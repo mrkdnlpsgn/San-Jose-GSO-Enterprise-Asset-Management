@@ -28,10 +28,15 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.1
   share_plus: ^13.2.0
+  # Pinned to this exact prerelease — 11.0.2 (latest stable) still requires
+  # win32 ^5.9.0, which conflicts with share_plus/package_info_plus's win32
+  # ^6.0.1. 12.0.0-beta.7 is the first release that moved off the old win32
+  # constraint (Windows-desktop-only; doesn't affect our Android build).
+  file_picker: 12.0.0-beta.7
 
   # QR scan-to-status lookup (camera scanning; Android/iOS/web — falls back to manual
   # entry on desktop platforms mobile_scanner doesn't support, e.g. Windows)
-  mobile_scanner: ^7.2.0
+  mobile_scanner: ^7.3.0
   # QR code generation for per-asset labels (on-screen + printable)
   qr_flutter: ^4.1.0
   shared_preferences: ^2.5.5
@@ -40,13 +45,29 @@ dependencies:
   # Proactive "you're offline" signal, instead of only discovering connectivity
   # loss reactively after a request fails
   connectivity_plus: ^6.1.4
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+# Run `dart run flutter_launcher_icons` after changing this to regenerate the
+# launcher icon from the same seal image the login screen shows.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  # Full-bleed seal — correct for the plain/legacy icon and iOS (no masking).
+  image_path: assets/images/images.png
+  # Android's adaptive-icon foreground gets circle/squircle-masked depending on
+  # the launcher, and the seal fills its frame edge-to-edge — using it directly
+  # here would clip the outer ring. logo_adaptive_foreground.png is the same
+  # seal pre-padded to sit inside the adaptive-icon safe zone instead.
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/images/logo_adaptive_foreground.png

@@ -8,6 +8,8 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/staggered_entrance.dart';
 import '../../../shared/widgets/main_shell.dart';
+import '../../../shared/widgets/auto_refresh_ticker.dart';
+import '../../../shared/widgets/logout_dialog.dart';
 import '../../assets/provider/ai_recommendation_provider.dart';
 import '../../audit_log/provider/audit_log_digest_provider.dart';
 import '../provider/dashboard_provider.dart';
@@ -43,14 +45,21 @@ class DashboardScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             tooltip: 'Logout',
-            // No confirmation — signing out isn't destructive or irreversible
-            // (logging back in undoes it instantly), so a dialog here would
-            // just be a tap users learn to click through without reading.
-            onPressed: () => ref.read(authProvider.notifier).logout(),
+            onPressed: () async {
+              final confirmed = await showLogoutDialog(context);
+              if (confirmed == true) ref.read(authProvider.notifier).logout();
+            },
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: AutoRefreshTicker(
+        interval: const Duration(seconds: 30),
+        onTick: () {
+          ref.invalidate(dashboardStatsProvider);
+          ref.invalidate(aiRecommendationSummaryProvider);
+          ref.invalidate(auditLogDigestProvider);
+        },
+        child: RefreshIndicator(
         color: AppTheme.brand,
         onRefresh: () async {
           ref.invalidate(dashboardStatsProvider);
@@ -101,10 +110,32 @@ class DashboardScreen extends ConsumerWidget {
               onTap: () => context.push('/reports'),
             ),
           ),
+          const SizedBox(height: 10),
+          StaggeredEntrance(
+            index: 3,
+            child: _NavCard(
+              icon: Icons.category_outlined,
+              title: 'Categories',
+              subtitle: 'Manage asset categories',
+              color: AppTheme.brand,
+              onTap: () => context.push('/categories'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          StaggeredEntrance(
+            index: 4,
+            child: _NavCard(
+              icon: Icons.apartment_outlined,
+              title: 'Offices',
+              subtitle: 'Manage offices and their head users',
+              color: AppTheme.brand,
+              onTap: () => context.push('/offices'),
+            ),
+          ),
           if (isAdmin) ...[
             const SizedBox(height: 10),
             StaggeredEntrance(
-              index: 3,
+              index: 5,
               child: _NavCard(
                 icon: Icons.manage_accounts_outlined,
                 title: 'Manage Accounts',
@@ -114,8 +145,20 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
           ],
+          const SizedBox(height: 10),
+          StaggeredEntrance(
+            index: 6,
+            child: _NavCard(
+              icon: Icons.restore_from_trash_outlined,
+              title: 'Recycle Bin',
+              subtitle: 'View and restore deleted assets, maintenance, and disposal records',
+              color: AppTheme.statusRegistered,
+              onTap: () => context.push('/recycle-bin'),
+            ),
+          ),
         ],
         ),
+      ),
       ),
     );
   }
@@ -208,8 +251,43 @@ String _fmtMoney(double v) {
 }
 
 const _conditionOrder = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
-const _lifecycleOrder = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED'];
+// Registered+Assigned merged into one bucket (every asset has a location by
+// default); maintenance/disposal are ledger-record buckets, not asset
+// lifecycleStatus — see dashboard_provider.dart. Keep in sync with web's
+// LIFECYCLE_CFG (frontend_sj/frontend/src/pages/Dashboard/index.jsx).
+const _lifecycleOrder = [
+  'REGISTERED', 'TRANSFERRED',
+  'MAINT_ONGOING', 'MAINT_SCHEDULED', 'MAINT_REPAIRED',
+  'DISP_PENDING', 'DISP_TRANSFERRED', 'DISP_DESTRUCTED',
+  'ARCHIVED',
+];
 const _recommendationOrder = ['MAINTAIN', 'REPAIR', 'MONITOR', 'REVIEW_FOR_DISPOSAL', 'BUDGET_PRIORITY'];
+
+Color _lifecycleDashboardColor(String key) => switch (key) {
+      'REGISTERED' => const Color(0xFF3B82F6),
+      'TRANSFERRED' => const Color(0xFFF97316),
+      'MAINT_ONGOING' => const Color(0xFFF59E0B),
+      'MAINT_SCHEDULED' => const Color(0xFFEAB308),
+      'MAINT_REPAIRED' => const Color(0xFF84CC16),
+      'DISP_PENDING' => const Color(0xFFFB7185),
+      'DISP_TRANSFERRED' => const Color(0xFFEC4899),
+      'DISP_DESTRUCTED' => const Color(0xFFDC2626),
+      'ARCHIVED' => Colors.grey.shade600,
+      _ => Colors.grey,
+    };
+
+String _lifecycleDashboardLabel(String key) => switch (key) {
+      'REGISTERED' => 'Registered',
+      'TRANSFERRED' => 'Transferred',
+      'MAINT_ONGOING' => 'Ongoing Maintenance',
+      'MAINT_SCHEDULED' => 'Scheduled Maintenance',
+      'MAINT_REPAIRED' => 'Repaired',
+      'DISP_PENDING' => 'Pending Disposal',
+      'DISP_TRANSFERRED' => 'Transferred Disposal',
+      'DISP_DESTRUCTED' => 'Destructed',
+      'ARCHIVED' => 'Archived',
+      _ => key,
+    };
 
 Color _recColor(String rec) => switch (rec) {
       'MAINTAIN' => AppTheme.brand,
@@ -301,11 +379,11 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
           1,
           _LifecycleRingCard(
             title: 'Lifecycle Status',
-            total: stats.totalAssets,
+            total: stats.lifecycleDist.values.fold(0, (a, b) => a + b),
             dist: stats.lifecycleDist,
             order: _lifecycleOrder,
-            colorOf: (v) => StatusBadge.lifecycle(v).color,
-            labelOf: (v) => StatusBadge.lifecycle(v).label,
+            colorOf: _lifecycleDashboardColor,
+            labelOf: _lifecycleDashboardLabel,
           ),
         ),
         const SizedBox(height: 10),

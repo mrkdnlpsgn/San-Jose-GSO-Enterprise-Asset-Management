@@ -247,6 +247,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _buildDone(BuildContext context) {
+    // Deliberately not CrossAxisAlignment.stretch like the rest of this file's
+    // Columns — that would also stretch the fixed-size 64x64 icon circle below
+    // into a full-width bar. Only the button needs to be full width, via its
+    // own SizedBox instead.
     return Column(
       children: [
         Container(
@@ -264,9 +268,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           style: TextStyle(color: context.colors.textTertiary, fontSize: 13),
         ),
         const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Back to Sign In'),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Back to Sign In'),
+          ),
         ),
       ],
     );

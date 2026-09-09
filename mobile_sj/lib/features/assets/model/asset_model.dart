@@ -1,25 +1,34 @@
 class CategoryModel {
   final int id;
   final String categoryName;
+  final String? description;
 
-  const CategoryModel({required this.id, required this.categoryName});
+  const CategoryModel({required this.id, required this.categoryName, this.description});
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) => CategoryModel(
         id: json['id'] as int,
         categoryName: json['categoryName'] as String,
+        description: json['description'] as String?,
       );
 }
 
 class OfficeModel {
   final int id;
   final String officeName;
+  final int? headUserId;
+  final String? headUserName;
 
-  const OfficeModel({required this.id, required this.officeName});
+  const OfficeModel({required this.id, required this.officeName, this.headUserId, this.headUserName});
 
-  factory OfficeModel.fromJson(Map<String, dynamic> json) => OfficeModel(
-        id: json['id'] as int,
-        officeName: json['officeName'] as String,
-      );
+  factory OfficeModel.fromJson(Map<String, dynamic> json) {
+    final head = json['headUser'] as Map<String, dynamic>?;
+    return OfficeModel(
+      id: json['id'] as int,
+      officeName: json['officeName'] as String,
+      headUserId: head?['id'] as int?,
+      headUserName: (head?['fullName'] ?? head?['username']) as String?,
+    );
+  }
 }
 
 class AssetModel {

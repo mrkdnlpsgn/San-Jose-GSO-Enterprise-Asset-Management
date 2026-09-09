@@ -404,7 +404,9 @@ function ValuationTotalsRow({ rows }) {
 }
 
 // ── Date range filter ─────────────────────────────────────────────────────────
-const DATE_INPUT_CLASS = 'rounded-md border border-slate-200 dark:border-zinc-700 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150 [color-scheme:light] dark:[color-scheme:dark]'
+const PAGE_SIZE = 8
+
+const DATE_INPUT_CLASS ='rounded-md border border-slate-200 dark:border-zinc-700 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150 [color-scheme:light] dark:[color-scheme:dark]'
 
 function DateRangeFilter({ from, to, onChange }) {
   const activePreset = (() => {
@@ -458,11 +460,12 @@ function Reports() {
   const [loading, setLoading]       = useState(false)
   const [dateFrom, setDateFrom]     = useState('')
   const [dateTo, setDateTo]         = useState('')
+  const [page, setPage]             = useState(1)
   const previewRef = useRef(null)
 
   const activeReport = REPORTS.find((r) => r.id === activeId)
 
-  const handleDateChange = ({ from, to }) => { setDateFrom(from); setDateTo(to) }
+  const handleDateChange = ({ from, to }) => { setDateFrom(from); setDateTo(to); setPage(1) }
 
   const handleGenerate = async (report) => {
     if (activeId === report.id) {
@@ -470,6 +473,7 @@ function Reports() {
       setReportData([])
       setDateFrom('')
       setDateTo('')
+      setPage(1)
       return
     }
     setLoading(true)
@@ -477,6 +481,7 @@ function Reports() {
     setReportData([])
     setDateFrom('')
     setDateTo('')
+    setPage(1)
     try {
       const data = await report.load()
       setReportData(data)
@@ -499,6 +504,9 @@ function Reports() {
   }, [reportData, activeReport, dateFrom, dateTo])
 
   const isDateFiltered = Boolean(dateFrom || dateTo)
+
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE))
+  const pagedRows = displayRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const getExportRows = () => {
     return activeReport?.extraRows ? activeReport.extraRows(displayRows) : displayRows
@@ -620,7 +628,7 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-zinc-950 divide-y divide-slate-100 dark:divide-zinc-800/60">
-                    {displayRows.map((row, i) => (
+                    {pagedRows.map((row, i) => (
                       <tr key={i} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors duration-100">
                         {activeReport.headers.map((h) => (
                           <td key={h.label} className="px-4 py-3 text-slate-600 dark:text-zinc-300 whitespace-nowrap">
@@ -632,6 +640,21 @@ function Reports() {
                     {activeId === 'valuation' && <ValuationTotalsRow rows={displayRows} />}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {!loading && displayRows.length > PAGE_SIZE && (
+              <div className="pt-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-400 dark:text-zinc-500">
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, displayRows.length)} of {displayRows.length}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                    className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Prev</button>
+                  <span className="text-xs text-slate-400 px-2">{page} / {totalPages}</span>
+                  <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
+                </div>
               </div>
             )}
           </div>

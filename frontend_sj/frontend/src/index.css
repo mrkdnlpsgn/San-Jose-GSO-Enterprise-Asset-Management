@@ -21,6 +21,41 @@
   display: none;             /* Chrome/Edge/Safari */
 }
 
+/* ── ...except horizontally-scrollable data tables ───────────────────────────
+   The rule above makes wide tables look identical whether they're scrollable
+   or clipped — nothing hints there's more to the right, so the scroll never
+   gets discovered. Give `.overflow-x-auto` containers (every data table
+   wrapper in the app) a slim, always-visible horizontal scrollbar; this
+   selector's specificity already wins over the universal one above.
+   ─────────────────────────────────────────────────────────────────────────── */
+.overflow-x-auto {
+  scrollbar-width: thin;             /* Firefox */
+  scrollbar-color: #cbd5e1 transparent;
+}
+.dark .overflow-x-auto {
+  scrollbar-color: #3f3f46 transparent;
+}
+.overflow-x-auto::-webkit-scrollbar {
+  display: block;                    /* Chrome/Edge/Safari */
+  height: 8px;
+}
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;         /* slate-300 */
+  border-radius: 9999px;
+}
+.dark .overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: #3f3f46;         /* zinc-700 */
+}
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;         /* slate-400 */
+}
+.dark .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background-color: #52525b;         /* zinc-600 */
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

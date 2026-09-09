@@ -11,6 +11,14 @@ class MustChangePasswordRequired implements Exception {
   MustChangePasswordRequired(this.username);
 }
 
+// Thrown by [AuthService.login] when the account has 2FA enabled (every account
+// except admin and ict_staff) — the backend emails a code and withholds the
+// session until the caller verifies it via [AuthService.verifyLoginOtp].
+class RequiresTwoFactor implements Exception {
+  final String username;
+  RequiresTwoFactor(this.username);
+}
+
 class AuthService {
   final Dio _dio = ApiClient.instance.dio;
 
@@ -26,11 +34,33 @@ class AuthService {
       if (res.data['mustChangePassword'] == true) {
         throw MustChangePasswordRequired(res.data['username'] as String);
       }
+      // Correct credentials, but 2FA is enabled on this account — no session/cookie
+      // yet, backend returns { requiresTwoFactor: true, username } instead.
+      if (res.data['requiresTwoFactor'] == true) {
+        throw RequiresTwoFactor(res.data['username'] as String);
+      }
       // Backend returns { "user": { username, role, ... } }
       // Cookie is automatically stored by CookieManager
       return UserModel.fromJson(res.data['user'] as Map<String, dynamic>);
     } on MustChangePasswordRequired {
       rethrow;
+    } on RequiresTwoFactor {
+      rethrow;
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  // POST /api/auth/login/verify-otp — completes a login that was interrupted by
+  // 2FA: proves the emailed code and returns a real session, same shape as a
+  // normal login response.
+  Future<UserModel> verifyLoginOtp(String identifier, String otp) async {
+    try {
+      final res = await _dio.post('/auth/login/verify-otp', data: {
+        'identifier': identifier,
+        'otp': otp,
+      });
+      return UserModel.fromJson(res.data['user'] as Map<String, dynamic>);
     } catch (e) {
       throw ApiException.from(e);
     }
@@ -68,6 +98,17 @@ class AuthService {
       await _dio.post('/auth/logout');
     } catch (_) {}
     await ApiClient.instance.clearCookies();
+  }
+
+  // POST /api/auth/acknowledge-privacy — records that the current user has
+  // reviewed the Privacy, Terms & Conditions. Returns the new timestamp.
+  Future<String> acknowledgePrivacy() async {
+    try {
+      final res = await _dio.post('/auth/acknowledge-privacy');
+      return res.data['privacyAcknowledgedAt'] as String;
+    } catch (e) {
+      throw ApiException.from(e);
+    }
   }
 
   // POST /api/auth/forgot-password/request — step 1: emails a one-time code to the

@@ -1,0 +1,40 @@
+services:
+  # Flutter dev container for `flutter run` against a physical Android device
+  # over wireless debugging (adb over Wi-Fi) — no local Flutter/Android SDK
+  # install needed. Separate from docker-compose.yml so everyday web dev
+  # (`docker compose up`) doesn't pull/build this multi-GB image.
+  #
+  # Usage:
+  #   docker compose -f docker-compose.mobile.yml up -d --build
+  #   docker compose -f docker-compose.mobile.yml exec mobile bash
+  #     adb pair <phone-ip>:<pairing-port>      # from phone's Wireless debugging screen, first time only
+  #     adb connect <phone-ip>:<connect-port>   # shown on the same screen
+  #     flutter run                             # picks up the connected device
+  mobile:
+    build:
+      context: ./mobile_sj
+      dockerfile: Dockerfile.dev
+    container_name: sj_gso_mobile
+    volumes:
+      - ./mobile_sj:/app
+      # Named volumes so container-built Dart/Gradle artifacts never mix with
+      # anything a host-side Flutter install may have left in these dirs.
+      - mobile_dart_tool:/app/.dart_tool
+      - mobile_build:/app/build
+      - mobile_pub_cache:/root/.pub-cache
+      # Persists adb's paired-device keys across container restarts so you
+      # don't have to re-enter the pairing code every time.
+      - mobile_android_home:/root/.android
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    # adb connects out to the phone's IP on the LAN; default bridge networking
+    # is enough since this is an outbound connection. If `adb connect` times
+    # out, enable "host networking" in Docker Desktop settings and switch this
+    # to `network_mode: host`.
+
+volumes:
+  mobile_dart_tool:
+  mobile_build:
+  mobile_pub_cache:
+  mobile_android_home:

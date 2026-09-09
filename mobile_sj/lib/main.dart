@@ -6,11 +6,12 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/settings/provider/settings_provider.dart';
 import 'shared/widgets/offline_banner.dart';
+import 'shared/widgets/idle_timeout_guard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ApiClient.instance.init();
   final prefs = await SharedPreferences.getInstance();
+  await ApiClient.instance.init(prefs);
   runApp(
     ProviderScope(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
@@ -43,7 +44,7 @@ class EamApp extends ConsumerWidget {
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(systemScale * settings.textSize.scaleFactor),
           ),
-          child: OfflineBanner(child: child!),
+          child: IdleTimeoutGuard(child: OfflineBanner(child: child!)),
         );
       },
     );

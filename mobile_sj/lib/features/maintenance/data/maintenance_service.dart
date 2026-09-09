@@ -27,6 +27,19 @@ class MaintenanceService {
     }
   }
 
+  Future<int> count({String? search, String? maintenanceType, String? status}) async {
+    try {
+      final res = await _dio.get('/maintenance/count', queryParameters: {
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (maintenanceType != null && maintenanceType.isNotEmpty) 'maintenanceType': maintenanceType,
+        if (status != null && status.isNotEmpty) 'status': status,
+      });
+      return res.data as int;
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
   Future<MaintenanceModel> getById(int id) async {
     try {
       final res = await _dio.get('/maintenance/$id');

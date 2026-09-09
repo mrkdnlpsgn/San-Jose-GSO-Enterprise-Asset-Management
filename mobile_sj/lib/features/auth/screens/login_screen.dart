@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../data/auth_service.dart';
 import '../provider/auth_provider.dart';
 import 'force_change_password_screen.dart';
+import 'two_factor_screen.dart';
+import 'connection_settings_screen.dart';
 import '../../../core/router/page_transitions.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -46,6 +48,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ));
       return;
     }
+    if (error is RequiresTwoFactor) {
+      ref.read(authProvider.notifier).clearError();
+      await Navigator.of(context).push(fadeThroughRoute(
+        TwoFactorScreen(
+          identifier: identifier,
+          password: password,
+        ),
+      ));
+      return;
+    }
     if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -62,6 +74,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isLoading = ref.watch(authProvider).isLoading;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_ethernet_rounded),
+            tooltip: 'Connection settings',
+            onPressed: () => Navigator.of(context).push(fadeThroughRoute(const ConnectionSettingsScreen())),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

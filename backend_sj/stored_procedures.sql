@@ -18,7 +18,8 @@ BEGIN
            u.account_locked_until AS accountLockedUntil,
            u.token_version AS tokenVersion,
            u.must_change_password AS mustChangePassword,
-           u.privacy_acknowledged_at AS privacyAcknowledgedAt
+           u.privacy_acknowledged_at AS privacyAcknowledgedAt,
+           u.two_factor_enabled AS twoFactorEnabled
     FROM users u
     WHERE LOWER(u.username) = LOWER(p_username);
 END $$
@@ -116,6 +117,57 @@ BEGIN
         password_reset_otp_expires_at = NULL,
         password_reset_otp_attempts = 0,
         token_version = token_version + 1
+    WHERE user_id = p_user_id;
+END $$
+
+-- Step 2 of login 2FA: store a fresh code for an account that passed the
+-- password check and has two_factor_enabled — mirrors sp_auth_set_password_reset_otp.
+DROP PROCEDURE IF EXISTS sp_auth_set_login_otp $$
+CREATE PROCEDURE sp_auth_set_login_otp(
+    IN p_user_id INT, IN p_otp_hash VARCHAR(255), IN p_expires_at DATETIME
+)
+BEGIN
+    UPDATE users
+    SET login_otp_hash = p_otp_hash,
+        login_otp_expires_at = p_expires_at,
+        login_otp_attempts = 0
+    WHERE user_id = p_user_id;
+END $$
+
+-- Step 3: fetch the pending login OTP plus everything needed to issue a session
+-- (token_version, role, etc.) so a successful verify can finish login in one
+-- more call without a second lookup.
+DROP PROCEDURE IF EXISTS sp_auth_get_login_otp $$
+CREATE PROCEDURE sp_auth_get_login_otp(IN p_username VARCHAR(50))
+BEGIN
+    SELECT user_id AS id, username, full_name AS fullName, `role`,
+           is_active AS isActive, token_version AS tokenVersion,
+           privacy_acknowledged_at AS privacyAcknowledgedAt,
+           login_otp_hash AS otpHash,
+           login_otp_expires_at AS otpExpiresAt,
+           login_otp_attempts AS otpAttempts
+    FROM users
+    WHERE LOWER(username) = LOWER(p_username);
+END $$
+
+DROP PROCEDURE IF EXISTS sp_auth_increment_login_otp_attempts $$
+CREATE PROCEDURE sp_auth_increment_login_otp_attempts(IN p_user_id INT)
+BEGIN
+    UPDATE users
+    SET login_otp_attempts = login_otp_attempts + 1
+    WHERE user_id = p_user_id;
+END $$
+
+-- Called once a login OTP has been consumed successfully — clears it so it
+-- can't be replayed, without touching anything else (unlike the forgot-password
+-- flow, nothing else needs to change here: no password/token_version bump).
+DROP PROCEDURE IF EXISTS sp_auth_clear_login_otp $$
+CREATE PROCEDURE sp_auth_clear_login_otp(IN p_user_id INT)
+BEGIN
+    UPDATE users
+    SET login_otp_hash = NULL,
+        login_otp_expires_at = NULL,
+        login_otp_attempts = 0
     WHERE user_id = p_user_id;
 END $$
 
@@ -313,8 +365,12 @@ CREATE PROCEDURE sp_users_create(
     OUT p_id INT
 )
 BEGIN
-    INSERT INTO users(username, email, password_hash, full_name, `role`, office_id, is_active, created_at, token_version)
-    VALUES(p_username, NULLIF(p_email, ''), p_password_hash, p_full_name, p_role, NULLIF(p_office_id, 0), p_is_active, NOW(), 0);
+    -- token_version has no column default and is NOT NULL — must be set
+    -- explicitly or every new-user INSERT fails outright. 0 is the same
+    -- starting value JwtUtil/AuthService already assume for a user with no
+    -- recorded version (see login()'s `tokenVersion() != null ? ... : 0`).
+    INSERT INTO users(username, email, password_hash, full_name, `role`, office_id, is_active, token_version, created_at)
+    VALUES(p_username, NULLIF(p_email, ''), p_password_hash, p_full_name, p_role, NULLIF(p_office_id, 0), p_is_active, 0, NOW());
     SET p_id = LAST_INSERT_ID();
 END $$
 
@@ -409,6 +465,39 @@ BEGIN
     LIMIT p_limit OFFSET p_offset;
 END $$
 
+-- Mirrors sp_assets_list's filters minus LIMIT/OFFSET — backs a lightweight
+-- /count endpoint so the mobile app can show a true total without fetching
+-- every row (list screens paginate 20 at a time and never see a real total).
+DROP PROCEDURE IF EXISTS sp_assets_count $$
+CREATE PROCEDURE sp_assets_count(
+    IN p_search VARCHAR(255),
+    IN p_category_id INT, IN p_office_id INT,
+    IN p_condition VARCHAR(20), IN p_lifecycle_status VARCHAR(30)
+)
+BEGIN
+    SET p_search = TRIM(p_search);
+    SELECT COUNT(*) AS total
+    FROM assets a
+    LEFT JOIN categories c ON a.category_id = c.category_id
+    LEFT JOIN offices o ON a.office_id = o.office_id
+    WHERE a.is_deleted = FALSE
+      AND (
+        p_search IS NULL OR p_search = '' OR
+        a.property_number    LIKE CONCAT('%', p_search, '%')
+        OR a.`description`   LIKE CONCAT('%', p_search, '%')
+        OR a.accountable_person LIKE CONCAT('%', p_search, '%')
+        OR a.location        LIKE CONCAT('%', p_search, '%')
+        OR a.`condition`     LIKE CONCAT('%', p_search, '%')
+        OR a.lifecycle_status LIKE CONCAT('%', p_search, '%')
+        OR c.category_name   LIKE CONCAT('%', p_search, '%')
+        OR o.office_name     LIKE CONCAT('%', p_search, '%')
+      )
+      AND (p_category_id IS NULL OR a.category_id = p_category_id)
+      AND (p_office_id IS NULL OR a.office_id = p_office_id)
+      AND (p_condition IS NULL OR p_condition = '' OR a.`condition` = p_condition)
+      AND (p_lifecycle_status IS NULL OR p_lifecycle_status = '' OR a.lifecycle_status = p_lifecycle_status);
+END $$
+
 DROP PROCEDURE IF EXISTS sp_assets_get_by_id $$
 CREATE PROCEDURE sp_assets_get_by_id(IN p_id INT)
 BEGIN
@@ -489,7 +578,7 @@ BEGIN
     INSERT INTO deleted_assets(
         asset_id, property_number, `description`, category_id, category_name,
         quantity, acquisition_date, unit_value, office_id, office_name,
-        accountable_person_name, location, `condition`, lifecycle_status,
+        accountable_person_name, location, `condition`, asset_condition, lifecycle_status,
         qr_code_path, sha256_hash, remarks,
         original_created_at, original_updated_at,
         deleted_by_user_id, deleted_by_username, delete_reason, deleted_at,
@@ -497,7 +586,7 @@ BEGIN
     )
     SELECT a.asset_id, a.property_number, a.`description`, a.category_id, c.category_name,
            a.quantity, a.acquisition_date, a.unit_value, a.office_id, o.office_name,
-           a.accountable_person, a.location, a.`condition`, a.lifecycle_status,
+           a.accountable_person, a.location, a.`condition`, a.`condition`, a.lifecycle_status,
            a.qr_code_path, a.sha256_hash, a.remarks,
            a.created_at, a.updated_at,
            p_deleted_by, p_deleted_by_username, p_reason, NOW(),
@@ -510,6 +599,39 @@ BEGIN
     UPDATE assets
     SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = p_deleted_by, delete_reason = p_reason
     WHERE asset_id = p_id;
+END $$
+
+-- The original assets row is only ever soft-deleted in place (never removed),
+-- so restoring is just un-flagging it and dropping its archive snapshot —
+-- no data has to be reconstructed. Also cascades to any maintenance/disposal
+-- record that was archived alongside this same asset (see
+-- sp_maintenance_soft_delete_by_asset / sp_disposal_soft_delete_by_asset) —
+-- otherwise restoring the asset leaves its ledger record stuck looking
+-- deleted, or restoring the ledger record leaves its asset stuck deleted.
+DROP PROCEDURE IF EXISTS sp_assets_restore $$
+CREATE PROCEDURE sp_assets_restore(IN p_deleted_asset_id INT)
+BEGIN
+    DECLARE v_asset_id INT;
+    SELECT asset_id INTO v_asset_id FROM deleted_assets WHERE deleted_asset_id = p_deleted_asset_id;
+
+    UPDATE assets a
+    JOIN deleted_assets da ON da.asset_id = a.asset_id
+    SET a.is_deleted = FALSE, a.deleted_at = NULL, a.deleted_by = NULL, a.delete_reason = NULL
+    WHERE da.deleted_asset_id = p_deleted_asset_id;
+
+    DELETE FROM deleted_assets WHERE deleted_asset_id = p_deleted_asset_id;
+
+    UPDATE maintenance_ledger m
+    JOIN deleted_maintenance dm ON dm.maintenance_id = m.maintenance_id
+    SET m.is_deleted = FALSE, m.deleted_at = NULL, m.deleted_by = NULL, m.delete_reason = NULL
+    WHERE dm.asset_id = v_asset_id;
+    DELETE FROM deleted_maintenance WHERE asset_id = v_asset_id;
+
+    UPDATE disposal_ledger d
+    JOIN deleted_disposal dd ON dd.disposal_id = d.disposal_id
+    SET d.is_deleted = FALSE, d.deleted_at = NULL, d.deleted_by = NULL, d.delete_reason = NULL
+    WHERE dd.asset_id = v_asset_id;
+    DELETE FROM deleted_disposal WHERE asset_id = v_asset_id;
 END $$
 
 -- =============================================================
@@ -623,6 +745,32 @@ BEGIN
     LIMIT p_limit OFFSET p_offset;
 END $$
 
+-- Mirrors sp_maintenance_list's filters minus LIMIT/OFFSET — see sp_assets_count.
+DROP PROCEDURE IF EXISTS sp_maintenance_count $$
+CREATE PROCEDURE sp_maintenance_count(
+    IN p_search VARCHAR(255),
+    IN p_maintenance_type VARCHAR(20), IN p_status VARCHAR(20)
+)
+BEGIN
+    SET p_search = TRIM(p_search);
+    SELECT COUNT(*) AS total
+    FROM maintenance_ledger m
+    LEFT JOIN assets a ON m.asset_id = a.asset_id
+    LEFT JOIN users r ON m.recorded_by = r.user_id
+    WHERE m.is_deleted = FALSE
+      AND (
+        p_search IS NULL OR p_search = '' OR
+        m.maintenance_type LIKE CONCAT('%', p_search, '%')
+        OR m.findings LIKE CONCAT('%', p_search, '%')
+        OR m.`status` LIKE CONCAT('%', p_search, '%')
+        OR a.property_number LIKE CONCAT('%', p_search, '%')
+        OR a.`description` LIKE CONCAT('%', p_search, '%')
+        OR r.full_name LIKE CONCAT('%', p_search, '%')
+      )
+      AND (p_maintenance_type IS NULL OR p_maintenance_type = '' OR m.maintenance_type = p_maintenance_type)
+      AND (p_status IS NULL OR p_status = '' OR m.`status` = p_status);
+END $$
+
 DROP PROCEDURE IF EXISTS sp_maintenance_get_by_id $$
 CREATE PROCEDURE sp_maintenance_get_by_id(IN p_id INT)
 BEGIN
@@ -719,11 +867,68 @@ BEGIN
     WHERE maintenance_id = p_id;
 END $$
 
+-- Also cascades back to the parent asset if it's currently deleted too (see
+-- sp_assets_restore's comment for why this needs to go both directions).
+DROP PROCEDURE IF EXISTS sp_maintenance_restore $$
+CREATE PROCEDURE sp_maintenance_restore(IN p_deleted_maintenance_id INT)
+BEGIN
+    DECLARE v_asset_id INT;
+    SELECT asset_id INTO v_asset_id FROM deleted_maintenance WHERE deleted_maintenance_id = p_deleted_maintenance_id;
+
+    UPDATE maintenance_ledger m
+    JOIN deleted_maintenance dm ON dm.maintenance_id = m.maintenance_id
+    SET m.is_deleted = FALSE, m.deleted_at = NULL, m.deleted_by = NULL, m.delete_reason = NULL
+    WHERE dm.deleted_maintenance_id = p_deleted_maintenance_id;
+
+    DELETE FROM deleted_maintenance WHERE deleted_maintenance_id = p_deleted_maintenance_id;
+
+    UPDATE assets a
+    JOIN deleted_assets da ON da.asset_id = a.asset_id
+    SET a.is_deleted = FALSE, a.deleted_at = NULL, a.deleted_by = NULL, a.delete_reason = NULL
+    WHERE da.asset_id = v_asset_id;
+    DELETE FROM deleted_assets WHERE asset_id = v_asset_id;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_maintenance_delete_by_asset $$
 CREATE PROCEDURE sp_maintenance_delete_by_asset(IN p_asset_id INT)
 BEGIN
     UPDATE maintenance_ledger
     SET is_deleted = TRUE, deleted_at = NOW()
+    WHERE asset_id = p_asset_id AND is_deleted = FALSE;
+END $$
+
+-- Used when the parent asset itself is deleted (as opposed to a condition
+-- change cascading via sp_maintenance_delete_by_asset above, which doesn't
+-- archive) — an asset's active maintenance record should show up in its own
+-- Recycle Bin section too, not just under the asset's.
+DROP PROCEDURE IF EXISTS sp_maintenance_soft_delete_by_asset $$
+CREATE PROCEDURE sp_maintenance_soft_delete_by_asset(
+    IN p_asset_id INT, IN p_deleted_by INT, IN p_deleted_by_username VARCHAR(50), IN p_reason TEXT
+)
+BEGIN
+    INSERT INTO deleted_maintenance(
+        maintenance_id, asset_id, property_number, asset_description,
+        maintenance_type, findings, actions_taken,
+        assigned_to_user_id, assigned_to_name,
+        maintenance_date, cost, `status`,
+        recorded_by_user_id, recorded_by_name,
+        original_created_at,
+        deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
+    )
+    SELECT m.maintenance_id, m.asset_id, a.property_number, a.`description`,
+           m.maintenance_type, m.findings, m.actions_taken,
+           NULL, m.assigned_to,
+           m.maintenance_date, m.cost, m.`status`,
+           m.recorded_by, r.full_name,
+           m.created_at,
+           p_deleted_by, p_deleted_by_username, p_reason, NOW()
+    FROM maintenance_ledger m
+    LEFT JOIN assets a ON m.asset_id = a.asset_id
+    LEFT JOIN users r ON m.recorded_by = r.user_id
+    WHERE m.asset_id = p_asset_id AND m.is_deleted = FALSE;
+
+    UPDATE maintenance_ledger
+    SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = p_deleted_by, delete_reason = p_reason
     WHERE asset_id = p_asset_id AND is_deleted = FALSE;
 END $$
 
@@ -766,6 +971,32 @@ BEGIN
       AND (p_disposal_status IS NULL OR p_disposal_status = '' OR d.disposal_status = p_disposal_status)
     ORDER BY d.inspection_date DESC
     LIMIT p_limit OFFSET p_offset;
+END $$
+
+-- Mirrors sp_disposal_list's filters minus LIMIT/OFFSET — see sp_assets_count.
+DROP PROCEDURE IF EXISTS sp_disposal_count $$
+CREATE PROCEDURE sp_disposal_count(
+    IN p_search VARCHAR(255),
+    IN p_recommended_method VARCHAR(20), IN p_disposal_status VARCHAR(20)
+)
+BEGIN
+    SET p_search = TRIM(p_search);
+    SELECT COUNT(*) AS total
+    FROM disposal_ledger d
+    LEFT JOIN assets a ON d.asset_id = a.asset_id
+    LEFT JOIN users r ON d.recorded_by = r.user_id
+    WHERE d.is_deleted = FALSE
+      AND (
+        p_search IS NULL OR p_search = '' OR
+        d.recommended_method LIKE CONCAT('%', p_search, '%')
+        OR d.disposal_status LIKE CONCAT('%', p_search, '%')
+        OR d.reason LIKE CONCAT('%', p_search, '%')
+        OR a.property_number LIKE CONCAT('%', p_search, '%')
+        OR a.`description` LIKE CONCAT('%', p_search, '%')
+        OR r.full_name LIKE CONCAT('%', p_search, '%')
+      )
+      AND (p_recommended_method IS NULL OR p_recommended_method = '' OR d.recommended_method = p_recommended_method)
+      AND (p_disposal_status IS NULL OR p_disposal_status = '' OR d.disposal_status = p_disposal_status);
 END $$
 
 DROP PROCEDURE IF EXISTS sp_disposal_get_by_id $$
@@ -877,11 +1108,67 @@ BEGIN
     WHERE disposal_id = p_id;
 END $$
 
+-- Also cascades back to the parent asset if it's currently deleted too (see
+-- sp_assets_restore's comment for why this needs to go both directions).
+DROP PROCEDURE IF EXISTS sp_disposal_restore $$
+CREATE PROCEDURE sp_disposal_restore(IN p_deleted_disposal_id INT)
+BEGIN
+    DECLARE v_asset_id INT;
+    SELECT asset_id INTO v_asset_id FROM deleted_disposal WHERE deleted_disposal_id = p_deleted_disposal_id;
+
+    UPDATE disposal_ledger d
+    JOIN deleted_disposal dd ON dd.disposal_id = d.disposal_id
+    SET d.is_deleted = FALSE, d.deleted_at = NULL, d.deleted_by = NULL, d.delete_reason = NULL
+    WHERE dd.deleted_disposal_id = p_deleted_disposal_id;
+
+    DELETE FROM deleted_disposal WHERE deleted_disposal_id = p_deleted_disposal_id;
+
+    UPDATE assets a
+    JOIN deleted_assets da ON da.asset_id = a.asset_id
+    SET a.is_deleted = FALSE, a.deleted_at = NULL, a.deleted_by = NULL, a.delete_reason = NULL
+    WHERE da.asset_id = v_asset_id;
+    DELETE FROM deleted_assets WHERE asset_id = v_asset_id;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_disposal_delete_by_asset $$
 CREATE PROCEDURE sp_disposal_delete_by_asset(IN p_asset_id INT)
 BEGIN
     UPDATE disposal_ledger
     SET is_deleted = TRUE, deleted_at = NOW()
+    WHERE asset_id = p_asset_id AND is_deleted = FALSE;
+END $$
+
+-- Same reasoning as sp_maintenance_soft_delete_by_asset above, for disposal.
+DROP PROCEDURE IF EXISTS sp_disposal_soft_delete_by_asset $$
+CREATE PROCEDURE sp_disposal_soft_delete_by_asset(
+    IN p_asset_id INT, IN p_deleted_by INT, IN p_deleted_by_username VARCHAR(50), IN p_reason TEXT
+)
+BEGIN
+    INSERT INTO deleted_disposal(
+        disposal_id, asset_id, property_number, asset_description,
+        reason, inspection_findings, recommended_method,
+        disposal_status, inspection_date,
+        approved_by_user_id, approved_by_name,
+        appraised_value, or_number, amount,
+        recorded_by_user_id, recorded_by_name,
+        original_created_at,
+        deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
+    )
+    SELECT d.disposal_id, d.asset_id, a.property_number, a.`description`,
+           d.reason, d.inspection_findings, d.recommended_method,
+           d.disposal_status, d.inspection_date,
+           NULL, d.approved_by,
+           d.appraised_value, d.or_number, d.amount,
+           d.recorded_by, r.full_name,
+           d.created_at,
+           p_deleted_by, p_deleted_by_username, p_reason, NOW()
+    FROM disposal_ledger d
+    LEFT JOIN assets a ON d.asset_id = a.asset_id
+    LEFT JOIN users r ON d.recorded_by = r.user_id
+    WHERE d.asset_id = p_asset_id AND d.is_deleted = FALSE;
+
+    UPDATE disposal_ledger
+    SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = p_deleted_by, delete_reason = p_reason
     WHERE asset_id = p_asset_id AND is_deleted = FALSE;
 END $$
 

@@ -167,8 +167,11 @@ class _DetailsTab extends StatelessWidget {
           _row(context, 'Category', asset.category.categoryName),
           _row(context, 'Location', asset.office.officeName),
           if (asset.accountablePerson != null) _row(context, 'Accountable Person', asset.accountablePerson!),
-          _row(context, 'Quantity', asset.quantity.toString()),
-          if (asset.physicalCount != null) _row(context, 'Physical Count', asset.physicalCount.toString()),
+          _row(context, 'Qty (Property Card)', asset.quantity.toString()),
+          if (asset.physicalCount != null) ...[
+            _row(context, 'Qty (Physical Count)', asset.physicalCount.toString()),
+            ..._shortageOverageRows(context, asset),
+          ],
         ]),
         const SizedBox(height: 12),
         _card(context, 'Financial', [
@@ -218,16 +221,38 @@ class _DetailsTab extends StatelessWidget {
                 fontWeight: FontWeight.w600, letterSpacing: 0.8)),
       );
 
-  Widget _row(BuildContext context, String label, String value) => Padding(
+  Widget _row(BuildContext context, String label, String value, {Color? valueColor}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(width: 150, child: Text(label, style: TextStyle(color: context.colors.textSecondary, fontSize: 13))),
-            Expanded(child: Text(value, style: TextStyle(color: context.colors.textPrimary, fontSize: 13))),
+            Expanded(
+              child: Text(value,
+                  style: TextStyle(
+                      color: valueColor ?? context.colors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: valueColor != null ? FontWeight.w600 : FontWeight.normal)),
+            ),
           ],
         ),
       );
+
+  // Shortage = fewer on hand than the property card says (diff < 0, red);
+  // overage = more on hand than recorded (diff > 0, green) — same COA
+  // reconciliation convention as the web Assets table.
+  List<Widget> _shortageOverageRows(BuildContext context, AssetModel asset) {
+    final diff = asset.physicalCount! - asset.quantity;
+    final value = diff * asset.unitValue;
+    final color = diff < 0 ? AppTheme.statusDisposed : diff > 0 ? AppTheme.brand : context.colors.textPrimary;
+    final diffLabel = diff > 0 ? '+$diff' : '$diff';
+    final sign = value > 0 ? '+' : value < 0 ? '-' : '';
+    final valueLabel = '$sign₱${value.abs().toStringAsFixed(2)}';
+    return [
+      _row(context, 'Shortage/Overage Qty', diffLabel, valueColor: color),
+      _row(context, 'Shortage/Overage Value', valueLabel, valueColor: color),
+    ];
+  }
 
   String _fmt(String raw) {
     try {

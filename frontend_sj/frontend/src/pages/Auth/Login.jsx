@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext'
 import Input from '../../components/common/Input'
 import ForgotPasswordModal from './ForgotPasswordModal'
 import ForceChangePasswordForm from './ForceChangePasswordForm'
+import TwoFactorForm from './TwoFactorForm'
 
 const FEATURES = [
   {
@@ -34,7 +35,7 @@ const FEATURES = [
 ]
 
 function Login() {
-  const { login, completeForcedPasswordChange } = useAuth()
+  const { login, completeForcedPasswordChange, completeLoginOtp } = useAuth()
   const navigate   = useNavigate()
   const { isDark, toggle } = useTheme()
   const [form, setForm]               = useState({ identifier: '', password: '' })
@@ -43,6 +44,7 @@ function Login() {
   const [loading, setLoading]         = useState(false)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [forcedChange, setForcedChange] = useState(null)
+  const [twoFactorPending, setTwoFactorPending] = useState(null)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -52,6 +54,8 @@ function Login() {
       const result = await login(form)
       if (result?.mustChangePassword) {
         setForcedChange({ identifier: form.identifier, currentPassword: form.password })
+      } else if (result?.requiresTwoFactor) {
+        setTwoFactorPending({ identifier: form.identifier })
       } else {
         navigate('/dashboard')
       }
@@ -67,6 +71,15 @@ function Login() {
     await completeForcedPasswordChange(payload)
     navigate('/dashboard')
   }
+
+  const handleOtpSubmit = async (payload) => {
+    await completeLoginOtp(payload)
+    navigate('/dashboard')
+  }
+
+  // Re-submits the original credentials so the backend can email a fresh code
+  // (subject to its own resend cooldown) — the password never left this screen.
+  const handleOtpResend = () => login(form)
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-zinc-950 relative">
@@ -141,6 +154,13 @@ function Login() {
             identifier={forcedChange.identifier}
             currentPassword={forcedChange.currentPassword}
             onSubmit={handleForcedChangeSubmit}
+          />
+        ) : twoFactorPending ? (
+          <TwoFactorForm
+            identifier={twoFactorPending.identifier}
+            onSubmit={handleOtpSubmit}
+            onResend={handleOtpResend}
+            onBack={() => setTwoFactorPending(null)}
           />
         ) : (
         <div className="w-full max-w-sm animate-fade-slide">

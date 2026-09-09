@@ -30,6 +30,13 @@ public class MaintenanceLedgerController {
         return maintenanceLedgerService.findAll(search, page, size, maintenanceType, status);
     }
 
+    @GetMapping("/count")
+    public long count(@RequestParam(required = false) String search,
+                       @RequestParam(required = false) String maintenanceType,
+                       @RequestParam(required = false) String status) {
+        return maintenanceLedgerService.count(search, maintenanceType, status);
+    }
+
     @GetMapping("/{id}")
     public MaintenanceLedger getById(@PathVariable Long id) {
         return maintenanceLedgerService.findById(id);
