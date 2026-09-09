@@ -254,7 +254,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
             className="rounded-full object-cover bg-white flex-shrink-0 ring-1 ring-slate-200 dark:ring-white/10 w-8 h-8"
           />
           <div className="overflow-hidden">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap leading-tight">San Jose GSO</p>
+            <p className="text-sm font-semibold text-gov-700 dark:text-white whitespace-nowrap leading-tight">San Jose GSO</p>
             <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight mt-px">Inventory Management</p>
             <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight">System</p>
           </div>

@@ -36,7 +36,7 @@ function ConfirmDialog({
         </div>
 
         {/* Text */}
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-white text-center">{title}</h2>
+        <h2 className="text-sm font-semibold text-gov-700 dark:text-white text-center">{title}</h2>
         {message && (
           <p className="text-xs text-slate-500 dark:text-zinc-400 text-center mt-2 leading-relaxed">{message}</p>
         )}

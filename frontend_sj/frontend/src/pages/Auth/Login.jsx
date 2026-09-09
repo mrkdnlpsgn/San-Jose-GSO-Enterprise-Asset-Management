@@ -6,6 +6,7 @@ import Input from '../../components/common/Input'
 import ForgotPasswordModal from './ForgotPasswordModal'
 import ForceChangePasswordForm from './ForceChangePasswordForm'
 import TwoFactorForm from './TwoFactorForm'
+import GovMasthead from '../../components/layout/GovMasthead'
 
 const FEATURES = [
   {
@@ -82,7 +83,9 @@ function Login() {
   const handleOtpResend = () => login(form)
 
   return (
-    <div className="min-h-screen flex bg-white dark:bg-zinc-950 relative">
+    <div className="min-h-screen flex flex-col bg-white dark:bg-zinc-950">
+      <GovMasthead />
+      <div className="flex-1 flex relative">
       <button
         onClick={toggle}
         title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -118,7 +121,7 @@ function Login() {
             <p className="text-xs font-bold text-brand-500 uppercase tracking-[0.2em] mb-3">
               San Jose Municipal Hall
             </p>
-            <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+            <p className="text-3xl font-extrabold text-gov-700 dark:text-white tracking-tight leading-tight">
               San Jose GSO<br />Inventory Management System
             </p>
             <p className="text-sm text-slate-500 dark:text-zinc-400 mt-3">
@@ -177,13 +180,13 @@ function Login() {
             </div>
             <div>
               <p className="text-xs font-bold text-brand-500 uppercase tracking-[0.15em]">San Jose Municipal Hall</p>
-              <p className="text-lg font-extrabold text-slate-900 dark:text-white mt-1 leading-tight">GSO Inventory Management System</p>
+              <p className="text-lg font-extrabold text-gov-700 dark:text-white mt-1 leading-tight">GSO Inventory Management System</p>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Batangas · Philippines</p>
             </div>
           </div>
 
           <div className="mb-7">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Sign in</h1>
+            <h1 className="text-2xl font-bold text-gov-700 dark:text-white tracking-tight">Sign in</h1>
             <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">Access your account to continue.</p>
           </div>
 
@@ -289,6 +292,7 @@ function Login() {
           onClose={() => setShowForgotPassword(false)}
         />
       )}
+      </div>
     </div>
   )
 }

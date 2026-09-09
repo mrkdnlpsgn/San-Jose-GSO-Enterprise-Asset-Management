@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
@@ -454,6 +455,7 @@ function DateRangeFilter({ from, to, onChange }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 function Reports() {
   const { show } = useToast()
+  const location = useLocation()
 
   const [activeId, setActiveId]     = useState(null)
   const [reportData, setReportData] = useState([])
@@ -493,6 +495,16 @@ function Reports() {
       setLoading(false)
     }
   }
+
+  // Dashboard's "Reports" quick action links straight into a specific COA
+  // report, e.g. /reports?report=rpcppe, instead of leaving the user to find
+  // it among the cards themselves.
+  useEffect(() => {
+    const reportId = new URLSearchParams(location.search).get('report')
+    const report = REPORTS.find((r) => r.id === reportId)
+    if (report) handleGenerate(report)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Date filter runs on the raw loaded rows first, then any per-report
   // aggregation (`transform`, e.g. the Condition Report's grouping) runs on
