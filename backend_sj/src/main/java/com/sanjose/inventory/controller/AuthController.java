@@ -123,11 +123,4 @@ public class AuthController {
         LocalDateTime ack = authService.acknowledgePrivacy(principal.getUsername());
         return ResponseEntity.ok(Map.of("privacyAcknowledgedAt", ack));
     }
-
-    @PostMapping("/acknowledge-privacy")
-    public ResponseEntity<Map<String, Object>> acknowledgePrivacy(@AuthenticationPrincipal UserDetails principal) {
-        if (principal == null) return ResponseEntity.status(401).build();
-        LocalDateTime ack = authService.acknowledgePrivacy(principal.getUsername());
-        return ResponseEntity.ok(Map.of("privacyAcknowledgedAt", ack));
-    }
 }
