@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Builder
 public class DisposalLedger {
 
-    public enum DisposalMethod { AUCTION, DONATION, TRANSFER }
+    public enum DisposalMethod { SALE, TRANSFER, DESTRUCTION, OTHERS }
     public enum DisposalStatus { PENDING, APPROVED, COMPLETED }
 
     @Id
@@ -57,6 +57,15 @@ public class DisposalLedger {
 
     @Column(precision = 12, scale = 2)
     private BigDecimal amount;
+
+    // Computed on read from the linked asset (see DepreciationCalculator) — matches
+    // the "Accumulated Depreciation" / "Carrying Amount" columns on the paper IIRUP
+    // form. Informational only; disposal eligibility is gated on asset condition.
+    @Transient
+    private BigDecimal accumulatedDepreciation;
+
+    @Transient
+    private BigDecimal carryingAmount;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recorded_by", nullable = false)

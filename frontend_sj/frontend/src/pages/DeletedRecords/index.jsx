@@ -20,9 +20,10 @@ const MAINTENANCE_STATUS_BADGE = {
   SCHEDULED: 'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
 }
 const DISPOSAL_METHOD_BADGE = {
-  AUCTION:  'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
-  DONATION: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
-  TRANSFER: 'bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20',
+  SALE:        'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
+  TRANSFER:    'bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20',
+  DESTRUCTION: 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
+  OTHERS:      'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
 }
 const PAGE_SIZE = 8
 

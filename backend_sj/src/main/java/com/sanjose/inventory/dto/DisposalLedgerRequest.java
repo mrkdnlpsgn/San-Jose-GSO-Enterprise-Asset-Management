@@ -9,7 +9,7 @@ public class DisposalLedgerRequest {
     private Long assetId;
     private String reason;
     private String inspectionFindings;
-    private String recommendedMethod; // AUCTION | DONATION | TRANSFER
+    private String recommendedMethod; // SALE | TRANSFER | DESTRUCTION | OTHERS
     private String disposalStatus;    // PENDING | APPROVED | COMPLETED
     private LocalDate inspectionDate;
     private String approvedBy;

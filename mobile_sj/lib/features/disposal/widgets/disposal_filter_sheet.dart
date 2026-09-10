@@ -4,7 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../provider/disposal_provider.dart';
 
-const _methods = ['AUCTION', 'DONATION', 'TRANSFER'];
+const _methods = ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS'];
 const _statuses = ['PENDING', 'APPROVED', 'COMPLETED'];
 
 bool disposalFiltersActive(WidgetRef ref) =>

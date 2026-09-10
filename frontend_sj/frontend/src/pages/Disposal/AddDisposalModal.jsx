@@ -3,8 +3,14 @@ import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 import { newIdempotencyKey } from '../../utils/idempotency'
 
-const METHODS   = ['AUCTION', 'DONATION', 'TRANSFER']
+const METHODS   = ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS']
 const STATUSES  = ['PENDING', 'APPROVED', 'COMPLETED']
+const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
+
+function fmtMoney(n) {
+  if (n == null) return '—'
+  return `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
 export default function AddDisposalModal({ onClose, onSave, initial = null, assets = [], users = [] }) {
@@ -14,7 +20,7 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
     assetId:            initial?.asset?.id           ? String(initial.asset.id) : '',
     reason:             initial?.reason              || '',
     inspectionFindings: initial?.inspectionFindings  || '',
-    recommendedMethod:  initial?.recommendedMethod   || 'AUCTION',
+    recommendedMethod:  initial?.recommendedMethod   || 'SALE',
     disposalStatus:     initial?.disposalStatus      || 'PENDING',
     inspectionDate:     initial?.inspectionDate      || '',
     approvedBy:         initial?.approvedBy           || '',
@@ -30,6 +36,14 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
     setForm((p) => ({ ...p, [key]: e.target.value }))
     setErrors((p) => { const n = { ...p }; delete n[key]; return n })
   }
+
+  // Disposal is gated on physical condition, not book value — a SERVICEABLE
+  // asset shouldn't even be selectable here. The currently-selected asset (when
+  // editing) is always kept so its condition can still be displayed.
+  const selectableAssets = assets.filter((a) =>
+    DISPOSABLE_CONDITIONS.includes(a.condition) || String(a.id) === form.assetId)
+
+  const selectedAsset = assets.find((a) => String(a.id) === form.assetId)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -75,11 +89,22 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
           <div className="relative">
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.assetId} onChange={set('assetId')} disabled={isEditing}>
               <option value="">— Select asset —</option>
-              {assets.map((a) => <option key={a.id} value={String(a.id)}>{a.propertyNumber} — {a.description}</option>)}
+              {selectableAssets.map((a) => <option key={a.id} value={String(a.id)}>{a.propertyNumber} — {a.description} ({a.condition})</option>)}
             </select>
             <Chevron />
           </div>
           {errors.assetId && <p className="text-xs text-red-400">{errors.assetId}</p>}
+          <p className="text-xs text-slate-400 dark:text-zinc-500">Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed.</p>
+          {selectedAsset && (
+            <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/50 px-3 py-2.5">
+              <span className="text-slate-400 dark:text-zinc-500">Unit Cost</span>
+              <span className="text-right font-medium text-slate-700 dark:text-zinc-300">{fmtMoney(selectedAsset.unitValue)}</span>
+              <span className="text-slate-400 dark:text-zinc-500">Accumulated Depreciation</span>
+              <span className="text-right font-medium text-slate-700 dark:text-zinc-300">{fmtMoney(selectedAsset.accumulatedDepreciation)}</span>
+              <span className="text-slate-400 dark:text-zinc-500">Carrying Amount</span>
+              <span className="text-right font-medium text-slate-700 dark:text-zinc-300">{fmtMoney(selectedAsset.carryingAmount)}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">

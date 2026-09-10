@@ -172,6 +172,11 @@ class _DisposalCard extends StatelessWidget {
                   ],
                 ],
               ),
+              if (item.carryingAmount != null) ...[
+                const SizedBox(height: 6),
+                Text('Carrying Amount: ₱${item.carryingAmount!.toStringAsFixed(2)}',
+                    style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+              ],
             ],
           ),
         ),

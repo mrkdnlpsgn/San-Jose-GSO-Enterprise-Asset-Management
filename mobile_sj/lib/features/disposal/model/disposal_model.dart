@@ -6,13 +6,15 @@ class DisposalModel {
   final AssetModel asset;
   final String reason;
   final String inspectionFindings;
-  final String recommendedMethod;  // AUCTION | DONATION | TRANSFER
+  final String recommendedMethod;  // SALE | TRANSFER | DESTRUCTION | OTHERS
   final String disposalStatus;     // PENDING | APPROVED | COMPLETED
   final String inspectionDate;
   final String? approvedBy;
   final double? appraisedValue;
   final String? orNumber;
   final double? amount;
+  final double? accumulatedDepreciation; // informational only — never gates disposal
+  final double? carryingAmount;
   final MaintenanceUserModel recordedBy;
   final String createdAt;
   final String? updatedAt;
@@ -29,6 +31,8 @@ class DisposalModel {
     this.appraisedValue,
     this.orNumber,
     this.amount,
+    this.accumulatedDepreciation,
+    this.carryingAmount,
     required this.recordedBy,
     required this.createdAt,
     this.updatedAt,
@@ -46,6 +50,8 @@ class DisposalModel {
         appraisedValue: json['appraisedValue'] != null ? (json['appraisedValue'] as num).toDouble() : null,
         orNumber: json['orNumber'] as String?,
         amount: json['amount'] != null ? (json['amount'] as num).toDouble() : null,
+        accumulatedDepreciation: json['accumulatedDepreciation'] != null ? (json['accumulatedDepreciation'] as num).toDouble() : null,
+        carryingAmount: json['carryingAmount'] != null ? (json['carryingAmount'] as num).toDouble() : null,
         recordedBy: MaintenanceUserModel.fromJson(json['recordedBy'] as Map<String, dynamic>),
         createdAt: json['createdAt'] as String,
         updatedAt: json['updatedAt'] as String?,

@@ -222,22 +222,25 @@ List<ReportDefinition> buildReportDefinitions() {
           final d = row as DisposalModel;
           return fmtMoney(d.asset.unitValue * d.asset.quantity);
         }),
-        ReportColumn('Accumulated Depreciation', (row) => '—'),
+        ReportColumn('Accumulated Depreciation', (row) => fmtMoney((row as DisposalModel).accumulatedDepreciation)),
         ReportColumn('Accumulated Impairment Losses', (row) => '—'),
-        ReportColumn('Carrying Amount', (row) => '—'),
+        ReportColumn('Carrying Amount', (row) => fmtMoney((row as DisposalModel).carryingAmount)),
         ReportColumn('Remarks', (row) => (row as DisposalModel).inspectionFindings),
         ReportColumn('Sale', (row) {
           final d = row as DisposalModel;
-          return d.recommendedMethod == 'AUCTION' ? d.asset.quantity.toString() : '—';
+          return d.recommendedMethod == 'SALE' ? d.asset.quantity.toString() : '—';
         }),
         ReportColumn('Transfer', (row) {
           final d = row as DisposalModel;
           return d.recommendedMethod == 'TRANSFER' ? d.asset.quantity.toString() : '—';
         }),
-        ReportColumn('Destruction', (row) => '—'),
+        ReportColumn('Destruction', (row) {
+          final d = row as DisposalModel;
+          return d.recommendedMethod == 'DESTRUCTION' ? d.asset.quantity.toString() : '—';
+        }),
         ReportColumn('Others (Specify)', (row) {
           final d = row as DisposalModel;
-          return d.recommendedMethod == 'DONATION' ? 'Donation' : '—';
+          return d.recommendedMethod == 'OTHERS' ? d.asset.quantity.toString() : '—';
         }),
         ReportColumn('Total', (row) => (row as DisposalModel).asset.quantity.toString()),
         ReportColumn('Appraised Value', (row) => fmtMoney((row as DisposalModel).appraisedValue)),

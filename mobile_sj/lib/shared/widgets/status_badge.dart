@@ -75,8 +75,9 @@ class StatusBadge extends StatelessWidget {
 
   static StatusBadge disposalMethod(String value, {bool dense = false}) {
     final color = switch (value) {
-      'AUCTION' => AppTheme.statusMaintenance,
-      'DONATION' => AppTheme.brand,
+      'SALE' => AppTheme.statusMaintenance,
+      'DESTRUCTION' => AppTheme.statusDisposed,
+      'OTHERS' => AppTheme.brand,
       _ => AppTheme.statusAssigned,
     };
     return StatusBadge(label: value.replaceAll('_', ' '), color: color, dense: dense);

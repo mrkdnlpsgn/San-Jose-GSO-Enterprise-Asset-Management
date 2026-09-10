@@ -78,6 +78,15 @@ public class Asset {
     @Column(columnDefinition = "TEXT")
     private String remarks;
 
+    // Computed on read from unitValue + acquisitionDate + category.usefulLifeYears
+    // (see DepreciationCalculator) — informational only, never persisted, and
+    // never used to gate disposal eligibility (that's driven by `condition`).
+    @Transient
+    private java.math.BigDecimal accumulatedDepreciation;
+
+    @Transient
+    private java.math.BigDecimal carryingAmount;
+
     @Builder.Default
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false;

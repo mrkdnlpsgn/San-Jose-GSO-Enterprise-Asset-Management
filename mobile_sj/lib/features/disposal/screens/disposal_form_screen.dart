@@ -31,7 +31,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
   late final TextEditingController _amount;
 
   AssetModel? _selectedAsset;
-  String _recommendedMethod = 'AUCTION';
+  String _recommendedMethod = 'SALE';
   String _disposalStatus = 'PENDING';
   DateTime? _inspectionDate;
 
@@ -47,7 +47,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
     _appraisedValue = TextEditingController(text: d?.appraisedValue?.toStringAsFixed(2) ?? '');
     _orNumber = TextEditingController(text: d?.orNumber ?? '');
     _amount = TextEditingController(text: d?.amount?.toStringAsFixed(2) ?? '');
-    _recommendedMethod = d?.recommendedMethod ?? 'AUCTION';
+    _recommendedMethod = d?.recommendedMethod ?? 'SALE';
     _disposalStatus = d?.disposalStatus ?? 'PENDING';
     _selectedAsset = d?.asset ?? widget.preselectedAsset;
     if (d?.inspectionDate != null) _inspectionDate = DateTime.tryParse(d!.inspectionDate);
@@ -110,9 +110,10 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             _assetSelector(),
+            if (_selectedAsset != null) _assetDepreciationPreview(),
             const SizedBox(height: 14),
             _enumDropdown('Recommended Method', _recommendedMethod,
-              ['AUCTION', 'DONATION', 'TRANSFER'], (v) => setState(() => _recommendedMethod = v!)),
+              ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS'], (v) => setState(() => _recommendedMethod = v!)),
             _enumDropdown('Status', _disposalStatus,
               ['PENDING', 'APPROVED', 'COMPLETED'], (v) => setState(() => _disposalStatus = v!)),
             _datePicker(),
@@ -170,6 +171,42 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
       ),
     );
   }
+
+  Widget _assetDepreciationPreview() {
+    final asset = _selectedAsset!;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: context.colors.textTertiary.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _depRow('Unit Cost', '₱${asset.unitValue.toStringAsFixed(2)}'),
+            _depRow('Accumulated Depreciation',
+                asset.accumulatedDepreciation != null ? '₱${asset.accumulatedDepreciation!.toStringAsFixed(2)}' : '—'),
+            _depRow('Carrying Amount',
+                asset.carryingAmount != null ? '₱${asset.carryingAmount!.toStringAsFixed(2)}' : '—'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _depRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+            Text(value, style: TextStyle(color: context.colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      );
 
   Widget _field(TextEditingController ctrl, String label,
       {bool required = false, int maxLines = 1, TextInputType? keyboardType}) {

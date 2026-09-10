@@ -47,6 +47,8 @@ class AssetModel {
   final String condition;       // SERVICEABLE | REPAIRABLE | UNSERVICEABLE
   final String lifecycleStatus; // REGISTERED | ASSIGNED | TRANSFERRED | UNDER_MAINTENANCE | DISPOSED | ARCHIVED
   final String? remarks;
+  final double? accumulatedDepreciation; // informational only — never gates disposal
+  final double? carryingAmount;
   final String createdAt;
   final String updatedAt;
 
@@ -66,6 +68,8 @@ class AssetModel {
     required this.condition,
     required this.lifecycleStatus,
     this.remarks,
+    this.accumulatedDepreciation,
+    this.carryingAmount,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -94,6 +98,8 @@ class AssetModel {
         condition: json['condition'] as String? ?? '',
         lifecycleStatus: json['lifecycleStatus'] as String? ?? '',
         remarks: json['remarks'] as String?,
+        accumulatedDepreciation: json['accumulatedDepreciation'] != null ? (json['accumulatedDepreciation'] as num).toDouble() : null,
+        carryingAmount: json['carryingAmount'] != null ? (json['carryingAmount'] as num).toDouble() : null,
         createdAt: json['createdAt'] as String? ?? '',
         updatedAt: json['updatedAt'] as String? ?? '',
       );

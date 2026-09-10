@@ -65,6 +65,7 @@ public class AssetService {
             Category c = new Category();
             c.setId(catId);
             c.setCategoryName(rs.getString("categoryName"));
+            c.setUsefulLifeYears(rs.getObject("categoryUsefulLifeYears", Integer.class));
             a.setCategory(c);
         }
 
@@ -76,8 +77,19 @@ public class AssetService {
             a.setOffice(o);
         }
 
+        applyDepreciation(a);
         return a;
     };
+
+    private static void applyDepreciation(Asset a) {
+        Integer usefulLifeYears = a.getCategory() != null ? a.getCategory().getUsefulLifeYears() : null;
+        DepreciationCalculator.Result result = DepreciationCalculator.compute(
+            a.getUnitValue(), a.getAcquisitionDate(), usefulLifeYears);
+        if (result != null) {
+            a.setAccumulatedDepreciation(result.accumulatedDepreciation());
+            a.setCarryingAmount(result.carryingAmount());
+        }
+    }
 
     public List<Asset> findAll(String search, int page, int size,
                                 Long categoryId, Long officeId, String condition, String lifecycleStatus) {
@@ -312,7 +324,7 @@ public class AssetService {
                 asset.getId(),
                 "Asset is unserviceable and flagged for disposal",
                 "Auto-generated from asset condition change",
-                "AUCTION", "PENDING",
+                "SALE", "PENDING",
                 LocalDate.now(), null, recId,
                 null, null, null);
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",

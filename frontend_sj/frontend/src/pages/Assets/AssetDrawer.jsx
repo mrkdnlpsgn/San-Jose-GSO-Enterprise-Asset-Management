@@ -161,6 +161,12 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
               <Field label="Acquisition Date"  value={fmt(asset.acquisitionDate)} />
               <Field label="Unit Value"        value={php(asset.unitValue)} />
               <Field label="Total Value"       value={php((asset.unitValue || 0) * (asset.quantity || 1))} />
+              {asset.carryingAmount != null && (
+                <>
+                  <Field label="Accumulated Depreciation" value={php(asset.accumulatedDepreciation)} />
+                  <Field label="Carrying Amount"           value={php(asset.carryingAmount)} />
+                </>
+              )}
               {asset.remarks && <Field label="Remarks" value={asset.remarks} />}
               <Field label="Added"             value={fmt(asset.createdAt)} />
               <Field label="Last Updated"      value={fmt(asset.updatedAt)} />

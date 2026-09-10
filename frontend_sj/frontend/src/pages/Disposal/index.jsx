@@ -17,14 +17,20 @@ const STATUS_BADGE = {
   COMPLETED: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
 }
 const METHOD_BADGE = {
-  AUCTION:     'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
-  DONATION:    'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
+  SALE:        'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
   TRANSFER:    'bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20',
+  DESTRUCTION: 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
+  OTHERS:      'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
 }
 
 function fmt(dt) {
   if (!dt) return '—'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function fmtMoney(n) {
+  if (n == null) return '—'
+  return `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 const PAGE_SIZE = 8
@@ -168,9 +174,10 @@ function Disposal() {
             <select value={filterMethod} onChange={(e) => setFilterMethod(e.target.value)}
               className="appearance-none text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
               <option value="">All Methods</option>
-              <option value="AUCTION">Auction</option>
-              <option value="DONATION">Donation</option>
+              <option value="SALE">Sale</option>
               <option value="TRANSFER">Transfer</option>
+              <option value="DESTRUCTION">Destruction</option>
+              <option value="OTHERS">Others</option>
             </select>
             <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
@@ -211,7 +218,7 @@ function Disposal() {
             <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
               <thead>
                 <tr>
-                  {['Asset', 'Reason', 'Method', 'Status', 'Inspection Date', 'Approved By', 'Recorded By', ''].map((h) => (
+                  {['Asset', 'Reason', 'Carrying Amount', 'Method', 'Status', 'Inspection Date', 'Approved By', 'Recorded By', ''].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -225,6 +232,10 @@ function Disposal() {
                     </td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[160px]">
                       <span className="block truncate" title={r.reason}>{r.reason}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-xs whitespace-nowrap" title="Informational only — depreciation never gates disposal; condition does.">
+                      <p className="font-medium text-slate-700 dark:text-zinc-300">{fmtMoney(r.carryingAmount)}</p>
+                      <p className="text-slate-400 dark:text-zinc-500">−{fmtMoney(r.accumulatedDepreciation)} dep.</p>
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${METHOD_BADGE[r.recommendedMethod] || ''}`}>{r.recommendedMethod}</span>

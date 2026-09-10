@@ -57,6 +57,16 @@ public class DisposalLedgerService {
             String assetCondition = rs.getString("asset_condition");
             a.setCondition(assetCondition != null ? Asset.AssetCondition.valueOf(assetCondition) : null);
             d.setAsset(a);
+
+            Integer usefulLifeYears = rs.getObject("asset_categoryUsefulLifeYears", Integer.class);
+            DepreciationCalculator.Result result = DepreciationCalculator.compute(
+                a.getUnitValue(), a.getAcquisitionDate(), usefulLifeYears);
+            if (result != null) {
+                a.setAccumulatedDepreciation(result.accumulatedDepreciation());
+                a.setCarryingAmount(result.carryingAmount());
+                d.setAccumulatedDepreciation(result.accumulatedDepreciation());
+                d.setCarryingAmount(result.carryingAmount());
+            }
         }
 
         Long rbId = rs.getObject("rb_id", Long.class);
@@ -99,6 +109,19 @@ public class DisposalLedgerService {
     }
 
     public DisposalLedger create(DisposalLedgerRequest req) {
+        List<String> conditions = jdbcTemplate.query(
+            "SELECT `condition` FROM assets WHERE asset_id = ?",
+            (rs, rn) -> rs.getString("condition"), req.getAssetId());
+        if (conditions.isEmpty()) {
+            throw new ResourceNotFoundException("Asset not found: " + req.getAssetId());
+        }
+        String assetCondition = conditions.get(0);
+        if (!"REPAIRABLE".equals(assetCondition) && !"UNSERVICEABLE".equals(assetCondition)) {
+            throw new IllegalStateException(
+                "Asset cannot be disposed while its condition is SERVICEABLE — " +
+                "mark it REPAIRABLE or UNSERVICEABLE first (via a physical inspection).");
+        }
+
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long recorderId = getUserIdByUsername(username);
 
