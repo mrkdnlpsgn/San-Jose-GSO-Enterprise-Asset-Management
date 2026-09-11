@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
+import CameraCaptureModal from '../../components/common/CameraCaptureModal'
 import { createCategory } from '../../services/categoryService'
 import { scanAssetLabel } from '../../services/assetService'
 import { useToast } from '../../context/ToastContext'
@@ -13,10 +14,10 @@ const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-
 export default function AddAssetModal({ onClose, onSave, initial = null, categories = [], offices = [], onCategoryCreated }) {
   const isEditing = !!initial
   const toast = useToast()
-  const cameraInputRef = useRef(null)
   const uploadInputRef = useRef(null)
   const [scanning, setScanning] = useState(false)
   const [wasScanned, setWasScanned] = useState(false)
+  const [showCamera, setShowCamera] = useState(false)
 
   const [form, setForm] = useState({
     propertyNumber:   initial?.propertyNumber      || '',
@@ -87,9 +88,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     }
   }
 
-  const handleScanLabel = async (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
+  const scanFile = async (file) => {
     if (!file) return
     setScanning(true)
     try {
@@ -106,6 +105,17 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     } finally {
       setScanning(false)
     }
+  }
+
+  const handleUploadChange = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    scanFile(file)
+  }
+
+  const handleCameraCapture = (file) => {
+    setShowCamera(false)
+    scanFile(file)
   }
 
   const validate = () => {
@@ -168,6 +178,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     : null
 
   return (
+    <>
+    {showCamera && (
+      <CameraCaptureModal onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />
+    )}
     <Modal title={isEditing ? 'Edit Asset' : 'Add Asset'} size="lg" onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {errors._global && (
@@ -177,25 +191,17 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         {!isEditing && (
           <div>
             <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-              capture="environment"
-              className="hidden"
-              onChange={handleScanLabel}
-            />
-            <input
               ref={uploadInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               className="hidden"
-              onChange={handleScanLabel}
+              onChange={handleUploadChange}
             />
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={scanning}
-                onClick={() => cameraInputRef.current?.click()}
+                onClick={() => setShowCamera(true)}
                 className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 dark:border-zinc-700 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-all duration-150 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-400 dark:text-zinc-500 ${scanning ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -379,6 +385,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         </div>
       </form>
     </Modal>
+    </>
   )
 }
 
