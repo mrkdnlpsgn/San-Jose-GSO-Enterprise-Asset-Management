@@ -16,6 +16,7 @@ import { setAssets, addAsset, updateAsset, removeAsset } from '../../store/slice
 import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset, bulkImportAssets } from '../../services/assetService'
 import { getCategories } from '../../services/categoryService'
 import { getOffices } from '../../services/officeService'
+import { getPersonnel } from '../../services/personnelService'
 
 const CONDITION_BADGE = {
   SERVICEABLE:   'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
@@ -51,6 +52,7 @@ function Assets() {
   const [loading, setLoading]       = useState(true)
   const [categories, setCategories] = useState([])
   const [offices, setOffices]       = useState([])
+  const [personnel, setPersonnel]   = useState([])
   const [search, setSearch]         = useState('')
   const [filterCondition, setFilterCondition]   = useState('')
   const [filterLifecycle, setFilterLifecycle]   = useState('')
@@ -89,14 +91,14 @@ function Assets() {
   }, [dispatch, toast])
 
   const load = useCallback(() => {
-    Promise.all([getCategories().catch(() => ({ data: [] })), getOffices().catch(() => ({ data: [] }))])
-      .then(([catRes, officeRes]) => { setCategories(catRes.data); setOffices(officeRes.data) })
+    Promise.all([getCategories().catch(() => ({ data: [] })), getOffices().catch(() => ({ data: [] })), getPersonnel().catch(() => ({ data: [] }))])
+      .then(([catRes, officeRes, personnelRes]) => { setCategories(catRes.data); setOffices(officeRes.data); setPersonnel(personnelRes.data) })
     fetchAssets(search)
   }, [fetchAssets, search]) // eslint-disable-line
 
   useEffect(() => {
-    Promise.all([getCategories().catch(() => ({ data: [] })), getOffices().catch(() => ({ data: [] }))])
-      .then(([catRes, officeRes]) => { setCategories(catRes.data); setOffices(officeRes.data) })
+    Promise.all([getCategories().catch(() => ({ data: [] })), getOffices().catch(() => ({ data: [] })), getPersonnel().catch(() => ({ data: [] }))])
+      .then(([catRes, officeRes, personnelRes]) => { setCategories(catRes.data); setOffices(officeRes.data); setPersonnel(personnelRes.data) })
   }, [])
 
   // Dashboard charts link here with a pre-set filter, e.g. /assets?condition=REPAIRABLE
@@ -380,7 +382,9 @@ function Assets() {
           onSave={handleCreate}
           categories={categories}
           offices={offices}
+          personnel={personnel}
           onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+          onPersonnelCreated={(p) => setPersonnel((prev) => [...prev, p])}
         />
       )}
       {editing && (
@@ -390,7 +394,9 @@ function Assets() {
           onSave={handleUpdate}
           categories={categories}
           offices={offices}
+          personnel={personnel}
           onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+          onPersonnelCreated={(p) => setPersonnel((prev) => [...prev, p])}
         />
       )}
       {showImport && <AssetImportModal onClose={() => setShowImport(false)} onImport={handleImport} />}

@@ -3,6 +3,7 @@ package com.sanjose.inventory.service;
 import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.DisposalLedgerRequest;
 import com.sanjose.inventory.entity.Asset;
+import com.sanjose.inventory.entity.Category;
 import com.sanjose.inventory.entity.DisposalLedger;
 import com.sanjose.inventory.entity.User;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
@@ -56,6 +57,16 @@ public class DisposalLedgerService {
             a.setAcquisitionDate(acqDate != null ? acqDate.toLocalDate() : null);
             String assetCondition = rs.getString("asset_condition");
             a.setCondition(assetCondition != null ? Asset.AssetCondition.valueOf(assetCondition) : null);
+
+            Long catId = rs.getObject("asset_category_id", Long.class);
+            if (catId != null) {
+                Category c = new Category();
+                c.setId(catId);
+                c.setCategoryName(rs.getString("asset_category_name"));
+                c.setUsefulLifeYears(rs.getObject("asset_category_usefulLifeYears", Integer.class));
+                a.setCategory(c);
+            }
+
             d.setAsset(a);
         }
 

@@ -6,6 +6,7 @@ import com.sanjose.inventory.dto.AssetRequest;
 import com.sanjose.inventory.entity.Asset;
 import com.sanjose.inventory.entity.Category;
 import com.sanjose.inventory.entity.Office;
+import com.sanjose.inventory.entity.Personnel;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,7 +52,6 @@ public class AssetService {
         a.setCondition(cond != null ? Asset.AssetCondition.valueOf(cond) : null);
         String lc = rs.getString("lifecycleStatus");
         a.setLifecycleStatus(lc != null ? Asset.LifecycleStatus.valueOf(lc) : null);
-        a.setAccountablePerson(rs.getString("accountablePerson"));
         a.setQrCodePath(rs.getString("qrCodePath"));
         a.setSha256Hash(rs.getString("sha256Hash"));
         a.setRemarks(rs.getString("remarks"));
@@ -74,6 +74,14 @@ public class AssetService {
             o.setId(officeId);
             o.setOfficeName(rs.getString("officeName"));
             a.setOffice(o);
+        }
+
+        Long personnelId = rs.getObject("personnel_id", Long.class);
+        if (personnelId != null) {
+            Personnel p = new Personnel();
+            p.setId(personnelId);
+            p.setFullName(rs.getString("personnelName"));
+            a.setAccountablePerson(p);
         }
 
         return a;
@@ -106,7 +114,7 @@ public class AssetService {
             propertyNumber, req.getSerialNumber(), req.getDescription(),
             req.getCategoryId(), req.getQuantity() != null ? req.getQuantity() : 1,
             req.getAcquisitionDate(), req.getUnitValue(), req.getOfficeId(),
-            req.getAccountablePerson(), req.getPhysicalCount(), req.getLocation(),
+            req.getPersonnelId(), req.getPhysicalCount(), req.getLocation(),
             req.getCondition(), "ASSIGNED",
             req.getQrCodePath(), req.getSha256Hash(), req.getRemarks());
 
@@ -175,12 +183,14 @@ public class AssetService {
         if (categoryId == null) throw new IllegalArgumentException("Unknown category: \"" + row.getCategoryName() + "\"");
         Long officeId = resolveOfficeId(row.getOfficeName());
         if (officeId == null) throw new IllegalArgumentException("Unknown office: \"" + row.getOfficeName() + "\"");
+        Long personnelId = resolvePersonnelId(row.getAccountablePerson());
+        if (personnelId == null) throw new IllegalArgumentException("Unknown accountable person: \"" + row.getAccountablePerson() + "\"");
 
         AssetRequest req = new AssetRequest();
         req.setDescription(row.getDescription().trim());
         req.setCategoryId(categoryId);
         req.setOfficeId(officeId);
-        req.setAccountablePerson(row.getAccountablePerson().trim());
+        req.setPersonnelId(personnelId);
         req.setLocation(row.getLocation().trim());
         req.setCondition(condition);
         req.setRemarks(isBlank(row.getRemarks()) ? null : row.getRemarks().trim());
@@ -231,6 +241,13 @@ public class AssetService {
         return ids.isEmpty() ? null : ids.get(0);
     }
 
+    private Long resolvePersonnelId(String name) {
+        List<Long> ids = jdbcTemplate.query(
+            "SELECT personnel_id FROM personnel WHERE LOWER(full_name) = LOWER(?)",
+            (rs, rn) -> rs.getLong(1), name.trim());
+        return ids.isEmpty() ? null : ids.get(0);
+    }
+
     public Asset update(Long id, AssetRequest req) {
         Asset before = findById(id);
         Asset.AssetCondition oldCondition = before.getCondition();
@@ -241,7 +258,7 @@ public class AssetService {
             req.getPropertyNumber(), req.getSerialNumber(), req.getDescription(),
             req.getCategoryId(), req.getQuantity() != null ? req.getQuantity() : 1,
             req.getAcquisitionDate(), req.getUnitValue(), req.getOfficeId(),
-            req.getAccountablePerson(), req.getPhysicalCount(), req.getLocation(),
+            req.getPersonnelId(), req.getPhysicalCount(), req.getLocation(),
             req.getCondition(), req.getLifecycleStatus(),
             req.getQrCodePath(), req.getSha256Hash(), req.getRemarks());
 

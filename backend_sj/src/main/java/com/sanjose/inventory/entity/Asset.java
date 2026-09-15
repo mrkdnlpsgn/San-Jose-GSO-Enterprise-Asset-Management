@@ -52,8 +52,10 @@ public class Asset {
     @JsonIgnoreProperties({"headUser", "createdAt"})
     private Office office;
 
-    @Column(name = "accountable_person", length = 150)
-    private String accountablePerson;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "personnel_id")
+    @JsonIgnoreProperties({"office"})
+    private Personnel accountablePerson;
 
     @Column(name = "physical_count")
     private Integer physicalCount;

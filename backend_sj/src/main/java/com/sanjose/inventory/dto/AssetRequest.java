@@ -14,7 +14,7 @@ public class AssetRequest {
     private LocalDate acquisitionDate;
     private BigDecimal unitValue;
     private Long officeId;
-    private String accountablePerson;
+    private Long personnelId;
     private Integer physicalCount;
     private String location;
     private String condition;       // SERVICEABLE | REPAIRABLE | UNSERVICEABLE

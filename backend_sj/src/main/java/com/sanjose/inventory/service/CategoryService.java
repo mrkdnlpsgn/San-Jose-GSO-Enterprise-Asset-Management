@@ -26,6 +26,7 @@ public class CategoryService {
         c.setId(rs.getLong("id"));
         c.setCategoryName(rs.getString("categoryName"));
         c.setDescription(rs.getString("description"));
+        c.setUsefulLifeYears(rs.getObject("usefulLifeYears", Integer.class));
         return c;
     };
 
@@ -49,8 +50,8 @@ public class CategoryService {
             throw new IllegalArgumentException("Category name already exists: " + req.getCategoryName());
         }
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
-            "CALL sp_categories_create(?, ?, ?)",
-            req.getCategoryName(), req.getDescription());
+            "CALL sp_categories_create(?, ?, ?, ?)",
+            req.getCategoryName(), req.getDescription(), req.getUsefulLifeYears());
         Category saved = findById(newId);
         auditLogService.log("CATEGORY_CREATED", "Categories", newId, "category", saved.getCategoryName());
         return saved;
@@ -58,8 +59,8 @@ public class CategoryService {
 
     public Category update(Long id, CategoryRequest req) {
         findById(id); // throws if not found
-        jdbcTemplate.update("CALL sp_categories_update(?, ?, ?)",
-            id, req.getCategoryName(), req.getDescription());
+        jdbcTemplate.update("CALL sp_categories_update(?, ?, ?, ?)",
+            id, req.getCategoryName(), req.getDescription(), req.getUsefulLifeYears());
         Category saved = findById(id);
         auditLogService.log("CATEGORY_UPDATED", "Categories", id, "category", saved.getCategoryName());
         return saved;

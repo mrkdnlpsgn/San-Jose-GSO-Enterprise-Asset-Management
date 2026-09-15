@@ -3750,24 +3750,30 @@ INSERT INTO `audit_log_digests` (`digest_id`, `digest`, `covered_entries`, `gene
 CREATE TABLE `categories` (
   `category_id` int(11) NOT NULL,
   `category_name` varchar(100) NOT NULL COMMENT 'e.g., ICT Equipment, Furniture, Appliance',
-  `description` text DEFAULT NULL
+  `description` text DEFAULT NULL,
+  -- Estimated useful life (COA straight-line depreciation, per COA Circular
+  -- 2020-006's PPE useful life schedule). Drives the IIRUP report's Accumulated
+  -- Depreciation / Carrying Amount columns — NULL falls back to 5 years there.
+  -- Seed values below are a reasonable default per category; review against
+  -- your COA-approved schedule and adjust per category in the Categories page.
+  `useful_life_years` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `categories`
 --
 
-INSERT INTO `categories` (`category_id`, `category_name`, `description`) VALUES
-(1, 'Appliances', ''),
-(2, 'ICT Equipment', 'Computers, printers, and networking equipment'),
-(3, 'Office Furniture', 'Desks, chairs, cabinets, and fixtures'),
-(4, 'Office Equipment', 'Non-ICT machines used for office operations'),
-(5, 'Motor Vehicle', 'Service vehicles and transport equipment'),
-(6, 'Heavy Equipment', 'Backhoes, bulldozers, rollers, and other heavy machinery'),
-(7, 'Communication Equipment', 'Radios, CCTV, telephone systems, and public-address equipment'),
-(8, 'Medical Equipment', 'Clinical and first-aid equipment for municipal health services'),
-(9, 'Agricultural Equipment', 'Farm tools and machinery for municipal agriculture support'),
-(10, 'Disaster & Rescue Equipment', 'Emergency response and rescue equipment for DRRM operations');
+INSERT INTO `categories` (`category_id`, `category_name`, `description`, `useful_life_years`) VALUES
+(1, 'Appliances', '', 5),
+(2, 'ICT Equipment', 'Computers, printers, and networking equipment', 5),
+(3, 'Office Furniture', 'Desks, chairs, cabinets, and fixtures', 10),
+(4, 'Office Equipment', 'Non-ICT machines used for office operations', 5),
+(5, 'Motor Vehicle', 'Service vehicles and transport equipment', 7),
+(6, 'Heavy Equipment', 'Backhoes, bulldozers, rollers, and other heavy machinery', 10),
+(7, 'Communication Equipment', 'Radios, CCTV, telephone systems, and public-address equipment', 10),
+(8, 'Medical Equipment', 'Clinical and first-aid equipment for municipal health services', 10),
+(9, 'Agricultural Equipment', 'Farm tools and machinery for municipal agriculture support', 10),
+(10, 'Disaster & Rescue Equipment', 'Emergency response and rescue equipment for DRRM operations', 10);
 
 -- --------------------------------------------------------
 
@@ -5176,6 +5182,77 @@ ALTER TABLE `offices`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_office` FOREIGN KEY (`office_id`) REFERENCES `offices` (`office_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- =============================================================
+-- PERSONNEL migration — introduces a proper Personnel record for
+-- Asset.accountable_person instead of a free-text name. Idempotent (see
+-- migration_personnel.sql, which is the exact same script run standalone
+-- against a database that already existed before this migration shipped).
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS `personnel` (
+  `personnel_id` int(11) NOT NULL AUTO_INCREMENT,
+  `full_name` varchar(150) NOT NULL,
+  `position` varchar(150) DEFAULT NULL,
+  `office_id` int(11) DEFAULT NULL,
+  `contact_info` varchar(150) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`personnel_id`),
+  UNIQUE KEY `uq_personnel_full_name` (`full_name`),
+  KEY `idx_personnel_office` (`office_id`),
+  CONSTRAINT `fk_personnel_office` FOREIGN KEY (`office_id`) REFERENCES `offices` (`office_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND COLUMN_NAME = 'personnel_id'
+);
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `assets` ADD COLUMN `personnel_id` int(11) DEFAULT NULL AFTER `office_id`',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @acc_col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND COLUMN_NAME = 'accountable_person'
+);
+
+SET @sql := IF(@acc_col_exists = 1,
+  'INSERT INTO `personnel` (full_name, created_at)
+   SELECT DISTINCT TRIM(accountable_person), NOW() FROM `assets`
+   WHERE accountable_person IS NOT NULL AND TRIM(accountable_person) <> ""
+     AND TRIM(accountable_person) NOT IN (SELECT full_name FROM personnel)',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@acc_col_exists = 1,
+  'UPDATE `assets` a JOIN `personnel` p ON LOWER(TRIM(a.accountable_person)) = LOWER(p.full_name)
+   SET a.personnel_id = p.personnel_id
+   WHERE a.personnel_id IS NULL',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@acc_col_exists = 1,
+  'ALTER TABLE `assets` DROP INDEX `idx_assets_accountable`',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@acc_col_exists = 1,
+  'ALTER TABLE `assets` DROP COLUMN `accountable_person`',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @fk_exists := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND CONSTRAINT_NAME = 'fk_assets_personnel'
+);
+SET @sql := IF(@fk_exists = 0,
+  'ALTER TABLE `assets`
+     ADD KEY `idx_assets_personnel` (`personnel_id`),
+     ADD CONSTRAINT `fk_assets_personnel` FOREIGN KEY (`personnel_id`) REFERENCES `personnel` (`personnel_id`) ON UPDATE CASCADE',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

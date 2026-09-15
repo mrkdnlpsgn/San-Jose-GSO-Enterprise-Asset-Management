@@ -45,6 +45,36 @@ double _varianceValue(AssetModel a) {
   return v == null ? 0 : v * a.unitValue;
 }
 
+// COA straight-line depreciation with a standard 10% salvage value (Philippine
+// Government Accounting Manual / COA Circular 2020-006). Falls back to 5 years
+// when the asset's category has no useful life configured (Categories screen).
+const _kDefaultUsefulLifeYears = 5;
+const _kSalvageRate = 0.10;
+
+class _Depreciation {
+  final double accumulatedDepreciation;
+  final double carryingAmount;
+  const _Depreciation(this.accumulatedDepreciation, this.carryingAmount);
+}
+
+_Depreciation _disposalDepreciation(DisposalModel d) {
+  final cost = d.asset.unitValue * d.asset.quantity;
+  final acqDate = DateTime.tryParse(d.asset.acquisitionDate);
+  if (cost == 0 || acqDate == null) return _Depreciation(0, cost);
+
+  final usefulLifeYears = d.asset.category.usefulLifeYears ?? _kDefaultUsefulLifeYears;
+  final asOf = DateTime.tryParse(d.inspectionDate) ?? DateTime.now();
+  final depreciableAmount = cost * (1 - _kSalvageRate);
+  final usefulLifeMonths = usefulLifeYears * 12;
+
+  final monthsInService = ((asOf.year - acqDate.year) * 12 + (asOf.month - acqDate.month))
+      .clamp(0, usefulLifeMonths);
+  final accumulatedDepreciation =
+      usefulLifeMonths > 0 ? (depreciableAmount / usefulLifeMonths) * monthsInService : 0.0;
+
+  return _Depreciation(accumulatedDepreciation, cost - accumulatedDepreciation);
+}
+
 List<ReportDefinition> buildReportDefinitions() {
   final assetService = AssetService();
   final disposalService = DisposalService();
@@ -222,9 +252,11 @@ List<ReportDefinition> buildReportDefinitions() {
           final d = row as DisposalModel;
           return fmtMoney(d.asset.unitValue * d.asset.quantity);
         }),
-        ReportColumn('Accumulated Depreciation', (row) => '—'),
-        ReportColumn('Accumulated Impairment Losses', (row) => '—'),
-        ReportColumn('Carrying Amount', (row) => '—'),
+        ReportColumn('Accumulated Depreciation',
+            (row) => fmtMoney(_disposalDepreciation(row as DisposalModel).accumulatedDepreciation)),
+        ReportColumn('Accumulated Impairment Losses', (row) => fmtMoney(0)),
+        ReportColumn('Carrying Amount',
+            (row) => fmtMoney(_disposalDepreciation(row as DisposalModel).carryingAmount)),
         ReportColumn('Remarks', (row) => (row as DisposalModel).inspectionFindings),
         ReportColumn('Sale', (row) {
           final d = row as DisposalModel;

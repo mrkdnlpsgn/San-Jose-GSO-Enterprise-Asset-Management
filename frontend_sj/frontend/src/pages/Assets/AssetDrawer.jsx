@@ -155,7 +155,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
               {asset.serialNumber && <Field label="Serial Number" value={asset.serialNumber} />}
               <Field label="Category"          value={asset.category?.categoryName} />
               <Field label="Office"            value={asset.office?.officeName} />
-              <Field label="Accountable Person" value={asset.accountablePerson} />
+              <Field label="Accountable Person" value={asset.accountablePerson?.fullName} />
               <Field label="Location"          value={asset.location} />
               <Field label="Quantity"          value={asset.quantity} />
               <Field label="Acquisition Date"  value={fmt(asset.acquisitionDate)} />

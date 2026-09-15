@@ -209,11 +209,12 @@ function computeOfficeDist(assets) {
 function computeTopAccountable(assets) {
   const map = {}
   assets.forEach((a) => {
-    const name = a.accountablePerson
-    if (!name) return
-    map[name] = (map[name] || 0) + 1
+    const p = a.accountablePerson
+    if (!p) return
+    if (!map[p.id]) map[p.id] = { name: p.fullName, count: 0 }
+    map[p.id].count++
   })
-  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, count }))
+  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 5)
 }
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────

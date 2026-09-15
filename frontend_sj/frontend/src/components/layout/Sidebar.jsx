@@ -125,6 +125,15 @@ const systemNavItems = [
     ),
   },
   {
+    to: '/personnel',
+    label: 'Personnel',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-[18px] w-[18px] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 10a2 2 0 00-2 2v1a3 3 0 003 3h6a3 3 0 003-3v-1a2 2 0 00-2-2H6z" />
+      </svg>
+    ),
+  },
+  {
     to: '/audit-logs',
     label: 'Audit Logs',
     icon: (

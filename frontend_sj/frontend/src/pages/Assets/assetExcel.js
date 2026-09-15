@@ -122,7 +122,7 @@ export function exportAssetsToExcel(assets) {
     { label: 'Shortage/Overage Value', value: (a) => (a.physicalCount != null ? (a.physicalCount - (a.quantity ?? 0)) * Number(a.unitValue ?? 0) : '') },
     { label: 'Unit Value',             value: (a) => a.unitValue ?? '' },
     { label: 'Office',                 value: (a) => a.office?.officeName || '' },
-    { label: 'Accountable Person',     value: (a) => a.accountablePerson || '' },
+    { label: 'Accountable Person',     value: (a) => a.accountablePerson?.fullName || '' },
     { label: 'Location',               value: (a) => a.location || '' },
     { label: 'Acquisition Date',       value: (a) => a.acquisitionDate || '' },
     { label: 'Condition',              value: (a) => a.condition || '' },

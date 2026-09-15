@@ -84,6 +84,31 @@ const varianceValue = (r) => {
   return v === null ? 0 : v * (Number(r.unitValue) || 0)
 }
 
+// COA straight-line depreciation with a standard 10% salvage value (Philippine
+// Government Accounting Manual / COA Circular 2020-006). Falls back to 5 years
+// when the asset's category has no useful life configured (Categories page).
+const DEFAULT_USEFUL_LIFE_YEARS = 5
+const SALVAGE_RATE = 0.10
+
+const disposalDepreciation = (r) => {
+  const cost = (Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)
+  const acqDate = r.asset?.acquisitionDate ? new Date(r.asset.acquisitionDate) : null
+  if (!cost || !acqDate || Number.isNaN(acqDate.getTime())) return { accumulatedDepreciation: 0, carryingAmount: cost }
+
+  const usefulLifeYears = r.asset?.category?.usefulLifeYears || DEFAULT_USEFUL_LIFE_YEARS
+  const asOf = r.inspectionDate ? new Date(r.inspectionDate) : new Date()
+  const depreciableAmount = cost * (1 - SALVAGE_RATE)
+  const usefulLifeMonths = usefulLifeYears * 12
+
+  const monthsInService = Math.max(0,
+    (asOf.getFullYear() - acqDate.getFullYear()) * 12 + (asOf.getMonth() - acqDate.getMonth())
+  )
+  const depreciatedMonths = Math.min(monthsInService, usefulLifeMonths)
+  const accumulatedDepreciation = usefulLifeMonths > 0 ? (depreciableAmount / usefulLifeMonths) * depreciatedMonths : 0
+
+  return { accumulatedDepreciation, carryingAmount: cost - accumulatedDepreciation }
+}
+
 // ── Report definitions ────────────────────────────────────────────────────────
 const REPORTS = [
   {
@@ -108,7 +133,7 @@ const REPORTS = [
       { label: 'Lifecycle',       display: (r) => (r.lifecycleStatus || '').replace('_', ' ') || '—',                                                     raw: (r) => r.lifecycleStatus || '' },
       { label: 'Office',          display: (r) => r.office?.officeName || '—',                                                                            raw: (r) => r.office?.officeName || '' },
       { label: 'Location',        display: (r) => r.location || '—',                                                                                      raw: (r) => r.location || '' },
-      { label: 'Accountable',     display: (r) => r.accountablePerson?.fullName || r.accountablePerson?.username || '—',                                  raw: (r) => r.accountablePerson?.fullName || r.accountablePerson?.username || '' },
+      { label: 'Accountable',     display: (r) => r.accountablePerson?.fullName || '—',                                                               raw: (r) => r.accountablePerson?.fullName || '' },
       { label: 'Qty',             display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
       { label: 'Unit Value',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
       { label: 'Acq. Date',       display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
@@ -296,9 +321,9 @@ const REPORTS = [
       { label: 'Qty.',                          display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
       { label: 'Unit Cost',                     display: (r) => fmtMoney(r.asset?.unitValue),                                                                     raw: (r) => r.asset?.unitValue != null ? Number(r.asset.unitValue).toFixed(2) : '' },
       { label: 'Total Cost',                    display: (r) => fmtMoney((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)),                   raw: (r) => ((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)).toFixed(2) },
-      { label: 'Accumulated Depreciation',      display: () => '—',                                                                                               raw: () => '' },
-      { label: 'Accumulated Impairment Losses', display: () => '—',                                                                                               raw: () => '' },
-      { label: 'Carrying Amount',               display: () => '—',                                                                                               raw: () => '' },
+      { label: 'Accumulated Depreciation',      display: (r) => fmtMoney(disposalDepreciation(r).accumulatedDepreciation),                                        raw: (r) => disposalDepreciation(r).accumulatedDepreciation.toFixed(2) },
+      { label: 'Accumulated Impairment Losses', display: () => fmtMoney(0),                                                                                       raw: () => '0.00' },
+      { label: 'Carrying Amount',               display: (r) => fmtMoney(disposalDepreciation(r).carryingAmount),                                                 raw: (r) => disposalDepreciation(r).carryingAmount.toFixed(2) },
       { label: 'Remarks',                       display: (r) => r.inspectionFindings ? <span className="max-w-[180px] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : '—', raw: (r) => r.inspectionFindings || '' },
       { label: 'Sale',                          display: (r) => r.recommendedMethod === 'AUCTION'   ? (r.asset?.quantity ?? 1) : '—',                             raw: (r) => r.recommendedMethod === 'AUCTION'   ? (r.asset?.quantity ?? 1) : '' },
       { label: 'Transfer',                      display: (r) => r.recommendedMethod === 'TRANSFER'  ? (r.asset?.quantity ?? 1) : '—',                             raw: (r) => r.recommendedMethod === 'TRANSFER'  ? (r.asset?.quantity ?? 1) : '' },

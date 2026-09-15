@@ -3,6 +3,7 @@ import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 import CameraCaptureModal from '../../components/common/CameraCaptureModal'
 import { createCategory } from '../../services/categoryService'
+import { createPersonnel } from '../../services/personnelService'
 import { scanAssetLabel } from '../../services/assetService'
 import { useToast } from '../../context/ToastContext'
 import { newIdempotencyKey } from '../../utils/idempotency'
@@ -11,7 +12,7 @@ const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 const CONDITIONS  = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
-export default function AddAssetModal({ onClose, onSave, initial = null, categories = [], offices = [], onCategoryCreated }) {
+export default function AddAssetModal({ onClose, onSave, initial = null, categories = [], offices = [], personnel = [], onCategoryCreated, onPersonnelCreated }) {
   const isEditing = !!initial
   const toast = useToast()
   const uploadInputRef = useRef(null)
@@ -28,7 +29,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     acquisitionDate:  initial?.acquisitionDate      || '',
     unitValue:        initial?.unitValue            ?? '',
     officeId:         initial?.office?.id           ? String(initial.office.id) : '',
-    accountablePerson: initial?.accountablePerson   || '',
+    personnelId:      initial?.accountablePerson?.id ? String(initial.accountablePerson.id) : '',
     physicalCount:    initial?.physicalCount         ?? 1,
     location:         initial?.location             || '',
     condition:        initial?.condition            || 'SERVICEABLE',
@@ -44,6 +45,14 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const [customName, setCustomName]       = useState('')
   const [savingCustom, setSavingCustom]   = useState(false)
   const [customError, setCustomError]     = useState('')
+
+  // Quick-add personnel state — needs more than one field (full name, position,
+  // office, contact), unlike category's single-name inline create, so this opens
+  // a small sub-form instead of swapping the select for a text input.
+  const [personnelCustomMode, setPersonnelCustomMode] = useState(false)
+  const [personnelCustomForm, setPersonnelCustomForm] = useState({ fullName: '', position: '', officeId: '', contactInfo: '' })
+  const [savingPersonnel, setSavingPersonnel]         = useState(false)
+  const [personnelCustomError, setPersonnelCustomError] = useState('')
 
   // Build combined category list: predefined first, then DB categories not already matching a predefined name
   const dbCategoryNames = categories.map((c) => c.categoryName.toLowerCase())
@@ -88,6 +97,41 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     }
   }
 
+  const handlePersonnelChange = (e) => {
+    const val = e.target.value
+    if (val === '__custom__') {
+      setPersonnelCustomMode(true)
+    } else {
+      setPersonnelCustomMode(false)
+      setForm((p) => ({ ...p, personnelId: val }))
+      setErrors((p) => { const n = { ...p }; delete n.personnelId; return n })
+    }
+  }
+
+  const handleSaveCustomPersonnel = async () => {
+    const fullName = personnelCustomForm.fullName.trim()
+    if (!fullName) { setPersonnelCustomError('Full name is required.'); return }
+    setSavingPersonnel(true)
+    setPersonnelCustomError('')
+    try {
+      const { data: newPersonnel } = await createPersonnel({
+        fullName,
+        position: personnelCustomForm.position.trim() || null,
+        officeId: personnelCustomForm.officeId ? Number(personnelCustomForm.officeId) : null,
+        contactInfo: personnelCustomForm.contactInfo.trim() || null,
+      }, idempotencyKey)
+      if (onPersonnelCreated) onPersonnelCreated(newPersonnel)
+      setForm((p) => ({ ...p, personnelId: String(newPersonnel.id) }))
+      setPersonnelCustomMode(false)
+      setPersonnelCustomForm({ fullName: '', position: '', officeId: '', contactInfo: '' })
+      setErrors((p) => { const n = { ...p }; delete n.personnelId; return n })
+    } catch (err) {
+      setPersonnelCustomError(err.response?.data?.message || 'Failed to create personnel.')
+    } finally {
+      setSavingPersonnel(false)
+    }
+  }
+
   const scanFile = async (file) => {
     if (!file) return
     setScanning(true)
@@ -123,7 +167,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     if (!form.description.trim())      e.description      = 'Description is required.'
     if (!form.categoryId)              e.categoryId       = 'Category is required.'
     if (!form.officeId)                e.officeId         = 'Location is required.'
-    if (!form.accountablePerson.trim()) e.accountablePerson = 'Accountable person is required.'
+    if (!form.personnelId)              e.personnelId      = 'Accountable person is required.'
     if (form.physicalCount === '' || form.physicalCount == null) e.physicalCount = 'Physical count is required.'
     if (!form.acquisitionDate)         e.acquisitionDate  = 'Acquisition date is required.'
     if (!form.unitValue && form.unitValue !== 0) e.unitValue = 'Unit value is required.'
@@ -155,7 +199,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         acquisitionDate:   form.acquisitionDate,
         unitValue:         Number(form.unitValue),
         officeId:          Number(form.officeId),
-        accountablePerson: form.accountablePerson.trim(),
+        personnelId:       form.personnelId ? Number(form.personnelId) : null,
         physicalCount:     form.physicalCount !== '' ? Number(form.physicalCount) : null,
         location:          selectedOfficeName,
         condition:         form.condition,
@@ -337,15 +381,71 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             </div>
             {errors.officeId && <p className="text-xs text-red-400">{errors.officeId}</p>}
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className={`flex flex-col gap-1.5 ${personnelCustomMode ? 'sm:col-span-2' : ''}`}>
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Accountable Person<span className="text-red-400 ml-0.5">*</span></label>
-            <input
-              className={INPUT_CLASS}
-              placeholder="Full name of accountable person"
-              value={form.accountablePerson}
-              onChange={set('accountablePerson')}
-            />
-            {errors.accountablePerson && <p className="text-xs text-red-400">{errors.accountablePerson}</p>}
+            {personnelCustomMode ? (
+              <div className="space-y-2 rounded-lg border border-slate-200 dark:border-zinc-700 p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    className={INPUT_CLASS}
+                    placeholder="Full name*"
+                    value={personnelCustomForm.fullName}
+                    onChange={(e) => { setPersonnelCustomForm((p) => ({ ...p, fullName: e.target.value })); setPersonnelCustomError('') }}
+                    autoFocus
+                  />
+                  <input
+                    className={INPUT_CLASS}
+                    placeholder="Position (optional)"
+                    value={personnelCustomForm.position}
+                    onChange={(e) => setPersonnelCustomForm((p) => ({ ...p, position: e.target.value }))}
+                  />
+                  <select
+                    className={INPUT_CLASS + ' appearance-none'}
+                    value={personnelCustomForm.officeId}
+                    onChange={(e) => setPersonnelCustomForm((p) => ({ ...p, officeId: e.target.value }))}
+                  >
+                    <option value="">— Office (optional) —</option>
+                    {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
+                  </select>
+                  <input
+                    className={INPUT_CLASS}
+                    placeholder="Contact info (optional)"
+                    value={personnelCustomForm.contactInfo}
+                    onChange={(e) => setPersonnelCustomForm((p) => ({ ...p, contactInfo: e.target.value }))}
+                  />
+                </div>
+                {personnelCustomError && <p className="text-xs text-red-400">{personnelCustomError}</p>}
+                <div className="flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setPersonnelCustomMode(false); setPersonnelCustomError('') }}
+                    className="flex-shrink-0 px-3 py-2 rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCustomPersonnel}
+                    disabled={savingPersonnel}
+                    className="flex-shrink-0 px-3 py-2 rounded-md bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 transition-all"
+                  >
+                    {savingPersonnel ? '…' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.personnelId} onChange={handlePersonnelChange}>
+                  <option value="">— Select accountable person —</option>
+                  {personnel.map((p) => (
+                    <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}</option>
+                  ))}
+                  <option value="__custom__">＋ Add new personnel…</option>
+                </select>
+                <ChevronIcon />
+              </div>
+            )}
+            {errors.personnelId && !personnelCustomMode && <p className="text-xs text-red-400">{errors.personnelId}</p>}
           </div>
         </div>
 

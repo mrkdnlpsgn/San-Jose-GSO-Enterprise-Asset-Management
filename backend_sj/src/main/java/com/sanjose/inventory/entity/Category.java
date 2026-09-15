@@ -21,4 +21,7 @@ public class Category {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "useful_life_years")
+    private Integer usefulLifeYears;
 }
