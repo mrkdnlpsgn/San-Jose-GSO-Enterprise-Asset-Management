@@ -123,4 +123,15 @@ public class AuthController {
         LocalDateTime ack = authService.acknowledgePrivacy(principal.getUsername());
         return ResponseEntity.ok(Map.of("privacyAcknowledgedAt", ack));
     }
+
+    // Step-up 2FA before a permanent (unrecoverable) delete from the Recycle Bin —
+    // see DeletedRecordsController's permanent-delete endpoints, which verify the
+    // code inline via authService.verifyDeleteOtp() rather than exposing a
+    // separate verify endpoint here.
+    @PostMapping("/delete-otp/request")
+    public ResponseEntity<Map<String, String>> requestDeleteOtp(@AuthenticationPrincipal UserDetails principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        authService.requestDeleteOtp(principal.getUsername());
+        return ResponseEntity.ok(Map.of("message", "A verification code has been sent to your email."));
+    }
 }

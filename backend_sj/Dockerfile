@@ -22,6 +22,10 @@ RUN addgroup -S app && adduser -S app -G app
 # Copy built JAR from builder
 COPY --from=builder /build/target/*.jar app.jar
 
+# Uploaded evidence photos live here (see the uploads_data volume in docker-compose.yml). Created in
+# the image, owned by the app user, so a fresh named volume mounted over it is writable by that user.
+RUN mkdir -p /app/uploads
+
 # Set ownership
 RUN chown -R app:app /app
 

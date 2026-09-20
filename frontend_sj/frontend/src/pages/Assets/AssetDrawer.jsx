@@ -5,8 +5,9 @@ import { getDisposalByAsset } from '../../services/disposalService'
 import { getHistoryByAsset } from '../../services/assetHistoryService'
 import { getLatestRecommendation, generateRecommendation } from '../../services/aiRecommendationService'
 import AssetQrModal from './AssetQrModal'
+import EvidenceModal from '../../components/common/EvidenceModal'
 
-const TAB_LABELS = { details: 'Details', history: 'Lifecycle', ai: 'AI Insight', maintenance: 'Maintenance' }
+const TAB_LABELS = { details: 'Details', history: 'Lifecycle', specs: 'Specifications', ai: 'AI Insight', maintenance: 'Maintenance' }
 
 const RECOMMENDATION_BADGE = {
   MAINTAIN:            'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
@@ -49,6 +50,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
   const [aiLoading, setAiLoading]     = useState(false)
   const [aiError, setAiError]         = useState('')
   const [showQr, setShowQr]           = useState(false)
+  const [showEvidence, setShowEvidence] = useState(false)
   const isFirstRender = useRef(true)
 
   useEffect(() => {
@@ -94,7 +96,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
 
   if (!asset) return null
 
-  const tabs = ['details', 'history', 'ai',
+  const tabs = ['details', 'history', 'specs', 'ai',
     ...(asset.condition === 'REPAIRABLE' ? ['maintenance'] : []),
   ]
 
@@ -117,6 +119,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
         <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
           <div className="flex-1 min-w-0">
             <p className="font-mono text-xs text-slate-400 dark:text-zinc-500">{asset.propertyNumber}</p>
+            <p className="font-mono text-xs text-slate-400 dark:text-zinc-500">PAR: {asset.parNumber || '—'}</p>
             <h2 className="text-base font-semibold text-slate-900 dark:text-white leading-snug mt-0.5 truncate">{asset.description}</h2>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${CONDITION_BADGE[asset.condition] || ''}`}>{asset.condition}</span>
@@ -155,7 +158,8 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
               {asset.serialNumber && <Field label="Serial Number" value={asset.serialNumber} />}
               <Field label="Category"          value={asset.category?.categoryName} />
               <Field label="Office"            value={asset.office?.officeName} />
-              <Field label="Accountable Person" value={asset.accountablePerson} />
+              <Field label="Accountable Person" value={asset.accountablePerson?.fullName} />
+              <Field label="Current User"      value={asset.currentUser?.fullName} />
               <Field label="Location"          value={asset.location} />
               <Field label="Quantity"          value={asset.quantity} />
               <Field label="Acquisition Date"  value={fmt(asset.acquisitionDate)} />
@@ -184,6 +188,11 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
                   View Disposal Records
                 </button>
               )}
+              <button onClick={() => setShowEvidence(true)}
+                className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>
+                Evidence Photos
+              </button>
             </div>
           )}
 
@@ -260,6 +269,25 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
             )
           })()}
 
+          {tab === 'specs' && (
+            asset.specifications ? (
+              <p className="text-sm text-slate-700 dark:text-zinc-200 whitespace-pre-line break-words bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg px-3.5 py-3 leading-relaxed">
+                {asset.specifications}
+              </p>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-9 w-9 text-slate-200 dark:text-zinc-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm text-slate-400 dark:text-zinc-600">No technical specifications recorded for this asset.</p>
+                <button onClick={() => onEdit(asset)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm font-medium hover:bg-brand-500/20 transition-all">
+                  Add Specifications
+                </button>
+              </div>
+            )
+          )}
+
           {tab === 'ai' && (
             <div className="space-y-3">
               {aiError && (
@@ -331,6 +359,14 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
       </aside>
 
       {showQr && <AssetQrModal asset={asset} onClose={() => setShowQr(false)} />}
+      {showEvidence && (
+        <EvidenceModal
+          path={`/assets/${asset.id}/evidence`}
+          title="Asset Evidence"
+          subtitle={`${asset.propertyNumber || ''} — ${asset.description || ''}`}
+          onClose={() => setShowEvidence(false)}
+        />
+      )}
     </>
   )
 }

@@ -4,7 +4,7 @@ import Button from '../../components/common/Button'
 import Table from '../../components/common/Table'
 import { IMPORT_COLUMNS, downloadImportTemplate, parseImportFile } from './assetExcel'
 
-const REQUIRED_KEYS = ['description', 'categoryName', 'officeName', 'accountablePerson', 'physicalCount', 'acquisitionDate', 'unitValue', 'location', 'condition']
+const REQUIRED_KEYS = ['parNumber', 'description', 'categoryName', 'officeName', 'accountablePerson', 'physicalCount', 'acquisitionDate', 'unitValue', 'location', 'condition']
 
 function AssetImportModal({ onClose, onImport }) {
   const [stage, setStage]     = useState('idle') // idle | preview | importing | done
@@ -88,7 +88,8 @@ function AssetImportModal({ onClose, onImport }) {
               <div>
                 <p className="text-sm font-medium text-slate-800 dark:text-zinc-200">Download Import Template</p>
                 <p className="text-xs text-slate-500 dark:text-zinc-500 mt-px">
-                  Category and Office must match existing names exactly (case-insensitive)
+                  Category and Office must match existing names exactly (case-insensitive). PAR Number is required — for
+                  more than one device, list one PAR Number per device separated by ";" (Qty must match); each becomes its own asset, grouped together, with Property Numbers auto-generated.
                 </p>
               </div>
             </div>

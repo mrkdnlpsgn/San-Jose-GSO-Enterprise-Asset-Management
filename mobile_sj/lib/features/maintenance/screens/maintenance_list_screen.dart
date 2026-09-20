@@ -11,6 +11,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../../features/auth/provider/auth_provider.dart';
 import '../../../core/platform.dart';
 import '../widgets/maintenance_filter_sheet.dart';
+import '../../assets/widgets/asset_group_widgets.dart';
 
 class MaintenanceListScreen extends ConsumerStatefulWidget {
   const MaintenanceListScreen({super.key});
@@ -107,18 +108,40 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
       body: AutoRefreshTicker(
         interval: const Duration(seconds: 30),
         onTick: () => ref.read(maintenancePagedProvider(search).notifier).silentRefresh(),
-        child: PaginatedListView<MaintenanceModel>(
-          state: state,
+        child: PaginatedListView<RecordEntry<MaintenanceModel>>(
+          state: groupRecordsState(state, (m) => m.asset.groupId),
           emptyMessage: 'No maintenance records.',
           onLoadMore: () => ref.read(maintenancePagedProvider(search).notifier).loadMore(),
           onRefresh: () async {
             ref.invalidate(maintenanceCountProvider(search));
             await ref.read(maintenancePagedProvider(search).notifier).refresh();
           },
-          itemBuilder: (context, item, i) => _MaintenanceCard(
-            item: item,
-            onTap: () => context.push('/maintenance/${item.id}'),
-          ),
+          itemBuilder: (context, entry, i) => entry.isGroup
+              ? RecordGroupCard<MaintenanceModel>(
+                  members: entry.members,
+                  assetOf: (m) => m.asset,
+                  noun: 'records',
+                  columns: const ['Asset', 'Type', 'Findings', 'Status', 'Date', 'Assigned To', 'Cost'],
+                  values: (m) => [
+                    assetCellText(m.asset),
+                    m.maintenanceType,
+                    m.findings,
+                    m.status,
+                    m.maintenanceDate,
+                    m.assignedTo ?? '—',
+                    m.cost != null ? '₱${m.cost!.toStringAsFixed(2)}' : '—',
+                  ],
+                  summary: Text(
+                    'Total cost ₱${entry.members.fold<double>(0, (n, m) => n + (m.cost ?? 0)).toStringAsFixed(2)}',
+                    style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+                  ),
+                  onOpenRecord: (m) => context.push('/maintenance/${m.id}'),
+                  onOpenDevice: (a) => context.push('/assets/${a.id}'),
+                )
+              : _MaintenanceCard(
+                  item: entry.members.first,
+                  onTap: () => context.push('/maintenance/${entry.members.first.id}'),
+                ),
         ),
       ),
     );
@@ -158,7 +181,7 @@ class _MaintenanceCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                item.asset.propertyNumber,
+                item.asset.propertyAndPar,
                 style: const TextStyle(color: AppTheme.brand, fontSize: 12),
               ),
               const SizedBox(height: 8),

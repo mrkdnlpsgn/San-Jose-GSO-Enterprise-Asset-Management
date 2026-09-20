@@ -123,7 +123,7 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: context.colors.textSecondary, fontSize: 14)),
             const SizedBox(height: 6),
-            Text('Category and Office must match existing names exactly (case-insensitive)',
+            Text('Category and Office must match existing names exactly (case-insensitive). PAR Number is required — for more than one device, list one PAR Number per device separated by ";" (Qty must match); each becomes its own asset, grouped together, with Property Numbers auto-generated.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
             const SizedBox(height: 24),

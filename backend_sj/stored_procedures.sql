@@ -171,6 +171,50 @@ BEGIN
     WHERE user_id = p_user_id;
 END $$
 
+-- Step-up 2FA for permanently deleting a Recycle Bin record — a dedicated OTP
+-- column set (not the login OTP's) so requesting a delete confirmation code
+-- can't interfere with, or be satisfied by, a concurrent login attempt.
+DROP PROCEDURE IF EXISTS sp_auth_set_delete_otp $$
+CREATE PROCEDURE sp_auth_set_delete_otp(
+    IN p_user_id INT, IN p_otp_hash VARCHAR(255), IN p_expires_at DATETIME
+)
+BEGIN
+    UPDATE users
+    SET delete_otp_hash = p_otp_hash,
+        delete_otp_expires_at = p_expires_at,
+        delete_otp_attempts = 0
+    WHERE user_id = p_user_id;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_auth_get_delete_otp $$
+CREATE PROCEDURE sp_auth_get_delete_otp(IN p_username VARCHAR(50))
+BEGIN
+    SELECT user_id AS id, email, is_active AS isActive,
+           delete_otp_hash AS otpHash,
+           delete_otp_expires_at AS otpExpiresAt,
+           delete_otp_attempts AS otpAttempts
+    FROM users
+    WHERE LOWER(username) = LOWER(p_username);
+END $$
+
+DROP PROCEDURE IF EXISTS sp_auth_increment_delete_otp_attempts $$
+CREATE PROCEDURE sp_auth_increment_delete_otp_attempts(IN p_user_id INT)
+BEGIN
+    UPDATE users
+    SET delete_otp_attempts = delete_otp_attempts + 1
+    WHERE user_id = p_user_id;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_auth_clear_delete_otp $$
+CREATE PROCEDURE sp_auth_clear_delete_otp(IN p_user_id INT)
+BEGIN
+    UPDATE users
+    SET delete_otp_hash = NULL,
+        delete_otp_expires_at = NULL,
+        delete_otp_attempts = 0
+    WHERE user_id = p_user_id;
+END $$
+
 -- =============================================================
 -- OFFICES
 -- =============================================================
@@ -230,13 +274,83 @@ BEGIN
 END $$
 
 -- =============================================================
+-- PERSONNEL
+-- =============================================================
+
+DROP PROCEDURE IF EXISTS sp_personnel_get_all $$
+CREATE PROCEDURE sp_personnel_get_all()
+BEGIN
+    SELECT p.personnel_id AS id, p.full_name AS fullName, p.position, p.contact_info AS contactInfo,
+           p.created_at AS createdAt,
+           o.office_id, o.office_name AS officeName
+    FROM personnel p
+    LEFT JOIN offices o ON p.office_id = o.office_id
+    ORDER BY p.full_name;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_personnel_search $$
+CREATE PROCEDURE sp_personnel_search(IN p_search VARCHAR(255))
+BEGIN
+    SET p_search = TRIM(p_search);
+    SELECT p.personnel_id AS id, p.full_name AS fullName, p.position, p.contact_info AS contactInfo,
+           p.created_at AS createdAt,
+           o.office_id, o.office_name AS officeName
+    FROM personnel p
+    LEFT JOIN offices o ON p.office_id = o.office_id
+    WHERE p.full_name LIKE CONCAT('%', p_search, '%')
+       OR p.position  LIKE CONCAT('%', p_search, '%')
+    ORDER BY p.full_name;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_personnel_get_by_id $$
+CREATE PROCEDURE sp_personnel_get_by_id(IN p_id INT)
+BEGIN
+    SELECT p.personnel_id AS id, p.full_name AS fullName, p.position, p.contact_info AS contactInfo,
+           p.created_at AS createdAt,
+           o.office_id, o.office_name AS officeName
+    FROM personnel p
+    LEFT JOIN offices o ON p.office_id = o.office_id
+    WHERE p.personnel_id = p_id;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_personnel_create $$
+CREATE PROCEDURE sp_personnel_create(
+    IN p_full_name VARCHAR(150), IN p_position VARCHAR(150),
+    IN p_office_id INT, IN p_contact_info VARCHAR(150),
+    OUT p_id INT
+)
+BEGIN
+    INSERT INTO personnel(full_name, position, office_id, contact_info, created_at)
+    VALUES(p_full_name, NULLIF(p_position, ''), NULLIF(p_office_id, 0), NULLIF(p_contact_info, ''), NOW());
+    SET p_id = LAST_INSERT_ID();
+END $$
+
+DROP PROCEDURE IF EXISTS sp_personnel_update $$
+CREATE PROCEDURE sp_personnel_update(
+    IN p_id INT, IN p_full_name VARCHAR(150), IN p_position VARCHAR(150),
+    IN p_office_id INT, IN p_contact_info VARCHAR(150)
+)
+BEGIN
+    UPDATE personnel
+    SET full_name = p_full_name, position = NULLIF(p_position, ''),
+        office_id = NULLIF(p_office_id, 0), contact_info = NULLIF(p_contact_info, '')
+    WHERE personnel_id = p_id;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_personnel_delete $$
+CREATE PROCEDURE sp_personnel_delete(IN p_id INT)
+BEGIN
+    DELETE FROM personnel WHERE personnel_id = p_id;
+END $$
+
+-- =============================================================
 -- CATEGORIES
 -- =============================================================
 
 DROP PROCEDURE IF EXISTS sp_categories_get_all $$
 CREATE PROCEDURE sp_categories_get_all()
 BEGIN
-    SELECT category_id AS id, category_name AS categoryName, `description`
+    SELECT category_id AS id, category_name AS categoryName, `description`, useful_life_years AS usefulLifeYears
     FROM categories ORDER BY category_name;
 END $$
 
@@ -244,7 +358,7 @@ DROP PROCEDURE IF EXISTS sp_categories_search $$
 CREATE PROCEDURE sp_categories_search(IN p_search VARCHAR(255))
 BEGIN
     SET p_search = TRIM(p_search);
-    SELECT category_id AS id, category_name AS categoryName, `description`
+    SELECT category_id AS id, category_name AS categoryName, `description`, useful_life_years AS usefulLifeYears
     FROM categories
     WHERE category_name LIKE CONCAT('%', p_search, '%')
        OR `description` LIKE CONCAT('%', p_search, '%')
@@ -254,7 +368,7 @@ END $$
 DROP PROCEDURE IF EXISTS sp_categories_get_by_id $$
 CREATE PROCEDURE sp_categories_get_by_id(IN p_id INT)
 BEGIN
-    SELECT category_id AS id, category_name AS categoryName, `description`
+    SELECT category_id AS id, category_name AS categoryName, `description`, useful_life_years AS usefulLifeYears
     FROM categories WHERE category_id = p_id;
 END $$
 
@@ -266,16 +380,16 @@ BEGIN
 END $$
 
 DROP PROCEDURE IF EXISTS sp_categories_create $$
-CREATE PROCEDURE sp_categories_create(IN p_name VARCHAR(100), IN p_description TEXT, OUT p_id INT)
+CREATE PROCEDURE sp_categories_create(IN p_name VARCHAR(100), IN p_description TEXT, IN p_useful_life_years INT, OUT p_id INT)
 BEGIN
-    INSERT INTO categories(category_name, `description`) VALUES(p_name, p_description);
+    INSERT INTO categories(category_name, `description`, useful_life_years) VALUES(p_name, p_description, p_useful_life_years);
     SET p_id = LAST_INSERT_ID();
 END $$
 
 DROP PROCEDURE IF EXISTS sp_categories_update $$
-CREATE PROCEDURE sp_categories_update(IN p_id INT, IN p_name VARCHAR(100), IN p_description TEXT)
+CREATE PROCEDURE sp_categories_update(IN p_id INT, IN p_name VARCHAR(100), IN p_description TEXT, IN p_useful_life_years INT)
 BEGIN
-    UPDATE categories SET category_name = p_name, `description` = p_description
+    UPDATE categories SET category_name = p_name, `description` = p_description, useful_life_years = p_useful_life_years
     WHERE category_id = p_id;
 END $$
 
@@ -434,24 +548,33 @@ CREATE PROCEDURE sp_assets_list(
 )
 BEGIN
     SET p_search = TRIM(p_search);
-    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.serial_number AS serialNumber, a.`description`,
+    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.par_number AS parNumber, a.group_id AS groupId,
+           (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupSize,
+           (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupTotalValue,
+           a.serial_number AS serialNumber, a.`description`,
            a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
            a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
-           a.accountable_person AS accountablePerson, a.physical_count AS physicalCount,
+           a.physical_count AS physicalCount,
            a.qr_code_path AS qrCodePath, a.sha256_hash AS sha256Hash,
-           a.remarks, a.created_at AS createdAt, a.updated_at AS updatedAt,
-           c.category_id, c.category_name AS categoryName,
-           o.office_id, o.office_name AS officeName
+           a.remarks, a.specifications, a.created_at AS createdAt, a.updated_at AS updatedAt,
+           c.category_id, c.category_name AS categoryName, c.useful_life_years AS categoryUsefulLifeYears,
+           o.office_id, o.office_name AS officeName,
+           p.personnel_id, p.full_name AS personnelName,
+           cu.personnel_id AS currentUserId, cu.full_name AS currentUserName
     FROM assets a
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN offices o ON a.office_id = o.office_id
+    LEFT JOIN personnel p ON a.personnel_id = p.personnel_id
+    LEFT JOIN personnel cu ON a.current_user_personnel_id = cu.personnel_id
     WHERE a.is_deleted = FALSE
       AND (
         p_search IS NULL OR p_search = '' OR
         a.property_number    LIKE CONCAT('%', p_search, '%')
+        OR a.par_number         LIKE CONCAT('%', p_search, '%')
         OR a.serial_number    LIKE CONCAT('%', p_search, '%')
         OR a.`description`   LIKE CONCAT('%', p_search, '%')
-        OR a.accountable_person LIKE CONCAT('%', p_search, '%')
+        OR p.full_name       LIKE CONCAT('%', p_search, '%')
+        OR cu.full_name      LIKE CONCAT('%', p_search, '%')
         OR a.location        LIKE CONCAT('%', p_search, '%')
         OR a.`condition`     LIKE CONCAT('%', p_search, '%')
         OR a.lifecycle_status LIKE CONCAT('%', p_search, '%')
@@ -481,13 +604,15 @@ BEGIN
     FROM assets a
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN offices o ON a.office_id = o.office_id
+    LEFT JOIN personnel p ON a.personnel_id = p.personnel_id
     WHERE a.is_deleted = FALSE
       AND (
         p_search IS NULL OR p_search = '' OR
         a.property_number    LIKE CONCAT('%', p_search, '%')
+        OR a.par_number         LIKE CONCAT('%', p_search, '%')
         OR a.serial_number    LIKE CONCAT('%', p_search, '%')
         OR a.`description`   LIKE CONCAT('%', p_search, '%')
-        OR a.accountable_person LIKE CONCAT('%', p_search, '%')
+        OR p.full_name       LIKE CONCAT('%', p_search, '%')
         OR a.location        LIKE CONCAT('%', p_search, '%')
         OR a.`condition`     LIKE CONCAT('%', p_search, '%')
         OR a.lifecycle_status LIKE CONCAT('%', p_search, '%')
@@ -503,40 +628,76 @@ END $$
 DROP PROCEDURE IF EXISTS sp_assets_get_by_id $$
 CREATE PROCEDURE sp_assets_get_by_id(IN p_id INT)
 BEGIN
-    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.serial_number AS serialNumber, a.`description`,
+    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.par_number AS parNumber, a.group_id AS groupId,
+           (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupSize,
+           (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupTotalValue,
+           a.serial_number AS serialNumber, a.`description`,
            a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
            a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
-           a.accountable_person AS accountablePerson, a.physical_count AS physicalCount,
+           a.physical_count AS physicalCount,
            a.qr_code_path AS qrCodePath, a.sha256_hash AS sha256Hash,
-           a.remarks, a.created_at AS createdAt, a.updated_at AS updatedAt,
-           c.category_id, c.category_name AS categoryName,
-           o.office_id, o.office_name AS officeName
+           a.remarks, a.specifications, a.created_at AS createdAt, a.updated_at AS updatedAt,
+           c.category_id, c.category_name AS categoryName, c.useful_life_years AS categoryUsefulLifeYears,
+           o.office_id, o.office_name AS officeName,
+           p.personnel_id, p.full_name AS personnelName,
+           cu.personnel_id AS currentUserId, cu.full_name AS currentUserName
     FROM assets a
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN offices o ON a.office_id = o.office_id
+    LEFT JOIN personnel p ON a.personnel_id = p.personnel_id
+    LEFT JOIN personnel cu ON a.current_user_personnel_id = cu.personnel_id
     WHERE a.asset_id = p_id AND a.is_deleted = FALSE;
+END $$
+
+-- Every (non-deleted) device of one group — clients load this when a group is opened, so the
+-- view doesn't depend on which page/search results happened to be loaded.
+DROP PROCEDURE IF EXISTS sp_assets_get_by_group $$
+CREATE PROCEDURE sp_assets_get_by_group(IN p_group_id VARCHAR(36))
+BEGIN
+    SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.par_number AS parNumber, a.group_id AS groupId,
+           (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupSize,
+           (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupTotalValue,
+           a.serial_number AS serialNumber, a.`description`,
+           a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
+           a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
+           a.physical_count AS physicalCount,
+           a.qr_code_path AS qrCodePath, a.sha256_hash AS sha256Hash,
+           a.remarks, a.specifications, a.created_at AS createdAt, a.updated_at AS updatedAt,
+           c.category_id, c.category_name AS categoryName, c.useful_life_years AS categoryUsefulLifeYears,
+           o.office_id, o.office_name AS officeName,
+           p.personnel_id, p.full_name AS personnelName,
+           cu.personnel_id AS currentUserId, cu.full_name AS currentUserName
+    FROM assets a
+    LEFT JOIN categories c ON a.category_id = c.category_id
+    LEFT JOIN offices o ON a.office_id = o.office_id
+    LEFT JOIN personnel p ON a.personnel_id = p.personnel_id
+    LEFT JOIN personnel cu ON a.current_user_personnel_id = cu.personnel_id
+    WHERE a.group_id = p_group_id AND a.is_deleted = FALSE
+    ORDER BY a.asset_id;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_assets_create $$
 CREATE PROCEDURE sp_assets_create(
-    IN p_property_number VARCHAR(50), IN p_serial_number VARCHAR(100), IN p_description VARCHAR(255),
+    IN p_property_number VARCHAR(50), IN p_par_number VARCHAR(50), IN p_serial_number VARCHAR(100), IN p_description VARCHAR(255),
     IN p_category_id INT, IN p_quantity INT, IN p_acquisition_date DATE,
     IN p_unit_value DECIMAL(12,2), IN p_office_id INT,
-    IN p_accountable_person VARCHAR(150), IN p_physical_count INT, IN p_location VARCHAR(150),
+    IN p_personnel_id INT, IN p_physical_count INT, IN p_location VARCHAR(150),
     IN p_condition VARCHAR(20), IN p_lifecycle_status VARCHAR(30),
     IN p_qr_code_path VARCHAR(255), IN p_sha256_hash VARCHAR(64), IN p_remarks TEXT,
+    IN p_specifications TEXT, IN p_current_user_id INT, IN p_group_id VARCHAR(36),
     OUT p_id INT
 )
 BEGIN
     INSERT INTO assets(
-        property_number, serial_number, `description`, category_id, quantity, acquisition_date,
-        unit_value, office_id, accountable_person, physical_count, location, `condition`,
-        lifecycle_status, qr_code_path, sha256_hash, remarks,
+        property_number, par_number, serial_number, `description`, category_id, quantity, acquisition_date,
+        unit_value, office_id, personnel_id, current_user_personnel_id, physical_count, location, `condition`,
+        lifecycle_status, qr_code_path, sha256_hash, remarks, specifications, group_id,
         is_deleted, created_at, updated_at
     ) VALUES (
-        p_property_number, NULLIF(p_serial_number, ''), p_description, p_category_id, p_quantity, p_acquisition_date,
-        p_unit_value, p_office_id, p_accountable_person, p_physical_count, p_location, p_condition,
+        p_property_number, NULLIF(p_par_number, ''), NULLIF(p_serial_number, ''), p_description, p_category_id, p_quantity, p_acquisition_date,
+        p_unit_value, p_office_id, p_personnel_id, p_current_user_id, p_physical_count, p_location, p_condition,
         p_lifecycle_status, NULLIF(p_qr_code_path, ''), NULLIF(p_sha256_hash, ''), NULLIF(p_remarks, ''),
+        NULLIF(p_specifications, ''), NULLIF(p_group_id, ''),
         FALSE, NOW(), NOW()
     );
     SET p_id = LAST_INSERT_ID();
@@ -544,24 +705,26 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_assets_update $$
 CREATE PROCEDURE sp_assets_update(
-    IN p_id INT, IN p_property_number VARCHAR(50), IN p_serial_number VARCHAR(100), IN p_description VARCHAR(255),
+    IN p_id INT, IN p_property_number VARCHAR(50), IN p_par_number VARCHAR(50), IN p_serial_number VARCHAR(100), IN p_description VARCHAR(255),
     IN p_category_id INT, IN p_quantity INT, IN p_acquisition_date DATE,
     IN p_unit_value DECIMAL(12,2), IN p_office_id INT,
-    IN p_accountable_person VARCHAR(150), IN p_physical_count INT, IN p_location VARCHAR(150),
+    IN p_personnel_id INT, IN p_physical_count INT, IN p_location VARCHAR(150),
     IN p_condition VARCHAR(20), IN p_lifecycle_status VARCHAR(30),
-    IN p_qr_code_path VARCHAR(255), IN p_sha256_hash VARCHAR(64), IN p_remarks TEXT
+    IN p_qr_code_path VARCHAR(255), IN p_sha256_hash VARCHAR(64), IN p_remarks TEXT,
+    IN p_specifications TEXT, IN p_current_user_id INT, IN p_group_id VARCHAR(36)
 )
 BEGIN
     UPDATE assets SET
-        property_number = p_property_number, serial_number = NULLIF(p_serial_number, ''), `description` = p_description,
+        property_number = p_property_number, par_number = NULLIF(p_par_number, ''), serial_number = NULLIF(p_serial_number, ''), `description` = p_description,
         category_id = p_category_id, quantity = p_quantity,
         acquisition_date = p_acquisition_date, unit_value = p_unit_value,
-        office_id = p_office_id, accountable_person = p_accountable_person,
+        office_id = p_office_id, personnel_id = p_personnel_id, current_user_personnel_id = p_current_user_id,
         physical_count = p_physical_count,
         location = p_location, `condition` = p_condition,
         lifecycle_status = p_lifecycle_status,
         qr_code_path = NULLIF(p_qr_code_path, ''), sha256_hash = NULLIF(p_sha256_hash, ''),
-        remarks = NULLIF(p_remarks, ''), updated_at = NOW()
+        remarks = NULLIF(p_remarks, ''), specifications = NULLIF(p_specifications, ''),
+        group_id = COALESCE(NULLIF(p_group_id, ''), group_id), updated_at = NOW()
     WHERE asset_id = p_id AND is_deleted = FALSE;
 END $$
 
@@ -578,24 +741,26 @@ CREATE PROCEDURE sp_assets_soft_delete(
 )
 BEGIN
     INSERT INTO deleted_assets(
-        asset_id, property_number, `description`, category_id, category_name,
+        asset_id, property_number, par_number, `description`, category_id, category_name,
         quantity, acquisition_date, unit_value, office_id, office_name,
-        accountable_person_name, location, `condition`, asset_condition, lifecycle_status,
-        qr_code_path, sha256_hash, remarks,
+        accountable_person_id, accountable_person_name, location, `condition`, asset_condition, lifecycle_status,
+        qr_code_path, sha256_hash, remarks, specifications,
         original_created_at, original_updated_at,
         deleted_by_user_id, deleted_by_username, delete_reason, deleted_at,
-        asset_condition
+        current_user_personnel_id, current_user_name
     )
-    SELECT a.asset_id, a.property_number, a.`description`, a.category_id, c.category_name,
+    SELECT a.asset_id, a.property_number, a.par_number, a.`description`, a.category_id, c.category_name,
            a.quantity, a.acquisition_date, a.unit_value, a.office_id, o.office_name,
-           a.accountable_person, a.location, a.`condition`, a.`condition`, a.lifecycle_status,
-           a.qr_code_path, a.sha256_hash, a.remarks,
+           a.personnel_id, pn.full_name, a.location, a.`condition`, a.`condition`, a.lifecycle_status,
+           a.qr_code_path, a.sha256_hash, a.remarks, a.specifications,
            a.created_at, a.updated_at,
            p_deleted_by, p_deleted_by_username, p_reason, NOW(),
-           a.`condition`
+           a.current_user_personnel_id, cu.full_name
     FROM assets a
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN offices o ON a.office_id = o.office_id
+    LEFT JOIN personnel pn ON a.personnel_id = pn.personnel_id
+    LEFT JOIN personnel cu ON a.current_user_personnel_id = cu.personnel_id
     WHERE a.asset_id = p_id;
 
     UPDATE assets
@@ -636,6 +801,57 @@ BEGIN
     DELETE FROM deleted_disposal WHERE asset_id = v_asset_id;
 END $$
 
+-- Irreversibly removes the asset and its Recycle Bin snapshot — unlike
+-- restore, there is no going back after this. Also purges any maintenance/
+-- disposal records archived alongside this same asset (see sp_assets_restore's
+-- comment) so the Recycle Bin doesn't keep entries pointing at an asset that
+-- no longer exists at all. disposal_ledger.fk_dl_asset has no ON DELETE
+-- action (RESTRICT), so it must be cleared explicitly before deleting the
+-- asset row; ai_recommendations/asset_history/maintenance_ledger cascade
+-- automatically via ON DELETE CASCADE.
+DROP PROCEDURE IF EXISTS sp_assets_permanent_delete $$
+CREATE PROCEDURE sp_assets_permanent_delete(IN p_deleted_asset_id INT)
+BEGIN
+    DECLARE v_asset_id INT;
+    SELECT asset_id INTO v_asset_id FROM deleted_assets WHERE deleted_asset_id = p_deleted_asset_id;
+
+    IF v_asset_id IS NOT NULL THEN
+        DELETE FROM maintenance_ledger WHERE maintenance_id IN
+            (SELECT maintenance_id FROM deleted_maintenance WHERE asset_id = v_asset_id);
+        DELETE FROM deleted_maintenance WHERE asset_id = v_asset_id;
+
+        DELETE FROM disposal_ledger WHERE disposal_id IN
+            (SELECT disposal_id FROM deleted_disposal WHERE asset_id = v_asset_id);
+        DELETE FROM deleted_disposal WHERE asset_id = v_asset_id;
+
+        DELETE FROM disposal_ledger WHERE asset_id = v_asset_id;
+        DELETE FROM assets WHERE asset_id = v_asset_id;
+    END IF;
+
+    DELETE FROM deleted_assets WHERE deleted_asset_id = p_deleted_asset_id;
+END $$
+
+-- =============================================================
+-- AI RECOMMENDATIONS
+-- =============================================================
+-- Latest recommendation for an asset. Lives here (not only in gso_inventory.sql) so it is
+-- reloaded with the other procedures: AiRecommendationService reads asset_parNumber from it,
+-- and an older copy of this procedure without that column breaks every AI lookup.
+DROP PROCEDURE IF EXISTS sp_ai_recommendations_get_latest_by_asset $$
+CREATE PROCEDURE sp_ai_recommendations_get_latest_by_asset(IN p_asset_id INT)
+BEGIN
+    SELECT r.recommendation_id AS id, r.asset_age_years, r.total_repair_cost,
+           r.repair_frequency, r.condition_score, r.recommendation, r.rationale,
+           r.generated_at, r.generated_by_system,
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.`description` AS asset_description
+    FROM ai_recommendations r
+    JOIN assets a ON r.asset_id = a.asset_id
+    WHERE r.asset_id = p_asset_id
+    ORDER BY r.generated_at DESC
+    LIMIT 1;
+END $$
+
 -- =============================================================
 -- ASSET HISTORY
 -- =============================================================
@@ -644,12 +860,17 @@ DROP PROCEDURE IF EXISTS sp_asset_history_get_all $$
 CREATE PROCEDURE sp_asset_history_get_all()
 BEGIN
     SELECT h.history_id AS id, h.event_type AS eventType, h.event_date AS eventDate, h.notes,
-           a.asset_id AS asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id AS asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            u.user_id AS pb_id, u.username AS pb_username, u.full_name AS pb_fullName,
            fo.office_id AS fo_id, fo.office_name AS fo_officeName,
            too.office_id AS too_id, too.office_name AS too_officeName
     FROM asset_history h
     LEFT JOIN assets a ON h.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users u ON h.performed_by = u.user_id
     LEFT JOIN offices fo ON h.from_office_id = fo.office_id
     LEFT JOIN offices too ON h.to_office_id = too.office_id
@@ -661,17 +882,23 @@ CREATE PROCEDURE sp_asset_history_search(IN p_search VARCHAR(255))
 BEGIN
     SET p_search = TRIM(p_search);
     SELECT h.history_id AS id, h.event_type AS eventType, h.event_date AS eventDate, h.notes,
-           a.asset_id AS asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id AS asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            u.user_id AS pb_id, u.username AS pb_username, u.full_name AS pb_fullName,
            fo.office_id AS fo_id, fo.office_name AS fo_officeName,
            too.office_id AS too_id, too.office_name AS too_officeName
     FROM asset_history h
     LEFT JOIN assets a ON h.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users u ON h.performed_by = u.user_id
     LEFT JOIN offices fo ON h.from_office_id = fo.office_id
     LEFT JOIN offices too ON h.to_office_id = too.office_id
     WHERE h.event_type LIKE CONCAT('%', p_search, '%')
        OR a.property_number LIKE CONCAT('%', p_search, '%')
+       OR a.par_number LIKE CONCAT('%', p_search, '%')
        OR a.`description` LIKE CONCAT('%', p_search, '%')
        OR u.full_name LIKE CONCAT('%', p_search, '%')
        OR h.notes LIKE CONCAT('%', p_search, '%')
@@ -682,12 +909,17 @@ DROP PROCEDURE IF EXISTS sp_asset_history_get_by_asset $$
 CREATE PROCEDURE sp_asset_history_get_by_asset(IN p_asset_id INT)
 BEGIN
     SELECT h.history_id AS id, h.event_type AS eventType, h.event_date AS eventDate, h.notes,
-           a.asset_id AS asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id AS asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            u.user_id AS pb_id, u.username AS pb_username, u.full_name AS pb_fullName,
            fo.office_id AS fo_id, fo.office_name AS fo_officeName,
            too.office_id AS too_id, too.office_name AS too_officeName
     FROM asset_history h
     LEFT JOIN assets a ON h.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users u ON h.performed_by = u.user_id
     LEFT JOIN offices fo ON h.from_office_id = fo.office_id
     LEFT JOIN offices too ON h.to_office_id = too.office_id
@@ -725,11 +957,16 @@ BEGIN
     SELECT m.maintenance_id AS id, m.maintenance_type AS maintenanceType,
            m.findings, m.actions_taken AS actionsTaken,
            m.maintenance_date AS maintenanceDate, m.cost, m.`status`, m.created_at AS createdAt, m.updated_at AS updatedAt,
-           a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            m.assigned_to AS assignedTo
     FROM maintenance_ledger m
     LEFT JOIN assets a ON m.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users r ON m.recorded_by = r.user_id
     WHERE m.is_deleted = FALSE
       AND (
@@ -738,6 +975,7 @@ BEGIN
         OR m.findings LIKE CONCAT('%', p_search, '%')
         OR m.`status` LIKE CONCAT('%', p_search, '%')
         OR a.property_number LIKE CONCAT('%', p_search, '%')
+        OR a.par_number LIKE CONCAT('%', p_search, '%')
         OR a.`description` LIKE CONCAT('%', p_search, '%')
         OR r.full_name LIKE CONCAT('%', p_search, '%')
       )
@@ -766,6 +1004,7 @@ BEGIN
         OR m.findings LIKE CONCAT('%', p_search, '%')
         OR m.`status` LIKE CONCAT('%', p_search, '%')
         OR a.property_number LIKE CONCAT('%', p_search, '%')
+        OR a.par_number LIKE CONCAT('%', p_search, '%')
         OR a.`description` LIKE CONCAT('%', p_search, '%')
         OR r.full_name LIKE CONCAT('%', p_search, '%')
       )
@@ -779,11 +1018,16 @@ BEGIN
     SELECT m.maintenance_id AS id, m.maintenance_type AS maintenanceType,
            m.findings, m.actions_taken AS actionsTaken,
            m.maintenance_date AS maintenanceDate, m.cost, m.`status`, m.created_at AS createdAt, m.updated_at AS updatedAt,
-           a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            m.assigned_to AS assignedTo
     FROM maintenance_ledger m
     LEFT JOIN assets a ON m.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users r ON m.recorded_by = r.user_id
     WHERE m.maintenance_id = p_id AND m.is_deleted = FALSE;
 END $$
@@ -794,11 +1038,16 @@ BEGIN
     SELECT m.maintenance_id AS id, m.maintenance_type AS maintenanceType,
            m.findings, m.actions_taken AS actionsTaken,
            m.maintenance_date AS maintenanceDate, m.cost, m.`status`, m.created_at AS createdAt, m.updated_at AS updatedAt,
-           a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            m.assigned_to AS assignedTo
     FROM maintenance_ledger m
     LEFT JOIN assets a ON m.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users r ON m.recorded_by = r.user_id
     WHERE m.asset_id = p_asset_id AND m.is_deleted = FALSE
     ORDER BY m.maintenance_date DESC;
@@ -844,7 +1093,7 @@ CREATE PROCEDURE sp_maintenance_soft_delete(
 )
 BEGIN
     INSERT INTO deleted_maintenance(
-        maintenance_id, asset_id, property_number, asset_description,
+        maintenance_id, asset_id, property_number, par_number, asset_description,
         maintenance_type, findings, actions_taken,
         assigned_to_user_id, assigned_to_name,
         maintenance_date, cost, `status`,
@@ -852,7 +1101,7 @@ BEGIN
         original_created_at,
         deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
     )
-    SELECT m.maintenance_id, m.asset_id, a.property_number, a.`description`,
+    SELECT m.maintenance_id, m.asset_id, a.property_number, a.par_number, a.`description`,
            m.maintenance_type, m.findings, m.actions_taken,
            NULL, m.assigned_to,
            m.maintenance_date, m.cost, m.`status`,
@@ -891,6 +1140,21 @@ BEGIN
     DELETE FROM deleted_assets WHERE asset_id = v_asset_id;
 END $$
 
+-- Irreversibly removes just this maintenance record and its Recycle Bin
+-- snapshot — unlike restore, this is scoped to the record itself and does
+-- NOT touch the parent asset either way. maintenance_summaries cascades
+-- automatically via ON DELETE CASCADE.
+DROP PROCEDURE IF EXISTS sp_maintenance_permanent_delete $$
+CREATE PROCEDURE sp_maintenance_permanent_delete(IN p_deleted_maintenance_id INT)
+BEGIN
+    DECLARE v_maintenance_id INT;
+    SELECT maintenance_id INTO v_maintenance_id FROM deleted_maintenance WHERE deleted_maintenance_id = p_deleted_maintenance_id;
+    IF v_maintenance_id IS NOT NULL THEN
+        DELETE FROM maintenance_ledger WHERE maintenance_id = v_maintenance_id;
+    END IF;
+    DELETE FROM deleted_maintenance WHERE deleted_maintenance_id = p_deleted_maintenance_id;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_maintenance_delete_by_asset $$
 CREATE PROCEDURE sp_maintenance_delete_by_asset(IN p_asset_id INT)
 BEGIN
@@ -909,7 +1173,7 @@ CREATE PROCEDURE sp_maintenance_soft_delete_by_asset(
 )
 BEGIN
     INSERT INTO deleted_maintenance(
-        maintenance_id, asset_id, property_number, asset_description,
+        maintenance_id, asset_id, property_number, par_number, asset_description,
         maintenance_type, findings, actions_taken,
         assigned_to_user_id, assigned_to_name,
         maintenance_date, cost, `status`,
@@ -917,7 +1181,7 @@ BEGIN
         original_created_at,
         deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
     )
-    SELECT m.maintenance_id, m.asset_id, a.property_number, a.`description`,
+    SELECT m.maintenance_id, m.asset_id, a.property_number, a.par_number, a.`description`,
            m.maintenance_type, m.findings, m.actions_taken,
            NULL, m.assigned_to,
            m.maintenance_date, m.cost, m.`status`,
@@ -950,14 +1214,22 @@ BEGIN
     SELECT d.disposal_id AS id, d.reason, d.inspection_findings AS inspectionFindings,
            d.recommended_method AS recommendedMethod, d.disposal_status AS disposalStatus,
            d.inspection_date AS inspectionDate, d.created_at AS createdAt, d.updated_at AS updatedAt,
-           a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            a.quantity AS asset_quantity, a.unit_value AS asset_unitValue,
            a.acquisition_date AS asset_acquisitionDate, a.`condition` AS asset_condition,
+           c.category_id AS asset_category_id, c.category_name AS asset_category_name,
+           c.useful_life_years AS asset_categoryUsefulLifeYears,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            d.approved_by AS approvedBy,
            d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount
     FROM disposal_ledger d
     LEFT JOIN assets a ON d.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
+    LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN users r ON d.recorded_by = r.user_id
     WHERE d.is_deleted = FALSE
       AND (
@@ -966,6 +1238,7 @@ BEGIN
         OR d.disposal_status LIKE CONCAT('%', p_search, '%')
         OR d.reason LIKE CONCAT('%', p_search, '%')
         OR a.property_number LIKE CONCAT('%', p_search, '%')
+        OR a.par_number LIKE CONCAT('%', p_search, '%')
         OR a.`description` LIKE CONCAT('%', p_search, '%')
         OR r.full_name LIKE CONCAT('%', p_search, '%')
       )
@@ -994,6 +1267,7 @@ BEGIN
         OR d.disposal_status LIKE CONCAT('%', p_search, '%')
         OR d.reason LIKE CONCAT('%', p_search, '%')
         OR a.property_number LIKE CONCAT('%', p_search, '%')
+        OR a.par_number LIKE CONCAT('%', p_search, '%')
         OR a.`description` LIKE CONCAT('%', p_search, '%')
         OR r.full_name LIKE CONCAT('%', p_search, '%')
       )
@@ -1007,14 +1281,22 @@ BEGIN
     SELECT d.disposal_id AS id, d.reason, d.inspection_findings AS inspectionFindings,
            d.recommended_method AS recommendedMethod, d.disposal_status AS disposalStatus,
            d.inspection_date AS inspectionDate, d.created_at AS createdAt, d.updated_at AS updatedAt,
-           a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            a.quantity AS asset_quantity, a.unit_value AS asset_unitValue,
            a.acquisition_date AS asset_acquisitionDate, a.`condition` AS asset_condition,
+           c.category_id AS asset_category_id, c.category_name AS asset_category_name,
+           c.useful_life_years AS asset_categoryUsefulLifeYears,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            d.approved_by AS approvedBy,
            d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount
     FROM disposal_ledger d
     LEFT JOIN assets a ON d.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
+    LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN users r ON d.recorded_by = r.user_id
     WHERE d.disposal_id = p_id AND d.is_deleted = FALSE;
 END $$
@@ -1025,14 +1307,22 @@ BEGIN
     SELECT d.disposal_id AS id, d.reason, d.inspection_findings AS inspectionFindings,
            d.recommended_method AS recommendedMethod, d.disposal_status AS disposalStatus,
            d.inspection_date AS inspectionDate, d.created_at AS createdAt, d.updated_at AS updatedAt,
-           a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description,
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
+           a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber,
+           a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
+           a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            a.quantity AS asset_quantity, a.unit_value AS asset_unitValue,
            a.acquisition_date AS asset_acquisitionDate, a.`condition` AS asset_condition,
+           c.category_id AS asset_category_id, c.category_name AS asset_category_name,
+           c.useful_life_years AS asset_categoryUsefulLifeYears,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            d.approved_by AS approvedBy,
            d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount
     FROM disposal_ledger d
     LEFT JOIN assets a ON d.asset_id = a.asset_id
+    LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
+    LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
+    LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN users r ON d.recorded_by = r.user_id
     WHERE d.asset_id = p_asset_id AND d.is_deleted = FALSE
     ORDER BY d.inspection_date DESC;
@@ -1083,7 +1373,7 @@ CREATE PROCEDURE sp_disposal_soft_delete(
 )
 BEGIN
     INSERT INTO deleted_disposal(
-        disposal_id, asset_id, property_number, asset_description,
+        disposal_id, asset_id, property_number, par_number, asset_description,
         reason, inspection_findings, recommended_method,
         disposal_status, inspection_date,
         approved_by_user_id, approved_by_name,
@@ -1092,7 +1382,7 @@ BEGIN
         original_created_at,
         deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
     )
-    SELECT d.disposal_id, d.asset_id, a.property_number, a.`description`,
+    SELECT d.disposal_id, d.asset_id, a.property_number, a.par_number, a.`description`,
            d.reason, d.inspection_findings, d.recommended_method,
            d.disposal_status, d.inspection_date,
            NULL, d.approved_by,
@@ -1132,6 +1422,21 @@ BEGIN
     DELETE FROM deleted_assets WHERE asset_id = v_asset_id;
 END $$
 
+-- Irreversibly removes just this disposal record and its Recycle Bin
+-- snapshot — unlike restore, this is scoped to the record itself and does
+-- NOT touch the parent asset either way. disposal_justifications cascades
+-- automatically via ON DELETE CASCADE.
+DROP PROCEDURE IF EXISTS sp_disposal_permanent_delete $$
+CREATE PROCEDURE sp_disposal_permanent_delete(IN p_deleted_disposal_id INT)
+BEGIN
+    DECLARE v_disposal_id INT;
+    SELECT disposal_id INTO v_disposal_id FROM deleted_disposal WHERE deleted_disposal_id = p_deleted_disposal_id;
+    IF v_disposal_id IS NOT NULL THEN
+        DELETE FROM disposal_ledger WHERE disposal_id = v_disposal_id;
+    END IF;
+    DELETE FROM deleted_disposal WHERE deleted_disposal_id = p_deleted_disposal_id;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_disposal_delete_by_asset $$
 CREATE PROCEDURE sp_disposal_delete_by_asset(IN p_asset_id INT)
 BEGIN
@@ -1147,7 +1452,7 @@ CREATE PROCEDURE sp_disposal_soft_delete_by_asset(
 )
 BEGIN
     INSERT INTO deleted_disposal(
-        disposal_id, asset_id, property_number, asset_description,
+        disposal_id, asset_id, property_number, par_number, asset_description,
         reason, inspection_findings, recommended_method,
         disposal_status, inspection_date,
         approved_by_user_id, approved_by_name,
@@ -1156,7 +1461,7 @@ BEGIN
         original_created_at,
         deleted_by_user_id, deleted_by_username, delete_reason, deleted_at
     )
-    SELECT d.disposal_id, d.asset_id, a.property_number, a.`description`,
+    SELECT d.disposal_id, d.asset_id, a.property_number, a.par_number, a.`description`,
            d.reason, d.inspection_findings, d.recommended_method,
            d.disposal_status, d.inspection_date,
            NULL, d.approved_by,

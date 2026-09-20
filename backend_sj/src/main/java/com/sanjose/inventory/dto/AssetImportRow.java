@@ -8,6 +8,7 @@ import lombok.Data;
 // and validates each field per row, so one bad row can't abort the batch.
 @Data
 public class AssetImportRow {
+    private String parNumber;       // YYYY-MM:SERIAL — one per unit, separated by ';' or a line break when quantity > 1
     private String description;
     private String categoryName;
     private String quantity;
@@ -16,7 +17,9 @@ public class AssetImportRow {
     private String unitValue;
     private String officeName;
     private String accountablePerson;
+    private String currentUser; // optional — who currently has the asset, if different from accountablePerson
     private String location;
     private String condition;       // SERVICEABLE | REPAIRABLE | UNSERVICEABLE
+    private String specifications;
     private String remarks;
 }

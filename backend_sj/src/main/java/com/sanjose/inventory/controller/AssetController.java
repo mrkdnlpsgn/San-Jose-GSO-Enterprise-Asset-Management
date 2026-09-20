@@ -3,9 +3,11 @@ package com.sanjose.inventory.controller;
 import com.sanjose.inventory.dto.AssetImportRow;
 import com.sanjose.inventory.dto.AssetOcrResult;
 import com.sanjose.inventory.dto.AssetRequest;
+import com.sanjose.inventory.dto.EvidencePhotoResponse;
 import com.sanjose.inventory.entity.Asset;
 import com.sanjose.inventory.service.AssetOcrService;
 import com.sanjose.inventory.service.AssetService;
+import com.sanjose.inventory.service.EvidenceService;
 import com.sanjose.inventory.service.QrCodeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
@@ -25,6 +27,7 @@ public class AssetController {
     private final AssetService assetService;
     private final QrCodeService qrCodeService;
     private final AssetOcrService assetOcrService;
+    private final EvidenceService evidenceService;
 
     @GetMapping
     public List<Asset> getAll(@RequestParam(required = false) String search,
@@ -48,6 +51,10 @@ public class AssetController {
 
     @GetMapping("/{id}")
     public Asset getById(@PathVariable Long id) { return assetService.findById(id); }
+
+    // All devices of one group (same-model assets added together).
+    @GetMapping("/group/{groupId}")
+    public List<Asset> getGroup(@PathVariable String groupId) { return assetService.findByGroup(groupId); }
 
     // Payload format (`asset:{id}:{propertyNumber}`) matches the one the mobile app
     // already generates client-side, so codes printed from either source scan the same.
@@ -80,6 +87,23 @@ public class AssetController {
     @PostMapping("/bulk-import")
     public Map<String, Object> bulkImport(@RequestBody List<AssetImportRow> rows) {
         return assetService.bulkImport(rows);
+    }
+
+    // Evidence photos for an asset (same behavior as a maintenance record's evidence).
+    @GetMapping("/{id}/evidence")
+    public List<EvidencePhotoResponse> listEvidence(@PathVariable Long id) {
+        return evidenceService.list(EvidenceService.Target.ASSET, id);
+    }
+
+    @PostMapping("/{id}/evidence")
+    public EvidencePhotoResponse uploadEvidence(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return evidenceService.upload(EvidenceService.Target.ASSET, id, file);
+    }
+
+    @DeleteMapping("/{id}/evidence/{photoId}")
+    public ResponseEntity<Void> deleteEvidence(@PathVariable Long id, @PathVariable Long photoId) {
+        evidenceService.delete(EvidenceService.Target.ASSET, id, photoId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}")

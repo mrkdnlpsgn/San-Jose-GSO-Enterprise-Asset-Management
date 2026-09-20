@@ -41,6 +41,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      # Evidence photos (assets, disposal, maintenance) are stored as files under /app/uploads —
+      # without a volume they would vanish every time the container is rebuilt while their
+      # database rows stayed behind.
+      - uploads_data:/app/uploads
     environment:
       # Defense-in-depth alongside the db service's --collation-server setting above:
       # pins this connection's default collation for any string comparison that isn't
@@ -113,6 +118,7 @@ services:
 
 volumes:
   db_data:
+  uploads_data:
 
 networks:
   sj_gso_network:

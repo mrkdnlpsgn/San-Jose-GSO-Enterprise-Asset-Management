@@ -27,6 +27,9 @@ public class DeletedDisposal {
     @Column(name = "property_number", nullable = false, length = 50)
     private String propertyNumber;
 
+    @Column(name = "par_number", length = 50)
+    private String parNumber;
+
     @Column(name = "asset_description", nullable = false, length = 255)
     private String assetDescription;
 

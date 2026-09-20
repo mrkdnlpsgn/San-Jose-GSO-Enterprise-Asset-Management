@@ -1,13 +1,141 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import MainLayout from '../../components/layout/MainLayout'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { useToast } from '../../context/ToastContext'
 import {
   getDeletedAssets, getDeletedMaintenance, getDeletedDisposal,
   restoreDeletedAsset, restoreDeletedMaintenance, restoreDeletedDisposal,
+  requestDeleteOtp, permanentDeleteAsset, permanentDeleteMaintenance, permanentDeleteDisposal,
 } from '../../services/deletedRecordsService'
 import { useDebounce } from '../../hooks/useDebounce'
 import { usePolling } from '../../hooks/usePolling'
+
+const RESEND_COOLDOWN_SECONDS = 60
+
+// Step-up 2FA before an irreversible delete: emails a one-time code on open,
+// then requires it back before calling permanentDeleteFn. Two states — the
+// code is either in flight (sending/sent/cooldown) or being verified — kept
+// separate from ConfirmDialog since neither its single-button flow nor its
+// styling fit a two-step, form-carrying confirmation.
+function PermanentDeleteModal({ recordLabel, onClose, onConfirm }) {
+  const toast = useToast()
+  const [sending, setSending]   = useState(false)
+  const [sent, setSent]         = useState(false)
+  const [cooldown, setCooldown] = useState(0)
+  const [otp, setOtp]           = useState('')
+  const [error, setError]       = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const cooldownRef = useRef(null)
+
+  const startCooldown = () => {
+    setCooldown(RESEND_COOLDOWN_SECONDS)
+    clearInterval(cooldownRef.current)
+    cooldownRef.current = setInterval(() => {
+      setCooldown((c) => {
+        if (c <= 1) { clearInterval(cooldownRef.current); return 0 }
+        return c - 1
+      })
+    }, 1000)
+  }
+
+  const sendCode = async () => {
+    setSending(true)
+    setError('')
+    try {
+      await requestDeleteOtp()
+      setSent(true)
+      startCooldown()
+      toast.show('Verification code sent to your email.', 'info')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send verification code.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  useEffect(() => {
+    sendCode()
+    return () => clearInterval(cooldownRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleConfirm = async () => {
+    if (otp.trim().length !== 6) { setError('Enter the 6-digit code from your email.'); return }
+    setDeleting(true)
+    setError('')
+    try {
+      await onConfirm(otp.trim())
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to verify code.')
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fade-slide" role="alertdialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/30 dark:bg-zinc-950/80" onClick={onClose} />
+      <div className="relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl shadow-black/10 dark:shadow-black/60 w-full max-w-sm p-6">
+        <div className="w-11 h-11 rounded-full bg-red-50 dark:bg-red-950 flex items-center justify-center mx-auto mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 dark:text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+          </svg>
+        </div>
+
+        <h2 className="text-sm font-semibold text-gov-700 dark:text-white text-center">
+          Permanently delete this {recordLabel.toLowerCase()}?
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-zinc-400 text-center mt-2 leading-relaxed">
+          This cannot be undone — the record will be completely removed, not just moved out of the Recycle Bin.
+          {sending ? ' Sending a verification code to your email…' :
+            sent ? ' Enter the verification code we emailed you to confirm.' : ''}
+        </p>
+
+        {sent && (
+          <div className="mt-4">
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              autoFocus
+              placeholder="6-digit code"
+              value={otp}
+              onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '')); setError('') }}
+              className="w-full text-center tracking-[0.5em] font-mono text-lg rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 bg-white dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
+            />
+            <div className="flex justify-center mt-2">
+              <button
+                type="button"
+                onClick={sendCode}
+                disabled={cooldown > 0 || sending}
+                className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+              >
+                {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && <p className="text-xs text-red-500 text-center mt-3">{error}</p>}
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-md bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all duration-150 active:scale-[0.97]"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={!sent || deleting || otp.trim().length !== 6}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-md bg-red-600 text-white hover:bg-red-500 active:bg-red-700 transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {deleting ? 'Deleting…' : 'Permanently Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const MAINTENANCE_TYPE_BADGE = {
   PREVENTIVE: 'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
@@ -52,12 +180,13 @@ function Badge({ className, children }) {
 // predicate, render into the standard overflow-x-auto table used everywhere
 // else in the app (see pages/Offices/index.jsx), plus a Restore button as
 // the last column — this is otherwise read-only (no edit, no re-delete).
-function DeletedTab({ fetcher, restoreFn, columns, matches, emptyMessage, recordLabel }) {
+function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, emptyMessage, recordLabel }) {
   const toast = useToast()
   const [rows, setRows]       = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [restoring, setRestoring] = useState(null) // row pending confirmation
+  const [deleting, setDeleting]   = useState(null) // row pending permanent-delete 2FA
   const [busyId, setBusyId]       = useState(null) // row currently being restored
   const [page, setPage]           = useState(1)
   const debouncedSearch       = useDebounce(search)
@@ -102,6 +231,14 @@ function DeletedTab({ fetcher, restoreFn, columns, matches, emptyMessage, record
     } finally {
       setBusyId(null)
     }
+  }
+
+  const handlePermanentDelete = async (otp) => {
+    const row = deleting
+    await permanentDeleteFn(row.id, otp)
+    setRows((prev) => prev.filter((r) => r.id !== row.id))
+    setDeleting(null)
+    toast.show(`${recordLabel} permanently deleted.`, 'warning')
   }
 
   return (
@@ -156,7 +293,7 @@ function DeletedTab({ fetcher, restoreFn, columns, matches, emptyMessage, record
                   </th>
                 ))}
                 <th className="px-5 py-3 text-right text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">
-                  Restore
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -169,17 +306,30 @@ function DeletedTab({ fetcher, restoreFn, columns, matches, emptyMessage, record
                     </td>
                   ))}
                   <td className="px-5 py-3.5 whitespace-nowrap text-right">
-                    <button
-                      onClick={() => setRestoring(row)}
-                      disabled={busyId === row.id}
-                      title={`Restore this ${recordLabel.toLowerCase()}`}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 002.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0112.88 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z" clipRule="evenodd" />
-                      </svg>
-                      Restore
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setRestoring(row)}
+                        disabled={busyId === row.id}
+                        title={`Restore this ${recordLabel.toLowerCase()}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 002.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0112.88 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z" clipRule="evenodd" />
+                        </svg>
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => setDeleting(row)}
+                        disabled={busyId === row.id}
+                        title={`Permanently delete this ${recordLabel.toLowerCase()}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -212,12 +362,21 @@ function DeletedTab({ fetcher, restoreFn, columns, matches, emptyMessage, record
           onCancel={() => setRestoring(null)}
         />
       )}
+
+      {deleting && (
+        <PermanentDeleteModal
+          recordLabel={recordLabel}
+          onClose={() => setDeleting(null)}
+          onConfirm={handlePermanentDelete}
+        />
+      )}
     </div>
   )
 }
 
 const assetColumns = [
   { key: 'propertyNumber', label: 'Property Number', render: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.propertyNumber}</span> },
+  { key: 'parNumber', label: 'PAR Number', render: (r) => r.parNumber || '—' },
   { key: 'description', label: 'Description' },
   { key: 'categoryName', label: 'Category' },
   { key: 'officeName', label: 'Office' },
@@ -227,6 +386,7 @@ const assetColumns = [
 ]
 const assetMatches = (r, q) =>
   r.propertyNumber?.toLowerCase().includes(q) ||
+  r.parNumber?.toLowerCase().includes(q) ||
   r.description?.toLowerCase().includes(q) ||
   r.categoryName?.toLowerCase().includes(q) ||
   r.officeName?.toLowerCase().includes(q) ||
@@ -234,6 +394,7 @@ const assetMatches = (r, q) =>
 
 const maintenanceColumns = [
   { key: 'propertyNumber', label: 'Property Number', render: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.propertyNumber}</span> },
+  { key: 'parNumber', label: 'PAR Number', render: (r) => r.parNumber || '—' },
   { key: 'assetDescription', label: 'Asset Description' },
   { key: 'maintenanceType', label: 'Type', render: (r) => <Badge className={MAINTENANCE_TYPE_BADGE[r.maintenanceType]}>{r.maintenanceType}</Badge> },
   { key: 'status', label: 'Status', render: (r) => <Badge className={MAINTENANCE_STATUS_BADGE[r.status]}>{r.status}</Badge> },
@@ -243,6 +404,7 @@ const maintenanceColumns = [
 ]
 const maintenanceMatches = (r, q) =>
   r.propertyNumber?.toLowerCase().includes(q) ||
+  r.parNumber?.toLowerCase().includes(q) ||
   r.assetDescription?.toLowerCase().includes(q) ||
   r.maintenanceType?.toLowerCase().includes(q) ||
   r.status?.toLowerCase().includes(q) ||
@@ -250,6 +412,7 @@ const maintenanceMatches = (r, q) =>
 
 const disposalColumns = [
   { key: 'propertyNumber', label: 'Property Number', render: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.propertyNumber}</span> },
+  { key: 'parNumber', label: 'PAR Number', render: (r) => r.parNumber || '—' },
   { key: 'assetDescription', label: 'Asset Description' },
   { key: 'recommendedMethod', label: 'Method', render: (r) => <Badge className={DISPOSAL_METHOD_BADGE[r.recommendedMethod]}>{r.recommendedMethod}</Badge> },
   { key: 'disposalStatus', label: 'Status', render: (r) => <Badge className={DISPOSAL_STATUS_BADGE[r.disposalStatus]}>{r.disposalStatus}</Badge> },
@@ -259,15 +422,16 @@ const disposalColumns = [
 ]
 const disposalMatches = (r, q) =>
   r.propertyNumber?.toLowerCase().includes(q) ||
+  r.parNumber?.toLowerCase().includes(q) ||
   r.assetDescription?.toLowerCase().includes(q) ||
   r.recommendedMethod?.toLowerCase().includes(q) ||
   r.disposalStatus?.toLowerCase().includes(q) ||
   r.deletedByUsername?.toLowerCase().includes(q)
 
 const TABS = [
-  { id: 'assets', label: 'Assets', fetcher: getDeletedAssets, restoreFn: restoreDeletedAsset, columns: assetColumns, matches: assetMatches, emptyMessage: 'No deleted assets.', recordLabel: 'Asset' },
-  { id: 'maintenance', label: 'Maintenance', fetcher: getDeletedMaintenance, restoreFn: restoreDeletedMaintenance, columns: maintenanceColumns, matches: maintenanceMatches, emptyMessage: 'No deleted maintenance records.', recordLabel: 'Maintenance record' },
-  { id: 'disposal', label: 'Disposal', fetcher: getDeletedDisposal, restoreFn: restoreDeletedDisposal, columns: disposalColumns, matches: disposalMatches, emptyMessage: 'No deleted disposal records.', recordLabel: 'Disposal record' },
+  { id: 'assets', label: 'Assets', fetcher: getDeletedAssets, restoreFn: restoreDeletedAsset, permanentDeleteFn: permanentDeleteAsset, columns: assetColumns, matches: assetMatches, emptyMessage: 'No deleted assets.', recordLabel: 'Asset' },
+  { id: 'maintenance', label: 'Maintenance', fetcher: getDeletedMaintenance, restoreFn: restoreDeletedMaintenance, permanentDeleteFn: permanentDeleteMaintenance, columns: maintenanceColumns, matches: maintenanceMatches, emptyMessage: 'No deleted maintenance records.', recordLabel: 'Maintenance record' },
+  { id: 'disposal', label: 'Disposal', fetcher: getDeletedDisposal, restoreFn: restoreDeletedDisposal, permanentDeleteFn: permanentDeleteDisposal, columns: disposalColumns, matches: disposalMatches, emptyMessage: 'No deleted disposal records.', recordLabel: 'Disposal record' },
 ]
 
 function DeletedRecords() {
@@ -296,6 +460,7 @@ function DeletedRecords() {
         key={tab.id}
         fetcher={tab.fetcher}
         restoreFn={tab.restoreFn}
+        permanentDeleteFn={tab.permanentDeleteFn}
         columns={tab.columns}
         matches={tab.matches}
         emptyMessage={tab.emptyMessage}

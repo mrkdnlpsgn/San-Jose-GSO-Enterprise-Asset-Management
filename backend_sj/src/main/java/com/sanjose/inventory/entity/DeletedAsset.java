@@ -25,6 +25,9 @@ public class DeletedAsset {
     @Column(name = "property_number", nullable = false, length = 50)
     private String propertyNumber;
 
+    @Column(name = "par_number", length = 50)
+    private String parNumber;
+
     @Column(nullable = false, length = 255)
     private String description;
 
@@ -55,6 +58,12 @@ public class DeletedAsset {
     @Column(name = "accountable_person_name", length = 150)
     private String accountablePersonName;
 
+    @Column(name = "current_user_personnel_id")
+    private Long currentUserPersonnelId;
+
+    @Column(name = "current_user_name", length = 150)
+    private String currentUserName;
+
     @Column(nullable = false, length = 150)
     private String location;
 
@@ -72,6 +81,9 @@ public class DeletedAsset {
 
     @Column(columnDefinition = "TEXT")
     private String remarks;
+
+    @Column(columnDefinition = "TEXT")
+    private String specifications;
 
     @Column(name = "original_created_at", nullable = false)
     private LocalDateTime originalCreatedAt;

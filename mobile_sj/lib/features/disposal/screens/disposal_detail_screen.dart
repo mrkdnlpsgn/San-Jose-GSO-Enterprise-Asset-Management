@@ -10,6 +10,7 @@ import '../../../shared/widgets/delete_dialog.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/error_state.dart';
 import '../../auth/provider/auth_provider.dart';
+import '../../evidence/evidence_sheet.dart';
 
 class DisposalDetailScreen extends ConsumerWidget {
   final int disposalId;
@@ -23,6 +24,17 @@ class DisposalDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Disposal Detail'),
         actions: [
+          if (async.value != null)
+            IconButton(
+              icon: const Icon(Icons.photo_camera_outlined),
+              tooltip: 'Evidence photos',
+              onPressed: () => showEvidenceSheet(
+                context,
+                path: '/disposal/$disposalId/evidence',
+                title: 'Disposal Evidence',
+                subtitle: '${async.value!.asset.propertyNumber} — ${async.value!.asset.description}',
+              ),
+            ),
           if (isAdmin && async.value != null) ...[
             IconButton(
               icon: const Icon(Icons.edit_outlined),
@@ -89,7 +101,7 @@ class _Body extends StatelessWidget {
                 Text(item.asset.description,
                     style: TextStyle(color: context.colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text(item.asset.propertyNumber, style: const TextStyle(color: AppTheme.brand, fontSize: 13)),
+                Text(item.asset.propertyAndPar, style: const TextStyle(color: AppTheme.brand, fontSize: 13)),
               ],
             ),
           ),

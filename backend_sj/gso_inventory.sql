@@ -40,7 +40,7 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_ai_recommendations_get_latest_by
     SELECT r.recommendation_id AS id, r.asset_age_years, r.total_repair_cost,
            r.repair_frequency, r.condition_score, r.recommendation, r.rationale,
            r.generated_at, r.generated_by_system,
-           a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description
+           a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber, a.`description` AS asset_description
     FROM ai_recommendations r
     JOIN assets a ON r.asset_id = a.asset_id
     WHERE r.asset_id = p_asset_id
@@ -850,6 +850,7 @@ INSERT INTO `ai_recommendations` (`recommendation_id`, `asset_id`, `asset_age_ye
 CREATE TABLE `assets` (
   `asset_id` int(11) NOT NULL,
   `property_number` varchar(50) NOT NULL COMMENT 'Official COA-assigned property number',
+  `par_number` varchar(50) DEFAULT NULL COMMENT 'Property Acknowledgment Receipt no. - YYYY-MM:SERIAL (acquisition year-month + manually entered serial)',
   `serial_number` varchar(100) DEFAULT NULL COMMENT 'Manufacturer serial number, e.g. from a device label/sticker',
   `description` varchar(255) NOT NULL COMMENT 'Article / equipment description',
   `category_id` int(11) NOT NULL,
@@ -865,6 +866,13 @@ CREATE TABLE `assets` (
   `qr_code_path` varchar(255) DEFAULT NULL COMMENT 'File path or URL of QR code image (ZXing)',
   `sha256_hash` varchar(64) DEFAULT NULL COMMENT '64-char hex hash for tamper detection',
   `remarks` text DEFAULT NULL,
+  -- Free-form technical specs (processor/memory/storage, engine/plate no.,
+  -- BTU/voltage, etc.) — the relevant fields vary per device type, matching
+  -- how these are recorded on the paper Property Acknowledgment Receipt.
+  `specifications` text DEFAULT NULL,
+  -- Devices added together share this id so same-model assets can be shown
+  -- grouped; each is still a complete, independent asset. NULL = standalone.
+  `group_id` varchar(36) DEFAULT NULL,
   `is_deleted` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Soft delete flag; TRUE = record is deleted but retained in table',
   `deleted_at` datetime DEFAULT NULL COMMENT 'Timestamp when the record was soft-deleted',
   `deleted_by` int(11) DEFAULT NULL COMMENT 'User who performed the soft delete (ref: users)',
@@ -3750,7 +3758,8 @@ INSERT INTO `audit_log_digests` (`digest_id`, `digest`, `covered_entries`, `gene
 CREATE TABLE `categories` (
   `category_id` int(11) NOT NULL,
   `category_name` varchar(100) NOT NULL COMMENT 'e.g., ICT Equipment, Furniture, Appliance',
-  `description` text DEFAULT NULL
+  `description` text DEFAULT NULL,
+  `useful_life_years` int(11) DEFAULT NULL COMMENT 'Straight-line depreciation life in years; NULL = not depreciated'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -3772,6 +3781,27 @@ INSERT INTO `categories` (`category_id`, `category_name`, `description`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `evidence_photos`
+-- Evidence photos for assets and disposal records (maintenance has its own `maintenance_photos`).
+--
+
+CREATE TABLE `evidence_photos` (
+  `photo_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `target_type` varchar(20) NOT NULL COMMENT 'ASSET | DISPOSAL',
+  `target_id` bigint(20) NOT NULL,
+  `file_path` varchar(255) NOT NULL,
+  `original_filename` varchar(255) DEFAULT NULL,
+  `content_type` varchar(100) DEFAULT NULL,
+  `file_size` bigint(20) DEFAULT NULL,
+  `uploaded_by` int(11) DEFAULT NULL,
+  `uploaded_at` datetime NOT NULL,
+  PRIMARY KEY (`photo_id`),
+  KEY `idx_evidence_target` (`target_type`,`target_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `deleted_assets`
 --
 
@@ -3779,6 +3809,7 @@ CREATE TABLE `deleted_assets` (
   `deleted_asset_id` bigint(20) NOT NULL,
   `asset_id` bigint(20) NOT NULL,
   `property_number` varchar(50) NOT NULL,
+  `par_number` varchar(50) DEFAULT NULL,
   `description` varchar(255) NOT NULL,
   `category_id` bigint(20) NOT NULL,
   `category_name` varchar(100) NOT NULL COMMENT 'Snapshot of category name at deletion',
@@ -3794,6 +3825,7 @@ CREATE TABLE `deleted_assets` (
   `qr_code_path` varchar(255) DEFAULT NULL,
   `sha256_hash` varchar(64) DEFAULT NULL,
   `remarks` text DEFAULT NULL,
+  `specifications` text DEFAULT NULL,
   `original_created_at` datetime NOT NULL COMMENT 'created_at from the assets row',
   `original_updated_at` datetime NOT NULL COMMENT 'updated_at from the assets row',
   `deleted_by_user_id` bigint(20) NOT NULL,
@@ -3801,7 +3833,9 @@ CREATE TABLE `deleted_assets` (
   `delete_reason` text DEFAULT NULL COMMENT 'Reason entered by the user',
   `deleted_at` datetime NOT NULL DEFAULT current_timestamp(),
   `accountable_person_id` bigint(20) DEFAULT NULL,
-  `asset_condition` varchar(20) NOT NULL
+  `asset_condition` varchar(20) NOT NULL,
+  `current_user_personnel_id` bigint(20) DEFAULT NULL,
+  `current_user_name` varchar(150) DEFAULT NULL COMMENT 'Snapshot of current user name at deletion'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Archive of soft-deleted asset records with full snapshots';
 
 --
@@ -3822,6 +3856,7 @@ CREATE TABLE `deleted_disposal` (
   `disposal_id` bigint(20) NOT NULL,
   `asset_id` bigint(20) NOT NULL,
   `property_number` varchar(50) NOT NULL COMMENT 'Snapshot of property number',
+  `par_number` varchar(50) DEFAULT NULL COMMENT 'Snapshot of PAR number',
   `asset_description` varchar(255) NOT NULL COMMENT 'Snapshot of asset description',
   `reason` text NOT NULL,
   `inspection_findings` text NOT NULL,
@@ -3853,6 +3888,7 @@ CREATE TABLE `deleted_maintenance` (
   `maintenance_id` bigint(20) NOT NULL,
   `asset_id` bigint(20) NOT NULL,
   `property_number` varchar(50) NOT NULL COMMENT 'Snapshot of property number',
+  `par_number` varchar(50) DEFAULT NULL COMMENT 'Snapshot of PAR number',
   `asset_description` varchar(255) NOT NULL COMMENT 'Snapshot of asset description',
   `maintenance_type` varchar(20) NOT NULL,
   `findings` text NOT NULL,
@@ -3921,7 +3957,7 @@ CREATE TABLE `disposal_ledger` (
   `asset_id` int(11) NOT NULL,
   `reason` text NOT NULL,
   `inspection_findings` text NOT NULL,
-  `recommended_method` enum('AUCTION','DONATION','TRANSFER') NOT NULL,
+  `recommended_method` varchar(20) NOT NULL COMMENT 'SALE | TRANSFER | DESTRUCTION | OTHERS (older data used AUCTION | DONATION | TRANSFER)',
   `disposal_status` enum('PENDING','APPROVED','COMPLETED') NOT NULL DEFAULT 'PENDING',
   `inspection_date` date NOT NULL,
   `approved_by` varchar(150) DEFAULT NULL COMMENT 'Name of approving authority',
@@ -4820,6 +4856,12 @@ CREATE TABLE `users` (
   `password_reset_otp_hash` varchar(255) DEFAULT NULL,
   `password_reset_otp_expires_at` datetime DEFAULT NULL,
   `password_reset_otp_attempts` int(11) NOT NULL DEFAULT 0,
+  -- Step-up 2FA for permanently deleting a Recycle Bin record — a dedicated
+  -- OTP column set (not login_otp_*) so it can't interfere with a concurrent
+  -- login attempt.
+  `delete_otp_hash` varchar(255) DEFAULT NULL,
+  `delete_otp_expires_at` datetime DEFAULT NULL,
+  `delete_otp_attempts` int(11) NOT NULL DEFAULT 0,
   UNIQUE KEY `uq_users_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -4851,6 +4893,8 @@ ALTER TABLE `ai_recommendations`
 ALTER TABLE `assets`
   ADD PRIMARY KEY (`asset_id`),
   ADD UNIQUE KEY `uq_assets_prop_no` (`property_number`),
+  ADD UNIQUE KEY `uq_assets_par_no` (`par_number`),
+  ADD KEY `idx_assets_group` (`group_id`),
   ADD KEY `fk_assets_deleted_by` (`deleted_by`),
   ADD KEY `idx_assets_category` (`category_id`),
   ADD KEY `idx_assets_office` (`office_id`),
@@ -5176,6 +5220,105 @@ ALTER TABLE `offices`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_office` FOREIGN KEY (`office_id`) REFERENCES `offices` (`office_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- =============================================================
+-- PERSONNEL migration — introduces a proper Personnel record for
+-- Asset.accountable_person instead of a free-text name. Idempotent (see
+-- migration_personnel.sql, which is the exact same script run standalone
+-- against a database that already existed before this migration shipped).
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS `personnel` (
+  `personnel_id` int(11) NOT NULL AUTO_INCREMENT,
+  `full_name` varchar(150) NOT NULL,
+  `position` varchar(150) DEFAULT NULL,
+  `office_id` int(11) DEFAULT NULL,
+  `contact_info` varchar(150) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`personnel_id`),
+  UNIQUE KEY `uq_personnel_full_name` (`full_name`),
+  KEY `idx_personnel_office` (`office_id`),
+  CONSTRAINT `fk_personnel_office` FOREIGN KEY (`office_id`) REFERENCES `offices` (`office_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND COLUMN_NAME = 'personnel_id'
+);
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE `assets` ADD COLUMN `personnel_id` int(11) DEFAULT NULL AFTER `office_id`',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- "Current User" — the person who currently has physical possession/use of the
+-- asset, which can differ from the accountable person (personnel_id) who is
+-- formally responsible for it on paper. Same personnel table, separate column.
+SET @cu_col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND COLUMN_NAME = 'current_user_personnel_id'
+);
+SET @sql := IF(@cu_col_exists = 0,
+  'ALTER TABLE `assets` ADD COLUMN `current_user_personnel_id` int(11) DEFAULT NULL AFTER `personnel_id`',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @acc_col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND COLUMN_NAME = 'accountable_person'
+);
+
+SET @sql := IF(@acc_col_exists = 1,
+  'INSERT INTO `personnel` (full_name, created_at)
+   SELECT DISTINCT TRIM(accountable_person), NOW() FROM `assets`
+   WHERE accountable_person IS NOT NULL AND TRIM(accountable_person) <> ""
+     AND TRIM(accountable_person) NOT IN (SELECT full_name FROM personnel)',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@acc_col_exists = 1,
+  'UPDATE `assets` a JOIN `personnel` p ON LOWER(TRIM(a.accountable_person)) = LOWER(p.full_name)
+   SET a.personnel_id = p.personnel_id
+   WHERE a.personnel_id IS NULL',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@acc_col_exists = 1,
+  'ALTER TABLE `assets` DROP INDEX `idx_assets_accountable`',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@acc_col_exists = 1,
+  'ALTER TABLE `assets` DROP COLUMN `accountable_person`',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @fk_exists := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND CONSTRAINT_NAME = 'fk_assets_personnel'
+);
+SET @sql := IF(@fk_exists = 0,
+  'ALTER TABLE `assets`
+     ADD KEY `idx_assets_personnel` (`personnel_id`),
+     ADD CONSTRAINT `fk_assets_personnel` FOREIGN KEY (`personnel_id`) REFERENCES `personnel` (`personnel_id`) ON UPDATE CASCADE',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @cu_fk_exists := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'assets' AND CONSTRAINT_NAME = 'fk_assets_current_user'
+);
+SET @sql := IF(@cu_fk_exists = 0,
+  'ALTER TABLE `assets`
+     ADD KEY `idx_assets_current_user` (`current_user_personnel_id`),
+     ADD CONSTRAINT `fk_assets_current_user` FOREIGN KEY (`current_user_personnel_id`) REFERENCES `personnel` (`personnel_id`) ON UPDATE CASCADE',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Disposal methods were renamed (AUCTION -> SALE, DONATION -> TRANSFER); the seed rows above still
+-- use the old names, so map them here. See also migrate_disposal_methods.sql for existing databases.
+UPDATE `disposal_ledger` SET `recommended_method` = CASE `recommended_method`
+  WHEN 'AUCTION' THEN 'SALE' WHEN 'DONATION' THEN 'TRANSFER' ELSE `recommended_method` END;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

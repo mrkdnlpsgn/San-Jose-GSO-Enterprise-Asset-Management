@@ -20,11 +20,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-// Reads an asset tag/sticker photo (the kind affixed to laptops, monitors,
-// etc.) via Gemini vision and extracts whatever's legibly printed — device
-// name and serial number. Purely a pre-fill aid for the Add Asset form; the
-// image is never persisted, and every extracted field is reviewed/editable
-// by the user before anything is saved.
+// Reads a photo of either a physical asset tag/sticker (affixed to a laptop,
+// monitor, printer, etc.) or a property document (e.g. a Property
+// Acknowledgment Receipt / PAR listing technical specifications) via Gemini
+// vision, and extracts whatever's legibly printed — device name, serial
+// number, and technical specifications. Purely a pre-fill aid for the Add
+// Asset form; the image is never persisted, and every extracted field is
+// reviewed/editable by the user before anything is saved.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -38,12 +40,24 @@ public class AssetOcrService {
     private final GeminiConfig geminiConfig;
 
     private static final String SYSTEM_PROMPT = """
-        You are reading a physical asset/equipment identification label or manufacturer sticker \
-        (e.g. affixed to a laptop, monitor, printer, or similar equipment) from a photo — not a \
-        document or form. Extract only the device name/type and the serial number, exactly as \
-        printed. Do not guess, infer, or normalize anything that isn't legibly printed on the \
-        label itself. If a field isn't present or isn't legible, return null for it rather than \
-        guessing. Respond only with JSON matching the given schema.""";
+        You are reading a photo of either (a) a physical asset/equipment identification label or \
+        manufacturer sticker affixed to a laptop, monitor, printer, or similar equipment, or (b) a \
+        property document such as a Property Acknowledgment Receipt (PAR) that lists a device's \
+        brand, model, serial number, and a "Technical Specifications" section (e.g. Processor, \
+        Memory, Storage, Display, Operating System, or for other equipment types things like Engine \
+        Type, Plate Number, Power Rating, etc.).
+
+        Extract:
+        - description: the device/equipment name or type, including brand/model if shown.
+        - serialNumber: the serial number (S/N), exactly as printed.
+        - specifications: if the photo has a technical-specifications section or itemized list of \
+        specs, transcribe it as one spec per line in "Label: Value" format, exactly as printed, \
+        preserving the document's own labels and order. Null if there is no such section (e.g. a \
+        plain sticker with just a name and serial number).
+
+        Do not guess, infer, normalize, or add anything that isn't legibly printed. If a field isn't \
+        present or isn't legible, return null for it rather than guessing. Respond only with JSON \
+        matching the given schema.""";
 
     public AssetOcrResult scan(MultipartFile file) {
         geminiConfig.requireConfigured();
@@ -70,7 +84,8 @@ public class AssetOcrService {
         Client client = geminiConfig.buildClient();
 
         Content content = Content.fromParts(
-            Part.fromText("Extract the device name and serial number from this asset label photo."),
+            Part.fromText("Extract the device name, serial number, and technical specifications "
+                + "(if any) from this photo."),
             Part.fromBytes(imageBytes, contentType));
 
         Schema schema = Schema.builder()
@@ -79,16 +94,24 @@ public class AssetOcrService {
                 "description", Schema.builder()
                     .type(Type.Known.STRING)
                     .nullable(true)
-                    .description("The device/equipment name or type as printed on the label, "
-                        + "e.g. \"Dell Latitude 5440 Laptop\". Null if not legible.")
+                    .description("The device/equipment name or type as printed, including brand/model "
+                        + "if shown, e.g. \"Dell Inspiron 15 3520 Laptop Computer\". Null if not legible.")
                     .build(),
                 "serialNumber", Schema.builder()
                     .type(Type.Known.STRING)
                     .nullable(true)
-                    .description("The serial number (S/N) printed on the label, exactly as shown. "
-                        + "Null if not present or not legible.")
+                    .description("The serial number (S/N) printed on the label or document, exactly as "
+                        + "shown. Null if not present or not legible.")
+                    .build(),
+                "specifications", Schema.builder()
+                    .type(Type.Known.STRING)
+                    .nullable(true)
+                    .description("The technical specifications section, if present — one spec per line "
+                        + "as \"Label: Value\" exactly as printed (e.g. \"Processor: Core i7\", "
+                        + "\"Engine Type: V6\"), preserving the document's own labels and order. Null if "
+                        + "the photo has no such section.")
                     .build()))
-            .required("description", "serialNumber")
+            .required("description", "serialNumber", "specifications")
             .build();
 
         GenerateContentConfig config = GenerateContentConfig.builder()
@@ -102,19 +125,19 @@ public class AssetOcrService {
             response = client.models.generateContent(MODEL, content, config);
         } catch (ApiException e) {
             log.error("Asset label OCR request failed: {}", e.getMessage());
-            throw new IllegalStateException("Couldn't read that label right now: " + e.getMessage(), e);
+            throw new IllegalStateException("Couldn't read that photo right now: " + e.getMessage(), e);
         }
 
         String json = response.text();
         if (json == null || json.isBlank()) {
             throw new IllegalStateException(
-                "Couldn't read that label clearly — try a closer, well-lit photo, or enter details manually.");
+                "Couldn't read that photo clearly — try a closer, well-lit photo, or enter details manually.");
         }
         try {
             return OBJECT_MAPPER.readValue(json, AssetOcrResult.class);
         } catch (Exception e) {
             log.error("Could not parse OCR response: {}", json);
-            throw new IllegalStateException("Could not parse the label scan result: " + e.getMessage(), e);
+            throw new IllegalStateException("Could not parse the scan result: " + e.getMessage(), e);
         }
     }
 }

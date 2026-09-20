@@ -6,8 +6,8 @@ import { QRCodeSVG } from 'qrcode.react'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import { useToast } from '../../context/ToastContext'
-import { getAssets } from '../../services/assetService'
-import { setAssets } from '../../store/slices/assetSlice'
+import { getAssets, updateAsset as updateAssetApi } from '../../services/assetService'
+import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
 
 const READER_ID = 'qr-reader-viewport'
 
@@ -87,6 +87,9 @@ function QRScanner() {
   const [result, setResult]           = useState(null)
   const [notFound, setNotFound]       = useState(false)
   const [manualCode, setManualCode]   = useState('')
+  const [editingStatus, setEditingStatus] = useState(false)
+  const [statusForm, setStatusForm]   = useState({ condition: '', lifecycleStatus: '' })
+  const [savingStatus, setSavingStatus] = useState(false)
 
   const scannerRef = useRef(null)
   const isRunning  = useRef(false)
@@ -103,10 +106,22 @@ function QRScanner() {
 
   const processCode = useCallback((raw) => {
     const code = raw.trim()
+    if (!code) return
+
+    // Accepts the app's QR payload format `asset:{id}:{propertyNumber}`,
+    // a bare numeric id, or a bare property number (manual entry).
+    let id = code
+    let propertyNumber = code
+    if (code.startsWith('asset:')) {
+      const parts = code.split(':')
+      id = parts[1] || ''
+      propertyNumber = parts[2] || ''
+    }
+
     const asset = assetItems.find(
       (a) =>
-        String(a.id) === code ||
-        a.propertyNumber?.toLowerCase() === code.toLowerCase()
+        String(a.id) === id ||
+        a.propertyNumber?.toLowerCase() === propertyNumber.toLowerCase()
     )
     if (asset) { setResult(asset); setNotFound(false) }
     else        { setNotFound(true); setResult(null) }
@@ -165,6 +180,47 @@ function QRScanner() {
     setResult(null)
     setNotFound(false)
     setManualCode('')
+    setEditingStatus(false)
+  }
+
+  const startEditStatus = () => {
+    setStatusForm({ condition: result.condition, lifecycleStatus: result.lifecycleStatus })
+    setEditingStatus(true)
+  }
+
+  const cancelEditStatus = () => setEditingStatus(false)
+
+  const saveStatus = async () => {
+    setSavingStatus(true)
+    try {
+      // The update endpoint replaces the whole record, so every existing field
+      // has to be resent — only condition/lifecycleStatus actually change here.
+      const payload = {
+        propertyNumber:    result.propertyNumber,
+        serialNumber:      result.serialNumber,
+        description:       result.description,
+        categoryId:        result.category?.id,
+        quantity:          result.quantity,
+        acquisitionDate:   result.acquisitionDate,
+        unitValue:         result.unitValue,
+        officeId:          result.office?.id,
+        personnelId:       result.accountablePerson?.id ?? null,
+        physicalCount:     result.physicalCount,
+        location:          result.location,
+        condition:         statusForm.condition,
+        lifecycleStatus:   statusForm.lifecycleStatus,
+        remarks:           result.remarks,
+      }
+      const { data } = await updateAssetApi(result.id, payload)
+      setResult(data)
+      dispatch(updateAssetInStore(data))
+      setEditingStatus(false)
+      show('Asset status updated.', 'success')
+    } catch (err) {
+      show(err.response?.data?.message || 'Failed to update status.', 'error')
+    } finally {
+      setSavingStatus(false)
+    }
   }
 
   const qrValue = result ? `asset:${result.id}:${result.propertyNumber}` : ''
@@ -320,15 +376,57 @@ function QRScanner() {
                   </div>
                 </div>
 
-                {/* Badges */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${CONDITION_BADGE[result.condition] || ''}`}>
-                    {result.condition}
-                  </span>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${LIFECYCLE_BADGE[result.lifecycleStatus] || ''}`}>
-                    {result.lifecycleStatus?.replace('_', ' ')}
-                  </span>
-                </div>
+                {/* Status */}
+                {editingStatus ? (
+                  <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 p-3.5 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-wider">Condition</span>
+                        <select
+                          value={statusForm.condition}
+                          onChange={(e) => setStatusForm((p) => ({ ...p, condition: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-slate-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          {Object.keys(CONDITION_BADGE).map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-wider">Lifecycle Status</span>
+                        <select
+                          value={statusForm.lifecycleStatus}
+                          onChange={(e) => setStatusForm((p) => ({ ...p, lifecycleStatus: e.target.value }))}
+                          className="mt-1 w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-slate-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          {Object.keys(LIFECYCLE_BADGE).map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button variant="secondary" size="sm" onClick={cancelEditStatus} disabled={savingStatus}>Cancel</Button>
+                      <Button size="sm" onClick={saveStatus} disabled={savingStatus}>{savingStatus ? 'Saving…' : 'Save Status'}</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${CONDITION_BADGE[result.condition] || ''}`}>
+                        {result.condition}
+                      </span>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${LIFECYCLE_BADGE[result.lifecycleStatus] || ''}`}>
+                        {result.lifecycleStatus?.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <button
+                      onClick={startEditStatus}
+                      className="flex items-center gap-1 text-xs font-semibold text-brand-500 dark:text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                      Update Status
+                    </button>
+                  </div>
+                )}
 
                 {/* Fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
@@ -338,7 +436,7 @@ function QRScanner() {
                     { label: 'Category',        value: result.category?.categoryName },
                     { label: 'Office',          value: result.office?.officeName },
                     { label: 'Location',        value: result.location },
-                    { label: 'Accountable',     value: result.accountablePerson },
+                    { label: 'Accountable',     value: result.accountablePerson?.fullName },
                     { label: 'Unit Value',      value: php(result.unitValue) },
                     { label: 'Quantity',        value: result.quantity },
                     { label: 'Acquisition Date', value: fmt(result.acquisitionDate) },

@@ -8,6 +8,7 @@ import '../model/asset_model.dart';
 // exactly (see backend_sj/.../dto/AssetImportRow.java), and mirror the web
 // Assets page's import template (assetExcel.js) column-for-column.
 const importColumns = [
+  (key: 'parNumber', label: 'PAR Number'),
   (key: 'description', label: 'Description'),
   (key: 'categoryName', label: 'Category'),
   (key: 'quantity', label: 'Qty (Property Card)'),
@@ -16,12 +17,18 @@ const importColumns = [
   (key: 'unitValue', label: 'Unit Value'),
   (key: 'officeName', label: 'Office'),
   (key: 'accountablePerson', label: 'Accountable Person'),
+  (key: 'currentUser', label: 'Current User'),
   (key: 'location', label: 'Location'),
   (key: 'condition', label: 'Condition'),
+  (key: 'specifications', label: 'Technical Specifications'),
   (key: 'remarks', label: 'Remarks'),
 ];
 
 const Map<String, String> _headerMap = {
+  'par number': 'parNumber',
+  'par no.': 'parNumber',
+  'par no': 'parNumber',
+  'par': 'parNumber',
   'description': 'description',
   'category': 'categoryName',
   'category name': 'categoryName',
@@ -42,9 +49,12 @@ const Map<String, String> _headerMap = {
   'office name': 'officeName',
   'location (office)': 'officeName',
   'accountable person': 'accountablePerson',
+  'current user': 'currentUser',
   'location': 'location',
   'physical location': 'location',
   'condition': 'condition',
+  'technical specifications': 'specifications',
+  'specifications': 'specifications',
   'remarks': 'remarks',
 };
 
@@ -126,9 +136,9 @@ Future<void> exportAssetsToExcel(List<AssetModel> assets) async {
   workbook.setDefaultSheet(sheetName);
 
   const headers = [
-    'Property No.', 'Description', 'Category', 'Qty (Property Card)', 'Qty (Physical Count)',
-    'Shortage/Overage Qty', 'Shortage/Overage Value', 'Unit Value', 'Office', 'Accountable Person',
-    'Location', 'Acquisition Date', 'Condition', 'Lifecycle Status', 'Remarks',
+    'Property No.', 'PAR No.', 'Description', 'Category', 'Qty (Property Card)', 'Qty (Physical Count)',
+    'Shortage/Overage Qty', 'Shortage/Overage Value', 'Unit Value', 'Office', 'Accountable Person', 'Current User',
+    'Location', 'Acquisition Date', 'Condition', 'Lifecycle Status', 'Technical Specifications', 'Remarks',
   ];
   sheet.appendRow(headers.map((h) => xl.TextCellValue(h)).toList());
 
@@ -137,6 +147,7 @@ Future<void> exportAssetsToExcel(List<AssetModel> assets) async {
     final diffValue = diff != null ? diff * a.unitValue : null;
     sheet.appendRow([
       xl.TextCellValue(a.propertyNumber),
+      xl.TextCellValue(a.parNumber ?? ''),
       xl.TextCellValue(a.description),
       xl.TextCellValue(a.category.categoryName),
       xl.TextCellValue(a.quantity.toString()),
@@ -145,11 +156,13 @@ Future<void> exportAssetsToExcel(List<AssetModel> assets) async {
       xl.TextCellValue(diffValue?.toStringAsFixed(2) ?? ''),
       xl.TextCellValue(a.unitValue.toStringAsFixed(2)),
       xl.TextCellValue(a.office.officeName),
-      xl.TextCellValue(a.accountablePerson ?? ''),
+      xl.TextCellValue(a.accountablePerson?.fullName ?? ''),
+      xl.TextCellValue(a.currentUser?.fullName ?? ''),
       xl.TextCellValue(a.location),
       xl.TextCellValue(a.acquisitionDate),
       xl.TextCellValue(a.condition),
       xl.TextCellValue(a.lifecycleStatus),
+      xl.TextCellValue(a.specifications ?? ''),
       xl.TextCellValue(a.remarks ?? ''),
     ]);
   }

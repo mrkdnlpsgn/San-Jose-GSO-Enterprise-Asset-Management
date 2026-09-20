@@ -11,3 +11,7 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) {
 final officesProvider = FutureProvider<List<OfficeModel>>((ref) {
   return ref.watch(referenceServiceProvider).getOffices();
 });
+
+final personnelProvider = FutureProvider<List<PersonnelModel>>((ref) {
+  return ref.watch(referenceServiceProvider).getPersonnel();
+});

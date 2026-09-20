@@ -2,8 +2,10 @@ import * as XLSX from 'xlsx'
 
 // Import columns — keys must match backend AssetImportRow fields exactly
 // (see backend_sj/.../dto/AssetImportRow.java). propertyNumber is deliberately
-// excluded: import is create-only, and AssetService auto-generates it.
+// excluded: import is create-only, and AssetService auto-generates it. parNumber
+// can't be generated (its serial is entered by hand), so it is a required column.
 export const IMPORT_COLUMNS = [
+  { key: 'parNumber',         label: 'PAR Number' },
   { key: 'description',       label: 'Description' },
   { key: 'categoryName',      label: 'Category' },
   { key: 'quantity',          label: 'Qty (Property Card)' },
@@ -12,14 +14,20 @@ export const IMPORT_COLUMNS = [
   { key: 'unitValue',         label: 'Unit Value' },
   { key: 'officeName',        label: 'Office' },
   { key: 'accountablePerson', label: 'Accountable Person' },
+  { key: 'currentUser',       label: 'Current User' },
   { key: 'location',          label: 'Location' },
   { key: 'condition',         label: 'Condition' },
+  { key: 'specifications',    label: 'Technical Specifications' },
   { key: 'remarks',           label: 'Remarks' },
 ]
 
 // Header text (lowercased) → internal key. Includes the canonical labels above
 // plus a few common variants, same tolerance as the existing Equipment import.
 const HEADER_MAP = {
+  'par number':              'parNumber',
+  'par no.':                 'parNumber',
+  'par no':                  'parNumber',
+  'par':                     'parNumber',
   'description':            'description',
   'category':                'categoryName',
   'category name':           'categoryName',
@@ -40,9 +48,12 @@ const HEADER_MAP = {
   'office name':             'officeName',
   'location (office)':       'officeName',
   'accountable person':      'accountablePerson',
+  'current user':            'currentUser',
   'location':                'location',
   'physical location':       'location',
   'condition':               'condition',
+  'technical specifications': 'specifications',
+  'specifications':          'specifications',
   'remarks':                 'remarks',
 }
 
@@ -114,6 +125,7 @@ export function parseImportFile(file) {
 export function exportAssetsToExcel(assets) {
   const columns = [
     { label: 'Property No.',           value: (a) => a.propertyNumber || '' },
+    { label: 'PAR No.',                value: (a) => a.parNumber || '' },
     { label: 'Description',            value: (a) => a.description || '' },
     { label: 'Category',               value: (a) => a.category?.categoryName || '' },
     { label: 'Qty (Property Card)',    value: (a) => a.quantity ?? '' },
@@ -122,11 +134,13 @@ export function exportAssetsToExcel(assets) {
     { label: 'Shortage/Overage Value', value: (a) => (a.physicalCount != null ? (a.physicalCount - (a.quantity ?? 0)) * Number(a.unitValue ?? 0) : '') },
     { label: 'Unit Value',             value: (a) => a.unitValue ?? '' },
     { label: 'Office',                 value: (a) => a.office?.officeName || '' },
-    { label: 'Accountable Person',     value: (a) => a.accountablePerson || '' },
+    { label: 'Accountable Person',     value: (a) => a.accountablePerson?.fullName || '' },
+    { label: 'Current User',           value: (a) => a.currentUser?.fullName || '' },
     { label: 'Location',               value: (a) => a.location || '' },
     { label: 'Acquisition Date',       value: (a) => a.acquisitionDate || '' },
     { label: 'Condition',              value: (a) => a.condition || '' },
     { label: 'Lifecycle Status',       value: (a) => a.lifecycleStatus || '' },
+    { label: 'Technical Specifications', value: (a) => a.specifications || '' },
     { label: 'Remarks',                value: (a) => a.remarks || '' },
   ]
 

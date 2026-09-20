@@ -6,6 +6,7 @@ import '../provider/asset_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
+import '../../../shared/provider/paginated_list_notifier.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/main_shell.dart';
@@ -14,6 +15,7 @@ import '../../../core/api/api_exception.dart';
 import '../data/asset_service.dart';
 import '../utils/asset_excel.dart';
 import '../widgets/asset_filter_sheet.dart';
+import '../widgets/asset_group_widgets.dart';
 
 class AssetListScreen extends ConsumerStatefulWidget {
   const AssetListScreen({super.key});
@@ -159,8 +161,8 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
       body: AutoRefreshTicker(
         interval: const Duration(seconds: 30),
         onTick: () => ref.read(assetsPagedProvider(search).notifier).silentRefresh(),
-        child: PaginatedListView<AssetModel>(
-          state: state,
+        child: PaginatedListView<_AssetEntry>(
+          state: _groupedState(state),
           emptyMessage: 'No assets found.',
           extraBottomPadding: context.mainShellBottomInset,
           onLoadMore: () => ref.read(assetsPagedProvider(search).notifier).loadMore(),
@@ -168,11 +170,168 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
             ref.invalidate(assetCountProvider(search));
             await ref.read(assetsPagedProvider(search).notifier).refresh();
           },
-          itemBuilder: (context, asset, i) => _AssetCard(
-            asset: asset,
-            onTap: () => context.push('/assets/${asset.id}'),
-          ),
+          itemBuilder: (context, entry, i) => entry.isGroup
+              ? _AssetGroupCard(members: entry.members, onOpen: (a) => context.push('/assets/${a.id}'))
+              : _AssetCard(
+                  asset: entry.members.first,
+                  onTap: () => context.push('/assets/${entry.members.first.id}'),
+                ),
         ),
+      ),
+    );
+  }
+}
+
+// One row in the list: a single asset, or a group of same-model devices that were
+// added together (shared groupId). Every member of a group is still a complete asset.
+class _AssetEntry {
+  final List<AssetModel> members;
+  const _AssetEntry(this.members);
+  bool get isGroup => members.length > 1 || (members.first.groupSize ?? 0) > 1;
+}
+
+// Groups assets that share a groupId (first occurrence keeps its position). A group with
+// only one loaded member renders as a normal card. Pages are loaded 20 assets at a time,
+// so a group whose devices land on different pages simply fills in as more are loaded.
+PaginatedListState<_AssetEntry> _groupedState(PaginatedListState<AssetModel> s) {
+  final entries = <_AssetEntry>[];
+  final byGroup = <String, List<AssetModel>>{};
+  for (final a in s.items) {
+    final g = a.groupId;
+    if (g == null) {
+      entries.add(_AssetEntry([a]));
+    } else if (byGroup.containsKey(g)) {
+      byGroup[g]!.add(a);
+    } else {
+      final members = <AssetModel>[a];
+      byGroup[g] = members;
+      entries.add(_AssetEntry(members));
+    }
+  }
+  return PaginatedListState<_AssetEntry>(
+    items: entries,
+    isLoading: s.isLoading,
+    isLoadingMore: s.isLoadingMore,
+    hasMore: s.hasMore,
+    error: s.error,
+    loadMoreError: s.loadMoreError,
+  );
+}
+
+class _AssetGroupCard extends StatefulWidget {
+  final List<AssetModel> members;
+  final void Function(AssetModel) onOpen;
+
+  const _AssetGroupCard({required this.members, required this.onOpen});
+
+  @override
+  State<_AssetGroupCard> createState() => _AssetGroupCardState();
+}
+
+class _AssetGroupCardState extends State<_AssetGroupCard> {
+  bool _expanded = false;
+  Future<List<AssetModel>>? _all; // every device of the group, fetched when first expanded
+
+  String get _groupId => widget.members.first.groupId!;
+
+  @override
+  Widget build(BuildContext context) {
+    final members = widget.members;
+    final first = members.first;
+    // Header numbers come from the server's roll-up, so they're right even if only some of
+    // the group's devices are loaded in this list.
+    final count = first.groupSize ?? members.length;
+    final total = first.groupTotalValue ?? members.fold<double>(0, (n, m) => n + m.unitValue * m.quantity);
+    final offices = members.map((m) => m.office.officeName).toSet();
+    return Card(
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() {
+              _expanded = !_expanded;
+              _all ??= AssetService().getGroup(_groupId);
+            }),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(first.description,
+                            style: TextStyle(
+                                color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w500),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.business_outlined, size: 13, color: context.colors.textSecondary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(offices.length == 1 ? offices.first : 'Multiple locations',
+                                  style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text('Total value ₱${total.toStringAsFixed(2)}',
+                            style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.brand.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text('$count devices',
+                        style: const TextStyle(color: AppTheme.brand, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Group details & lifecycle',
+                    icon: const Icon(Icons.info_outline_rounded, color: AppTheme.brand),
+                    onPressed: () => showAssetGroupSheet(
+                      context,
+                      groupId: _groupId,
+                      description: first.description,
+                      onOpenDevice: widget.onOpen,
+                    ),
+                  ),
+                  Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppTheme.brand),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+              child: FutureBuilder<List<AssetModel>>(
+                future: _all,
+                builder: (context, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))),
+                    );
+                  }
+                  // If the fetch fails, fall back to whichever devices are already loaded.
+                  final all = snap.hasError ? members : snap.data!;
+                  return GroupDevicesTable(members: all, onOpen: widget.onOpen);
+                },
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -186,6 +345,9 @@ class _AssetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // An older record that counted several devices in one row (Qty > 1) but only stored
+    // one set of numbers — flagged so it can be edited into separate devices.
+    final legacyMulti = asset.groupId == null && asset.quantity >= 2;
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -198,8 +360,9 @@ class _AssetCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(asset.propertyNumber,
-                        style: const TextStyle(color: AppTheme.brand, fontSize: 12, fontWeight: FontWeight.w600)),
+                    child: Text(asset.propertyAndPar,
+                        style: const TextStyle(color: AppTheme.brand, fontSize: 12, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis),
                   ),
                   StatusBadge.lifecycle(asset.lifecycleStatus),
                 ],
@@ -222,6 +385,13 @@ class _AssetCard extends StatelessWidget {
                   StatusBadge.condition(asset.condition),
                 ],
               ),
+              if (legacyMulti) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Counts ${asset.quantity} devices but only one is recorded — edit to add the others.',
+                  style: const TextStyle(color: Colors.amber, fontSize: 11.5, fontStyle: FontStyle.italic),
+                ),
+              ],
             ],
           ),
         ),

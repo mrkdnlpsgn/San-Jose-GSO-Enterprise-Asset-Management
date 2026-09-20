@@ -272,11 +272,13 @@ class _ResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final fields = <String, String?>{
       'Property Number': asset.propertyNumber,
+      'PAR Number': asset.parNumber,
       'Description': asset.description,
       'Category': asset.category.categoryName,
       'Office': asset.office.officeName,
       'Location': asset.location,
-      'Accountable': asset.accountablePerson,
+      'Accountable': asset.accountablePerson?.fullName,
+      'Current User': asset.currentUser?.fullName,
       'Unit Value': fmtMoney(asset.unitValue),
       'Quantity': asset.quantity.toString(),
       'Acquisition Date': fmtDate(asset.acquisitionDate),

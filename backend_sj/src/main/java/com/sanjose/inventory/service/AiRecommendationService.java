@@ -70,6 +70,7 @@ public class AiRecommendationService {
             Asset a = new Asset();
             a.setId(assetId);
             a.setPropertyNumber(rs.getString("asset_propertyNumber"));
+            a.setParNumber(rs.getString("asset_parNumber"));
             a.setDescription(rs.getString("asset_description"));
             r.setAsset(a);
         }

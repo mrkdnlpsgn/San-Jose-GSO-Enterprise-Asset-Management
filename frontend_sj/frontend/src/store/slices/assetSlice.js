@@ -5,7 +5,14 @@ const assetSlice = createSlice({
   initialState: { items: [] },
   reducers: {
     setAssets: (state, action) => { state.items = action.payload; },
-    addAsset: (state, action) => { state.items.unshift(action.payload); },
+    // Both the direct create-response handler and the SSE 'asset' CREATED
+    // event can dispatch this for the same asset (the SSE emit fires
+    // server-side before the HTTP response returns) — guard against
+    // inserting it twice.
+    addAsset: (state, action) => {
+      if (state.items.some((i) => i.id === action.payload.id)) return;
+      state.items.unshift(action.payload);
+    },
     updateAsset: (state, action) => {
       const idx = state.items.findIndex(i => i.id === action.payload.id);
       if (idx !== -1) state.items[idx] = action.payload;

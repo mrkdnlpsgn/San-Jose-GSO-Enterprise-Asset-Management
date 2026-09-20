@@ -6,6 +6,9 @@ import '../provider/reports_provider.dart';
 import '../utils/export_excel.dart';
 import '../utils/export_pdf.dart';
 import '../../../shared/widgets/error_state.dart';
+import '../../assets/model/asset_model.dart';
+import '../../assets/widgets/asset_group_widgets.dart';
+import 'package:go_router/go_router.dart';
 
 const _kNarrowBreakpoint = 600.0;
 
@@ -74,6 +77,11 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
           final preview = rows;
           final isNarrow = MediaQuery.sizeOf(context).width < _kNarrowBreakpoint;
 
+          // Rows whose device belongs to a group (same model) collapse into one expandable card;
+          // exports still list every device on its own row. Summary/aggregate rows aren't per-device.
+          final entries = groupRecords<dynamic>(preview, (row) => _assetOf(row)?.groupId);
+          final hasGroups = entries.any((e) => e.isGroup);
+
           return Column(
             children: [
               Padding(
@@ -86,7 +94,25 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                 ),
               ),
               Expanded(
-                child: isNarrow
+                child: hasGroups
+                    ? ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        itemCount: entries.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, i) {
+                          final entry = entries[i];
+                          if (!entry.isGroup) return _ReportRowCard(row: entry.members.first, columns: report.columns);
+                          return RecordGroupCard<dynamic>(
+                            members: entry.members,
+                            assetOf: _assetOf,
+                            noun: 'rows',
+                            columns: [for (final c in report.columns) c.label],
+                            values: (row) => [for (final c in report.columns) c.valueOf(row)],
+                            onOpenDevice: (a) => context.push('/assets/${a.id}'),
+                          );
+                        },
+                      )
+                    : isNarrow
                     ? ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         itemCount: preview.length,
@@ -195,5 +221,18 @@ class _ReportRowCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// The device a report row is about: the row itself for asset reports, its nested `asset` for
+// maintenance / disposal / history reports, none for summary rows.
+AssetModel? _assetOf(dynamic row) {
+  if (row is AssetModel) return row;
+  if (row is Map) return null;
+  try {
+    final a = row.asset;
+    return a is AssetModel ? a : null;
+  } catch (_) {
+    return null;
   }
 }

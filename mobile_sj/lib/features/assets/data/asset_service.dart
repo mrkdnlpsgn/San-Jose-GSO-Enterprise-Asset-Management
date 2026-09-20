@@ -4,9 +4,11 @@ import '../../../core/api/api_exception.dart';
 import '../model/asset_model.dart';
 import '../model/asset_import_result.dart';
 
-// Fields read off an asset tag/sticker photo via server-side OCR, meant to
-// pre-fill the Add Asset form for review — not saved as-is.
-typedef AssetOcrResult = ({String? description, String? serialNumber});
+// Fields read off an asset tag/sticker photo, or a property document (e.g. a
+// Property Acknowledgment Receipt listing technical specifications), via
+// server-side OCR — meant to pre-fill the Add Asset form for review, not
+// saved as-is.
+typedef AssetOcrResult = ({String? description, String? serialNumber, String? specifications});
 
 class AssetService {
   final Dio _dio = ApiClient.instance.dio;
@@ -30,6 +32,17 @@ class AssetService {
         if (condition != null && condition.isNotEmpty) 'condition': condition,
         if (lifecycleStatus != null && lifecycleStatus.isNotEmpty) 'lifecycleStatus': lifecycleStatus,
       });
+      return (res.data as List).map((e) => AssetModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  // Every device of one group — loaded when a group is opened, so the view doesn't depend on
+  // which page (or search results) happened to be loaded in the list.
+  Future<List<AssetModel>> getGroup(String groupId) async {
+    try {
+      final res = await _dio.get('/assets/group/$groupId');
       return (res.data as List).map((e) => AssetModel.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       throw ApiException.from(e);
@@ -85,7 +98,11 @@ class AssetService {
       });
       final res = await _dio.post('/assets/scan-label', data: formData);
       final json = res.data as Map<String, dynamic>;
-      return (description: json['description'] as String?, serialNumber: json['serialNumber'] as String?);
+      return (
+        description: json['description'] as String?,
+        serialNumber: json['serialNumber'] as String?,
+        specifications: json['specifications'] as String?,
+      );
     } catch (e) {
       throw ApiException.from(e);
     }

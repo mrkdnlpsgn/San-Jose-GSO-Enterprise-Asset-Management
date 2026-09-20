@@ -18,6 +18,7 @@ import '../../maintenance/provider/maintenance_provider.dart';
 import '../../disposal/model/disposal_model.dart';
 import '../../disposal/provider/disposal_provider.dart';
 import '../widgets/asset_qr_sheet.dart';
+import '../../evidence/evidence_sheet.dart';
 import '../../../shared/widgets/error_state.dart';
 
 class AssetDetailScreen extends ConsumerWidget {
@@ -38,6 +39,17 @@ class AssetDetailScreen extends ConsumerWidget {
               icon: const Icon(Icons.qr_code_2_rounded),
               tooltip: 'Show QR code',
               onPressed: () => showAssetQrSheet(context, assetAsync.value!),
+            ),
+          if (assetAsync.value != null)
+            IconButton(
+              icon: const Icon(Icons.photo_camera_outlined),
+              tooltip: 'Evidence photos',
+              onPressed: () => showEvidenceSheet(
+                context,
+                path: '/assets/$assetId/evidence',
+                title: 'Asset Evidence',
+                subtitle: '${assetAsync.value!.propertyNumber} — ${assetAsync.value!.description}',
+              ),
             ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -164,11 +176,13 @@ class _DetailsTab extends StatelessWidget {
         _AiRecommendationCard(assetId: asset.id),
         const SizedBox(height: 12),
         _card(context, 'Asset Details', [
+          _row(context, 'PAR Number', asset.parNumber ?? '—'),
           if (asset.serialNumber != null && asset.serialNumber!.isNotEmpty)
             _row(context, 'Serial Number', asset.serialNumber!),
           _row(context, 'Category', asset.category.categoryName),
           _row(context, 'Location', asset.office.officeName),
-          if (asset.accountablePerson != null) _row(context, 'Accountable Person', asset.accountablePerson!),
+          if (asset.accountablePerson != null) _row(context, 'Accountable Person', asset.accountablePerson!.fullName),
+          if (asset.currentUser != null) _row(context, 'Current User', asset.currentUser!.fullName),
           _row(context, 'Qty (Property Card)', asset.quantity.toString()),
           if (asset.physicalCount != null) ...[
             _row(context, 'Qty (Physical Count)', asset.physicalCount.toString()),
@@ -181,6 +195,21 @@ class _DetailsTab extends StatelessWidget {
           _row(context, 'Acquisition Date', asset.acquisitionDate),
           _row(context, 'Total Value', '₱${(asset.unitValue * asset.quantity).toStringAsFixed(2)}'),
         ]),
+        if (asset.specifications != null && asset.specifications!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionTitle(context, 'Technical Specifications'),
+                  Text(asset.specifications!, style: TextStyle(color: context.colors.textSecondary, height: 1.5)),
+                ],
+              ),
+            ),
+          ),
+        ],
         if (asset.remarks != null && asset.remarks!.isNotEmpty) ...[
           const SizedBox(height: 12),
           Card(

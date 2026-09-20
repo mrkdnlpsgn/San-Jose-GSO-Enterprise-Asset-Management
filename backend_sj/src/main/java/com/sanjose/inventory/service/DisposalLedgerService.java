@@ -3,6 +3,8 @@ package com.sanjose.inventory.service;
 import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.DisposalLedgerRequest;
 import com.sanjose.inventory.entity.Asset;
+import com.sanjose.inventory.entity.Personnel;
+import com.sanjose.inventory.entity.Category;
 import com.sanjose.inventory.entity.DisposalLedger;
 import com.sanjose.inventory.entity.User;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
@@ -49,6 +51,23 @@ public class DisposalLedgerService {
             Asset a = new Asset();
             a.setId(assetId);
             a.setPropertyNumber(rs.getString("asset_propertyNumber"));
+            a.setParNumber(rs.getString("asset_parNumber"));
+            a.setGroupId(rs.getString("asset_groupId"));
+            a.setSerialNumber(rs.getString("asset_serialNumber"));
+            Long apId = rs.getObject("asset_personnelId", Long.class);
+            if (apId != null) {
+                Personnel ap = new Personnel();
+                ap.setId(apId);
+                ap.setFullName(rs.getString("asset_accountableName"));
+                a.setAccountablePerson(ap);
+            }
+            Long acuId = rs.getObject("asset_currentUserId", Long.class);
+            if (acuId != null) {
+                Personnel acu = new Personnel();
+                acu.setId(acuId);
+                acu.setFullName(rs.getString("asset_currentUserName"));
+                a.setCurrentUser(acu);
+            }
             a.setDescription(rs.getString("asset_description"));
             a.setQuantity(rs.getObject("asset_quantity", Integer.class));
             a.setUnitValue(rs.getBigDecimal("asset_unitValue"));
@@ -56,6 +75,15 @@ public class DisposalLedgerService {
             a.setAcquisitionDate(acqDate != null ? acqDate.toLocalDate() : null);
             String assetCondition = rs.getString("asset_condition");
             a.setCondition(assetCondition != null ? Asset.AssetCondition.valueOf(assetCondition) : null);
+
+            Long catId = rs.getObject("asset_category_id", Long.class);
+            if (catId != null) {
+                Category c = new Category();
+                c.setId(catId);
+                c.setCategoryName(rs.getString("asset_category_name"));
+                a.setCategory(c);
+            }
+
             d.setAsset(a);
 
             Integer usefulLifeYears = rs.getObject("asset_categoryUsefulLifeYears", Integer.class);

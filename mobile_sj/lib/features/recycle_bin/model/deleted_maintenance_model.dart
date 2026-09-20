@@ -1,6 +1,7 @@
 class DeletedMaintenanceModel {
   final int id;
   final String propertyNumber;
+  final String? parNumber; // null for assets archived before PAR numbers existed
   final String assetDescription;
   final String maintenanceType;
   final String status;
@@ -11,6 +12,7 @@ class DeletedMaintenanceModel {
   const DeletedMaintenanceModel({
     required this.id,
     required this.propertyNumber,
+    this.parNumber,
     required this.assetDescription,
     required this.maintenanceType,
     required this.status,
@@ -22,6 +24,7 @@ class DeletedMaintenanceModel {
   factory DeletedMaintenanceModel.fromJson(Map<String, dynamic> json) => DeletedMaintenanceModel(
         id: json['id'] as int,
         propertyNumber: json['propertyNumber'] as String,
+        parNumber: json['parNumber'] as String?,
         assetDescription: json['assetDescription'] as String,
         maintenanceType: json['maintenanceType'] as String,
         status: json['status'] as String,

@@ -58,4 +58,39 @@ class RecycleBinService {
       throw ApiException.from(e);
     }
   }
+
+  // Step-up 2FA — emails a one-time code to the current user before a permanent delete.
+  Future<void> requestDeleteOtp() async {
+    try {
+      await _dio.post('/auth/delete-otp/request');
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  // Each permanently deletes both the underlying record and its Recycle Bin
+  // snapshot — irreversible, and requires the OTP from requestDeleteOtp().
+  Future<void> permanentDeleteAsset(int id, String otp) async {
+    try {
+      await _dio.post('/deleted-records/assets/$id/permanent-delete', data: {'otp': otp});
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<void> permanentDeleteMaintenance(int id, String otp) async {
+    try {
+      await _dio.post('/deleted-records/maintenance/$id/permanent-delete', data: {'otp': otp});
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<void> permanentDeleteDisposal(int id, String otp) async {
+    try {
+      await _dio.post('/deleted-records/disposal/$id/permanent-delete', data: {'otp': otp});
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
 }

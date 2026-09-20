@@ -8,6 +8,7 @@ import com.sanjose.inventory.repository.DeletedDisposalRepository;
 import com.sanjose.inventory.repository.DeletedMaintenanceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,8 @@ public class DeletedRecordsService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
+    private final AuthService authService;
+    private final EvidenceService evidenceService;
     private final DeletedAssetRepository deletedAssetRepository;
     private final DeletedMaintenanceRepository deletedMaintenanceRepository;
     private final DeletedDisposalRepository deletedDisposalRepository;
@@ -58,5 +61,44 @@ public class DeletedRecordsService {
         jdbcTemplate.update("CALL sp_disposal_restore(?)", deletedDisposalId);
         auditLogService.log("DISPOSAL_RESTORED", "Disposal", snapshot.getDisposalId(), "disposal",
             "Restored disposal record for asset: " + snapshot.getPropertyNumber());
+    }
+
+    // Permanent delete requires the emailed OTP be verified first (step-up 2FA) —
+    // unlike restore, there is no going back after this: the underlying ledger row
+    // and its Recycle Bin snapshot are both actually removed from the database.
+    public void permanentDeleteAsset(Long deletedAssetId, String otp) {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        authService.verifyDeleteOtp(username, otp);
+
+        DeletedAsset snapshot = deletedAssetRepository.findById(deletedAssetId).orElseThrow();
+        // The asset's disposal records go with it, so collect them first to clear their evidence too.
+        List<Long> disposalIds = jdbcTemplate.queryForList(
+            "SELECT disposal_id FROM disposal_ledger WHERE asset_id = ?", Long.class, snapshot.getAssetId());
+        jdbcTemplate.update("CALL sp_assets_permanent_delete(?)", deletedAssetId);
+        evidenceService.deleteAll(EvidenceService.Target.ASSET, snapshot.getAssetId());
+        disposalIds.forEach((d) -> evidenceService.deleteAll(EvidenceService.Target.DISPOSAL, d));
+        auditLogService.log("ASSET_PERMANENTLY_DELETED", "Assets", snapshot.getAssetId(), "asset",
+            "Permanently deleted: " + snapshot.getPropertyNumber());
+    }
+
+    public void permanentDeleteMaintenance(Long deletedMaintenanceId, String otp) {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        authService.verifyDeleteOtp(username, otp);
+
+        DeletedMaintenance snapshot = deletedMaintenanceRepository.findById(deletedMaintenanceId).orElseThrow();
+        jdbcTemplate.update("CALL sp_maintenance_permanent_delete(?)", deletedMaintenanceId);
+        auditLogService.log("MAINTENANCE_PERMANENTLY_DELETED", "Maintenance", snapshot.getMaintenanceId(), "maintenance",
+            "Permanently deleted maintenance record for asset: " + snapshot.getPropertyNumber());
+    }
+
+    public void permanentDeleteDisposal(Long deletedDisposalId, String otp) {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        authService.verifyDeleteOtp(username, otp);
+
+        DeletedDisposal snapshot = deletedDisposalRepository.findById(deletedDisposalId).orElseThrow();
+        jdbcTemplate.update("CALL sp_disposal_permanent_delete(?)", deletedDisposalId);
+        evidenceService.deleteAll(EvidenceService.Target.DISPOSAL, snapshot.getDisposalId());
+        auditLogService.log("DISPOSAL_PERMANENTLY_DELETED", "Disposal", snapshot.getDisposalId(), "disposal",
+            "Permanently deleted disposal record for asset: " + snapshot.getPropertyNumber());
     }
 }

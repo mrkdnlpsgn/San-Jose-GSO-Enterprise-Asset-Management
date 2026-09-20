@@ -24,6 +24,15 @@ class ReferenceService {
     }
   }
 
+  Future<List<PersonnelModel>> getPersonnel() async {
+    try {
+      final res = await _dio.get('/personnel');
+      return (res.data as List).map((e) => PersonnelModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
   Future<CategoryModel> suggestCategory(String description) async {
     try {
       final res = await _dio.post('/categories/suggest', data: {'description': description});

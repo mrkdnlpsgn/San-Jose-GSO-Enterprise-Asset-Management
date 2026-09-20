@@ -106,6 +106,7 @@ public class SecurityConfig {
                 // Offices, Categories: any authenticated user, including mutations
                 .requestMatchers("/api/offices/**", "/api/offices").authenticated()
                 .requestMatchers("/api/categories/**", "/api/categories").authenticated()
+                .requestMatchers("/api/personnel/**", "/api/personnel").authenticated()
                 // Maintenance, Disposal: any authenticated user, including mutations
                 .requestMatchers("/api/maintenance/**", "/api/maintenance").authenticated()
                 .requestMatchers("/api/disposal/**", "/api/disposal").authenticated()

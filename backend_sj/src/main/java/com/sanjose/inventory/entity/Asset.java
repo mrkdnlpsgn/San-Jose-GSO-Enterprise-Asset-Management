@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "assets")
+@Table(name = "assets", indexes = @Index(name = "idx_assets_group", columnList = "group_id"))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -25,6 +25,15 @@ public class Asset {
 
     @Column(name = "property_number", nullable = false, unique = true, length = 50)
     private String propertyNumber;
+
+    // Property Acknowledgment Receipt number — distinct from propertyNumber (the
+    // COA-assigned one). Format is YYYY-MM:SERIAL: the acquisition year-month plus
+    // a serial the user types in by hand, e.g. "2026-07:H78JD80". Unique, like
+    // propertyNumber — together they tell identical devices apart. Nullable at the
+    // column level only so rows that predate this field survive the schema
+    // update; AssetService requires it on every create/update.
+    @Column(name = "par_number", unique = true, length = 50)
+    private String parNumber;
 
     @Column(name = "serial_number", length = 100)
     private String serialNumber;
@@ -52,8 +61,32 @@ public class Asset {
     @JsonIgnoreProperties({"headUser", "createdAt"})
     private Office office;
 
-    @Column(name = "accountable_person", length = 150)
-    private String accountablePerson;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "personnel_id")
+    @JsonIgnoreProperties({"office"})
+    private Personnel accountablePerson;
+
+    // The person who currently has physical possession/use of the asset — can
+    // differ from accountablePerson, who is formally responsible for it on paper.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_user_personnel_id")
+    @JsonIgnoreProperties({"office"})
+    private Personnel currentUser;
+
+    // Devices added together (Qty > 1 on the Add form, or an old multi-quantity record
+    // that was split up) share this id so the UI can group same-model assets under one
+    // expandable row. Each member is still a complete, independent asset. Null = standalone.
+    @Column(name = "group_id", length = 36)
+    private String groupId;
+
+    // Read-only roll-up for a grouped asset (0/absent when standalone): how many devices are in
+    // its group, and their combined value — so a list showing only some of them can still
+    // display the true totals.
+    @Transient
+    private Integer groupSize;
+
+    @Transient
+    private java.math.BigDecimal groupTotalValue;
 
     @Column(name = "physical_count")
     private Integer physicalCount;
@@ -78,6 +111,11 @@ public class Asset {
     @Column(columnDefinition = "TEXT")
     private String remarks;
 
+    // Free-form — the fields that matter vary entirely by device type (CPU/RAM/storage
+    // for a computer, engine/plate no. for a vehicle, BTU/voltage for an aircon, etc.),
+    // matching how these are recorded on the paper Property Acknowledgment Receipt.
+    @Column(columnDefinition = "TEXT")
+    private String specifications;
     // Computed on read from unitValue + acquisitionDate + category.usefulLifeYears
     // (see DepreciationCalculator) — informational only, never persisted, and
     // never used to gate disposal eligibility (that's driven by `condition`).

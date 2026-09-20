@@ -53,6 +53,15 @@ public class AuthService {
     @Value("${auth.login-otp-resend-cooldown-seconds:60}")
     private int loginOtpResendCooldownSeconds;
 
+    @Value("${auth.delete-otp-expiry-minutes:10}")
+    private int deleteOtpExpiryMinutes;
+
+    @Value("${auth.delete-otp-max-attempts:5}")
+    private int deleteOtpMaxAttempts;
+
+    @Value("${auth.delete-otp-resend-cooldown-seconds:60}")
+    private int deleteOtpResendCooldownSeconds;
+
     private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
     private final JdbcTemplate jdbcTemplate;
@@ -98,6 +107,10 @@ public class AuthService {
 
     private record PasswordResetOtpData(
         Long id, Boolean isActive, String otpHash, LocalDateTime otpExpiresAt, Integer otpAttempts
+    ) {}
+
+    private record DeleteOtpUserData(
+        Long id, String email, Boolean isActive, String otpHash, LocalDateTime otpExpiresAt, Integer otpAttempts
     ) {}
 
     @Transactional
@@ -426,6 +439,81 @@ public class AuthService {
 
         auditLogService.log("USER_PASSWORD_RESET", "Users", data.id(), "user",
             "Password reset via forgot-password flow: " + username);
+    }
+
+    private static final org.springframework.jdbc.core.RowMapper<DeleteOtpUserData> DELETE_OTP_MAPPER = (rs, rn) -> {
+        Timestamp expTs = rs.getTimestamp("otpExpiresAt");
+        return new DeleteOtpUserData(
+            rs.getLong("id"),
+            rs.getString("email"),
+            rs.getObject("isActive", Boolean.class),
+            rs.getString("otpHash"),
+            expTs != null ? expTs.toLocalDateTime() : null,
+            rs.getObject("otpAttempts", Integer.class)
+        );
+    };
+
+    // Step-up 2FA, step 1: email a one-time code to the currently-authenticated
+    // user's own registered address before they can permanently delete a Recycle
+    // Bin record. Unlike forgot-password/login-OTP, the caller is already a known,
+    // authenticated identity, so failures (no email on file, inactive account) are
+    // surfaced directly rather than swallowed.
+    @Transactional
+    public void requestDeleteOtp(String username) {
+        List<DeleteOtpUserData> rows = jdbcTemplate.query(
+            "CALL sp_auth_get_delete_otp(?)", DELETE_OTP_MAPPER, username);
+        if (rows.isEmpty()) throw new BadCredentialsException("Invalid credentials");
+        DeleteOtpUserData user = rows.get(0);
+
+        if (!Boolean.TRUE.equals(user.isActive()))
+            throw new LockedException("Account is deactivated");
+        if (user.email() == null || user.email().isBlank())
+            throw new IllegalStateException(
+                "No email is on file for your account — contact an administrator before performing this action.");
+
+        // Don't spam a fresh code/email if one was just requested.
+        if (user.otpExpiresAt() != null) {
+            LocalDateTime issuedAt = user.otpExpiresAt().minusMinutes(deleteOtpExpiryMinutes);
+            if (LocalDateTime.now().isBefore(issuedAt.plusSeconds(deleteOtpResendCooldownSeconds))) return;
+        }
+
+        String otp = String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(deleteOtpExpiryMinutes);
+        jdbcTemplate.update("CALL sp_auth_set_delete_otp(?, ?, ?)",
+            user.id(), passwordEncoder.encode(otp), Timestamp.valueOf(expiresAt));
+
+        String html = "<p>You requested to permanently delete a record from the San Jose GSO Enterprise Asset "
+            + "Management Recycle Bin. <strong>This action cannot be undone.</strong> Enter this code to confirm:</p>"
+            + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;\">" + otp + "</p>"
+            + "<p>This code expires in " + deleteOtpExpiryMinutes + " minutes. "
+            + "If you didn't request this, you can safely ignore this email — nothing will be deleted without the code.</p>";
+        emailService.send(user.email(), "Confirm permanent deletion", html);
+    }
+
+    // Step-up 2FA, step 2: verify the emailed code. Throws on any failure (unknown
+    // user, no pending code, expired, wrong code, too many attempts) with the same
+    // message in every case, and clears the code on success so it can't be replayed.
+    @Transactional
+    public void verifyDeleteOtp(String username, String otp) {
+        List<DeleteOtpUserData> rows = jdbcTemplate.query("CALL sp_auth_get_delete_otp(?)", DELETE_OTP_MAPPER, username);
+        if (rows.isEmpty()) throw new IllegalArgumentException("Invalid or expired code.");
+        DeleteOtpUserData data = rows.get(0);
+
+        boolean eligible = Boolean.TRUE.equals(data.isActive())
+            && data.otpHash() != null
+            && data.otpExpiresAt() != null
+            && LocalDateTime.now().isBefore(data.otpExpiresAt())
+            && (data.otpAttempts() == null || data.otpAttempts() < deleteOtpMaxAttempts);
+
+        if (!eligible) throw new IllegalArgumentException("Invalid or expired code.");
+
+        if (!passwordEncoder.matches(otp, data.otpHash())) {
+            recordAttemptDurably(() -> jdbcTemplate.update(
+                "CALL sp_auth_increment_delete_otp_attempts(?)", data.id()));
+            throw new IllegalArgumentException("Invalid or expired code.");
+        }
+
+        jdbcTemplate.update("CALL sp_auth_clear_delete_otp(?)", data.id());
     }
 
     // Records that the currently-authenticated user has read the Data Privacy Notice.

@@ -11,6 +11,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../../features/auth/provider/auth_provider.dart';
 import '../../../core/platform.dart';
 import '../widgets/disposal_filter_sheet.dart';
+import '../../assets/widgets/asset_group_widgets.dart';
 
 class DisposalListScreen extends ConsumerStatefulWidget {
   const DisposalListScreen({super.key});
@@ -107,18 +108,36 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
       body: AutoRefreshTicker(
         interval: const Duration(seconds: 30),
         onTick: () => ref.read(disposalPagedProvider(search).notifier).silentRefresh(),
-        child: PaginatedListView<DisposalModel>(
-          state: state,
+        child: PaginatedListView<RecordEntry<DisposalModel>>(
+          state: groupRecordsState(state, (d) => d.asset.groupId),
           emptyMessage: 'No disposal records.',
           onLoadMore: () => ref.read(disposalPagedProvider(search).notifier).loadMore(),
           onRefresh: () async {
             ref.invalidate(disposalCountProvider(search));
             await ref.read(disposalPagedProvider(search).notifier).refresh();
           },
-          itemBuilder: (context, item, i) => _DisposalCard(
-            item: item,
-            onTap: () => context.push('/disposal/${item.id}'),
-          ),
+          itemBuilder: (context, entry, i) => entry.isGroup
+              ? RecordGroupCard<DisposalModel>(
+                  members: entry.members,
+                  assetOf: (d) => d.asset,
+                  noun: 'records',
+                  columns: const ['Asset', 'Reason', 'Method', 'Status', 'Inspection Date', 'Approved By', 'Recorded By'],
+                  values: (d) => [
+                    assetCellText(d.asset),
+                    d.reason,
+                    d.recommendedMethod,
+                    d.disposalStatus,
+                    d.inspectionDate,
+                    d.approvedBy ?? '—',
+                    d.recordedBy.fullName,
+                  ],
+                  onOpenRecord: (d) => context.push('/disposal/${d.id}'),
+                  onOpenDevice: (a) => context.push('/assets/${a.id}'),
+                )
+              : _DisposalCard(
+                  item: entry.members.first,
+                  onTap: () => context.push('/disposal/${entry.members.first.id}'),
+                ),
         ),
       ),
     );
@@ -153,7 +172,7 @@ class _DisposalCard extends StatelessWidget {
                   style: TextStyle(color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w500),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 4),
-              Text(item.asset.propertyNumber, style: const TextStyle(color: AppTheme.brand, fontSize: 12)),
+              Text(item.asset.propertyAndPar, style: const TextStyle(color: AppTheme.brand, fontSize: 12)),
               const SizedBox(height: 8),
               Row(
                 children: [

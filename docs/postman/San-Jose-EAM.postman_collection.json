@@ -94,7 +94,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"propertyNumber\": \"COA-2026-001\",\n  \"description\": \"Dell Latitude 5440 Laptop\",\n  \"categoryId\": 1,\n  \"quantity\": 1,\n  \"acquisitionDate\": \"2026-01-15\",\n  \"unitValue\": 45000.00,\n  \"officeId\": 1,\n  \"accountablePerson\": \"Juan Dela Cruz\",\n  \"physicalCount\": 1,\n  \"location\": \"GSO Office - 2nd Floor\",\n  \"condition\": \"SERVICEABLE\",\n  \"lifecycleStatus\": \"REGISTERED\",\n  \"remarks\": \"Brand new unit\"\n}"
+              "raw": "{\n  \"propertyNumber\": \"COA-2026-001\",\n  \"parNumber\": \"2026-01:H78JD80\",\n  \"description\": \"Dell Latitude 5440 Laptop\",\n  \"categoryId\": 1,\n  \"quantity\": 1,\n  \"acquisitionDate\": \"2026-01-15\",\n  \"unitValue\": 45000.00,\n  \"officeId\": 1,\n  \"accountablePerson\": \"Juan Dela Cruz\",\n  \"physicalCount\": 1,\n  \"location\": \"GSO Office - 2nd Floor\",\n  \"condition\": \"SERVICEABLE\",\n  \"lifecycleStatus\": \"REGISTERED\",\n  \"remarks\": \"Brand new unit\"\n}"
             },
             "url": { "raw": "{{baseUrl}}/api/assets", "host": ["{{baseUrl}}"], "path": ["api", "assets"] }
           }
@@ -106,7 +106,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"propertyNumber\": \"COA-2026-001\",\n  \"description\": \"Dell Latitude 5440 Laptop\",\n  \"categoryId\": 1,\n  \"quantity\": 1,\n  \"acquisitionDate\": \"2026-01-15\",\n  \"unitValue\": 45000.00,\n  \"officeId\": 1,\n  \"accountablePerson\": \"Juan Dela Cruz\",\n  \"physicalCount\": 1,\n  \"location\": \"GSO Office - 2nd Floor\",\n  \"condition\": \"SERVICEABLE\",\n  \"lifecycleStatus\": \"ASSIGNED\",\n  \"remarks\": \"Assigned to IT division\"\n}"
+              "raw": "{\n  \"propertyNumber\": \"COA-2026-001\",\n  \"parNumber\": \"2026-01:H78JD80\",\n  \"description\": \"Dell Latitude 5440 Laptop\",\n  \"categoryId\": 1,\n  \"quantity\": 1,\n  \"acquisitionDate\": \"2026-01-15\",\n  \"unitValue\": 45000.00,\n  \"officeId\": 1,\n  \"accountablePerson\": \"Juan Dela Cruz\",\n  \"physicalCount\": 1,\n  \"location\": \"GSO Office - 2nd Floor\",\n  \"condition\": \"SERVICEABLE\",\n  \"lifecycleStatus\": \"ASSIGNED\",\n  \"remarks\": \"Assigned to IT division\"\n}"
             },
             "url": { "raw": "{{baseUrl}}/api/assets/{{assetId}}", "host": ["{{baseUrl}}"], "path": ["api", "assets", "{{assetId}}"] }
           }

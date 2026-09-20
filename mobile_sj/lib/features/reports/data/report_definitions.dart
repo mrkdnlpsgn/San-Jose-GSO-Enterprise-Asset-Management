@@ -61,13 +61,15 @@ List<ReportDefinition> buildReportDefinitions() {
       load: () => assetService.getAll(size: _kAllRowsSize),
       columns: [
         ReportColumn('Property No.', (row) => (row as AssetModel).propertyNumber),
+        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? '—'),
         ReportColumn('Description', (row) => (row as AssetModel).description),
         ReportColumn('Category', (row) => (row as AssetModel).category.categoryName),
         ReportColumn('Condition', (row) => (row as AssetModel).condition),
         ReportColumn('Lifecycle', (row) => (row as AssetModel).lifecycleStatus.replaceAll('_', ' ')),
         ReportColumn('Office', (row) => (row as AssetModel).office.officeName),
         ReportColumn('Location', (row) => (row as AssetModel).location),
-        ReportColumn('Accountable', (row) => (row as AssetModel).accountablePerson ?? '—'),
+        ReportColumn('Accountable', (row) => (row as AssetModel).accountablePerson?.fullName ?? '—'),
+        ReportColumn('Current User', (row) => (row as AssetModel).currentUser?.fullName ?? '—'),
         ReportColumn('Qty', (row) => (row as AssetModel).quantity.toString()),
         ReportColumn('Unit Value', (row) => fmtMoney((row as AssetModel).unitValue)),
         ReportColumn('Acq. Date', (row) => fmtDate((row as AssetModel).acquisitionDate)),
@@ -117,6 +119,7 @@ List<ReportDefinition> buildReportDefinitions() {
       columns: [
         ReportColumn('Asset', (row) => row.asset.description as String),
         ReportColumn('Property No.', (row) => row.asset.propertyNumber as String),
+        ReportColumn('PAR No.', (row) => row.asset.parNumber ?? '—'),
         ReportColumn('Event Type', (row) => row.eventType as String),
         ReportColumn('From Office', (row) => row.fromOffice?.officeName ?? '—'),
         ReportColumn('To Office', (row) => row.toOffice?.officeName ?? '—'),
@@ -143,6 +146,7 @@ List<ReportDefinition> buildReportDefinitions() {
       },
       columns: [
         ReportColumn('Property No.', (row) => row is Map ? row['label'] as String : (row as AssetModel).propertyNumber),
+        ReportColumn('PAR No.', (row) => row is Map ? '' : (row as AssetModel).parNumber ?? '—'),
         ReportColumn('Description', (row) => _cell(row, (a) => a.description)),
         ReportColumn('Category', (row) => _cell(row, (a) => a.category.categoryName)),
         ReportColumn('Condition', (row) => _cell(row, (a) => a.condition)),
@@ -184,6 +188,7 @@ List<ReportDefinition> buildReportDefinitions() {
         ReportColumn('Article', (row) => (row as AssetModel).category.categoryName),
         ReportColumn('Description', (row) => (row as AssetModel).description),
         ReportColumn('Property No.', (row) => (row as AssetModel).propertyNumber),
+        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? '—'),
         ReportColumn('Unit Value', (row) => fmtMoney((row as AssetModel).unitValue)),
         ReportColumn('Qty per Records', (row) => (row as AssetModel).quantity.toString()),
         ReportColumn('Qty per Phys. Count', (row) => (row as AssetModel).physicalCount?.toString() ?? '—'),
@@ -216,6 +221,7 @@ List<ReportDefinition> buildReportDefinitions() {
         ReportColumn('Date Acquired', (row) => fmtDate((row as DisposalModel).asset.acquisitionDate)),
         ReportColumn('Particulars/Article', (row) => (row as DisposalModel).asset.description),
         ReportColumn('Property No.', (row) => (row as DisposalModel).asset.propertyNumber),
+        ReportColumn('PAR No.', (row) => (row as DisposalModel).asset.parNumber ?? '—'),
         ReportColumn('Qty.', (row) => (row as DisposalModel).asset.quantity.toString()),
         ReportColumn('Unit Cost', (row) => fmtMoney((row as DisposalModel).asset.unitValue)),
         ReportColumn('Total Cost', (row) {

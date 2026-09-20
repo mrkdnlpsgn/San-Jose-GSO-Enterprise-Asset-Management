@@ -3,6 +3,7 @@ package com.sanjose.inventory.service;
 import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.AssetHistoryRequest;
 import com.sanjose.inventory.entity.Asset;
+import com.sanjose.inventory.entity.Personnel;
 import com.sanjose.inventory.entity.AssetHistory;
 import com.sanjose.inventory.entity.Office;
 import com.sanjose.inventory.entity.User;
@@ -38,6 +39,23 @@ public class AssetHistoryService {
             Asset a = new Asset();
             a.setId(assetId);
             a.setPropertyNumber(rs.getString("asset_propertyNumber"));
+            a.setParNumber(rs.getString("asset_parNumber"));
+            a.setGroupId(rs.getString("asset_groupId"));
+            a.setSerialNumber(rs.getString("asset_serialNumber"));
+            Long apId = rs.getObject("asset_personnelId", Long.class);
+            if (apId != null) {
+                Personnel ap = new Personnel();
+                ap.setId(apId);
+                ap.setFullName(rs.getString("asset_accountableName"));
+                a.setAccountablePerson(ap);
+            }
+            Long acuId = rs.getObject("asset_currentUserId", Long.class);
+            if (acuId != null) {
+                Personnel acu = new Personnel();
+                acu.setId(acuId);
+                acu.setFullName(rs.getString("asset_currentUserName"));
+                a.setCurrentUser(acu);
+            }
             a.setDescription(rs.getString("asset_description"));
             h.setAsset(a);
         }
@@ -109,12 +127,18 @@ public class AssetHistoryService {
 
         List<AssetHistory> list = jdbcTemplate.query(
             "SELECT h.history_id AS id, h.event_type AS eventType, h.event_date AS eventDate, h.notes, " +
-            "a.asset_id, a.property_number AS asset_propertyNumber, a.`description` AS asset_description, " +
+            "a.asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber, " +
+            "a.group_id AS asset_groupId, a.serial_number AS asset_serialNumber, " +
+            "a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName, " +
+            "a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, " +
+            "a.`description` AS asset_description, " +
             "u.user_id AS pb_id, u.username AS pb_username, u.full_name AS pb_fullName, " +
             "fo.office_id AS fo_id, fo.office_name AS fo_officeName, " +
             "too.office_id AS too_id, too.office_name AS too_officeName " +
             "FROM asset_history h " +
             "LEFT JOIN assets a ON h.asset_id = a.asset_id " +
+            "LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id " +
+            "LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id " +
             "LEFT JOIN users u ON h.performed_by = u.user_id " +
             "LEFT JOIN offices fo ON h.from_office_id = fo.office_id " +
             "LEFT JOIN offices too ON h.to_office_id = too.office_id " +

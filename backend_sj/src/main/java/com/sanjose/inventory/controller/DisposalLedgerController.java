@@ -1,11 +1,14 @@
 package com.sanjose.inventory.controller;
 
 import com.sanjose.inventory.dto.DisposalLedgerRequest;
+import com.sanjose.inventory.dto.EvidencePhotoResponse;
 import com.sanjose.inventory.entity.DisposalLedger;
 import com.sanjose.inventory.service.DisposalLedgerService;
+import com.sanjose.inventory.service.EvidenceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -16,6 +19,7 @@ import java.util.Map;
 public class DisposalLedgerController {
 
     private final DisposalLedgerService disposalLedgerService;
+    private final EvidenceService evidenceService;
 
     @GetMapping
     public List<DisposalLedger> getAll(@RequestParam(required = false) String search,
@@ -31,6 +35,23 @@ public class DisposalLedgerController {
                        @RequestParam(required = false) String recommendedMethod,
                        @RequestParam(required = false) String disposalStatus) {
         return disposalLedgerService.count(search, recommendedMethod, disposalStatus);
+    }
+
+    // Evidence photos for a disposal record (same behavior as a maintenance record's evidence).
+    @GetMapping("/{id}/evidence")
+    public List<EvidencePhotoResponse> listEvidence(@PathVariable Long id) {
+        return evidenceService.list(EvidenceService.Target.DISPOSAL, id);
+    }
+
+    @PostMapping("/{id}/evidence")
+    public EvidencePhotoResponse uploadEvidence(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return evidenceService.upload(EvidenceService.Target.DISPOSAL, id, file);
+    }
+
+    @DeleteMapping("/{id}/evidence/{photoId}")
+    public ResponseEntity<Void> deleteEvidence(@PathVariable Long id, @PathVariable Long photoId) {
+        evidenceService.delete(EvidenceService.Target.DISPOSAL, id, photoId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}")
