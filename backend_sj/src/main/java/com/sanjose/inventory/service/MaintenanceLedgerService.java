@@ -28,6 +28,7 @@ public class MaintenanceLedgerService {
     private final AuditLogService auditLogService;
     private final AssetHistoryService assetHistoryService;
     private final SseEmitterService sseEmitterService;
+    private final AccessService accessService;
 
     private static final RowMapper<MaintenanceLedger> MAINT_MAPPER = (rs, rn) -> {
         MaintenanceLedger m = new MaintenanceLedger();
@@ -82,19 +83,22 @@ public class MaintenanceLedgerService {
         }
 
         m.setAssignedTo(rs.getString("assignedTo"));
+        m.setApprovalStatus(rs.getString("approvalStatus"));
+        m.setReviewNote(rs.getString("reviewNote"));
+        m.setRequestedByName(rs.getString("requestedByName"));
 
         return m;
     };
 
     public List<MaintenanceLedger> findAll(String search, int page, int size,
-                                            String maintenanceType, String status) {
-        return jdbcTemplate.query("CALL sp_maintenance_list(?, ?, ?, ?, ?)", MAINT_MAPPER,
-            search, size, page * size, maintenanceType, status);
+                                            String maintenanceType, String status, Long officeId) {
+        return jdbcTemplate.query("CALL sp_maintenance_list(?, ?, ?, ?, ?, ?)", MAINT_MAPPER,
+            search, size, page * size, maintenanceType, status, officeId);
     }
 
-    public long count(String search, String maintenanceType, String status) {
-        return jdbcTemplate.queryForObject("CALL sp_maintenance_count(?, ?, ?)", Long.class,
-            search, maintenanceType, status);
+    public long count(String search, String maintenanceType, String status, Long officeId) {
+        return jdbcTemplate.queryForObject("CALL sp_maintenance_count(?, ?, ?, ?)", Long.class,
+            search, maintenanceType, status, officeId);
     }
 
     public List<MaintenanceLedger> findByAsset(Long assetId) {
@@ -124,6 +128,18 @@ public class MaintenanceLedgerService {
             req.getStatus(),
             recorderId != null ? recorderId.intValue() : 0);
 
+        if (!accessService.isAdmin()) {
+            // Staff add records as a request — it waits for an admin to approve it before
+            // it counts (history entry) or can be edited.
+            jdbcTemplate.update("UPDATE maintenance_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ? WHERE maintenance_id = ?",
+                recorderId, newId);
+            MaintenanceLedger requested = findById(newId);
+            auditLogService.log("MAINTENANCE_REQUESTED", "Maintenance", newId, "maintenance",
+                "Maintenance requested for asset: " + (requested.getAsset() != null ? requested.getAsset().getPropertyNumber() : req.getAssetId()));
+            sseEmitterService.emitMaintenance("CREATED", requested.getId(), requested);
+            return requested;
+        }
+
         MaintenanceLedger saved = findById(newId);
         assetHistoryService.logEvent(req.getAssetId(), "MAINTENANCE", null, null, recorderId,
             "Maintenance logged (" + req.getMaintenanceType() + "): " + req.getFindings());
@@ -134,7 +150,12 @@ public class MaintenanceLedgerService {
     }
 
     public MaintenanceLedger update(Long id, MaintenanceLedgerRequest req) {
-        findById(id); // throws if not found
+        MaintenanceLedger current = findById(id);
+        if (!accessService.isAdmin() && !"APPROVED".equals(current.getApprovalStatus())) {
+            throw new IllegalStateException("REJECTED".equals(current.getApprovalStatus())
+                ? "This request was rejected by an administrator and can't be edited."
+                : "This request is waiting for an administrator's approval — it can be edited once approved.");
+        }
         jdbcTemplate.update("CALL sp_maintenance_update(?, ?, ?, ?, ?, ?, ?, ?)",
             id,
             req.getMaintenanceType(),
@@ -164,6 +185,48 @@ public class MaintenanceLedgerService {
             "Deleted maintenance for asset: " + (m.getAsset() != null ? m.getAsset().getPropertyNumber() : ""));
         sseEmitterService.emitMaintenance("DELETED", id,
             Map.of("asset", Map.of("propertyNumber", m.getAsset() != null ? m.getAsset().getPropertyNumber() : "")));
+    }
+
+    public MaintenanceLedger approve(Long id) {
+        MaintenanceLedger rec = requirePending(id);
+        Long reviewerId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
+        jdbcTemplate.update("UPDATE maintenance_ledger SET approval_status = 'APPROVED', reviewed_by = ?, reviewed_at = NOW(), review_note = NULL WHERE maintenance_id = ?",
+            reviewerId, id);
+        MaintenanceLedger saved = findById(id);
+        if (saved.getAsset() != null) {
+            assetHistoryService.logEvent(saved.getAsset().getId(), "MAINTENANCE", null, null, reviewerId,
+            "Maintenance logged (" + saved.getMaintenanceType() + "): " + saved.getFindings() + " — requested by " + saved.getRequestedByName());
+        }
+        // the request stood in for putting the asset under maintenance — do that now
+        if (saved.getAsset() != null && !"COMPLETED".equals(String.valueOf(saved.getStatus()))) {
+            jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)", saved.getAsset().getId(), "UNDER_MAINTENANCE");
+            sseEmitterService.emitAsset("UPDATED", saved.getAsset().getId(), null);
+        }
+        auditLogService.log("MAINTENANCE_APPROVED", "Maintenance", id, "maintenance",
+            "Approved maintenance request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : ""));
+        sseEmitterService.emitMaintenance("APPROVED", saved.getId(), saved);
+        return saved;
+    }
+
+    public MaintenanceLedger reject(Long id, String note) {
+        if (note == null || note.isBlank()) throw new IllegalArgumentException("Give a reason for rejecting the request.");
+        requirePending(id);
+        Long reviewerId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
+        jdbcTemplate.update("UPDATE maintenance_ledger SET approval_status = 'REJECTED', reviewed_by = ?, reviewed_at = NOW(), review_note = ? WHERE maintenance_id = ?",
+            reviewerId, note.trim(), id);
+        MaintenanceLedger saved = findById(id);
+        auditLogService.log("MAINTENANCE_REJECTED", "Maintenance", id, "maintenance",
+            "Rejected maintenance request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + " — " + note.trim());
+        sseEmitterService.emitMaintenance("REJECTED", saved.getId(), saved);
+        return saved;
+    }
+
+    private MaintenanceLedger requirePending(Long id) {
+        MaintenanceLedger rec = findById(id);
+        if (!"PENDING_APPROVAL".equals(rec.getApprovalStatus())) {
+            throw new IllegalStateException("Only requests waiting for approval can be approved or rejected.");
+        }
+        return rec;
     }
 
     private Long getUserIdByUsername(String username) {

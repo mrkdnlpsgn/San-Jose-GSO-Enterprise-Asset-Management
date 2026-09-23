@@ -93,28 +93,37 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 // Uploaded evidence photos: served as plain static files, not sensitive
                 .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
-                // Accounts are the one thing ADMIN keeps exclusively — everything else below
-                // is open to any authenticated user (ADMIN or STAFF).
+                // RBAC: ADMIN manages everything. STAFF may only view/edit/update assets of the
+                // office assigned to them (office scoping is enforced in AccessService) and
+                // request new maintenance/disposal records for an admin to approve.
                 // Users: GET + own password change for any authenticated user; all else ADMIN only
                 .requestMatchers(HttpMethod.GET, "/api/users", "/api/users/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/users/me/password").authenticated()
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
-                // Audit logs: any authenticated user
-                .requestMatchers("/api/audit-logs/**").authenticated()
-                // Assets: any authenticated user, including mutations
+                .requestMatchers("/api/audit-logs/**").hasRole("ADMIN")
+                .requestMatchers("/api/deleted-records/**").hasRole("ADMIN")
+                // Assets: only ADMIN adds (incl. import and label OCR, which pre-fills Add Asset) or deletes
+                .requestMatchers(HttpMethod.POST, "/api/assets", "/api/assets/bulk-import", "/api/assets/scan-label").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/assets/*").hasRole("ADMIN")
                 .requestMatchers("/api/assets/**", "/api/assets").authenticated()
-                // Offices, Categories: any authenticated user, including mutations
-                .requestMatchers("/api/offices/**", "/api/offices").authenticated()
-                .requestMatchers("/api/categories/**", "/api/categories").authenticated()
-                .requestMatchers("/api/personnel/**", "/api/personnel").authenticated()
-                // Maintenance, Disposal: any authenticated user, including mutations
+                // Maintenance / Disposal: staff may create (as a request), edit and attach photos;
+                // approving/rejecting requests and deleting records is ADMIN only
+                .requestMatchers("/api/maintenance/*/approve", "/api/maintenance/*/reject",
+                                 "/api/disposal/*/approve", "/api/disposal/*/reject").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/maintenance/*", "/api/disposal/*").hasRole("ADMIN")
                 .requestMatchers("/api/maintenance/**", "/api/maintenance").authenticated()
                 .requestMatchers("/api/disposal/**", "/api/disposal").authenticated()
-                // Deleted records archive: read-only, any authenticated user
-                .requestMatchers("/api/deleted-records/**").authenticated()
-                // Asset history: all authenticated
+                // Reference data: readable by everyone (form dropdowns), managed by ADMIN
+                .requestMatchers(HttpMethod.GET, "/api/offices/**", "/api/offices",
+                                 "/api/categories/**", "/api/categories",
+                                 "/api/personnel/**", "/api/personnel").authenticated()
+                .requestMatchers("/api/offices/**", "/api/offices",
+                                 "/api/categories/**", "/api/categories",
+                                 "/api/personnel/**", "/api/personnel").hasRole("ADMIN")
+                .requestMatchers("/api/equipment/**", "/api/equipment").hasRole("ADMIN")
+                // Asset history: office-scoped in the service
                 .requestMatchers("/api/asset-history/**").authenticated()
-                // SSE stream for real-time asset/maintenance/disposal updates: all authenticated
+                // SSE stream for real-time updates (events filtered per office)
                 .requestMatchers("/api/events/**").authenticated()
                 // All other endpoints: any authenticated user
                 .anyRequest().authenticated()

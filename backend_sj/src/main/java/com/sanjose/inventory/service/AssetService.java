@@ -244,7 +244,13 @@ public class AssetService {
         }
 
         AssetRequest req = new AssetRequest();
-        // One PAR Number per device; Property Numbers are left blank so they auto-generate.
+        int quantity = isBlank(row.getQuantity()) ? parNumbers.size() : parseInt(row.getQuantity(), "Qty (Property Card)");
+        // A single PAR Number with a Qty above 1 is one receipt covering that many items —
+        // it applies to every device. Listing several PAR Numbers gives one per device.
+        if (parNumbers.size() == 1 && quantity > 1) {
+            parNumbers = java.util.Collections.nCopies(quantity, parNumbers.get(0));
+        }
+        // Property Numbers are left blank so they auto-generate.
         List<AssetUnitRequest> importUnits = new ArrayList<>();
         for (String par : parNumbers) {
             AssetUnitRequest u = new AssetUnitRequest();
@@ -262,7 +268,7 @@ public class AssetService {
         req.setRemarks(isBlank(row.getRemarks()) ? null : row.getRemarks().trim());
         req.setSpecifications(isBlank(row.getSpecifications()) ? null : row.getSpecifications().trim());
 
-        req.setQuantity(isBlank(row.getQuantity()) ? parNumbers.size() : parseInt(row.getQuantity(), "Qty (Property Card)"));
+        req.setQuantity(quantity);
         req.setPhysicalCount(parseInt(row.getPhysicalCount(), "Qty (Physical Count)"));
         req.setUnitValue(parseDecimal(row.getUnitValue(), "Unit Value"));
 
@@ -343,7 +349,6 @@ public class AssetService {
 
         Long excludeId = before != null ? before.getId() : null;
         Set<String> seenProps = new java.util.HashSet<>();
-        Set<String> seenPars = new java.util.HashSet<>();
         List<AssetRequest> out = new ArrayList<>();
 
         for (int i = 0; i < raw.size(); i++) {
@@ -355,16 +360,12 @@ public class AssetService {
             if (d.getUnitValue() == null) throw new IllegalArgumentException("Device " + no + ": Unit value is required.");
             if (isBlank(d.getCondition())) throw new IllegalArgumentException("Device " + no + ": Condition is required.");
 
+            // One PAR can cover several items issued together, so the same PAR Number may
+            // repeat across devices and across assets — only its format is checked.
             String par = normalizeParNumber(in.getParNumber(), d.getAcquisitionDate(), no);
-            if (!seenPars.add(par.toUpperCase())) {
-                throw new IllegalArgumentException("Device " + no + ": PAR Number \"" + par + "\" is used twice in this request.");
-            }
+            d.setParNumber(par);
             // Only device 1 of an update is an existing row; every other device is new.
             Long ownId = (before != null && i == 0) ? excludeId : null;
-            if (existsElsewhere("par_number", par, ownId)) {
-                throw new IllegalArgumentException("Device " + no + ": PAR Number \"" + par + "\" is already used by another asset.");
-            }
-            d.setParNumber(par);
 
             String prop = blankToNull(in.getPropertyNumber());
             if (prop == null && before != null && i == 0) prop = before.getPropertyNumber(); // blank on edit = keep it
@@ -448,8 +449,8 @@ public class AssetService {
         }
     }
 
-    // True if `column` (property_number or par_number) already belongs to a
-    // different asset. Soft-deleted assets keep their row, so they count too.
+    // True if `column` (property_number) already belongs to a different asset.
+    // Soft-deleted assets keep their row, so they count too.
     private boolean existsElsewhere(String column, String value, Long excludeAssetId) {
         Integer n = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM assets WHERE " + column + " = ? AND (? IS NULL OR asset_id <> ?)",
@@ -508,6 +509,36 @@ public class AssetService {
         }
         for (int i = 1; i < devices.size(); i++) createOne(devices.get(i), groupId);
         return findById(id);
+    }
+
+    // Changes only condition/lifecycle status (QR scanner). Deliberately bypasses update()'s
+    // full-record validation, which requires a PAR Number and one entry per unit — neither of
+    // which older assets have.
+    public Asset updateStatus(Long id, String condition, String lifecycleStatus) {
+        Asset before = findById(id);
+        String cond = parseEnum(Asset.AssetCondition.class, condition, "Condition");
+        String life = parseEnum(Asset.LifecycleStatus.class, lifecycleStatus, "Lifecycle status");
+
+        jdbcTemplate.update("CALL sp_assets_update_status(?, ?, ?)", id, cond, life);
+
+        Asset saved = findById(id);
+        if (before.getCondition() != saved.getCondition()) {
+            handleConditionLedger(saved);
+        }
+        auditLogService.log("ASSET_UPDATED", "Assets", id, "asset",
+            "Updated status of " + saved.getPropertyNumber() + ": " + cond + " / " + life);
+        Asset result = findById(id); // re-fetch after potential lifecycle update
+        sseEmitterService.emitAsset("UPDATED", result.getId(), result);
+        return result;
+    }
+
+    private <E extends Enum<E>> String parseEnum(Class<E> type, String value, String label) {
+        if (isBlank(value)) throw new IllegalArgumentException(label + " is required.");
+        try {
+            return Enum.valueOf(type, value.trim().toUpperCase()).name();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(label + " \"" + value + "\" is not valid.");
+        }
     }
 
     private static String normalizeModel(String s) { return s == null ? "" : s.trim().toLowerCase(); }

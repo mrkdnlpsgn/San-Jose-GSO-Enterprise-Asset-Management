@@ -74,6 +74,9 @@ public class UserService {
             .isActive(rs.getObject("isActive", Boolean.class))
             .officeId(rs.getObject("office_id", Long.class))
             .officeName(rs.getString("office_officeName"))
+            .personnelId(rs.getObject("personnelId", Long.class))
+            .personnelName(rs.getString("personnelName"))
+            .assetCount(rs.getInt("assetCount"))
             .build();
 
     public List<UserResponse> findAll(String search) {
@@ -119,13 +122,15 @@ public class UserService {
             }
             plainPassword = req.getPassword();
         }
+        requireFreePersonnelName(req.getFullName(), null);
         String hash = passwordEncoder.encode(plainPassword);
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
             "CALL sp_users_create(?, ?, ?, ?, ?, ?, ?, ?)",
             req.getUsername(), req.getEmail(), hash, req.getFullName(),
             resolveRole(req.getRole(), "STAFF"),
-            req.getOfficeId() != null ? req.getOfficeId().intValue() : 0,
+            0, // office is assigned by an admin on the Personnel module
             req.getIsActive() != null ? req.getIsActive() : true);
+        jdbcTemplate.update("CALL sp_personnel_sync_accounts()");
         UserResponse saved = findById(newId);
         auditLogService.log("USER_CREATED", "Users", newId, "user", "Created: " + saved.getUsername());
         if (generate) {
@@ -149,25 +154,103 @@ public class UserService {
                 throw new IllegalArgumentException("Email already in use: " + newEmail);
             }
         }
+        String fullName = req.getFullName() != null ? req.getFullName() : existing.getFullName();
+        requireFreePersonnelName(fullName, id);
+        boolean deactivating = Boolean.TRUE.equals(existing.getIsActive()) && Boolean.FALSE.equals(req.getIsActive());
+        if (deactivating) {
+            guardDeactivation(existing);
+            if (existing.getAssetCount() > 0) {
+                throw new IllegalArgumentException("\"" + displayName(existing) + "\" still has " + existing.getAssetCount()
+                    + " asset(s). Use Deactivate on the Accounts list to transfer them to another account first.");
+            }
+        }
         String hash = (req.getPassword() != null && !req.getPassword().isBlank())
             ? passwordEncoder.encode(req.getPassword()) : null;
-        jdbcTemplate.update("CALL sp_users_update(?, ?, ?, ?, ?, ?, ?)",
+        // officeId on the request is ignored — offices are assigned on the Personnel module
+        jdbcTemplate.update("CALL sp_users_update(?, ?, ?, ?, ?, ?)",
             id,
             newEmail,
-            req.getFullName() != null ? req.getFullName() : existing.getFullName(),
+            fullName,
             resolveRole(req.getRole(), existing.getRole()),
-            req.getOfficeId() != null ? req.getOfficeId().intValue() : 0,
             req.getIsActive() != null ? req.getIsActive() : existing.getIsActive(),
             hash);
+        jdbcTemplate.update("CALL sp_personnel_sync_accounts()"); // personnel name follows the account
+        if (deactivating) endSessions(id);
         UserResponse saved = findById(id);
-        auditLogService.log("USER_UPDATED", "Users", id, "user", "Updated: " + saved.getUsername());
+        auditLogService.log(deactivating ? "USER_DEACTIVATED" : "USER_UPDATED", "Users", id, "user",
+            (deactivating ? "Deactivated: " : "Updated: ") + saved.getUsername());
         return saved;
     }
 
-    public void delete(Long id) {
+    // Each account's personnel record carries its name, so two accounts can't share one —
+    // and a rename can't take the name of another existing personnel record.
+    private void requireFreePersonnelName(String fullName, Long ownUserId) {
+        if (fullName == null || fullName.isBlank()) return;
+        Integer clash = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM personnel WHERE LOWER(full_name) = LOWER(?)"
+                + (ownUserId == null ? " AND user_id IS NOT NULL" : " AND (user_id IS NULL OR user_id <> ?)"),
+            Integer.class,
+            ownUserId == null ? new Object[]{ fullName.trim() } : new Object[]{ fullName.trim(), ownUserId });
+        if (clash != null && clash > 0) {
+            throw new IllegalArgumentException("A personnel record named \"" + fullName.trim() + "\" already exists.");
+        }
+    }
+
+    // Accounts are deactivated, never deleted: audit logs, asset history and maintenance /
+    // disposal records keep pointing at them. When staff retire or leave GSO, any assets the
+    // account is accountable for or currently using are first handed to another active account
+    // the admin chooses. A deactivated account can't sign in (open sessions end at once) but
+    // can be reactivated from the edit form.
+    public UserResponse deactivate(Long id, Long transferToUserId) {
         UserResponse user = findById(id);
-        jdbcTemplate.update("CALL sp_users_delete(?)", id);
-        auditLogService.log("USER_DELETED", "Users", id, "user", "Deleted: " + user.getUsername());
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new IllegalArgumentException("\"" + displayName(user) + "\" is already deactivated.");
+        }
+        guardDeactivation(user);
+        if (user.getAssetCount() > 0) {
+            if (transferToUserId == null) {
+                throw new IllegalArgumentException("\"" + displayName(user) + "\" still has " + user.getAssetCount()
+                    + " asset(s). Choose an account to transfer them to.");
+            }
+            if (transferToUserId.equals(id)) {
+                throw new IllegalArgumentException("Choose a different account to transfer the assets to.");
+            }
+            UserResponse target = findById(transferToUserId);
+            if (!Boolean.TRUE.equals(target.getIsActive())) {
+                throw new IllegalArgumentException("Assets can only be transferred to an active account.");
+            }
+            if (target.getPersonnelId() == null) jdbcTemplate.update("CALL sp_personnel_sync_accounts()");
+            Long moved = SpHelper.callWithOutLong(jdbcTemplate, "CALL sp_users_transfer_assets(?, ?, ?)", id, transferToUserId);
+            auditLogService.log("ASSETS_TRANSFERRED", "Users", id, "user",
+                "Transferred " + moved + " asset assignment(s) from " + user.getUsername() + " to " + target.getUsername());
+        }
+        jdbcTemplate.update("UPDATE users SET is_active = FALSE WHERE user_id = ?", id);
+        endSessions(id);
+        auditLogService.log("USER_DEACTIVATED", "Users", id, "user", "Deactivated: " + user.getUsername());
+        return findById(id);
+    }
+
+    private void guardDeactivation(UserResponse user) {
+        String me = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        if (user.getUsername().equalsIgnoreCase(me)) {
+            throw new IllegalArgumentException("You can't deactivate your own account.");
+        }
+        if ("ADMIN".equals(user.getRole())) {
+            Integer admins = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE `role` = 'ADMIN' AND is_active = TRUE", Integer.class);
+            if (admins != null && admins <= 1) {
+                throw new IllegalArgumentException("At least one administrator account must stay active.");
+            }
+        }
+    }
+
+    // Bumping token_version invalidates every JWT already issued to the account (see JwtAuthFilter).
+    private void endSessions(Long id) {
+        jdbcTemplate.update("UPDATE users SET token_version = token_version + 1 WHERE user_id = ?", id);
+    }
+
+    private static String displayName(UserResponse u) {
+        return u.getFullName() != null ? u.getFullName() : u.getUsername();
     }
 
     public void resetPassword(Long id, String newPassword) {

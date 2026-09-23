@@ -19,3 +19,7 @@ export const uploadMaintenancePhoto  = (id, file) => {
   return api.post(`/maintenance/${id}/photos`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 };
 export const deleteMaintenancePhoto  = (id, photoId) => api.delete(`/maintenance/${id}/photos/${photoId}`);
+
+// Staff-created records are requests an admin approves or rejects (with a reason).
+export const approveMaintenance = (id)       => api.post(`/maintenance/${id}/approve`);
+export const rejectMaintenance  = (id, note) => api.post(`/maintenance/${id}/reject`, { note });

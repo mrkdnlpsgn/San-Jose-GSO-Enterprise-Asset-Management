@@ -9,7 +9,7 @@ public class UserRequest {
     private String email; // optional; required for the user to be able to use forgot-password
     private String fullName;
     private String role;    // ADMIN or STAFF
-    private Long officeId;
+    private Long officeId; // ignored — offices are assigned on the Personnel module
     private Boolean isActive;
 
     // used only on create; if null/blank on update, keep existing — @StrongPassword

@@ -72,6 +72,11 @@ function MainLayout({ children }) {
           <Header onMenuOpen={() => setIsMobileSidebarOpen(true)} />
           <main className="flex-1 overflow-auto p-4 sm:p-5 lg:p-6 xl:p-8">
             <div key={pathname} className="animate-fade-slide">
+              {user?.role === 'STAFF' && !user?.officeId && (
+                <div className="mb-4 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-600 dark:text-amber-400">
+                  Your account has no office assigned yet, so there are no assets to show. Ask an administrator to assign you one on the Personnel page, then sign in again.
+                </div>
+              )}
               {children}
             </div>
           </main>

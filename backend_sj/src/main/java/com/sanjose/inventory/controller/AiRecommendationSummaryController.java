@@ -1,5 +1,6 @@
 package com.sanjose.inventory.controller;
 
+import com.sanjose.inventory.service.AccessService;
 import com.sanjose.inventory.dto.AiRecommendationSummaryItem;
 import com.sanjose.inventory.service.AiRecommendationService;
 import lombok.RequiredArgsConstructor;
@@ -15,9 +16,10 @@ import java.util.List;
 public class AiRecommendationSummaryController {
 
     private final AiRecommendationService aiRecommendationService;
+    private final AccessService accessService;
 
     @GetMapping("/summary")
     public List<AiRecommendationSummaryItem> getSummary() {
-        return aiRecommendationService.getSummary();
+        return aiRecommendationService.getSummary(accessService.scopeOfficeId());
     }
 }

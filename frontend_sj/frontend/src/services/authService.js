@@ -2,6 +2,8 @@ import api from './api'
 
 export const login          = (credentials)              => api.post('/auth/login',  credentials)
 export const logout         = ()                         => api.post('/auth/logout')
+// Who the server says is signed in (the JWT cookie is shared by every tab) — see SessionGuard
+export const getMe          = ()                         => api.get('/auth/me')
 
 // Completes a login that was interrupted by a mandatory password change (fresh
 // account or admin-mediated reset) — proves the temp password, then swaps it.

@@ -5,11 +5,12 @@ import { getAuditLogs } from '../../services/auditLogService'
 
 const LAST_SEEN_KEY = 'lastSeenAuditLogId'
 
-function useAuditLogPing(pathname) {
+function useAuditLogPing(pathname, enabled) {
   const [hasNew, setHasNew] = useState(false)
   const intervalRef = useRef(null)
 
   const check = async () => {
+    if (!enabled) return
     try {
       const { data } = await getAuditLogs()
       if (!data?.length) return
@@ -26,7 +27,7 @@ function useAuditLogPing(pathname) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (pathname === '/audit-logs') {
+    if (enabled && pathname === '/audit-logs') {
       getAuditLogs().then(({ data }) => {
         if (data?.length) localStorage.setItem(LAST_SEEN_KEY, String(data[0].id))
         setHasNew(false)
@@ -162,7 +163,11 @@ const systemNavItems = [
   },
 ]
 
-// Account management is the one area that stays ADMIN-exclusive.
+// Reference data, audit logs and the recycle bin are ADMIN-only; staff work only with
+// their office's assets (plus its maintenance/disposal records, history and reports).
+const ADMIN_ONLY_PATHS = new Set(['/offices', '/categories', '/personnel', '/audit-logs', '/deleted-records'])
+
+// Account management is ADMIN-exclusive.
 const adminNavItems = [
   {
     to: '/accounts',
@@ -229,8 +234,8 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
   const user    = useSelector((s) => s.auth.user)
   const isAdmin = user?.role === 'ADMIN'
   const { pathname } = useLocation()
-  const hasNewAuditLog = useAuditLogPing(pathname)
-  const othersOnline = useSelector((s) => s.presence.onlineUsers).filter((u) => u !== user?.username)
+  const hasNewAuditLog = useAuditLogPing(pathname, isAdmin)
+  const visible = (items) => items.filter((i) => isAdmin || !ADMIN_ONLY_PATHS.has(i.to))
 
   // Close mobile sidebar on navigation
   useEffect(() => { onMobileClose?.() }, [pathname]) // eslint-disable-line
@@ -302,14 +307,14 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
           Main Menu
         </p>
 
-        {navItems.map(({ to, label, icon, alsoActiveOn }) => (
+        {visible(navItems).map(({ to, label, icon, alsoActiveOn }) => (
           <NavItemLink key={to} to={to} label={label} icon={icon} alsoActiveOn={alsoActiveOn} isCollapsed={isCollapsed} pathname={pathname} hasNewAuditLog={hasNewAuditLog} />
         ))}
 
         <p className={`text-2xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-widest px-2 mt-3 mb-1.5 whitespace-nowrap ${isCollapsed ? 'lg:hidden' : ''}`}>
           System
         </p>
-        {systemNavItems.map(({ to, label, icon, alsoActiveOn }) => (
+        {visible(systemNavItems).map(({ to, label, icon, alsoActiveOn }) => (
           <NavItemLink key={to} to={to} label={label} icon={icon} alsoActiveOn={alsoActiveOn} isCollapsed={isCollapsed} pathname={pathname} hasNewAuditLog={hasNewAuditLog} />
         ))}
 
@@ -349,20 +354,6 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
       <div
         className={`border-t border-slate-200 dark:border-zinc-800 overflow-hidden transition-all duration-300 max-h-40 px-4 py-4 ${isCollapsed ? 'lg:max-h-0 lg:py-0 lg:px-0' : ''}`}
       >
-        {othersOnline.length > 0 && (
-          <div
-            className="flex items-center gap-1.5 mb-2"
-            title={othersOnline.join(', ')}
-          >
-            <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-            </span>
-            <span className="text-2xs text-slate-500 dark:text-zinc-400 truncate">
-              {othersOnline.length === 1 ? `${othersOnline[0]} is online` : `${othersOnline.length} others online`}
-            </span>
-          </div>
-        )}
         <p className="text-xs text-slate-500 dark:text-zinc-500 whitespace-nowrap">San Jose Municipal Hall</p>
         <p className="text-2xs text-slate-400 dark:text-zinc-600 mt-0.5 whitespace-nowrap">Republic of the Philippines</p>
         <NavLink

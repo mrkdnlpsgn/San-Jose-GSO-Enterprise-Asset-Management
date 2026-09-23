@@ -4,12 +4,14 @@ import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './context/ToastContext'
 import AppRoutes from './routes'
 import RealtimeSync from './components/RealtimeSync'
+import SessionGuard from './components/SessionGuard'
 
 function AppContent() {
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated)
   return (
     <>
       {isAuthenticated && <RealtimeSync />}
+      {isAuthenticated && <SessionGuard />}
       <AppRoutes />
     </>
   )

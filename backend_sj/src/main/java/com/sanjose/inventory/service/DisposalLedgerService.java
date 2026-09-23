@@ -29,6 +29,7 @@ public class DisposalLedgerService {
     private final AuditLogService auditLogService;
     private final AssetHistoryService assetHistoryService;
     private final SseEmitterService sseEmitterService;
+    private final AccessService accessService;
 
     private static final RowMapper<DisposalLedger> DISPOSAL_MAPPER = (rs, rn) -> {
         DisposalLedger d = new DisposalLedger();
@@ -110,19 +111,22 @@ public class DisposalLedgerService {
         d.setAppraisedValue(rs.getBigDecimal("appraisedValue"));
         d.setOrNumber(rs.getString("orNumber"));
         d.setAmount(rs.getBigDecimal("amount"));
+        d.setApprovalStatus(rs.getString("approvalStatus"));
+        d.setReviewNote(rs.getString("reviewNote"));
+        d.setRequestedByName(rs.getString("requestedByName"));
 
         return d;
     };
 
     public List<DisposalLedger> findAll(String search, int page, int size,
-                                         String recommendedMethod, String disposalStatus) {
-        return jdbcTemplate.query("CALL sp_disposal_list(?, ?, ?, ?, ?)", DISPOSAL_MAPPER,
-            search, size, page * size, recommendedMethod, disposalStatus);
+                                         String recommendedMethod, String disposalStatus, Long officeId) {
+        return jdbcTemplate.query("CALL sp_disposal_list(?, ?, ?, ?, ?, ?)", DISPOSAL_MAPPER,
+            search, size, page * size, recommendedMethod, disposalStatus, officeId);
     }
 
-    public long count(String search, String recommendedMethod, String disposalStatus) {
-        return jdbcTemplate.queryForObject("CALL sp_disposal_count(?, ?, ?)", Long.class,
-            search, recommendedMethod, disposalStatus);
+    public long count(String search, String recommendedMethod, String disposalStatus, Long officeId) {
+        return jdbcTemplate.queryForObject("CALL sp_disposal_count(?, ?, ?, ?)", Long.class,
+            search, recommendedMethod, disposalStatus, officeId);
     }
 
     public List<DisposalLedger> findByAsset(Long assetId) {
@@ -167,6 +171,18 @@ public class DisposalLedgerService {
             req.getOrNumber(),
             req.getAmount());
 
+        if (!accessService.isAdmin()) {
+            // Staff add records as a request — it waits for an admin to approve it before
+            // it counts (history entry) or can be edited.
+            jdbcTemplate.update("UPDATE disposal_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ? WHERE disposal_id = ?",
+                recorderId, newId);
+            DisposalLedger requested = findById(newId);
+            auditLogService.log("DISPOSAL_REQUESTED", "Disposal", newId, "disposal",
+                "Disposal requested for asset: " + (requested.getAsset() != null ? requested.getAsset().getPropertyNumber() : req.getAssetId()));
+            sseEmitterService.emitDisposal("CREATED", requested.getId(), requested);
+            return requested;
+        }
+
         DisposalLedger saved = findById(newId);
         assetHistoryService.logEvent(req.getAssetId(), "DISPOSAL", null, null, recorderId,
             "Disposal logged (" + req.getRecommendedMethod() + "): " + req.getReason());
@@ -177,7 +193,12 @@ public class DisposalLedgerService {
     }
 
     public DisposalLedger update(Long id, DisposalLedgerRequest req) {
-        findById(id); // throws if not found
+        DisposalLedger current = findById(id);
+        if (!accessService.isAdmin() && !"APPROVED".equals(current.getApprovalStatus())) {
+            throw new IllegalStateException("REJECTED".equals(current.getApprovalStatus())
+                ? "This request was rejected by an administrator and can't be edited."
+                : "This request is waiting for an administrator's approval — it can be edited once approved.");
+        }
         jdbcTemplate.update("CALL sp_disposal_update(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id,
             req.getReason(),
@@ -209,6 +230,48 @@ public class DisposalLedgerService {
             "Deleted disposal for asset: " + (d.getAsset() != null ? d.getAsset().getPropertyNumber() : ""));
         sseEmitterService.emitDisposal("DELETED", id,
             Map.of("asset", Map.of("propertyNumber", d.getAsset() != null ? d.getAsset().getPropertyNumber() : "")));
+    }
+
+    public DisposalLedger approve(Long id) {
+        DisposalLedger rec = requirePending(id);
+        Long reviewerId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
+        jdbcTemplate.update("UPDATE disposal_ledger SET approval_status = 'APPROVED', reviewed_by = ?, reviewed_at = NOW(), review_note = NULL WHERE disposal_id = ?",
+            reviewerId, id);
+        DisposalLedger saved = findById(id);
+        if (saved.getAsset() != null) {
+            assetHistoryService.logEvent(saved.getAsset().getId(), "DISPOSAL", null, null, reviewerId,
+            "Disposal logged (" + saved.getRecommendedMethod() + "): " + saved.getReason() + " — requested by " + saved.getRequestedByName());
+        }
+        // the request stood in for putting the asset up for disposal — do that now
+        if (saved.getAsset() != null && true) {
+            jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)", saved.getAsset().getId(), "DISPOSED");
+            sseEmitterService.emitAsset("UPDATED", saved.getAsset().getId(), null);
+        }
+        auditLogService.log("DISPOSAL_APPROVED", "Disposal", id, "disposal",
+            "Approved disposal request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : ""));
+        sseEmitterService.emitDisposal("APPROVED", saved.getId(), saved);
+        return saved;
+    }
+
+    public DisposalLedger reject(Long id, String note) {
+        if (note == null || note.isBlank()) throw new IllegalArgumentException("Give a reason for rejecting the request.");
+        requirePending(id);
+        Long reviewerId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
+        jdbcTemplate.update("UPDATE disposal_ledger SET approval_status = 'REJECTED', reviewed_by = ?, reviewed_at = NOW(), review_note = ? WHERE disposal_id = ?",
+            reviewerId, note.trim(), id);
+        DisposalLedger saved = findById(id);
+        auditLogService.log("DISPOSAL_REJECTED", "Disposal", id, "disposal",
+            "Rejected disposal request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + " — " + note.trim());
+        sseEmitterService.emitDisposal("REJECTED", saved.getId(), saved);
+        return saved;
+    }
+
+    private DisposalLedger requirePending(Long id) {
+        DisposalLedger rec = findById(id);
+        if (!"PENDING_APPROVAL".equals(rec.getApprovalStatus())) {
+            throw new IllegalStateException("Only requests waiting for approval can be approved or rejected.");
+        }
+        return rec;
     }
 
     private Long getUserIdByUsername(String username) {

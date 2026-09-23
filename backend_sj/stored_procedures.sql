@@ -282,9 +282,12 @@ CREATE PROCEDURE sp_personnel_get_all()
 BEGIN
     SELECT p.personnel_id AS id, p.full_name AS fullName, p.position, p.contact_info AS contactInfo,
            p.created_at AS createdAt,
-           o.office_id, o.office_name AS officeName
+           o.office_id, o.office_name AS officeName,
+           p.user_id AS userId, lu.username, lu.`role` AS userRole, lu.is_active AS userActive
     FROM personnel p
     LEFT JOIN offices o ON p.office_id = o.office_id
+    LEFT JOIN users lu ON lu.user_id = p.user_id
+    WHERE p.user_id IS NOT NULL   -- the Personnel module is the list of accounts
     ORDER BY p.full_name;
 END $$
 
@@ -294,11 +297,16 @@ BEGIN
     SET p_search = TRIM(p_search);
     SELECT p.personnel_id AS id, p.full_name AS fullName, p.position, p.contact_info AS contactInfo,
            p.created_at AS createdAt,
-           o.office_id, o.office_name AS officeName
+           o.office_id, o.office_name AS officeName,
+           p.user_id AS userId, lu.username, lu.`role` AS userRole, lu.is_active AS userActive
     FROM personnel p
     LEFT JOIN offices o ON p.office_id = o.office_id
-    WHERE p.full_name LIKE CONCAT('%', p_search, '%')
+    LEFT JOIN users lu ON lu.user_id = p.user_id
+    WHERE p.user_id IS NOT NULL
+      AND (p.full_name LIKE CONCAT('%', p_search, '%')
        OR p.position  LIKE CONCAT('%', p_search, '%')
+       OR lu.username LIKE CONCAT('%', p_search, '%')
+       OR o.office_name LIKE CONCAT('%', p_search, '%'))
     ORDER BY p.full_name;
 END $$
 
@@ -307,9 +315,11 @@ CREATE PROCEDURE sp_personnel_get_by_id(IN p_id INT)
 BEGIN
     SELECT p.personnel_id AS id, p.full_name AS fullName, p.position, p.contact_info AS contactInfo,
            p.created_at AS createdAt,
-           o.office_id, o.office_name AS officeName
+           o.office_id, o.office_name AS officeName,
+           p.user_id AS userId, lu.username, lu.`role` AS userRole, lu.is_active AS userActive
     FROM personnel p
     LEFT JOIN offices o ON p.office_id = o.office_id
+    LEFT JOIN users lu ON lu.user_id = p.user_id
     WHERE p.personnel_id = p_id;
 END $$
 
@@ -335,12 +345,38 @@ BEGIN
     SET full_name = p_full_name, position = NULLIF(p_position, ''),
         office_id = NULLIF(p_office_id, 0), contact_info = NULLIF(p_contact_info, '')
     WHERE personnel_id = p_id;
+    -- a linked account follows its person's office (never cleared from here)
+    UPDATE users u JOIN personnel p ON p.user_id = u.user_id
+    SET u.office_id = p.office_id
+    WHERE p.personnel_id = p_id AND p.office_id IS NOT NULL;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_personnel_delete $$
 CREATE PROCEDURE sp_personnel_delete(IN p_id INT)
 BEGIN
     DELETE FROM personnel WHERE personnel_id = p_id;
+END $$
+
+-- Every account has exactly one personnel record (the Personnel module lists them).
+-- Called on startup and after an account is created or renamed. An unlinked record
+-- with the account's exact name is adopted rather than duplicated, keeping its assets.
+DROP PROCEDURE IF EXISTS sp_personnel_sync_accounts $$
+CREATE PROCEDURE sp_personnel_sync_accounts()
+BEGIN
+    UPDATE personnel p
+    JOIN users u ON LOWER(p.full_name) = LOWER(u.full_name)
+    LEFT JOIN (SELECT user_id FROM personnel WHERE user_id IS NOT NULL) linked ON linked.user_id = u.user_id
+    SET p.user_id = u.user_id
+    WHERE p.user_id IS NULL AND linked.user_id IS NULL;
+
+    INSERT INTO personnel(full_name, office_id, user_id, created_at)
+    SELECT u.full_name, u.office_id, u.user_id, NOW()
+    FROM users u
+    WHERE NOT EXISTS (SELECT 1 FROM personnel p WHERE p.user_id = u.user_id);
+
+    UPDATE personnel p JOIN users u ON u.user_id = p.user_id
+    SET p.full_name = u.full_name
+    WHERE p.full_name <> u.full_name;
 END $$
 
 -- =============================================================
@@ -408,9 +444,13 @@ CREATE PROCEDURE sp_users_get_all()
 BEGIN
     SELECT u.user_id AS id, u.username, u.email, u.full_name AS fullName, u.`role`,
            u.is_active AS isActive, u.created_at AS createdAt,
-           o.office_id AS office_id, o.office_name AS office_officeName
+           o.office_id AS office_id, o.office_name AS office_officeName,
+           lp.personnel_id AS personnelId, lp.full_name AS personnelName,
+           (SELECT COUNT(*) FROM assets a
+             WHERE a.personnel_id = lp.personnel_id OR a.current_user_personnel_id = lp.personnel_id) AS assetCount
     FROM users u
     LEFT JOIN offices o ON u.office_id = o.office_id
+    LEFT JOIN personnel lp ON lp.user_id = u.user_id
     ORDER BY u.full_name;
 END $$
 
@@ -420,13 +460,18 @@ BEGIN
     SET p_search = TRIM(p_search);
     SELECT u.user_id AS id, u.username, u.email, u.full_name AS fullName, u.`role`,
            u.is_active AS isActive, u.created_at AS createdAt,
-           o.office_id AS office_id, o.office_name AS office_officeName
+           o.office_id AS office_id, o.office_name AS office_officeName,
+           lp.personnel_id AS personnelId, lp.full_name AS personnelName,
+           (SELECT COUNT(*) FROM assets a
+             WHERE a.personnel_id = lp.personnel_id OR a.current_user_personnel_id = lp.personnel_id) AS assetCount
     FROM users u
     LEFT JOIN offices o ON u.office_id = o.office_id
+    LEFT JOIN personnel lp ON lp.user_id = u.user_id
     WHERE u.username LIKE CONCAT('%', p_search, '%')
        OR u.full_name LIKE CONCAT('%', p_search, '%')
        OR u.`role` LIKE CONCAT('%', p_search, '%')
        OR o.office_name LIKE CONCAT('%', p_search, '%')
+       OR lp.full_name LIKE CONCAT('%', p_search, '%')
     ORDER BY u.full_name;
 END $$
 
@@ -435,9 +480,13 @@ CREATE PROCEDURE sp_users_get_by_id(IN p_id INT)
 BEGIN
     SELECT u.user_id AS id, u.username, u.email, u.full_name AS fullName, u.`role`,
            u.is_active AS isActive, u.created_at AS createdAt,
-           o.office_id AS office_id, o.office_name AS office_officeName
+           o.office_id AS office_id, o.office_name AS office_officeName,
+           lp.personnel_id AS personnelId, lp.full_name AS personnelName,
+           (SELECT COUNT(*) FROM assets a
+             WHERE a.personnel_id = lp.personnel_id OR a.current_user_personnel_id = lp.personnel_id) AS assetCount
     FROM users u
     LEFT JOIN offices o ON u.office_id = o.office_id
+    LEFT JOIN personnel lp ON lp.user_id = u.user_id
     WHERE u.user_id = p_id;
 END $$
 
@@ -489,19 +538,35 @@ BEGIN
 END $$
 
 DROP PROCEDURE IF EXISTS sp_users_update $$
+-- Office is not set here: it is assigned on the Personnel module (sp_personnel_update).
 CREATE PROCEDURE sp_users_update(
     IN p_id INT, IN p_email VARCHAR(255), IN p_full_name VARCHAR(100), IN p_role VARCHAR(20),
-    IN p_office_id INT, IN p_is_active BOOLEAN, IN p_password_hash VARCHAR(255)
+    IN p_is_active BOOLEAN, IN p_password_hash VARCHAR(255)
 )
 BEGIN
     UPDATE users
     SET email = NULLIF(p_email, ''),
         full_name = p_full_name,
         `role` = p_role,
-        office_id = NULLIF(p_office_id, 0),
         is_active = p_is_active,
         password_hash = IF(p_password_hash IS NULL OR p_password_hash = '', password_hash, p_password_hash)
     WHERE user_id = p_id;
+END $$
+
+-- Hands every asset an account is accountable for / currently using to another account
+-- (used before deleting an account, e.g. when staff retire or leave GSO).
+DROP PROCEDURE IF EXISTS sp_users_link_personnel $$
+DROP PROCEDURE IF EXISTS sp_users_transfer_assets $$
+CREATE PROCEDURE sp_users_transfer_assets(IN p_from_user_id INT, IN p_to_user_id INT, OUT p_moved INT)
+BEGIN
+    DECLARE v_from INT; DECLARE v_to INT; DECLARE v_a INT; DECLARE v_c INT;
+    SELECT personnel_id INTO v_from FROM personnel WHERE user_id = p_from_user_id;
+    SELECT personnel_id INTO v_to   FROM personnel WHERE user_id = p_to_user_id;
+    UPDATE assets SET personnel_id = v_to WHERE personnel_id = v_from;
+    SET v_a = ROW_COUNT();
+    UPDATE assets SET current_user_personnel_id = v_to WHERE current_user_personnel_id = v_from;
+    SET v_c = ROW_COUNT();
+    SET p_moved = v_a + v_c;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_users_change_password $$
@@ -735,6 +800,17 @@ BEGIN
     WHERE asset_id = p_id AND is_deleted = FALSE;
 END $$
 
+-- Status-only edit (QR scanner) — touches nothing else, so it works for assets
+-- registered before PAR Numbers existed and for old multi-quantity records.
+DROP PROCEDURE IF EXISTS sp_assets_update_status $$
+CREATE PROCEDURE sp_assets_update_status(
+    IN p_id INT, IN p_condition VARCHAR(20), IN p_lifecycle_status VARCHAR(30)
+)
+BEGIN
+    UPDATE assets SET `condition` = p_condition, lifecycle_status = p_lifecycle_status, updated_at = NOW()
+    WHERE asset_id = p_id AND is_deleted = FALSE;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_assets_soft_delete $$
 CREATE PROCEDURE sp_assets_soft_delete(
     IN p_id INT, IN p_deleted_by INT, IN p_deleted_by_username VARCHAR(50), IN p_reason TEXT
@@ -856,8 +932,22 @@ END $$
 -- ASSET HISTORY
 -- =============================================================
 
+DROP PROCEDURE IF EXISTS sp_ai_recommendations_summary_by_office $$
+CREATE PROCEDURE sp_ai_recommendations_summary_by_office(IN p_office_id INT)
+BEGIN
+    SELECT r.recommendation, COUNT(*) AS cnt
+    FROM ai_recommendations r
+    INNER JOIN (
+        SELECT asset_id, MAX(generated_at) AS max_gen
+        FROM ai_recommendations
+        GROUP BY asset_id
+    ) latest ON r.asset_id = latest.asset_id AND r.generated_at = latest.max_gen
+    INNER JOIN assets a ON a.asset_id = r.asset_id AND a.office_id = p_office_id
+    GROUP BY r.recommendation;
+END $$
+
 DROP PROCEDURE IF EXISTS sp_asset_history_get_all $$
-CREATE PROCEDURE sp_asset_history_get_all()
+CREATE PROCEDURE sp_asset_history_get_all(IN p_office_id INT)
 BEGIN
     SELECT h.history_id AS id, h.event_type AS eventType, h.event_date AS eventDate, h.notes,
            a.asset_id AS asset_id, a.property_number AS asset_propertyNumber, a.par_number AS asset_parNumber,
@@ -874,11 +964,12 @@ BEGIN
     LEFT JOIN users u ON h.performed_by = u.user_id
     LEFT JOIN offices fo ON h.from_office_id = fo.office_id
     LEFT JOIN offices too ON h.to_office_id = too.office_id
+    WHERE (p_office_id IS NULL OR a.office_id = p_office_id)
     ORDER BY h.event_date DESC;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_asset_history_search $$
-CREATE PROCEDURE sp_asset_history_search(IN p_search VARCHAR(255))
+CREATE PROCEDURE sp_asset_history_search(IN p_search VARCHAR(255), IN p_office_id INT)
 BEGIN
     SET p_search = TRIM(p_search);
     SELECT h.history_id AS id, h.event_type AS eventType, h.event_date AS eventDate, h.notes,
@@ -896,12 +987,13 @@ BEGIN
     LEFT JOIN users u ON h.performed_by = u.user_id
     LEFT JOIN offices fo ON h.from_office_id = fo.office_id
     LEFT JOIN offices too ON h.to_office_id = too.office_id
-    WHERE h.event_type LIKE CONCAT('%', p_search, '%')
+    WHERE (p_office_id IS NULL OR a.office_id = p_office_id)
+      AND (h.event_type LIKE CONCAT('%', p_search, '%')
        OR a.property_number LIKE CONCAT('%', p_search, '%')
        OR a.par_number LIKE CONCAT('%', p_search, '%')
        OR a.`description` LIKE CONCAT('%', p_search, '%')
        OR u.full_name LIKE CONCAT('%', p_search, '%')
-       OR h.notes LIKE CONCAT('%', p_search, '%')
+       OR h.notes LIKE CONCAT('%', p_search, '%'))
     ORDER BY h.event_date DESC;
 END $$
 
@@ -950,7 +1042,8 @@ DROP PROCEDURE IF EXISTS sp_maintenance_search $$
 DROP PROCEDURE IF EXISTS sp_maintenance_list $$
 CREATE PROCEDURE sp_maintenance_list(
     IN p_search VARCHAR(255), IN p_limit INT, IN p_offset INT,
-    IN p_maintenance_type VARCHAR(20), IN p_status VARCHAR(20)
+    IN p_maintenance_type VARCHAR(20), IN p_status VARCHAR(20),
+    IN p_office_id INT  -- NULL = every office (admin); staff are limited to theirs
 )
 BEGIN
     SET p_search = TRIM(p_search);
@@ -962,12 +1055,15 @@ BEGIN
            a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
            a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
-           m.assigned_to AS assignedTo
+           m.assigned_to AS assignedTo,
+           m.approval_status AS approvalStatus, m.review_note AS reviewNote,
+           rq.user_id AS rq_id, rq.full_name AS requestedByName
     FROM maintenance_ledger m
     LEFT JOIN assets a ON m.asset_id = a.asset_id
     LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
     LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users r ON m.recorded_by = r.user_id
+    LEFT JOIN users rq ON m.requested_by = rq.user_id
     WHERE m.is_deleted = FALSE
       AND (
         p_search IS NULL OR p_search = '' OR
@@ -981,6 +1077,7 @@ BEGIN
       )
       AND (p_maintenance_type IS NULL OR p_maintenance_type = '' OR m.maintenance_type = p_maintenance_type)
       AND (p_status IS NULL OR p_status = '' OR m.`status` = p_status)
+      AND (p_office_id IS NULL OR a.office_id = p_office_id)
     ORDER BY m.maintenance_date DESC
     LIMIT p_limit OFFSET p_offset;
 END $$
@@ -989,7 +1086,8 @@ END $$
 DROP PROCEDURE IF EXISTS sp_maintenance_count $$
 CREATE PROCEDURE sp_maintenance_count(
     IN p_search VARCHAR(255),
-    IN p_maintenance_type VARCHAR(20), IN p_status VARCHAR(20)
+    IN p_maintenance_type VARCHAR(20), IN p_status VARCHAR(20),
+    IN p_office_id INT  -- NULL = every office (admin); staff are limited to theirs
 )
 BEGIN
     SET p_search = TRIM(p_search);
@@ -1009,7 +1107,8 @@ BEGIN
         OR r.full_name LIKE CONCAT('%', p_search, '%')
       )
       AND (p_maintenance_type IS NULL OR p_maintenance_type = '' OR m.maintenance_type = p_maintenance_type)
-      AND (p_status IS NULL OR p_status = '' OR m.`status` = p_status);
+      AND (p_status IS NULL OR p_status = '' OR m.`status` = p_status)
+      AND (p_office_id IS NULL OR a.office_id = p_office_id);
 END $$
 
 DROP PROCEDURE IF EXISTS sp_maintenance_get_by_id $$
@@ -1023,12 +1122,15 @@ BEGIN
            a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
            a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
-           m.assigned_to AS assignedTo
+           m.assigned_to AS assignedTo,
+           m.approval_status AS approvalStatus, m.review_note AS reviewNote,
+           rq.user_id AS rq_id, rq.full_name AS requestedByName
     FROM maintenance_ledger m
     LEFT JOIN assets a ON m.asset_id = a.asset_id
     LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
     LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users r ON m.recorded_by = r.user_id
+    LEFT JOIN users rq ON m.requested_by = rq.user_id
     WHERE m.maintenance_id = p_id AND m.is_deleted = FALSE;
 END $$
 
@@ -1043,12 +1145,15 @@ BEGIN
            a.personnel_id AS asset_personnelId, ap.full_name AS asset_accountableName,
            a.current_user_personnel_id AS asset_currentUserId, acu.full_name AS asset_currentUserName, a.`description` AS asset_description,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
-           m.assigned_to AS assignedTo
+           m.assigned_to AS assignedTo,
+           m.approval_status AS approvalStatus, m.review_note AS reviewNote,
+           rq.user_id AS rq_id, rq.full_name AS requestedByName
     FROM maintenance_ledger m
     LEFT JOIN assets a ON m.asset_id = a.asset_id
     LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
     LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN users r ON m.recorded_by = r.user_id
+    LEFT JOIN users rq ON m.requested_by = rq.user_id
     WHERE m.asset_id = p_asset_id AND m.is_deleted = FALSE
     ORDER BY m.maintenance_date DESC;
 END $$
@@ -1207,7 +1312,8 @@ DROP PROCEDURE IF EXISTS sp_disposal_search $$
 DROP PROCEDURE IF EXISTS sp_disposal_list $$
 CREATE PROCEDURE sp_disposal_list(
     IN p_search VARCHAR(255), IN p_limit INT, IN p_offset INT,
-    IN p_recommended_method VARCHAR(20), IN p_disposal_status VARCHAR(20)
+    IN p_recommended_method VARCHAR(20), IN p_disposal_status VARCHAR(20),
+    IN p_office_id INT  -- NULL = every office (admin); staff are limited to theirs
 )
 BEGIN
     SET p_search = TRIM(p_search);
@@ -1224,13 +1330,16 @@ BEGIN
            c.useful_life_years AS asset_categoryUsefulLifeYears,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            d.approved_by AS approvedBy,
-           d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount
+           d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount,
+           d.approval_status AS approvalStatus, d.review_note AS reviewNote,
+           rq.user_id AS rq_id, rq.full_name AS requestedByName
     FROM disposal_ledger d
     LEFT JOIN assets a ON d.asset_id = a.asset_id
     LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
     LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN users r ON d.recorded_by = r.user_id
+    LEFT JOIN users rq ON d.requested_by = rq.user_id
     WHERE d.is_deleted = FALSE
       AND (
         p_search IS NULL OR p_search = '' OR
@@ -1244,6 +1353,7 @@ BEGIN
       )
       AND (p_recommended_method IS NULL OR p_recommended_method = '' OR d.recommended_method = p_recommended_method)
       AND (p_disposal_status IS NULL OR p_disposal_status = '' OR d.disposal_status = p_disposal_status)
+      AND (p_office_id IS NULL OR a.office_id = p_office_id)
     ORDER BY d.inspection_date DESC
     LIMIT p_limit OFFSET p_offset;
 END $$
@@ -1252,7 +1362,8 @@ END $$
 DROP PROCEDURE IF EXISTS sp_disposal_count $$
 CREATE PROCEDURE sp_disposal_count(
     IN p_search VARCHAR(255),
-    IN p_recommended_method VARCHAR(20), IN p_disposal_status VARCHAR(20)
+    IN p_recommended_method VARCHAR(20), IN p_disposal_status VARCHAR(20),
+    IN p_office_id INT  -- NULL = every office (admin); staff are limited to theirs
 )
 BEGIN
     SET p_search = TRIM(p_search);
@@ -1272,7 +1383,8 @@ BEGIN
         OR r.full_name LIKE CONCAT('%', p_search, '%')
       )
       AND (p_recommended_method IS NULL OR p_recommended_method = '' OR d.recommended_method = p_recommended_method)
-      AND (p_disposal_status IS NULL OR p_disposal_status = '' OR d.disposal_status = p_disposal_status);
+      AND (p_disposal_status IS NULL OR p_disposal_status = '' OR d.disposal_status = p_disposal_status)
+      AND (p_office_id IS NULL OR a.office_id = p_office_id);
 END $$
 
 DROP PROCEDURE IF EXISTS sp_disposal_get_by_id $$
@@ -1291,13 +1403,16 @@ BEGIN
            c.useful_life_years AS asset_categoryUsefulLifeYears,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            d.approved_by AS approvedBy,
-           d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount
+           d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount,
+           d.approval_status AS approvalStatus, d.review_note AS reviewNote,
+           rq.user_id AS rq_id, rq.full_name AS requestedByName
     FROM disposal_ledger d
     LEFT JOIN assets a ON d.asset_id = a.asset_id
     LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
     LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN users r ON d.recorded_by = r.user_id
+    LEFT JOIN users rq ON d.requested_by = rq.user_id
     WHERE d.disposal_id = p_id AND d.is_deleted = FALSE;
 END $$
 
@@ -1317,13 +1432,16 @@ BEGIN
            c.useful_life_years AS asset_categoryUsefulLifeYears,
            r.user_id AS rb_id, r.username AS rb_username, r.full_name AS rb_fullName,
            d.approved_by AS approvedBy,
-           d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount
+           d.appraised_value AS appraisedValue, d.or_number AS orNumber, d.amount AS amount,
+           d.approval_status AS approvalStatus, d.review_note AS reviewNote,
+           rq.user_id AS rq_id, rq.full_name AS requestedByName
     FROM disposal_ledger d
     LEFT JOIN assets a ON d.asset_id = a.asset_id
     LEFT JOIN personnel ap ON a.personnel_id = ap.personnel_id
     LEFT JOIN personnel acu ON a.current_user_personnel_id = acu.personnel_id
     LEFT JOIN categories c ON a.category_id = c.category_id
     LEFT JOIN users r ON d.recorded_by = r.user_id
+    LEFT JOIN users rq ON d.requested_by = rq.user_id
     WHERE d.asset_id = p_asset_id AND d.is_deleted = FALSE
     ORDER BY d.inspection_date DESC;
 END $$

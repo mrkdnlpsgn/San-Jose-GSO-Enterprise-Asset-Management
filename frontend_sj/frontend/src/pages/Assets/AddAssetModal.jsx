@@ -3,7 +3,6 @@ import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 import CameraCaptureModal from '../../components/common/CameraCaptureModal'
 import { createCategory } from '../../services/categoryService'
-import { createPersonnel } from '../../services/personnelService'
 import { scanAssetLabel } from '../../services/assetService'
 import { useToast } from '../../context/ToastContext'
 import { newIdempotencyKey } from '../../utils/idempotency'
@@ -50,11 +49,13 @@ const firstUnitFromAsset = (a) => ({
 
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
-export default function AddAssetModal({ onClose, onSave, initial = null, categories = [], offices = [], personnel = [], onCategoryCreated, onPersonnelCreated }) {
+// staffMode: a STAFF account editing an asset of its office — it can't move the asset to
+// another office, add devices, or create categories (all admin-only).
+export default function AddAssetModal({ onClose, onSave, initial = null, categories = [], offices = [], personnel = [], onCategoryCreated, staffMode = false }) {
   const isEditing = !!initial
   // A device inside a group is always exactly one unit — Qty (Property Card) and Qty (Physical
   // Count) are fixed at 1 and can't be changed.
-  const lockedQty = !!initial?.groupId
+  const lockedQty = !!initial?.groupId || staffMode
   const toast = useToast()
   const uploadInputRef = useRef(null)
   const [scanning, setScanning] = useState(false)
@@ -89,14 +90,6 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const [savingCustom, setSavingCustom]   = useState(false)
   const [customError, setCustomError]     = useState('')
 
-  // Quick-add personnel state — needs more than one field (full name, position,
-  // office, contact), unlike category's single-name inline create, so this opens
-  // a small sub-form instead of swapping the select for a text input.
-  const [personnelCustomMode, setPersonnelCustomMode] = useState(false)
-  const [personnelCustomForm, setPersonnelCustomForm] = useState({ fullName: '', position: '', officeId: '', contactInfo: '' })
-  const [savingPersonnel, setSavingPersonnel]         = useState(false)
-  const [personnelCustomError, setPersonnelCustomError] = useState('')
-
   // Build combined category list: predefined first, then DB categories not already matching a predefined name
   const dbCategoryNames = categories.map((c) => c.categoryName.toLowerCase())
   const extraPredefined = PREDEFINED_CATEGORIES.filter(
@@ -107,12 +100,19 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   // Once an office is selected, narrow both the Accountable Person and Current
   // User dropdowns to personnel assigned to that office — before that, show
   // everyone so picking an office isn't forced before picking a person.
+  // deactivated accounts can't take on assets (an asset already assigned to one still shows it — see keepSelected)
+  const activePersonnel = personnel.filter((p) => p.userActive !== false)
   const personnelForOffice = form.officeId
-    ? personnel.filter((p) => String(p.office?.id) === String(form.officeId))
-    : personnel
+    ? activePersonnel.filter((p) => String(p.office?.id) === String(form.officeId))
+    : activePersonnel
+
+  const keepSelected = (list, person) =>
+    person && !list.some((p) => p.id === person.id) ? [...list, { ...person, _former: true }] : list
+  const accountableOptions = keepSelected(personnelForOffice, initial?.accountablePerson)
+  const currentUserOptions = keepSelected(personnelForOffice, initial?.currentUser)
 
   const personnelFor = (officeId) =>
-    officeId ? personnel.filter((p) => String(p.office?.id) === String(officeId)) : personnel
+    officeId ? activePersonnel.filter((p) => String(p.office?.id) === String(officeId)) : activePersonnel
 
   const set = (key) => (e) => {
     setForm((p) => ({ ...p, [key]: e.target.value }))
@@ -198,37 +198,8 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
   const handlePersonnelChange = (e) => {
     const val = e.target.value
-    if (val === '__custom__') {
-      setPersonnelCustomMode(true)
-    } else {
-      setPersonnelCustomMode(false)
-      setForm((p) => ({ ...p, personnelId: val }))
-      setErrors((p) => { const n = { ...p }; delete n.personnelId; return n })
-    }
-  }
-
-  const handleSaveCustomPersonnel = async () => {
-    const fullName = personnelCustomForm.fullName.trim()
-    if (!fullName) { setPersonnelCustomError('Full name is required.'); return }
-    setSavingPersonnel(true)
-    setPersonnelCustomError('')
-    try {
-      const { data: newPersonnel } = await createPersonnel({
-        fullName,
-        position: personnelCustomForm.position.trim() || null,
-        officeId: personnelCustomForm.officeId ? Number(personnelCustomForm.officeId) : null,
-        contactInfo: personnelCustomForm.contactInfo.trim() || null,
-      }, idempotencyKey)
-      if (onPersonnelCreated) onPersonnelCreated(newPersonnel)
-      setForm((p) => ({ ...p, personnelId: String(newPersonnel.id) }))
-      setPersonnelCustomMode(false)
-      setPersonnelCustomForm({ fullName: '', position: '', officeId: '', contactInfo: '' })
-      setErrors((p) => { const n = { ...p }; delete n.personnelId; return n })
-    } catch (err) {
-      setPersonnelCustomError(err.response?.data?.message || 'Failed to create personnel.')
-    } finally {
-      setSavingPersonnel(false)
-    }
+    setForm((p) => ({ ...p, personnelId: val }))
+    setErrors((p) => { const n = { ...p }; delete n.personnelId; return n })
   }
 
   const scanFile = async (file) => {
@@ -268,7 +239,6 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_UNITS) e.quantity = `Enter a whole number from 1 to ${MAX_UNITS}.`
     else if (Number(form.physicalCount) !== qty) e.physicalCount = 'Must equal Qty (Property Card).'
     const multi = form.units.length > 1
-    const seen = new Set()
     form.units.forEach((u, i) => {
       const par = u.parSerial.trim()
       const date = form.acquisitionDate || u.acquisitionDate
@@ -279,8 +249,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
       if (!date)                          e[`unit${i}`] = 'Pick the Acquisition Date first — the PAR Number starts with its year-month.'
       else if (!par)                      e[`unit${i}`] = 'PAR serial is required.'
       else if (!PAR_SERIAL_RE.test(par))  e[`unit${i}`] = 'PAR serial: letters, numbers, and hyphens only.'
-      else if (seen.has(par.toUpperCase())) e[`unit${i}`] = 'This PAR serial is already used by another device here.'
-      seen.add(par.toUpperCase())
+      // Devices issued on one PAR share its number, so the same serial may repeat here.
     })
     if (!form.description.trim())      e.description      = 'Description is required.'
     if (!form.categoryId)              e.categoryId       = 'Category is required.'
@@ -473,7 +442,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                   {allCategories.map((c) => (
                     <option key={c.id} value={String(c.id)}>{c.categoryName}</option>
                   ))}
-                  <option value="__custom__">＋ Add custom category…</option>
+                  {!staffMode && <option value="__custom__">＋ Add custom category…</option>}
                 </select>
                 <ChevronIcon />
               </div>
@@ -493,7 +462,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300 min-h-[2.5rem] flex items-start">Qty (Property Card)</label>
             <input type="number" min="1" max={MAX_UNITS} disabled={lockedQty} className={INPUT_CLASS + (lockedQty ? ' opacity-60 cursor-not-allowed' : '')} value={form.quantity} onChange={handleQuantityChange} />
-            {lockedQty && <p className="text-2xs text-slate-400 dark:text-zinc-600">Fixed at 1 for devices in a group.</p>}
+            {lockedQty && <p className="text-2xs text-slate-400 dark:text-zinc-600">{initial?.groupId ? 'Fixed at 1 for devices in a group.' : 'Only an administrator can add devices.'}</p>}
             {errors.quantity && <p className="text-xs text-red-400">{errors.quantity}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
@@ -533,8 +502,8 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           </div>
           <p className="text-2xs text-slate-400 dark:text-zinc-600 -mt-1">
             {form.units.length > 1
-              ? `Each device is saved as its own asset and shown grouped in the list. Give every device its own Property Number and PAR Number — each device has its own location, accountable person, current user, value, condition, specs and (if no shared date is set) acquisition date; anything under "More details" left blank is copied from this form.${isEditing ? ' Device 1 is the asset you are editing; the others are added as new assets in the same group.' : ''}`
-              : 'Different from every other asset, and unique per asset. The PAR year-month comes from the Acquisition Date; type the serial that follows it.'}
+              ? `Each device is saved as its own asset and shown grouped in the list. Give every device its own Property Number; devices issued together on one PAR share that PAR Number, so type the same serial for each of them. Each device has its own location, accountable person, current user, value, condition, specs and (if no shared date is set) acquisition date; anything under "More details" left blank is copied from this form.${isEditing ? ' Device 1 is the asset you are editing; the others are added as new assets in the same group.' : ''}`
+              : 'The Property Number is unique to this asset; the PAR Number is shared by every item issued on the same receipt. The PAR year-month comes from the Acquisition Date; type the serial that follows it.'}
           </p>
           <div className={`space-y-3 ${form.units.length > 3 ? 'max-h-[28rem] overflow-y-auto pr-1' : ''}`}>
             {form.units.map((u, i) => (
@@ -594,7 +563,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">Location<span className="text-red-400 ml-0.5">*</span></label>
                         <div className="relative">
-                          <select className={INPUT_CLASS + ' appearance-none pr-9'} value={u.officeId} onChange={setUnit(i, 'officeId')}>
+                          <select className={INPUT_CLASS + ' appearance-none pr-9' + (staffMode ? ' opacity-60 cursor-not-allowed' : '')} disabled={staffMode} value={u.officeId} onChange={setUnit(i, 'officeId')}>
                             <option value="">Select location</option>
                             {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
                           </select>
@@ -664,7 +633,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Location<span className="text-red-400 ml-0.5">*</span></label>
             <div className="relative">
-              <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.officeId} onChange={set('officeId')}>
+              <select className={INPUT_CLASS + ' appearance-none pr-9' + (staffMode ? ' opacity-60 cursor-not-allowed' : '')} disabled={staffMode} title={staffMode ? 'Only an administrator can move an asset to another office' : undefined} value={form.officeId} onChange={set('officeId')}>
                 <option value="">— Select location —</option>
                 {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
               </select>
@@ -672,73 +641,20 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             </div>
             {errors.officeId && <p className="text-xs text-red-400">{errors.officeId}</p>}
           </div>
-          <div className={`flex flex-col gap-1.5 ${personnelCustomMode ? 'sm:col-span-2' : ''}`}>
+          <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Accountable Person<span className="text-red-400 ml-0.5">*</span></label>
-            {personnelCustomMode ? (
-              <div className="space-y-2 rounded-lg border border-slate-200 dark:border-zinc-700 p-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    className={INPUT_CLASS}
-                    placeholder="Full name*"
-                    value={personnelCustomForm.fullName}
-                    onChange={(e) => { setPersonnelCustomForm((p) => ({ ...p, fullName: e.target.value })); setPersonnelCustomError('') }}
-                    autoFocus
-                  />
-                  <input
-                    className={INPUT_CLASS}
-                    placeholder="Position (optional)"
-                    value={personnelCustomForm.position}
-                    onChange={(e) => setPersonnelCustomForm((p) => ({ ...p, position: e.target.value }))}
-                  />
-                  <select
-                    className={INPUT_CLASS + ' appearance-none'}
-                    value={personnelCustomForm.officeId}
-                    onChange={(e) => setPersonnelCustomForm((p) => ({ ...p, officeId: e.target.value }))}
-                  >
-                    <option value="">— Office (optional) —</option>
-                    {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
-                  </select>
-                  <input
-                    className={INPUT_CLASS}
-                    placeholder="Contact info (optional)"
-                    value={personnelCustomForm.contactInfo}
-                    onChange={(e) => setPersonnelCustomForm((p) => ({ ...p, contactInfo: e.target.value }))}
-                  />
-                </div>
-                {personnelCustomError && <p className="text-xs text-red-400">{personnelCustomError}</p>}
-                <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => { setPersonnelCustomMode(false); setPersonnelCustomError('') }}
-                    className="flex-shrink-0 px-3 py-2 rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveCustomPersonnel}
-                    disabled={savingPersonnel}
-                    className="flex-shrink-0 px-3 py-2 rounded-md bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 transition-all"
-                  >
-                    {savingPersonnel ? '…' : 'Add'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="relative">
-                <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.personnelId} onChange={handlePersonnelChange}>
-                  <option value="">— Select accountable person —</option>
-                  {personnelForOffice.map((p) => (
-                    <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}</option>
-                  ))}
-                  <option value="__custom__">＋ Add new personnel…</option>
-                </select>
-                <ChevronIcon />
-              </div>
-            )}
-            {errors.personnelId && !personnelCustomMode && <p className="text-xs text-red-400">{errors.personnelId}</p>}
-            {form.officeId && personnelForOffice.length === 0 && !personnelCustomMode && (
-              <p className="text-2xs text-amber-500">No personnel are assigned to this office yet — add one, or assign an office to existing personnel.</p>
+            <div className="relative">
+              <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.personnelId} onChange={handlePersonnelChange}>
+                <option value="">— Select accountable person —</option>
+                {accountableOptions.map((p) => (
+                  <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (not an account)' : ''}</option>
+                ))}
+              </select>
+              <ChevronIcon />
+            </div>
+            {errors.personnelId && <p className="text-xs text-red-400">{errors.personnelId}</p>}
+            {form.officeId && personnelForOffice.length === 0 && (
+              <p className="text-2xs text-amber-500">No accounts are assigned to this office yet — assign one on the Personnel page.</p>
             )}
           </div>
         </div>
@@ -751,8 +667,8 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           <div className="relative">
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.currentUserId} onChange={set('currentUserId')}>
               <option value="">— Same as accountable person / unspecified —</option>
-              {personnelForOffice.map((p) => (
-                <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}</option>
+              {currentUserOptions.map((p) => (
+                <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (not an account)' : ''}</option>
               ))}
             </select>
             <ChevronIcon />

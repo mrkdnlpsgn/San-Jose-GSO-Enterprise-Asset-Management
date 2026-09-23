@@ -13,11 +13,13 @@ function fmtMoney(n) {
 }
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
-export default function AddDisposalModal({ onClose, onSave, initial = null, assets = [], users = [] }) {
+// requestMode: a STAFF account adding a record — it's sent as a request an admin approves.
+// presetAssetId: open for one asset (e.g. from the QR scanner) with the asset fixed.
+export default function AddDisposalModal({ onClose, onSave, initial = null, assets = [], users = [], requestMode = false, presetAssetId = null }) {
   const isEditing = !!initial
 
   const [form, setForm] = useState({
-    assetId:            initial?.asset?.id           ? String(initial.asset.id) : '',
+    assetId:            initial?.asset?.id           ? String(initial.asset.id) : (presetAssetId ? String(presetAssetId) : ''),
     reason:             initial?.reason              || '',
     inspectionFindings: initial?.inspectionFindings  || '',
     recommendedMethod:  initial?.recommendedMethod   || 'SALE',
@@ -78,16 +80,21 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
   }
 
   return (
-    <Modal title={isEditing ? 'Edit Disposal Record' : 'Add Disposal Record'} size="lg" onClose={onClose}>
+    <Modal title={isEditing ? 'Edit Disposal Record' : requestMode ? 'Request Disposal' : 'Add Disposal Record'} size="lg" onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
 
+        {requestMode && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3.5 py-2.5">
+            This is sent to an administrator for approval. You can edit the record once it's approved.
+          </p>
+        )}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Asset<span className="text-red-400 ml-0.5">*</span></label>
           <div className="relative">
-            <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.assetId} onChange={set('assetId')} disabled={isEditing}>
+            <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.assetId} onChange={set('assetId')} disabled={isEditing || !!presetAssetId}>
               <option value="">— Select asset —</option>
               {selectableAssets.map((a) => <option key={a.id} value={String(a.id)}>{a.propertyNumber} — {a.description} ({a.condition})</option>)}
             </select>
@@ -172,7 +179,7 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
 
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>
-          <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Disposal Record'}</Button>
+          <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : isEditing ? 'Save Changes' : requestMode ? 'Send Request' : 'Add Disposal Record'}</Button>
         </div>
       </form>
     </Modal>

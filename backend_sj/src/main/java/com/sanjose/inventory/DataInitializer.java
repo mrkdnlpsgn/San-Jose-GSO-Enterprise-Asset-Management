@@ -20,6 +20,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final OfficeRepository officeRepository;
     private final PasswordEncoder passwordEncoder;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private static final List<String> DEFAULT_OFFICES = List.of(
         "Office of the Mayor",
@@ -49,6 +50,9 @@ public class DataInitializer implements CommandLineRunner {
 
         log.info("DataInitializer: seeding default offices...");
         DEFAULT_OFFICES.forEach(this::seedOffice);
+
+        // every account (seeded ones included) needs its personnel record — see sp_personnel_sync_accounts
+        jdbcTemplate.update("CALL sp_personnel_sync_accounts()");
 
         log.info("DataInitializer: done.");
     }

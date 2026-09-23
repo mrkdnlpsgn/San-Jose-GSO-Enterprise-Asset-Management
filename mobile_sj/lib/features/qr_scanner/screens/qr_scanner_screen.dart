@@ -111,7 +111,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           else if (!_cameraScanSupported)
             const _InfoCard(
               text: 'Camera scanning isn\'t available on this platform — '
-                  'enter a Property Number above to look up an asset\'s status.',
+                  'enter a Property Number or PAR Number above to look up an asset\'s status.',
             ),
         ],
       ),
@@ -189,7 +189,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             Text('Manual Code Entry',
                 style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
             const SizedBox(height: 4),
-            Text('Enter a Property Number to search directly.',
+            Text('Enter a Property Number or PAR Number to search directly.',
                 style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
             const SizedBox(height: 12),
             Row(

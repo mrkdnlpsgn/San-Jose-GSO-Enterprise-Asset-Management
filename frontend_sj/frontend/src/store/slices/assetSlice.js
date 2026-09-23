@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { setCredentials, logout } from './authSlice';
 
 const assetSlice = createSlice({
   name: 'assets',
@@ -20,6 +21,13 @@ const assetSlice = createSlice({
     removeAsset: (state, action) => {
       state.items = state.items.filter(i => i.id !== action.payload);
     },
+  },
+  // The cached list belongs to whoever loaded it — staff only get their office's assets —
+  // so drop it whenever the signed-in account changes or signs out.
+  extraReducers: (builder) => {
+    builder
+      .addCase(logout, (state) => { state.items = []; })
+      .addCase(setCredentials, (state) => { state.items = []; });
   },
 });
 

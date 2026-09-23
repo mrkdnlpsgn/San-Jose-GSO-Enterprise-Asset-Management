@@ -17,5 +17,8 @@ public class UserResponse {
     private String role;
     private Long officeId;
     private String officeName;
+    private Long personnelId;
+    private String personnelName;
+    private int assetCount; // assets this account is accountable for or currently using
     private Boolean isActive;
 }

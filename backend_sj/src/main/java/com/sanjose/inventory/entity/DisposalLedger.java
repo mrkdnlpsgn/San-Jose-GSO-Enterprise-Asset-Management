@@ -58,6 +58,16 @@ public class DisposalLedger {
     @Column(precision = 12, scale = 2)
     private BigDecimal amount;
 
+    // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED — see AccessService
+    @Column(name = "approval_status", length = 20)
+    private String approvalStatus;
+
+    @Column(name = "review_note", length = 255)
+    private String reviewNote;
+
+    @Transient
+    private String requestedByName;
+
     // Computed on read from the linked asset (see DepreciationCalculator) — matches
     // the "Accumulated Depreciation" / "Carrying Amount" columns on the paper IIRUP
     // form. Informational only; disposal eligibility is gated on asset condition.

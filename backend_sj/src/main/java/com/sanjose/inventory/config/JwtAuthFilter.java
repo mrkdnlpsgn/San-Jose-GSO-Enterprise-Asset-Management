@@ -67,7 +67,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 log.warn("Stale JWT (token version mismatch) for {} on {}", email, request.getRequestURI());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.getWriter().write("{\"message\":\"Your session was invalidated by a password change. Please log in again.\"}");
+                response.getWriter().write("{\"message\":\"Your session is no longer valid (password changed or account deactivated). Please log in again.\"}");
                 return;
             }
 

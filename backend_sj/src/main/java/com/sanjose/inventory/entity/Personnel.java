@@ -32,6 +32,19 @@ public class Personnel {
     @Column(name = "contact_info", length = 150)
     private String contactInfo;
 
+    // Login account of this person, if any (see UserService.linkPersonnel)
+    @Column(name = "user_id")
+    private Long userId;
+
+    @Transient
+    private String username;
+
+    @Transient
+    private String userRole;
+
+    @Transient
+    private Boolean userActive;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

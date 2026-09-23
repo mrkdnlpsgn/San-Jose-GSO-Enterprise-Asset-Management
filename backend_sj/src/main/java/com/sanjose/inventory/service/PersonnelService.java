@@ -1,10 +1,8 @@
 package com.sanjose.inventory.service;
 
-import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.PersonnelRequest;
 import com.sanjose.inventory.entity.Office;
 import com.sanjose.inventory.entity.Personnel;
-import com.sanjose.inventory.exception.ResourceInUseException;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,6 +27,10 @@ public class PersonnelService {
         p.setFullName(rs.getString("fullName"));
         p.setPosition(rs.getString("position"));
         p.setContactInfo(rs.getString("contactInfo"));
+        p.setUserId(rs.getObject("userId", Long.class));
+        p.setUsername(rs.getString("username"));
+        p.setUserRole(rs.getString("userRole"));
+        p.setUserActive(rs.getObject("userActive", Boolean.class));
         Timestamp ts = rs.getTimestamp("createdAt");
         p.setCreatedAt(ts != null ? ts.toLocalDateTime() : null);
         Long officeId = rs.getObject("office_id", Long.class);
@@ -54,43 +56,24 @@ public class PersonnelService {
         return list.get(0);
     }
 
-    public Personnel create(PersonnelRequest req) {
-        Long newId = SpHelper.callWithOutLong(jdbcTemplate,
-            "CALL sp_personnel_create(?, ?, ?, ?)",
-            req.getFullName(), req.getPosition(),
-            req.getOfficeId() != null ? req.getOfficeId().intValue() : 0,
-            req.getContactInfo());
-        Personnel saved = findById(newId);
-        auditLogService.log("PERSONNEL_CREATED", "Personnel", newId, "personnel", "Created: " + saved.getFullName());
-        return saved;
-    }
-
+    // Personnel records are the accounts (created/removed on the Accounts page). An admin
+    // assigns each one's office here — it's the only place an account's office is set,
+    // and sp_personnel_update copies it onto the account. The name always follows the account.
     public Personnel update(Long id, PersonnelRequest req) {
-        findById(id); // throws if not found
+        Personnel existing = findById(id);
+        if (existing.getUserId() == null) {
+            throw new IllegalArgumentException("Only personnel linked to an account can be edited.");
+        }
+        if (req.getOfficeId() == null || req.getOfficeId() == 0) {
+            throw new IllegalArgumentException("Office is required.");
+        }
         jdbcTemplate.update("CALL sp_personnel_update(?, ?, ?, ?, ?)",
-            id, req.getFullName(), req.getPosition(),
-            req.getOfficeId() != null ? req.getOfficeId().intValue() : 0,
+            id, existing.getFullName(), req.getPosition(),
+            req.getOfficeId().intValue(),
             req.getContactInfo());
         Personnel saved = findById(id);
-        auditLogService.log("PERSONNEL_UPDATED", "Personnel", id, "personnel", "Updated: " + saved.getFullName());
+        auditLogService.log("PERSONNEL_UPDATED", "Personnel", id, "personnel",
+            "Updated: " + saved.getFullName() + " — office " + (saved.getOffice() != null ? saved.getOffice().getOfficeName() : "none"));
         return saved;
-    }
-
-    public void delete(Long id) {
-        Personnel personnel = findById(id);
-        // assets.personnel_id and assets.current_user_personnel_id are both NO ACTION
-        // FKs (same style as assets.office_id) — deleting while assets still reference
-        // this person, either as accountable person or as current user, would otherwise
-        // fail as a raw SQL constraint error.
-        Integer assetCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM assets WHERE personnel_id = ? OR current_user_personnel_id = ?",
-            Integer.class, id, id);
-        if (assetCount != null && assetCount > 0) {
-            throw new ResourceInUseException(
-                "Cannot delete \"" + personnel.getFullName() + "\" — " + assetCount +
-                " asset(s) still reference them as accountable person or current user. Reassign those assets first.");
-        }
-        jdbcTemplate.update("CALL sp_personnel_delete(?)", id);
-        auditLogService.log("PERSONNEL_DELETED", "Personnel", id, "personnel", "Deleted: " + personnel.getFullName());
     }
 }

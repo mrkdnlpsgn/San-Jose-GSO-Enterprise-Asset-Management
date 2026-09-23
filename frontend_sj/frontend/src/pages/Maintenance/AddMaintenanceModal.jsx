@@ -23,7 +23,9 @@ function SelectInput({ children, ...props }) {
 
 const EMPTY = { assetId: '', maintenanceType: 'PREVENTIVE', findings: '', actionsTaken: '', assignedTo: '', maintenanceDate: '', cost: '', status: 'SCHEDULED' }
 
-function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], users = [] }) {
+// requestMode: a STAFF account adding a record — it's sent as a request an admin approves.
+// presetAssetId: open for one asset (e.g. from the QR scanner) with the asset fixed.
+function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], users = [], requestMode = false, presetAssetId = null }) {
   const isEditing = !!initial
   const [form, setForm]     = useState(
     isEditing
@@ -37,7 +39,7 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
           cost: initial.cost !== null && initial.cost !== undefined ? String(initial.cost) : '',
           status: initial.status || 'SCHEDULED',
         }
-      : { ...EMPTY }
+      : { ...EMPTY, assetId: presetAssetId ? String(presetAssetId) : '' }
   )
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -80,7 +82,7 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
 
   return (
     <Modal
-      title={isEditing ? 'Edit Maintenance Record' : 'Add Maintenance Record'}
+      title={isEditing ? 'Edit Maintenance Record' : requestMode ? 'Request Maintenance' : 'Add Maintenance Record'}
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -88,9 +90,14 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
 
+        {requestMode && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3.5 py-2.5">
+            This is sent to an administrator for approval. You can edit the record once it's approved.
+          </p>
+        )}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Asset<span className="text-red-400 ml-0.5">*</span></label>
-          <SelectInput value={form.assetId} onChange={set('assetId')}>
+          <SelectInput value={form.assetId} onChange={set('assetId')} disabled={!!presetAssetId}>
             <option value="">— Select asset —</option>
             {assets.map((a) => (
               <option key={a.id} value={String(a.id)}>{a.propertyNumber} — {a.description}</option>
@@ -146,7 +153,7 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
 
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>
-          <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Record'}</Button>
+          <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : isEditing ? 'Save Changes' : requestMode ? 'Send Request' : 'Add Record'}</Button>
         </div>
       </form>
     </Modal>

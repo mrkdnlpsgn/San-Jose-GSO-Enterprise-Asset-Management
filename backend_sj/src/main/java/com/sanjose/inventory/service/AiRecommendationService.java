@@ -83,11 +83,14 @@ public class AiRecommendationService {
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
-    public List<AiRecommendationSummaryItem> getSummary() {
-        return jdbcTemplate.query("CALL sp_ai_recommendations_summary()", (rs, rn) ->
+    // officeId null = every office (admin)
+    public List<AiRecommendationSummaryItem> getSummary(Long officeId) {
+        String sql = officeId == null ? "CALL sp_ai_recommendations_summary()" : "CALL sp_ai_recommendations_summary_by_office(?)";
+        Object[] args = officeId == null ? new Object[0] : new Object[]{ officeId };
+        return jdbcTemplate.query(sql, (rs, rn) ->
             new AiRecommendationSummaryItem(
                 AiRecommendation.Recommendation.valueOf(rs.getString("recommendation")),
-                rs.getLong("cnt")));
+                rs.getLong("cnt")), args);
     }
 
     public AiRecommendation generate(Long assetId) {

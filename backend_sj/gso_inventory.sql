@@ -3970,7 +3970,14 @@ CREATE TABLE `disposal_ledger` (
   `deleted_by` int(11) DEFAULT NULL COMMENT 'User who soft-deleted this record (ref: users)',
   `delete_reason` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  -- Staff-created records wait for an admin (PENDING_APPROVAL -> APPROVED / REJECTED);
+  -- admin-created and system-generated records are APPROVED from the start.
+  `approval_status` varchar(20) NOT NULL DEFAULT 'APPROVED',
+  `requested_by` int(11) DEFAULT NULL,
+  `reviewed_by` int(11) DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `review_note` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -4336,7 +4343,14 @@ CREATE TABLE `maintenance_ledger` (
   `deleted_by` int(11) DEFAULT NULL COMMENT 'User who soft-deleted this record (ref: users)',
   `delete_reason` text DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  -- Staff-created records wait for an admin (PENDING_APPROVAL -> APPROVED / REJECTED);
+  -- admin-created and system-generated records are APPROVED from the start.
+  `approval_status` varchar(20) NOT NULL DEFAULT 'APPROVED',
+  `requested_by` int(11) DEFAULT NULL,
+  `reviewed_by` int(11) DEFAULT NULL,
+  `reviewed_at` datetime DEFAULT NULL,
+  `review_note` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -4893,7 +4907,7 @@ ALTER TABLE `ai_recommendations`
 ALTER TABLE `assets`
   ADD PRIMARY KEY (`asset_id`),
   ADD UNIQUE KEY `uq_assets_prop_no` (`property_number`),
-  ADD UNIQUE KEY `uq_assets_par_no` (`par_number`),
+  ADD KEY `idx_assets_par_no` (`par_number`),
   ADD KEY `idx_assets_group` (`group_id`),
   ADD KEY `fk_assets_deleted_by` (`deleted_by`),
   ADD KEY `idx_assets_category` (`category_id`),
@@ -5234,11 +5248,16 @@ CREATE TABLE IF NOT EXISTS `personnel` (
   `position` varchar(150) DEFAULT NULL,
   `office_id` int(11) DEFAULT NULL,
   `contact_info` varchar(150) DEFAULT NULL,
+  -- Login account of this person, if they have one (at most one account per person).
+  -- The account's office is kept in sync with office_id.
+  `user_id` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`personnel_id`),
   UNIQUE KEY `uq_personnel_full_name` (`full_name`),
+  UNIQUE KEY `uq_personnel_user` (`user_id`),
   KEY `idx_personnel_office` (`office_id`),
-  CONSTRAINT `fk_personnel_office` FOREIGN KEY (`office_id`) REFERENCES `offices` (`office_id`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `fk_personnel_office` FOREIGN KEY (`office_id`) REFERENCES `offices` (`office_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_personnel_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 SET @col_exists := (

@@ -11,3 +11,7 @@ export const getDisposalByAsset = (assetId)   => api.get(`/disposal/asset/${asse
 export const createDisposal     = (data, idempotencyKey)      => api.post('/disposal', data, idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined);
 export const updateDisposal     = (id, data)  => api.put(`/disposal/${id}`, data);
 export const deleteDisposal     = (id, body)  => api.delete(`/disposal/${id}`, { data: body });
+
+// Staff-created records are requests an admin approves or rejects (with a reason).
+export const approveDisposal = (id)       => api.post(`/disposal/${id}/approve`);
+export const rejectDisposal  = (id, note) => api.post(`/disposal/${id}/reject`, { note });

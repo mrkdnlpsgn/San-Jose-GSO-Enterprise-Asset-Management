@@ -158,6 +158,7 @@ public class AuthService {
         userMap.put("username", user.username());
         userMap.put("fullName", user.fullName());
         userMap.put("role", user.role());
+        putOffice(userMap, user.id());
         userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
 
         return Map.of("token", token, "user", userMap);
@@ -256,6 +257,7 @@ public class AuthService {
         userMap.put("username", data.username());
         userMap.put("fullName", data.fullName());
         userMap.put("role", data.role());
+        putOffice(userMap, data.id());
         userMap.put("privacyAcknowledgedAt", data.privacyAcknowledgedAt());
 
         return Map.of("token", token, "user", userMap);
@@ -298,6 +300,7 @@ public class AuthService {
         userMap.put("username", user.username());
         userMap.put("fullName", user.fullName());
         userMap.put("role", user.role());
+        putOffice(userMap, user.id());
         userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
 
         return Map.of("token", token, "user", userMap);
@@ -315,6 +318,7 @@ public class AuthService {
         userMap.put("username", user.username());
         userMap.put("fullName", user.fullName());
         userMap.put("role", user.role());
+        putOffice(userMap, user.id());
         userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
         return userMap;
     }
@@ -526,5 +530,15 @@ public class AuthService {
 
         jdbcTemplate.update("CALL sp_auth_acknowledge_privacy(?)", user.id());
         return LocalDateTime.now();
+    }
+
+    // Office drives what a STAFF account can see and edit (see AccessService).
+    private void putOffice(Map<String, Object> userMap, Long userId) {
+        jdbcTemplate.query(
+            "SELECT o.office_id, o.office_name FROM users u LEFT JOIN offices o ON o.office_id = u.office_id WHERE u.user_id = ?",
+            rs -> {
+                userMap.put("officeId", rs.getObject("office_id", Long.class));
+                userMap.put("officeName", rs.getString("office_name"));
+            }, userId);
     }
 }

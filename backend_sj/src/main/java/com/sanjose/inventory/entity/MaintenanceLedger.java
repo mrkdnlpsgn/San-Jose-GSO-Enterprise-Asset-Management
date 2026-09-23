@@ -41,6 +41,16 @@ public class MaintenanceLedger {
     @Column(name = "assigned_to", length = 150)
     private String assignedTo;
 
+    // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED — see AccessService
+    @Column(name = "approval_status", length = 20)
+    private String approvalStatus;
+
+    @Column(name = "review_note", length = 255)
+    private String reviewNote;
+
+    @Transient
+    private String requestedByName;
+
     @Column(name = "maintenance_date", nullable = false)
     private LocalDate maintenanceDate;
 

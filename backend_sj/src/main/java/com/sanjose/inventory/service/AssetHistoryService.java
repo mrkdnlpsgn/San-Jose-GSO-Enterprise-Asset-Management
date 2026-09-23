@@ -88,11 +88,11 @@ public class AssetHistoryService {
         return h;
     };
 
-    public List<AssetHistory> findAll(String search) {
+    public List<AssetHistory> findAll(String search, Long officeId) {
         if (search != null && !search.isBlank()) {
-            return jdbcTemplate.query("CALL sp_asset_history_search(?)", HISTORY_MAPPER, search.trim());
+            return jdbcTemplate.query("CALL sp_asset_history_search(?, ?)", HISTORY_MAPPER, search.trim(), officeId);
         }
-        return jdbcTemplate.query("CALL sp_asset_history_get_all()", HISTORY_MAPPER);
+        return jdbcTemplate.query("CALL sp_asset_history_get_all(?)", HISTORY_MAPPER, officeId);
     }
 
     public List<AssetHistory> findByAsset(Long assetId) {

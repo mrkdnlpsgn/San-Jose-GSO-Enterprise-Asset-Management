@@ -8,10 +8,10 @@ import { usePolling } from '../../hooks/usePolling'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import Badge from '../../components/common/Badge'
-import ConfirmDialog from '../../components/common/ConfirmDialog'
 import UserModal from './UserModal'
+import DeactivateAccountModal from './DeactivateAccountModal'
 import ResetPasswordModal from './ResetPasswordModal'
-import { getUsers, createUser, updateUser, deleteUser, changePassword, resetPassword } from '../../services/userService'
+import { getUsers, createUser, updateUser, deactivateUser, changePassword, resetPassword } from '../../services/userService'
 import { getAuditLogs } from '../../services/auditLogService'
 import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
 
@@ -44,6 +44,7 @@ const AUDIT_PAGE_SIZE = 8
 // ── Accounts tab ──────────────────────────────────────────────────────────────
 function AccountsTab() {
   const toast = useToast()
+  const me    = useSelector((s) => s.auth.user?.username)
   const [users, setUsers]           = useState([])
   const [loading, setLoading]       = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -82,15 +83,16 @@ function AccountsTab() {
     toast.show('Account updated.', 'success')
   }
 
-  const handleDelete = async () => {
-    try {
-      await deleteUser(deleting.id)
-      setUsers((prev) => prev.filter((u) => u.id !== deleting.id))
-      toast.show(`Account "${deleting.fullName || deleting.username}" removed.`, 'warning')
-    } catch (err) {
-      toast.show(err.response?.data?.message || 'Failed to delete account.', 'error')
-    } finally {
-      setDeleting(null)
+  // Errors are shown inside DeactivateAccountModal, so they're rethrown from here.
+  const handleDeactivate = async (transferToUserId) => {
+    await deactivateUser(deleting.id, transferToUserId ? { transferToUserId } : undefined)
+    const name = deleting.fullName || deleting.username
+    await fetchUsers(debouncedSearch) // status and asset counts changed
+    if (transferToUserId) {
+      const to = users.find((u) => u.id === transferToUserId)
+      toast.show(`"${name}" deactivated — assets transferred to ${to?.fullName || to?.username || 'the selected account'}.`, 'warning')
+    } else {
+      toast.show(`"${name}" deactivated.`, 'warning')
     }
   }
 
@@ -160,6 +162,9 @@ function AccountsTab() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.fullName || user.username}</p>
                     <p className="text-xs text-slate-400 dark:text-zinc-500 truncate mt-0.5">@{user.username}</p>
+                    <p className="text-xs text-slate-400 dark:text-zinc-500 truncate mt-0.5">
+                      {user.officeName || 'No office assigned'}
+                    </p>
                     <p className={`text-xs truncate mt-0.5 ${user.email ? 'text-slate-400 dark:text-zinc-500' : 'text-amber-500 dark:text-amber-400 italic'}`}>
                       {user.email || 'No email on file (forgot-password unavailable)'}
                     </p>
@@ -186,12 +191,14 @@ function AccountsTab() {
                         <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                     </button>
-                    <button onClick={() => setDeleting(user)} title="Delete account"
+                    {user.isActive && user.username !== me && (
+                    <button onClick={() => setDeleting(user)} title="Deactivate account"
                       className="p-2 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-950/40 transition-all duration-150">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
                       </svg>
-                    </button>
+                                        </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -201,7 +208,7 @@ function AccountsTab() {
               <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
                 <thead>
                   <tr>
-                    {['Username', 'Email', 'Full Name', 'Role', 'Active', ''].map((h) => (
+                    {['Username', 'Email', 'Full Name', 'Office', 'Role', 'Active', ''].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -223,6 +230,11 @@ function AccountsTab() {
                           : <span className="text-amber-500 dark:text-amber-400 italic">No email</span>}
                       </td>
                       <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap">{user.fullName || '—'}</td>
+                      <td className="px-5 py-3.5 text-xs whitespace-nowrap">
+                        {user.officeName
+                          ? <span className="text-slate-600 dark:text-zinc-300">{user.officeName}</span>
+                          : <span className="text-amber-500 dark:text-amber-400 italic" title="Assign one on the Personnel page">Not assigned</span>}
+                      </td>
                       <td className="px-5 py-3.5">
                         <Badge
                           label={user.role === 'ADMIN' ? 'Administrator' : 'Staff'}
@@ -249,12 +261,14 @@ function AccountsTab() {
                               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                             </svg>
                           </button>
-                          <button onClick={() => setDeleting(user)} title="Delete account"
+                          {user.isActive && user.username !== me && (
+                          <button onClick={() => setDeleting(user)} title="Deactivate account"
                             className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-950/40 transition-all duration-150">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                              <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
                             </svg>
-                          </button>
+                                                    </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -270,13 +284,7 @@ function AccountsTab() {
       {editing   && <UserModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} />}
       {resetting && <ResetPasswordModal user={resetting} onClose={() => setResetting(null)} onSave={handleResetPassword} />}
       {deleting  && (
-        <ConfirmDialog
-          title="Delete this account?"
-          message={`"${deleting.fullName || deleting.username}" will be permanently removed.`}
-          confirmLabel="Delete Account"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleting(null)}
-        />
+        <DeactivateAccountModal user={deleting} accounts={users} onClose={() => setDeleting(null)} onConfirm={handleDeactivate} />
       )}
     </>
   )
@@ -611,7 +619,6 @@ const TABS_ADMIN = [
   { id: 'my-account', label: 'My Account' },
 ]
 const TABS_STAFF = [
-  { id: 'audit-logs', label: 'Audit Logs' },
   { id: 'my-account', label: 'My Account' },
 ]
 
@@ -625,7 +632,7 @@ function Accounts() {
   const routeTab  = location.pathname === '/audit-logs' ? 'audit-logs'
                   : location.pathname === '/my-account' ? 'my-account'
                   : 'accounts'
-  const activeTab = (!isAdmin && routeTab === 'accounts') ? 'audit-logs' : routeTab
+  const activeTab = isAdmin ? routeTab : 'my-account' // audit logs are admin-only
 
   const switchTab = (id) => {
     if (id === 'audit-logs')       navigate('/audit-logs',  { replace: true })

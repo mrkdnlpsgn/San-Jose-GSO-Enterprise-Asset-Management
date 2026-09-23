@@ -6,10 +6,21 @@ import { QRCodeSVG } from 'qrcode.react'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import { useToast } from '../../context/ToastContext'
-import { getAssets, updateAsset as updateAssetApi } from '../../services/assetService'
+import { getAssets, updateAssetStatus } from '../../services/assetService'
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
+import AddMaintenanceModal from '../Maintenance/AddMaintenanceModal'
+import AddDisposalModal from '../Disposal/AddDisposalModal'
+import { createMaintenance } from '../../services/maintenanceService'
+import { createDisposal } from '../../services/disposalService'
+import { getUsers } from '../../services/userService'
 
 const READER_ID = 'qr-reader-viewport'
+
+// Staff can't transfer an asset (an admin assigns it), and putting one under maintenance
+// or disposing of it goes through a request an admin approves — picking those statuses
+// opens the matching request form instead of changing the status directly.
+const REQUEST_FOR_STATUS = { UNDER_MAINTENANCE: 'maintenance', DISPOSED: 'disposal' }
+const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
 
 const CONDITION_BADGE = {
   SERVICEABLE:   'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
@@ -75,6 +86,7 @@ function QRScanner() {
   const dispatch   = useDispatch()
   const navigate   = useNavigate()
   const { show }   = useToast()
+  const isAdmin    = useSelector((s) => s.auth.user?.role === 'ADMIN')
 
   useEffect(() => {
     if (assetItems.length === 0) {
@@ -90,6 +102,9 @@ function QRScanner() {
   const [editingStatus, setEditingStatus] = useState(false)
   const [statusForm, setStatusForm]   = useState({ condition: '', lifecycleStatus: '' })
   const [savingStatus, setSavingStatus] = useState(false)
+  const [requestKind, setRequestKind] = useState(null)   // 'maintenance' | 'disposal' — staff request form open
+  const [statusHint, setStatusHint]   = useState('')
+  const [users, setUsers]             = useState([])
 
   const scannerRef = useRef(null)
   const isRunning  = useRef(false)
@@ -108,20 +123,24 @@ function QRScanner() {
     const code = raw.trim()
     if (!code) return
 
-    // Accepts the app's QR payload format `asset:{id}:{propertyNumber}`,
-    // a bare numeric id, or a bare property number (manual entry).
+    // Accepts the app's QR payload format `asset:{id}:{propertyNumber}`, a bare
+    // numeric id, a bare property number, or a PAR Number like `2026-07:H78JD80`
+    // (manual entry).
     let id = code
     let propertyNumber = code
+    let parNumber = code.toLowerCase()
     if (code.startsWith('asset:')) {
       const parts = code.split(':')
       id = parts[1] || ''
       propertyNumber = parts[2] || ''
+      parNumber = null
     }
 
     const asset = assetItems.find(
       (a) =>
         String(a.id) === id ||
-        a.propertyNumber?.toLowerCase() === propertyNumber.toLowerCase()
+        a.propertyNumber?.toLowerCase() === propertyNumber.toLowerCase() ||
+        (parNumber && a.parNumber?.toLowerCase() === parNumber)
     )
     if (asset) { setResult(asset); setNotFound(false) }
     else        { setNotFound(true); setResult(null) }
@@ -188,30 +207,35 @@ function QRScanner() {
     setEditingStatus(true)
   }
 
-  const cancelEditStatus = () => setEditingStatus(false)
+  const cancelEditStatus = () => { setEditingStatus(false); setStatusHint('') }
+
+  const handleLifecycleChange = (e) => {
+    const value = e.target.value
+    setStatusHint('')
+    const kind = !isAdmin && value !== result.lifecycleStatus ? REQUEST_FOR_STATUS[value] : null
+    if (!kind) { setStatusForm((p) => ({ ...p, lifecycleStatus: value })); return }
+    if (kind === 'disposal' && !DISPOSABLE_CONDITIONS.includes(result.condition)) {
+      setStatusHint('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — save that condition first, then request disposal.')
+      return
+    }
+    if (users.length === 0) getUsers().then(({ data }) => setUsers(data)).catch(() => {})
+    setRequestKind(kind)
+  }
+
+  const sendRequest = async (payload, idempotencyKey) => {
+    const create = requestKind === 'maintenance' ? createMaintenance : createDisposal
+    await create(payload, idempotencyKey)
+    setEditingStatus(false)
+    show(`${requestKind === 'maintenance' ? 'Maintenance' : 'Disposal'} request sent — an administrator needs to approve it.`, 'success')
+  }
+
+  const lifecycleOptions = Object.keys(LIFECYCLE_BADGE).filter(
+    (s) => isAdmin || s !== 'TRANSFERRED' || result?.lifecycleStatus === 'TRANSFERRED')
 
   const saveStatus = async () => {
     setSavingStatus(true)
     try {
-      // The update endpoint replaces the whole record, so every existing field
-      // has to be resent — only condition/lifecycleStatus actually change here.
-      const payload = {
-        propertyNumber:    result.propertyNumber,
-        serialNumber:      result.serialNumber,
-        description:       result.description,
-        categoryId:        result.category?.id,
-        quantity:          result.quantity,
-        acquisitionDate:   result.acquisitionDate,
-        unitValue:         result.unitValue,
-        officeId:          result.office?.id,
-        personnelId:       result.accountablePerson?.id ?? null,
-        physicalCount:     result.physicalCount,
-        location:          result.location,
-        condition:         statusForm.condition,
-        lifecycleStatus:   statusForm.lifecycleStatus,
-        remarks:           result.remarks,
-      }
-      const { data } = await updateAssetApi(result.id, payload)
+      const { data } = await updateAssetStatus(result.id, statusForm.condition, statusForm.lifecycleStatus)
       setResult(data)
       dispatch(updateAssetInStore(data))
       setEditingStatus(false)
@@ -287,7 +311,7 @@ function QRScanner() {
           {/* Manual entry */}
           <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-5">
             <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300 mb-1">Manual Code Entry</p>
-            <p className="text-xs text-slate-400 dark:text-zinc-500 mb-3">Enter a Property Number to search directly.</p>
+            <p className="text-xs text-slate-400 dark:text-zinc-500 mb-3">Enter a Property Number or PAR Number to search directly.</p>
             <form onSubmit={handleManualSearch} className="flex gap-2">
               <input
                 type="text"
@@ -311,7 +335,7 @@ function QRScanner() {
                 </svg>
               </div>
               <p className="text-sm text-slate-400 dark:text-zinc-600 text-center">
-                Scan a QR code or enter a Property Number to view asset details.
+                Scan a QR code or enter a Property Number or PAR Number to view asset details.
               </p>
             </div>
           )}
@@ -394,13 +418,18 @@ function QRScanner() {
                         <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-wider">Lifecycle Status</span>
                         <select
                           value={statusForm.lifecycleStatus}
-                          onChange={(e) => setStatusForm((p) => ({ ...p, lifecycleStatus: e.target.value }))}
+                          onChange={handleLifecycleChange}
                           className="mt-1 w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-slate-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
                         >
-                          {Object.keys(LIFECYCLE_BADGE).map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                          {lifecycleOptions.map((s) => (
+                            <option key={s} value={s} disabled={!isAdmin && s === 'TRANSFERRED'}>
+                              {s.replace('_', ' ')}{!isAdmin && REQUEST_FOR_STATUS[s] && s !== result.lifecycleStatus ? ' — request…' : ''}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>
+                    {statusHint && <p className="text-xs text-amber-600 dark:text-amber-400">{statusHint}</p>}
                     <div className="flex items-center gap-2 justify-end">
                       <Button variant="secondary" size="sm" onClick={cancelEditStatus} disabled={savingStatus}>Cancel</Button>
                       <Button size="sm" onClick={saveStatus} disabled={savingStatus}>{savingStatus ? 'Saving…' : 'Save Status'}</Button>
@@ -432,19 +461,27 @@ function QRScanner() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                   {[
                     { label: 'Property Number', value: result.propertyNumber },
+                    { label: 'PAR Number',      value: result.parNumber },
                     { label: 'Description',     value: result.description, full: true },
+                    { label: 'Serial Number',   value: result.serialNumber },
                     { label: 'Category',        value: result.category?.categoryName },
                     { label: 'Office',          value: result.office?.officeName },
                     { label: 'Location',        value: result.location },
                     { label: 'Accountable',     value: result.accountablePerson?.fullName },
+                    { label: 'Current User',    value: result.currentUser?.fullName },
                     { label: 'Unit Value',      value: php(result.unitValue) },
                     { label: 'Quantity',        value: result.quantity },
                     { label: 'Acquisition Date', value: fmt(result.acquisitionDate) },
+                    ...(result.carryingAmount != null ? [
+                      { label: 'Accumulated Depreciation', value: php(result.accumulatedDepreciation) },
+                      { label: 'Carrying Amount',          value: php(result.carryingAmount) },
+                    ] : []),
+                    { label: 'Specifications',  value: result.specifications, full: true, multiline: true },
                     { label: 'Remarks',         value: result.remarks },
-                  ].filter((f) => f.value).map(({ label, value, full }) => (
+                  ].filter((f) => f.value).map(({ label, value, full, multiline }) => (
                     <div key={label} className={full ? 'col-span-2' : ''}>
                       <p className="text-2xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-wider">{label}</p>
-                      <p className="text-sm text-slate-700 dark:text-zinc-200 mt-0.5 leading-snug">{value}</p>
+                      <p className={`text-sm text-slate-700 dark:text-zinc-200 mt-0.5 leading-snug ${multiline ? 'whitespace-pre-line' : ''}`}>{value}</p>
                     </div>
                   ))}
                 </div>
@@ -453,6 +490,14 @@ function QRScanner() {
           )}
         </div>
       </div>
+      {requestKind === 'maintenance' && result && (
+        <AddMaintenanceModal requestMode presetAssetId={result.id} assets={[result]} users={users}
+          onClose={() => setRequestKind(null)} onSave={sendRequest} />
+      )}
+      {requestKind === 'disposal' && result && (
+        <AddDisposalModal requestMode presetAssetId={result.id} assets={[result]} users={users}
+          onClose={() => setRequestKind(null)} onSave={sendRequest} />
+      )}
     </MainLayout>
   )
 }

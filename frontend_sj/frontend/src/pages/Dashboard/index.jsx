@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { setAssets } from '../../store/slices/assetSlice'
 import MainLayout from '../../components/layout/MainLayout'
 import { getAssets } from '../../services/assetService'
 import { getAssetHistory } from '../../services/assetHistoryService'
 import { getUsers } from '../../services/userService'
-import { getRecommendationSummary } from '../../services/aiRecommendationService'
-import { getMaintenance } from '../../services/maintenanceService'
-import { getDisposal } from '../../services/disposalService'
+import { getLifecycleInsights, generateLifecycleSummary } from '../../services/aiRecommendationService'
+import { getMaintenance, approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
+import { getDisposal, approveDisposal, rejectDisposal } from '../../services/disposalService'
+import { useToast } from '../../context/ToastContext'
+import { RejectRequestModal } from '../../components/common/ApprovalControls'
 import { useEventStream } from '../../hooks/useEventStream'
 
 // ── Count-up hook ─────────────────────────────────────────────────────────────
@@ -206,17 +208,6 @@ function computeOfficeDist(assets) {
   return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 6)
 }
 
-function computeTopAccountable(assets) {
-  const map = {}
-  assets.forEach((a) => {
-    const p = a.accountablePerson
-    if (!p) return
-    if (!map[p.id]) map[p.id] = { name: p.fullName, count: 0 }
-    map[p.id].count++
-  })
-  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 5)
-}
-
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Sk({ className, style }) {
   return <div className={`animate-pulse rounded bg-slate-200 dark:bg-zinc-800 ${className}`} style={style} />
@@ -260,10 +251,12 @@ function StatStrip({ stats, loading }) {
   )
 }
 
-function QuickActions() {
+function QuickActions({ isAdmin }) {
   const actions = [
     {
-      label: 'Add Asset', desc: 'Register new equipment', to: '/assets',
+      label: isAdmin ? 'Add Asset' : 'My Office Assets',
+      desc: isAdmin ? 'Register new equipment' : 'View and update your assets',
+      to: '/assets',
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>,
     },
     {
@@ -497,92 +490,6 @@ function OfficeDistribution({ offices, total, loading, onSelect }) {
   )
 }
 
-function TopAccountable({ people, loading, onSelect }) {
-  const max = people[0]?.count || 1
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Top Accountable Persons</p>
-      </div>
-      <div className="p-4 space-y-3">
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Sk className="w-5 h-5 rounded-full flex-shrink-0" />
-              <div className="flex-1 space-y-1.5"><Sk className="h-3 w-3/4" /><Sk className="h-1.5 w-full rounded-full" /></div>
-              <Sk className="h-3 w-5" />
-            </div>
-          ))
-        ) : people.length === 0 ? (
-          <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">No accountable persons assigned.</p>
-        ) : (
-          people.map(({ name, count }, i) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => onSelect?.(name)}
-              title={`View assets accountable to ${name}`}
-              className="w-full flex items-center gap-3 group"
-            >
-              <span className="w-5 h-5 rounded-full bg-brand-500/15 text-brand-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                {i + 1}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-600 dark:text-zinc-300 truncate leading-tight mb-1.5 text-left group-hover:text-slate-900 dark:group-hover:text-white transition-colors duration-150" title={name}>{name}</p>
-                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                  <div className="h-full w-full rounded-full bg-brand-500 origin-left transition-transform duration-[250ms] ease-out group-hover:bg-brand-400" style={{ transform: `scaleX(${count / max})` }} />
-                </div>
-              </div>
-              <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums flex-shrink-0">{count}</span>
-            </button>
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
-function AiRecommendationsSummary({ summary, total, loading }) {
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">AI Lifecycle Insights</p>
-        {!loading && total > 0 && <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">{total} generated</span>}
-      </div>
-      <div className="p-4 space-y-2.5">
-        {loading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Sk className="w-2 h-2 rounded-full flex-shrink-0" />
-              <Sk className="h-3 flex-1" />
-              <Sk className="h-3 w-6" />
-            </div>
-          ))
-        ) : total === 0 ? (
-          <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">
-            No AI recommendations yet. Open an asset and generate one from its AI Insight tab.
-          </p>
-        ) : (
-          RECOMMENDATION_ORDER.map((r) => {
-            const count = summary[r] || 0
-            if (count === 0) return null
-            const pct = Math.round((count / total) * 100)
-            const cfg = RECOMMENDATION_CFG[r]
-            return (
-              <div key={r} className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate">{cfg.label}</span>
-                <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
-              </div>
-            )
-          })
-        )}
-      </div>
-    </div>
-  )
-}
-
 const ACTIVITY_RANGE_OPTIONS = [
   { key: 'day',   label: 'Day' },
   { key: 'week',  label: 'Week' },
@@ -673,6 +580,162 @@ function ActivityTrend({ trend, loading, range, onRangeChange }) {
   )
 }
 
+// How many assets were maintained / disposed over a period, vs. the period before, with an
+// on-demand AI summary (LifecycleInsightService). Staff see only their office.
+const INSIGHT_RANGES = [
+  { key: 'day',   label: 'Day' },
+  { key: 'week',  label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: 'year',  label: 'Year' },
+]
+
+function InsightDelta({ now, before }) {
+  if (now === before) return <span className="text-2xs text-slate-400 dark:text-zinc-500">same as previous period</span>
+  const up = now > before
+  const pct = before > 0 ? `${Math.round((Math.abs(now - before) / before) * 100)}%` : null
+  return (
+    <span className={`text-2xs font-medium ${up ? 'text-amber-500' : 'text-emerald-500'}`}>
+      {up ? '▲' : '▼'} {pct ? `${pct} ` : ''}{up ? 'more' : 'fewer'} than previous period ({before})
+    </span>
+  )
+}
+
+function bucketLabel(bucket, range) {
+  if (range === 'year') return new Date(`${bucket}-01T00:00:00`).toLocaleDateString('en-PH', { month: 'short' })
+  const d = new Date(`${bucket}T00:00:00`)
+  return range === 'week' ? d.toLocaleDateString('en-PH', { weekday: 'short' }) : String(d.getDate())
+}
+
+function LifecycleInsights({ refreshToken }) {
+  const [range, setRange]       = useState('month')
+  const [data, setData]         = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [summaries, setSummaries] = useState({})   // range -> AI text
+  const [generating, setGenerating] = useState(false)
+  const [aiError, setAiError]   = useState('')
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    getLifecycleInsights(range)
+      .then(({ data }) => { if (alive) setData(data) })
+      .catch(() => { if (alive) setData(null) })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [range, refreshToken])
+
+  const generate = async () => {
+    setGenerating(true)
+    setAiError('')
+    try {
+      const { data } = await generateLifecycleSummary(range)
+      setData(data)
+      setSummaries((prev) => ({ ...prev, [range]: data.summary }))
+    } catch (err) {
+      setAiError(err.response?.data?.message || 'Could not generate the summary.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const m = data?.maintenance
+  const d = data?.disposal
+  const series = m ? m.series.map((p, i) => ({ bucket: p.bucket, maint: p.assets, disp: d.series[i]?.assets || 0 })) : []
+  const max = Math.max(1, ...series.map((p) => Math.max(p.maint, p.disp)))
+  const labelStride = series.length > 14 ? Math.ceil(series.length / 8) : 1
+  const summary = summaries[range]
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
+      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Maintenance &amp; Disposal Summary</p>
+          {data && <span className="text-xs text-slate-400 dark:text-zinc-600">{data.label} · {fmtDateShort(data.from)} – {fmtDateShort(data.to)}</span>}
+        </div>
+        <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/60 p-0.5">
+          {INSIGHT_RANGES.map((opt) => (
+            <button key={opt.key} onClick={() => { setRange(opt.key); setAiError('') }}
+              className={`px-2.5 py-1 rounded-md text-2xs font-medium transition-all duration-150 ${
+                range === opt.key
+                  ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-sm'
+                  : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
+              }`}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        {loading && !data ? (
+          <div className="grid grid-cols-2 gap-4"><Sk className="h-14" /><Sk className="h-14" /></div>
+        ) : !data ? (
+          <p className="text-sm text-slate-400 dark:text-zinc-500">Couldn't load maintenance and disposal activity.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-amber-500">Maintained</p>
+                <p className="text-2xl font-semibold text-slate-900 dark:text-white tabular-nums">{m.assets.toLocaleString()} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">asset{m.assets !== 1 ? 's' : ''}</span></p>
+                <InsightDelta now={m.assets} before={m.previousAssets} />
+                <p className="text-2xs text-slate-400 dark:text-zinc-500 mt-0.5">{m.records} record{m.records !== 1 ? 's' : ''} · cost {fmtMoney(Number(m.totalCost) || 0)}</p>
+              </div>
+              <div>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-red-400">Disposed</p>
+                <p className="text-2xl font-semibold text-slate-900 dark:text-white tabular-nums">{d.assets.toLocaleString()} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">asset{d.assets !== 1 ? 's' : ''}</span></p>
+                <InsightDelta now={d.assets} before={d.previousAssets} />
+                <p className="text-2xs text-slate-400 dark:text-zinc-500 mt-0.5">{d.records} record{d.records !== 1 ? 's' : ''} · proceeds {fmtMoney(Number(d.totalProceeds) || 0)}</p>
+              </div>
+            </div>
+
+            {series.length > 1 && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-end gap-1" style={{ height: '64px' }}>
+                  {series.map((p) => (
+                    <div key={p.bucket} className="flex-1 h-full flex items-end justify-center gap-px min-w-0"
+                      title={`${p.bucket}: ${p.maint} maintained, ${p.disp} disposed`}>
+                      <div className="w-1/2 rounded-sm bg-amber-500/70" style={{ height: `${p.maint === 0 ? 2 : Math.max((p.maint / max) * 60, 4)}px` }} />
+                      <div className="w-1/2 rounded-sm bg-red-400/70" style={{ height: `${p.disp === 0 ? 2 : Math.max((p.disp / max) * 60, 4)}px` }} />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-1">
+                  {series.map((p, i) => (
+                    <span key={p.bucket} className="flex-1 text-center text-2xs text-slate-400 dark:text-zinc-600 truncate">
+                      {i % labelStride === 0 ? bucketLabel(p.bucket, range) : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">AI Summary</p>
+                <button onClick={generate} disabled={generating}
+                  className="text-xs font-semibold text-brand-500 dark:text-brand-400 hover:text-brand-600 dark:hover:text-brand-300 disabled:opacity-50 transition-colors">
+                  {generating ? 'Generating…' : summary ? 'Regenerate' : 'Generate summary'}
+                </button>
+              </div>
+              {aiError ? (
+                <p className="text-xs text-red-400 mt-2">{aiError}</p>
+              ) : summary ? (
+                <p className="text-sm text-slate-600 dark:text-zinc-300 leading-relaxed mt-2">{summary}</p>
+              ) : (
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">
+                  Get a plain-language summary of this period's maintenance and disposal activity, written by AI from the numbers above.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function fmtDateShort(iso) {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function ActivityFeed({ events, loading, className = '' }) {
   return (
     <div className={`bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 flex flex-col ${className}`}>
@@ -725,12 +788,12 @@ function ActivityFeed({ events, loading, className = '' }) {
 function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
   const max = breakdown[0]?.count || 1
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 flex flex-col h-full">
       <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Assets by Category</p>
         {!loading && <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">{total} total</span>}
       </div>
-      <div className="p-4 space-y-3">
+      <div className="p-4 flex-1 flex flex-col justify-around gap-3">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="space-y-1.5">
@@ -772,32 +835,122 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
   )
 }
 
+// Admin inbox for staff requests — maintenance / disposal records a STAFF account added,
+// waiting to be approved or rejected (see ApprovalControls). Updates live via the
+// dashboard's SSE reload, so it doubles as the admin's request notification.
+const PENDING_PREVIEW = 6
+
+function PendingApprovals({ requests, loading, onApprove, onReject, busyId }) {
+  const count = requests.length
+  const shown = requests.slice(0, PENDING_PREVIEW)
+  const kinds = new Set(requests.map((r) => r.kind))
+  const viewAll = kinds.size === 1 && kinds.has('disposal') ? '/disposal?pending=1' : '/maintenance?pending=1'
+
+  return (
+    <div className={`bg-white dark:bg-zinc-900 rounded-xl border ${count > 0 ? 'border-amber-500/40' : 'border-slate-200 dark:border-zinc-800'}`}>
+      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {count > 0 && (
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+            </span>
+          )}
+          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Pending Approvals</p>
+          {!loading && (
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${count > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'}`}>
+              {count}
+            </span>
+          )}
+        </div>
+        {count > PENDING_PREVIEW && (
+          <Link to={viewAll} className="text-xs text-brand-400 hover:text-brand-300 font-medium transition-colors duration-150">View all</Link>
+        )}
+      </div>
+      {loading ? (
+        <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="px-5 py-3.5 flex items-center gap-3">
+              <Sk className="w-20 h-5 rounded flex-shrink-0" />
+              <div className="flex-1 space-y-2"><Sk className="h-3.5 w-2/3" /><Sk className="h-3 w-1/3" /></div>
+            </div>
+          ))}
+        </div>
+      ) : count === 0 ? (
+        <p className="px-5 py-4 text-sm text-slate-400 dark:text-zinc-500">No maintenance or disposal requests are waiting for approval.</p>
+      ) : (
+        <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
+          {shown.map((r) => {
+            const isMaint = r.kind === 'maintenance'
+            const detail = isMaint
+              ? `${r.maintenanceType || ''}${r.findings ? ` · ${r.findings}` : ''}`
+              : `${r.recommendedMethod || ''}${r.reason ? ` · ${r.reason}` : ''}`
+            return (
+              <div key={`${r.kind}:${r.id}`} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
+                <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold leading-none whitespace-nowrap ${isMaint ? 'text-amber-500 bg-amber-500/10' : 'text-red-400 bg-red-400/10'}`}>
+                  {isMaint ? 'Maintenance' : 'Disposal'}
+                </span>
+                <Link to={`/${r.kind}?assetId=${r.asset?.id ?? ''}&pending=1`} className="flex-1 min-w-0 group">
+                  <p className="text-sm text-slate-700 dark:text-zinc-200 leading-snug truncate font-medium group-hover:text-slate-900 dark:group-hover:text-white">
+                    <span className="font-mono text-xs text-slate-400 dark:text-zinc-500 mr-1.5">{r.asset?.propertyNumber}</span>
+                    {r.asset?.description || '—'}
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5 leading-snug truncate">
+                    {detail}{r.requestedByName ? ` — requested by ${r.requestedByName}` : ''}
+                  </p>
+                </Link>
+                <time className="hidden sm:block flex-shrink-0 text-xs text-slate-400 dark:text-zinc-600 whitespace-nowrap tabular-nums">{timeAgo(r.createdAt)}</time>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => onApprove(r)} disabled={busyId === `${r.kind}:${r.id}`}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-40 transition-all duration-150">
+                    Approve
+                  </button>
+                  <button onClick={() => onReject(r)} disabled={busyId === `${r.kind}:${r.id}`}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-semibold text-red-500 dark:text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-all duration-150">
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  // Staff only ever receive their own office's data from the API (see AccessService);
+  // the admin-only parts of the page (account count, office distribution) are hidden for them.
+  const user     = useSelector((s) => s.auth.user)
+  const isAdmin  = user?.role === 'ADMIN'
+  const toast    = useToast()
+  const [rejecting, setRejecting] = useState(null)
+  const [busyId, setBusyId]       = useState(null)
 
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(false)
   const [assets, setLocalAssets] = useState([])
   const [history, setHistory]   = useState([])
   const [userCount, setUserCount] = useState(0)
-  const [aiSummary, setAiSummary] = useState([])
   const [maintenanceRecords, setMaintenanceRecords] = useState([])
   const [disposalRecords, setDisposalRecords] = useState([])
   const [activityRange, setActivityRange] = useState('week')
+  const [insightToken, setInsightToken] = useState(0)   // bumps on every (re)load so the summary card refetches
 
   const load = useCallback(({ silent = false } = {}) => {
     if (!silent) { setLoading(true); setError(false) }
     Promise.all([
       getAssets().catch(() => null),
       getAssetHistory().catch(() => null),
-      getUsers().catch(() => null),
-      getRecommendationSummary().catch(() => null),
+      isAdmin ? getUsers().catch(() => null) : Promise.resolve(null),
       getMaintenance().catch(() => null),
       getDisposal().catch(() => null),
-    ]).then(([assetRes, histRes, userRes, aiRes, maintRes, dispRes]) => {
-      if (!assetRes && !histRes && !userRes) {
+    ]).then(([assetRes, histRes, userRes, maintRes, dispRes]) => {
+      if (!assetRes && !histRes) {
         if (!silent) { setError(true); setLoading(false) }
         return
       }
@@ -808,12 +961,12 @@ function Dashboard() {
       dispatch(setAssets(a))
       setHistory(h)
       setUserCount(u.length)
-      setAiSummary(aiRes?.data ?? [])
       setMaintenanceRecords(maintRes?.data ?? [])
       setDisposalRecords(dispRes?.data ?? [])
+      setInsightToken((t) => t + 1)
       if (!silent) setLoading(false)
     })
-  }, [dispatch])
+  }, [dispatch, isAdmin])
 
   useEffect(() => { load() }, [load])
 
@@ -855,9 +1008,10 @@ function Dashboard() {
   // ledger rows independently — a ledger record for an asset that's since
   // moved on (e.g. repaired and now SERVICEABLE again) isn't double-counted.
   const maintByAsset = {}
-  maintenanceRecords.forEach((m) => { if (m.asset?.id != null) maintByAsset[m.asset.id] = m })
+  const approved = (r) => !r.approvalStatus || r.approvalStatus === 'APPROVED' // skip pending/rejected requests
+  maintenanceRecords.forEach((m) => { if (m.asset?.id != null && approved(m)) maintByAsset[m.asset.id] = m })
   const dispByAsset = {}
-  disposalRecords.forEach((d) => { if (d.asset?.id != null) dispByAsset[d.asset.id] = d })
+  disposalRecords.forEach((d) => { if (d.asset?.id != null && approved(d)) dispByAsset[d.asset.id] = d })
 
   const lifecycleDist = {}
   assets.forEach((a) => {
@@ -881,7 +1035,6 @@ function Dashboard() {
   const lifecycleTotal = Object.values(lifecycleDist).reduce((s, c) => s + c, 0)
 
   const officeDist     = useMemo(() => computeOfficeDist(assets), [assets])
-  const topAccountable = useMemo(() => computeTopAccountable(assets), [assets])
   const activityTrend  = useMemo(() => computeActivityTrend(history, activityRange), [history, activityRange])
 
   const categoryBreakdown = useMemo(() => {
@@ -896,21 +1049,45 @@ function Dashboard() {
 
   const recentEvents = history.slice(0, 8)
 
-  const aiSummaryMap = {}
-  let aiSummaryTotal = 0
-  aiSummary.forEach(({ recommendation, count }) => { aiSummaryMap[recommendation] = count; aiSummaryTotal += count })
 
   const animAssets  = useCountUp(totalAssets,     !loading)
   const animValue   = useCountUp(Math.round(totalValue), !loading)
   const animMaint   = useCountUp(underMaintenance, !loading)
-  const animUsers   = useCountUp(userCount,        !loading)
+  // newest first — the admin's request inbox (and the staff "Awaiting Approval" count)
+  const pendingList = useMemo(() => [
+    ...maintenanceRecords.map((r) => ({ ...r, kind: 'maintenance' })),
+    ...disposalRecords.map((r) => ({ ...r, kind: 'disposal' })),
+  ].filter((r) => r.approvalStatus === 'PENDING_APPROVAL')
+   .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [maintenanceRecords, disposalRecords])
+  const pendingRequests = pendingList.length
+
+  const approveRequest = async (r) => {
+    setBusyId(`${r.kind}:${r.id}`)
+    try {
+      await (r.kind === 'maintenance' ? approveMaintenance : approveDisposal)(r.id)
+      toast.show(`${r.kind === 'maintenance' ? 'Maintenance' : 'Disposal'} request approved.`, 'success')
+      load({ silent: true })
+    } catch (err) {
+      toast.show(err.response?.data?.message || 'Failed to approve the request.', 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const rejectRequest = async (note) => {
+    const r = rejecting
+    await (r.kind === 'maintenance' ? rejectMaintenance : rejectDisposal)(r.id, note)
+    toast.show('Request rejected.', 'warning')
+    load({ silent: true })
+  }
+  const animUsers   = useCountUp(isAdmin ? userCount : pendingRequests, !loading)
 
   const today = now.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   const stats = [
     {
       label: 'Assets', value: animAssets.toLocaleString(),
-      sub: 'Total registered assets', delta: newThisMonth, href: '/assets',
+      sub: isAdmin ? 'Total registered assets' : `Assets in ${user?.officeName || 'your office'}`, delta: newThisMonth, href: '/assets',
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" /></svg>,
     },
     {
@@ -923,10 +1100,14 @@ function Dashboard() {
       sub: 'Under maintenance', href: '/maintenance',
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>,
     },
-    {
+    isAdmin ? {
       label: 'Accounts', value: animUsers.toLocaleString(),
       sub: 'Admin and staff users', href: '/accounts',
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>,
+    } : {
+      label: 'Awaiting Approval', value: animUsers.toLocaleString(),
+      sub: 'Maintenance & disposal requests', href: '/maintenance',
+      icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>,
     },
   ]
 
@@ -960,18 +1141,27 @@ function Dashboard() {
         <StatStrip stats={stats} loading={loading} />
       </div>
 
+      {isAdmin && (
+        <div className="mb-5">
+          <PendingApprovals requests={pendingList} loading={loading} busyId={busyId}
+            onApprove={approveRequest} onReject={setRejecting} />
+        </div>
+      )}
+
       {/* Quick Actions */}
       <div className="mb-5">
-        <QuickActions />
+        <QuickActions isAdmin={isAdmin} />
       </div>
 
       {/* Condition + Lifecycle + Office row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+      <div className={`grid grid-cols-1 ${isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-5 mb-5`}>
         <ConditionDistribution condDist={condDist} total={totalAssets} loading={loading}
           onSelect={(cond) => navigate(`/assets?condition=${cond}`)} />
         <LifecycleDistribution lifecycleDist={lifecycleDist} total={lifecycleTotal} loading={loading} />
-        <OfficeDistribution offices={officeDist} total={totalAssets} loading={loading}
-          onSelect={(officeId) => navigate(`/assets?office=${officeId}`)} />
+        {isAdmin && (
+          <OfficeDistribution offices={officeDist} total={totalAssets} loading={loading}
+            onSelect={(officeId) => navigate(`/assets?office=${officeId}`)} />
+        )}
       </div>
 
       {/* Activity trend */}
@@ -979,17 +1169,26 @@ function Dashboard() {
         <ActivityTrend trend={activityTrend} loading={loading} range={activityRange} onRangeChange={setActivityRange} />
       </div>
 
-      {/* Activity feed + category breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5 items-start">
-        <ActivityFeed events={recentEvents} loading={loading} className="h-fit self-start" />
-        <div className="space-y-5 h-fit self-start">
-          <CategoryBreakdown breakdown={categoryBreakdown} total={totalAssets} loading={loading}
-            onSelect={(categoryId) => navigate(`/assets?category=${categoryId}`)} />
-          <AiRecommendationsSummary summary={aiSummaryMap} total={aiSummaryTotal} loading={loading} />
-          <TopAccountable people={topAccountable} loading={loading}
-            onSelect={(name) => navigate(`/assets?search=${encodeURIComponent(name)}`)} />
-        </div>
+      {/* Maintenance & disposal over a period + AI summary */}
+      <div className="mb-5">
+        <LifecycleInsights refreshToken={insightToken} />
       </div>
+
+      {/* Activity feed + category breakdown */}
+      {/* grid items stretch, so both cards share the taller one's height */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
+        <ActivityFeed events={recentEvents} loading={loading} />
+        <CategoryBreakdown breakdown={categoryBreakdown} total={totalAssets} loading={loading}
+          onSelect={(categoryId) => navigate(`/assets?category=${categoryId}`)} />
+      </div>
+      {rejecting && (
+        <RejectRequestModal
+          record={rejecting}
+          describe={(r) => `${r.kind === 'maintenance' ? 'Maintenance' : 'Disposal'} — ${r.asset?.propertyNumber || ''} ${r.asset?.description || ''}`}
+          onClose={() => setRejecting(null)}
+          onConfirm={rejectRequest}
+        />
+      )}
     </MainLayout>
   )
 }

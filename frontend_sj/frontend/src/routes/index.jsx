@@ -48,12 +48,12 @@ function AppRoutes() {
       <Route path="/reports"      element={<ProtectedRoute><Reports      /></ProtectedRoute>} />
       <Route path="/qr-scanner"   element={<ProtectedRoute><QRScanner    /></ProtectedRoute>} />
       <Route path="/accounts"     element={<AdminRoute><Accounts          /></AdminRoute>} />
-      <Route path="/audit-logs"   element={<ProtectedRoute><Accounts     /></ProtectedRoute>} />
+      <Route path="/audit-logs"   element={<AdminRoute><Accounts     /></AdminRoute>} />
       <Route path="/my-account"   element={<ProtectedRoute><Accounts      /></ProtectedRoute>} />
-      <Route path="/offices"      element={<ProtectedRoute><Offices       /></ProtectedRoute>} />
-      <Route path="/categories"   element={<ProtectedRoute><Categories    /></ProtectedRoute>} />
-      <Route path="/personnel"    element={<ProtectedRoute><Personnel     /></ProtectedRoute>} />
-      <Route path="/deleted-records" element={<ProtectedRoute><DeletedRecords /></ProtectedRoute>} />
+      <Route path="/offices"      element={<AdminRoute><Offices       /></AdminRoute>} />
+      <Route path="/categories"   element={<AdminRoute><Categories    /></AdminRoute>} />
+      <Route path="/personnel"    element={<AdminRoute><Personnel     /></AdminRoute>} />
+      <Route path="/deleted-records" element={<AdminRoute><DeletedRecords /></AdminRoute>} />
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>

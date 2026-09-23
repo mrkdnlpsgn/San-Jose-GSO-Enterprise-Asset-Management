@@ -35,9 +35,18 @@ public class UserController {
         return userService.update(id, req);
     }
 
+    // Accounts are deactivated rather than deleted (see UserService.deactivate).
+    @PostMapping("/{id}/deactivate")
+    public UserResponse deactivate(@PathVariable Long id,
+                                   @RequestBody(required = false) java.util.Map<String, Long> body) {
+        return userService.deactivate(id, body != null ? body.get("transferToUserId") : null);
+    }
+
+    // Kept for older clients (the mobile app): DELETE now deactivates the account.
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        userService.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id,
+                                       @RequestBody(required = false) java.util.Map<String, Long> body) {
+        userService.deactivate(id, body != null ? body.get("transferToUserId") : null);
         return ResponseEntity.noContent().build();
     }
 

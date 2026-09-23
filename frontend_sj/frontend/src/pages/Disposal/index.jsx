@@ -1,17 +1,19 @@
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useEventStream } from '../../hooks/useEventStream'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
+import { ApprovalBadge, ApprovalActions, RejectRequestModal, isApproved } from '../../components/common/ApprovalControls'
 import GroupDevicesTable, { groupEntries, recordMatches } from '../Assets/GroupDevicesTable'
 import { AssetGroupDrawerById } from '../Assets/AssetGroupDrawer'
 import DeviceRow from '../Assets/DeviceRow'
 import EvidenceModal from '../../components/common/EvidenceModal'
 import AddDisposalModal from './AddDisposalModal'
-import { getDisposal, createDisposal, updateDisposal, deleteDisposal } from '../../services/disposalService'
+import { getDisposal, createDisposal, updateDisposal, deleteDisposal, approveDisposal, rejectDisposal } from '../../services/disposalService'
 import { getAssets } from '../../services/assetService'
 import { getUsers } from '../../services/userService'
 
@@ -55,6 +57,10 @@ function Disposal() {
   const [showAdd, setShowAdd]   = useState(false)
   const [editing, setEditing]   = useState(null)
   const [deleting, setDeleting] = useState(null)
+  const [rejecting, setRejecting] = useState(null)
+  // ?pending=1 (e.g. from the dashboard's Pending Approvals) opens with only requests awaiting approval
+  const [pendingOnly, setPendingOnly] = useState(() => new URLSearchParams(window.location.search).get('pending') === '1')
+  const isAdmin = useSelector((s) => s.auth.user?.role === 'ADMIN')
   const [viewingEvidence, setViewingEvidence] = useState(null)
   const [page, setPage]         = useState(1)
 
@@ -123,7 +129,7 @@ function Disposal() {
     // response returns) can already have added this record via the listener
     // above — check first so a fast round-trip doesn't insert it twice.
     setRecords((prev) => (prev.some((r) => r.id === data.id) ? prev.map((r) => (r.id === data.id ? data : r)) : [data, ...prev]))
-    toast.show('Disposal record added.', 'success')
+    toast.show(isApproved(data) ? 'Disposal record added.' : 'Request sent — an administrator needs to approve it before you can edit it.', 'success')
   }
 
   const handleUpdate = async (payload) => {
@@ -145,14 +151,35 @@ function Disposal() {
     }
   }
 
+  const upsert = (data) => setRecords((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+
+  const handleApprove = async (rec) => {
+    try {
+      const { data } = await approveDisposal(rec.id)
+      upsert(data)
+      toast.show('Request approved.', 'success')
+    } catch (err) {
+      toast.show(err.response?.data?.message || 'Failed to approve the request.', 'error')
+    }
+  }
+
+  const handleReject = async (note) => {
+    const { data } = await rejectDisposal(rejecting.id, note)
+    upsert(data)
+    toast.show('Request rejected.', 'warning')
+  }
+
+  const pendingCount = records.filter((r) => r.approvalStatus === 'PENDING_APPROVAL').length
+
   const filtered = useMemo(() => {
     return records.filter((r) => {
+      if (pendingOnly && r.approvalStatus !== 'PENDING_APPROVAL') return false
       if (filterStatus && r.disposalStatus !== filterStatus) return false
       if (filterMethod && r.recommendedMethod !== filterMethod) return false
       if (assetFilter && String(r.asset?.id) !== assetFilter) return false
       return true
     })
-  }, [records, filterStatus, filterMethod, assetFilter])
+  }, [records, pendingOnly, filterStatus, filterMethod, assetFilter])
 
   // group records by their device's group; a lone record stays a plain row
   const entries = useMemo(() => groupEntries(filtered, (r) => r.asset?.groupId), [filtered])
@@ -223,6 +250,7 @@ function Disposal() {
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[r.disposalStatus] || ''}`}>{r.disposalStatus}</span>
+                      <ApprovalBadge record={r} />
                     </td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{fmt(r.inspectionDate)}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{r.approvedBy?.fullName || r.approvedBy?.username || '—'}</td>
@@ -236,14 +264,19 @@ function Disposal() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
+                        {isAdmin && <ApprovalActions record={r} onApprove={handleApprove} onReject={setRejecting} />}
+                        {(isAdmin || isApproved(r)) && (
                         <button onClick={() => setEditing(r)} title="Edit"
                           className="p-1.5 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                         </button>
+                        )}
+                        {isAdmin && (
                         <button onClick={() => setDeleting(r)} title="Delete"
                           className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-950/40 transition-all duration-150">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -328,11 +361,19 @@ function Disposal() {
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
             </svg>
-            Add Disposal
+            {isAdmin ? 'Add Disposal' : 'Request Disposal'}
           </Button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {(isAdmin || pendingCount > 0) && (
+            <button onClick={() => setPendingOnly((v) => !v)}
+              className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-all ${
+                pendingOnly
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10'
+              }`}>Awaiting approval{pendingCount > 0 ? ` (${pendingCount})` : ''}</button>
+          )}
           {[['', 'All Status'], ['PENDING', 'Pending'], ['APPROVED', 'Approved'], ['COMPLETED', 'Completed']].map(([val, label]) => (
             <button key={val} onClick={() => setFilterStatus(val)}
               className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-all ${
@@ -447,8 +488,16 @@ function Disposal() {
           onClose={() => setViewingEvidence(null)}
         />
       )}
-      {showAdd  && <AddDisposalModal onClose={() => setShowAdd(false)} onSave={handleCreate} assets={assets} users={users} />}
+      {showAdd  && <AddDisposalModal onClose={() => setShowAdd(false)} onSave={handleCreate} assets={assets} users={users} requestMode={!isAdmin} />}
       {editing  && <AddDisposalModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} assets={assets} users={users} />}
+      {rejecting && (
+        <RejectRequestModal
+          record={rejecting}
+          describe={(r) => `${r.asset?.propertyNumber || ''} — ${r.asset?.description || ''}`}
+          onClose={() => setRejecting(null)}
+          onConfirm={handleReject}
+        />
+      )}
       {deleting && (
         <ConfirmDialog
           title="Delete this disposal record?"
