@@ -119,8 +119,8 @@ export function parseImportFile(file) {
   })
 }
 
-// Full-fidelity backup/export — includes the computed shortage/overage columns
-// shown in the Assets table, plus fields (accountable person, lifecycle
+// Full-fidelity backup/export — includes the manually entered shortage/overage
+// columns shown in the Assets table, plus fields (accountable person, lifecycle
 // status, remarks) not shown there but still worth having in an export.
 export function exportAssetsToExcel(assets) {
   const columns = [
@@ -130,8 +130,8 @@ export function exportAssetsToExcel(assets) {
     { label: 'Category',               value: (a) => a.category?.categoryName || '' },
     { label: 'Qty (Property Card)',    value: (a) => a.quantity ?? '' },
     { label: 'Qty (Physical Count)',   value: (a) => a.physicalCount ?? '' },
-    { label: 'Shortage/Overage Qty',   value: (a) => (a.physicalCount != null ? a.physicalCount - (a.quantity ?? 0) : '') },
-    { label: 'Shortage/Overage Value', value: (a) => (a.physicalCount != null ? (a.physicalCount - (a.quantity ?? 0)) * Number(a.unitValue ?? 0) : '') },
+    { label: 'Shortage/Overage Qty',   value: (a) => a.shortageOverageQty ?? 0 },
+    { label: 'Shortage/Overage Value', value: (a) => a.shortageOverageValue ?? 0 },
     { label: 'Unit Value',             value: (a) => a.unitValue ?? '' },
     { label: 'Office',                 value: (a) => a.office?.officeName || '' },
     { label: 'Accountable Person',     value: (a) => a.accountablePerson?.fullName || '' },

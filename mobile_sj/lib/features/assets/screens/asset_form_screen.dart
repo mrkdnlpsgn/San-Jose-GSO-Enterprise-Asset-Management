@@ -14,6 +14,7 @@ import '../../../shared/provider/reference_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/widgets/main_shell.dart';
+import '../../auth/provider/auth_provider.dart';
 import '../../maintenance/data/maintenance_service.dart';
 import '../../disposal/data/disposal_service.dart';
 import '../../../shared/utils/idempotency.dart';
@@ -37,13 +38,13 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   bool _loading = false;
   final String _idempotencyKey = newIdempotencyKey();
 
-  // One entry per unit (= Qty). Resized whenever the quantity changes.
-  final List<_UnitFields> _units = [];
+  late final TextEditingController _propertyNumber;
+  late final TextEditingController _parSerial;
   late final TextEditingController _serialNumber;
   late final TextEditingController _description;
-  late final TextEditingController _quantity;
   late final TextEditingController _unitValue;
-  late final TextEditingController _physicalCount;
+  late final TextEditingController _shortageOverageQty;
+  late final TextEditingController _shortageOverageValue;
   late final TextEditingController _remarks;
   late final TextEditingController _specifications;
 
@@ -67,28 +68,26 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
 
   bool get _isEdit => widget.asset != null;
 
-  // A device inside a group is always exactly one unit: Qty (Property Card) and Qty (Physical
-  // Count) are fixed at 1 and can't be changed.
-  bool get _lockedQty => widget.asset?.groupId != null;
+  // A staff account can edit an asset of its own office, but can't move it to another
+  // office — mirrors the web app's AddAssetModal staffMode. Only an administrator can
+  // relocate an asset.
+  bool get _staffMode => !(ref.read(authProvider).value?.isAdmin ?? false);
 
   @override
   void initState() {
     super.initState();
     final a = widget.asset;
-    // Each device has its own Property Number and PAR Number. Only the serial half of
-    // "YYYY-MM:SERIAL" is typed; the year-month prefix comes from the acquisition date.
-    if (a != null) {
-      final par = a.parNumber;
-      _units.add(_UnitFields(
-        propertyNumber: a.propertyNumber,
-        parSerial: par != null && par.contains(':') ? par.substring(par.indexOf(':') + 1) : '',
-      ));
-    }
+    // Only the serial half of "YYYY-MM:SERIAL" is typed; the year-month prefix comes
+    // from the acquisition date.
+    final par = a?.parNumber;
+    _propertyNumber = TextEditingController(text: a?.propertyNumber ?? '');
+    _parSerial = TextEditingController(
+        text: par != null && par.contains(':') ? par.substring(par.indexOf(':') + 1) : '');
     _serialNumber = TextEditingController(text: a?.serialNumber ?? '');
     _description = TextEditingController(text: a?.description ?? '');
-    _quantity = TextEditingController(text: a?.quantity.toString() ?? '1');
     _unitValue = TextEditingController(text: a?.unitValue.toStringAsFixed(2) ?? '');
-    _physicalCount = TextEditingController(text: a?.physicalCount?.toString() ?? '1');
+    _shortageOverageQty = TextEditingController(text: a?.shortageOverageQty.toString() ?? '0');
+    _shortageOverageValue = TextEditingController(text: a?.shortageOverageValue.toStringAsFixed(2) ?? '0.00');
     _remarks = TextEditingController(text: a?.remarks ?? '');
     _specifications = TextEditingController(text: a?.specifications ?? '');
     _categoryId = a?.category.id;
@@ -101,23 +100,16 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     if (a?.acquisitionDate != null) {
       _acquisitionDate = DateTime.tryParse(a!.acquisitionDate);
     }
-    if (a?.groupId != null) {
-      _quantity.text = '1';
-      _physicalCount.text = '1';
-    }
-    _resizeUnits(a?.quantity ?? 1); // pads legacy assets that have fewer unit entries than their quantity
-    if (_units.length > 1) _seedUnitsFromShared(setCondition: true);
     _description.addListener(_onDescriptionChanged);
   }
 
   @override
   void dispose() {
     _categoryDebounce?.cancel();
-    for (final u in _units) {
-      u.dispose();
-    }
-    for (final c in [_serialNumber, _description, _quantity, _unitValue,
-        _physicalCount, _remarks, _specifications]) {
+    for (final c in [
+      _propertyNumber, _parSerial, _serialNumber, _description, _unitValue,
+      _shortageOverageQty, _shortageOverageValue, _remarks, _specifications,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -199,66 +191,34 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final multi = _units.length > 1;
-    if (!multi && _acquisitionDate == null) {
+    if (_acquisitionDate == null) {
       _showError('Please select an acquisition date.');
-      return;
-    }
-    if (multi && _acquisitionDate == null && _units.any((u) => u.acquisitionDate == null)) {
-      _showError('Set an acquisition date for every device — or one shared date above for all of them.');
       return;
     }
     setState(() => _loading = true);
     try {
       final offices = ref.read(officesProvider).value ?? [];
-      // With several devices the shared Location / people fields are hidden (each device has its
-      // own); the request still carries shared values, so they mirror device 1.
-      final sharedOfficeId = multi ? _units.first.officeId : _officeId;
-      final sharedPersonnelId = multi ? _units.first.personnelId : _personnelId;
-      final sharedCurrentUserId = multi ? _units.first.currentUserId : _currentUserId;
-      final officeName = offices.where((o) => o.id == sharedOfficeId).firstOrNull?.officeName ?? '';
+      final officeName = offices.where((o) => o.id == _officeId).firstOrNull?.officeName ?? '';
       final data = {
-        // One entry per device — each becomes its own asset. Anything left blank is
-        // inherited from the shared details on this form.
-        // One entry per device — each becomes its own asset. With several devices each carries
-        // its own value/condition/specs (and date, when no shared date is set); a single asset
-        // uses the shared fields, so its entry only has the numbers.
-        'units': [
-          for (final u in _units)
-            {
-              'propertyNumber': u.propertyNumber.text.trim().isEmpty ? null : u.propertyNumber.text.trim(),
-              'parNumber': '${_parPrefix(u.acquisitionDate)}:${u.parSerial.text.trim()}',
-              'serialNumber': !multi || u.serialNumber.text.trim().isEmpty ? null : u.serialNumber.text.trim(),
-              'unitValue': multi ? double.tryParse(u.unitValue.text.trim()) : null,
-              'acquisitionDate': multi && _acquisitionDate == null
-                  ? u.acquisitionDate?.toIso8601String().substring(0, 10)
-                  : null,
-              'officeId': multi ? u.officeId : null,
-              'personnelId': multi ? u.personnelId : null,
-              'currentUserId': multi ? u.currentUserId : null,
-              'condition': multi ? u.condition : null,
-              'specifications': !multi || u.specifications.text.trim().isEmpty ? null : u.specifications.text.trim(),
-              'remarks': !multi || u.remarks.text.trim().isEmpty ? null : u.remarks.text.trim(),
-            },
-        ],
+        'propertyNumber': _propertyNumber.text.trim().isEmpty ? null : _propertyNumber.text.trim(),
+        'parNumber': '${_parPrefix()}:${_parSerial.text.trim()}',
         'serialNumber': _serialNumber.text.trim().isEmpty ? null : _serialNumber.text.trim(),
         'description': _description.text.trim(),
         'categoryId': _categoryId,
-        'quantity': int.parse(_quantity.text.trim()),
+        'quantity': 1,
+        'physicalCount': 1,
         'acquisitionDate': _acquisitionDate?.toIso8601String().substring(0, 10),
-        // With several devices the shared value is just the sum of the devices' own.
-        'unitValue': multi
-            ? _units.fold<double>(0, (n, u) => n + (double.tryParse(u.unitValue.text.trim()) ?? 0))
-            : double.parse(_unitValue.text.trim()),
-        'officeId': sharedOfficeId,
-        'personnelId': sharedPersonnelId,
-        'currentUserId': sharedCurrentUserId,
-        'physicalCount': _physicalCount.text.trim().isEmpty ? null : int.parse(_physicalCount.text.trim()),
+        'unitValue': double.parse(_unitValue.text.trim()),
+        'officeId': _officeId,
+        'personnelId': _personnelId,
+        'currentUserId': _currentUserId,
+        'shortageOverageQty': int.tryParse(_shortageOverageQty.text.trim()) ?? 0,
+        'shortageOverageValue': double.tryParse(_shortageOverageValue.text.trim()) ?? 0,
         'location': officeName,
-        'condition': multi ? 'SERVICEABLE' : _condition,
+        'condition': _condition,
         'lifecycleStatus': _lifecycleStatus,
         'remarks': _remarks.text.trim().isEmpty ? null : _remarks.text.trim(),
-        'specifications': multi || _specifications.text.trim().isEmpty ? null : _specifications.text.trim(),
+        'specifications': _specifications.text.trim().isEmpty ? null : _specifications.text.trim(),
       };
       final service = AssetService();
       final AssetModel saved;
@@ -326,9 +286,10 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
             loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
             error: (e, _) => Center(child: Text(e.toString())),
             data: (personnel) {
-              // Once an office is selected, narrow both the Accountable Person and
-              // Current User dropdowns to personnel assigned to that office — before
-              // that, show everyone so picking an office isn't forced first.
+              // Accountable Person narrows to the asset's office once one is picked (the
+              // person is custodially tied to that office). Current User is who actually
+              // has the device right now, which can be anyone active — including someone
+              // from another office, or the admin — so it's never office-filtered.
               final personnelForOffice = _officeId == null
                   ? personnel
                   : personnel.where((p) => p.officeId == _officeId).toList();
@@ -350,8 +311,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         ),
                       ),
                     ],
-                    _field(_serialNumber,
-                        _units.length > 1 ? 'Serial Number (optional — default for every unit)' : 'Serial Number (optional)'),
+                    _field(_serialNumber, 'Serial Number (optional)'),
                     _field(_description, 'Description', required: true),
                     _dropdown<CategoryModel>(
                       label: 'Category',
@@ -369,41 +329,48 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       alignment: Alignment.topCenter,
                       child: _suggestedCategory != null ? _categorySuggestionChip() : const SizedBox.shrink(),
                     ),
-                    _field(_quantity, 'Qty (Property Card)',
-                        keyboardType: TextInputType.number,
-                        required: true,
-                        enabled: !_lockedQty,
-                        helperText: _lockedQty ? 'Fixed at 1 for devices in a group' : null,
-                        onChanged: _onQuantityChanged,
-                        extraValidator: (v) {
-                          final n = int.tryParse(v?.trim() ?? '');
-                          return (n == null || n < 1 || n > _maxUnits) ? 'Enter a whole number from 1 to $_maxUnits' : null;
-                        }),
+                    _fixedField('Qty (Property Card)', '1', helperText: 'Always 1 — each asset is its own Property Number.'),
+                    _fixedField('Qty (Physical Count)', '1', helperText: 'Always 1.'),
                     _datePicker(),
-                    _unitsSection(offices, personnel),
-                    if (_units.length > 1)
+                    _field(_unitValue, 'Unit Value (₱)', keyboardType: TextInputType.number, required: true),
+                    _field(_shortageOverageQty, 'Shortage/Overage Qty (optional)', keyboardType: TextInputType.number),
+                    _field(_shortageOverageValue, 'Shortage/Overage Value (₱, optional)', keyboardType: TextInputType.number),
+                    _field(_propertyNumber, 'Property Number (optional)'),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: TextFormField(
+                        controller: _parSerial,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: InputDecoration(
+                          labelText: 'PAR Number',
+                          prefixText: '${_parPrefix()}:',
+                          hintText: 'e.g. H78JD80',
+                        ),
+                        validator: _validateParSerial,
+                      ),
+                    ),
+                    if (_staffMode) ...[
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
                         child: InputDecorator(
                           decoration: const InputDecoration(
-                              labelText: 'Total Unit Value (₱)', helperText: "Sum of every device's unit value below."),
+                              labelText: 'Location',
+                              helperText: 'Automatically set to your assigned office — only an administrator can move an asset.',
+                              helperMaxLines: 2),
                           child: Text(
-                              _units.fold<double>(0, (n, u) => n + (double.tryParse(u.unitValue.text.trim()) ?? 0))
-                                  .toStringAsFixed(2),
-                              style: TextStyle(color: context.colors.textPrimary)),
+                            offices.where((o) => o.id == _officeId).firstOrNull?.officeName ?? '—',
+                            style: TextStyle(color: context.colors.textPrimary),
+                          ),
                         ),
-                      )
-                    else
-                      _field(_unitValue, 'Unit Value (₱)', keyboardType: TextInputType.number, required: true),
-                    // With several devices, location and people are set per device (above).
-                    if (_units.length == 1) ...[
-                    _dropdown<OfficeModel>(
-                      label: 'Location',
-                      value: offices.where((o) => o.id == _officeId).firstOrNull,
-                      items: offices,
-                      itemLabel: (o) => o.officeName,
-                      onChanged: (o) => setState(() => _officeId = o?.id),
-                    ),
+                      ),
+                    ] else
+                      _dropdown<OfficeModel>(
+                        label: 'Location',
+                        value: offices.where((o) => o.id == _officeId).firstOrNull,
+                        items: offices,
+                        itemLabel: (o) => o.officeName,
+                        onChanged: (o) => setState(() => _officeId = o?.id),
+                      ),
                     _dropdown<PersonnelModel>(
                       label: 'Accountable Person',
                       value: personnelForOffice.where((p) => p.id == _personnelId).firstOrNull,
@@ -420,28 +387,17 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         ),
                       ),
                     _dropdown<PersonnelModel>(
-                      label: 'Current User (optional)',
-                      value: personnelForOffice.where((p) => p.id == _currentUserId).firstOrNull,
-                      items: personnelForOffice,
+                      label: 'Current User (optional — can be anyone, from any office)',
+                      value: personnel.where((p) => p.id == _currentUserId).firstOrNull,
+                      items: personnel,
                       itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
                       onChanged: (p) => setState(() => _currentUserId = p?.id),
                       required: false,
                     ),
-                    ],
-                    _field(_physicalCount, 'Qty (Physical Count)',
-                        keyboardType: TextInputType.number,
-                        required: true,
-                        enabled: !_lockedQty,
-                        helperText: _lockedQty ? 'Fixed at 1 for devices in a group' : null,
-                        extraValidator: (v) =>
-                            v?.trim() != _quantity.text.trim() ? 'Must equal Qty (Property Card)' : null),
-                    // With several devices, condition and specs are set per device (above).
-                    if (_units.length == 1) ...[
-                      _enumDropdown('Condition', _condition,
-                        ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
-                        (v) => setState(() => _condition = v!)),
-                      _field(_specifications, 'Technical Specifications', maxLines: 6),
-                    ],
+                    _enumDropdown('Condition', _condition,
+                      ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
+                      (v) => setState(() => _condition = v!)),
+                    _field(_specifications, 'Technical Specifications', maxLines: 6),
                     _field(_remarks, 'Remarks', maxLines: 3),
                     const SizedBox(height: 24),
                     SizedBox(
@@ -486,6 +442,16 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
           if (required && (v == null || v.trim().isEmpty)) return 'Required';
           return extraValidator?.call(v);
         },
+      ),
+    );
+  }
+
+  Widget _fixedField(String label, String value, {String? helperText}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: InputDecorator(
+        decoration: InputDecoration(labelText: label, helperText: helperText),
+        child: Text(value, style: TextStyle(color: context.colors.textSecondary)),
       ),
     );
   }
@@ -562,297 +528,18 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     );
   }
 
-  String _parPrefix([DateTime? override]) {
-    final d = _acquisitionDate ?? override;
+  String _parPrefix() {
+    final d = _acquisitionDate;
     if (d == null) return 'YYYY-MM';
     return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}';
   }
 
-  static const _maxUnits = 500;
-
-  // Physical Count must equal Qty (Property Card) — it follows the quantity as
-  // it's typed (still editable, still validated) and the unit list resizes to match.
-  void _onQuantityChanged(String v) {
-    final n = int.tryParse(v.trim());
-    if (n == null || n < 1 || n > _maxUnits) return;
-    setState(() {
-      final wasMulti = _units.length > 1;
-      _physicalCount.text = v.trim();
-      _resizeUnits(n);
-      if (n > 1) {
-        // The shared Condition / Specifications / Unit Value fields are replaced by per-device
-        // ones — carry over whatever was already entered so nothing is lost.
-        _seedUnitsFromShared(setCondition: !wasMulti);
-      } else {
-        // Back to a single asset: the shared fields come back, seeded from device 1.
-        final u0 = _units.first;
-        if (u0.unitValue.text.trim().isNotEmpty) _unitValue.text = u0.unitValue.text.trim();
-        if (u0.specifications.text.trim().isNotEmpty) _specifications.text = u0.specifications.text;
-        _condition = u0.condition;
-        _acquisitionDate ??= u0.acquisitionDate;
-        _officeId = u0.officeId ?? _officeId;
-        _personnelId = u0.personnelId ?? _personnelId;
-        _currentUserId = u0.currentUserId ?? _currentUserId;
-      }
-    });
-  }
-
-  // The shared Condition / Specs / Unit Value / Location / people fields are replaced by per-device
-  // ones once there are several devices — carry whatever was already entered over to them.
-  void _seedUnitsFromShared({required bool setCondition}) {
-    for (final u in _units) {
-      if (u.unitValue.text.trim().isEmpty) u.unitValue.text = _unitValue.text.trim();
-      if (u.specifications.text.trim().isEmpty) u.specifications.text = _specifications.text;
-      u.officeId ??= _officeId;
-      u.personnelId ??= _personnelId;
-      u.currentUserId ??= _currentUserId;
-      if (setCondition) u.condition = _condition;
-    }
-  }
-
-  void _resizeUnits(int n) {
-    while (_units.length < n) {
-      _units.add(_UnitFields());
-    }
-    while (_units.length > n) {
-      _units.removeLast().dispose();
-    }
-  }
-
-  String? _validateParSerial(int index, String? v) {
+  String? _validateParSerial(String? v) {
     final s = v?.trim() ?? '';
-    if ((_units[index].acquisitionDate ?? _acquisitionDate) == null) return 'Pick the Acquisition Date first';
+    if (_acquisitionDate == null) return 'Pick the Acquisition Date first';
     if (s.isEmpty) return 'Required';
     if (!RegExp(r'^[A-Za-z0-9-]+$').hasMatch(s)) return 'Letters, numbers, and hyphens only';
-    for (var i = 0; i < _units.length; i++) {
-      if (i != index && _units[i].parSerial.text.trim().toUpperCase() == s.toUpperCase()) {
-        return 'Already used by unit ${i + 1}';
-      }
-    }
     return null;
-  }
-
-  // Dropdown for a per-device field. `placeholder` shows while nothing is picked; `clearLabel`
-  // (when set) adds an entry that resets the choice to nothing.
-  Widget _optionalDropdown<T>({
-    required String label,
-    required T? value,
-    required List<T> items,
-    required String Function(T) itemLabel,
-    required void Function(T?) onChanged,
-    String? placeholder,
-    String? clearLabel,
-    bool required = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<T?>(
-        initialValue: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: label),
-        hint: placeholder == null ? null : Text(placeholder),
-        dropdownColor: context.colors.surface,
-        items: [
-          if (clearLabel != null) DropdownMenuItem<T?>(value: null, child: Text(clearLabel)),
-          ...items.map((e) => DropdownMenuItem<T?>(
-                value: e,
-                child: Text(itemLabel(e), overflow: TextOverflow.ellipsis),
-              )),
-        ],
-        onChanged: onChanged,
-        validator: required ? (v) => v == null ? 'Required' : null : null,
-      ),
-    );
-  }
-
-  Widget _unitDatePicker(_UnitFields u) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () async {
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: u.acquisitionDate ?? DateTime.now(),
-            firstDate: DateTime(1990),
-            lastDate: DateTime.now(),
-          );
-          if (picked != null) setState(() => u.acquisitionDate = picked);
-        },
-        child: InputDecorator(
-          decoration: const InputDecoration(labelText: 'Acquisition Date'),
-          child: Text(
-            u.acquisitionDate != null ? u.acquisitionDate!.toIso8601String().substring(0, 10) : 'Tap to select',
-            style: TextStyle(
-                color: u.acquisitionDate != null ? context.colors.textPrimary : context.colors.textSecondary),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _unitFieldsCard(int i, List<OfficeModel> offices, List<PersonnelModel> personnel) {
-    final u = _units[i];
-    final multi = _units.length > 1;
-    final people = u.officeId == null ? personnel : personnel.where((p) => p.officeId == u.officeId).toList();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: multi ? const EdgeInsets.all(12) : EdgeInsets.zero,
-      decoration: multi
-          ? BoxDecoration(
-              border: Border.all(color: context.colors.textTertiary.withValues(alpha: 0.3)),
-              borderRadius: BorderRadius.circular(10),
-            )
-          : null,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (multi)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                  'Device ${i + 1} of ${_units.length}${_isEdit ? (i == 0 ? ' — this asset' : ' — new') : ''}',
-                  style: TextStyle(color: context.colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: TextFormField(
-              controller: u.propertyNumber,
-              decoration: const InputDecoration(
-                  labelText: 'Property Number (optional)', hintText: 'Leave blank to auto-generate'),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(bottom: multi ? 12 : 0),
-            child: TextFormField(
-              controller: u.parSerial,
-              textCapitalization: TextCapitalization.characters,
-              decoration: InputDecoration(
-                labelText: 'PAR Number',
-                prefixText: '${_parPrefix(u.acquisitionDate)}:',
-                hintText: 'e.g. H78JD80',
-              ),
-              validator: (v) => _validateParSerial(i, v),
-            ),
-          ),
-          if (multi) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: TextFormField(
-                controller: u.unitValue,
-                keyboardType: TextInputType.number,
-                onChanged: (_) => setState(() {}), // keeps the shared total up to date
-                decoration: const InputDecoration(labelText: 'Unit Value (₱)'),
-                validator: (v) => (double.tryParse(v?.trim() ?? '') == null) ? 'Required' : null,
-              ),
-            ),
-            _optionalDropdown<String>(
-              label: 'Condition',
-              value: u.condition,
-              items: const ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
-              itemLabel: (c) => c,
-              onChanged: (c) => setState(() => u.condition = c ?? 'SERVICEABLE'),
-            ),
-            _optionalDropdown<OfficeModel>(
-              label: 'Location',
-              placeholder: 'Select location',
-              required: true,
-              value: offices.where((o) => o.id == u.officeId).firstOrNull,
-              items: offices,
-              itemLabel: (o) => o.officeName,
-              onChanged: (o) => setState(() {
-                u.officeId = o?.id;
-                // the person lists follow the device's location
-                if (u.personnelId != null && !personnel.any((p) => p.id == u.personnelId && p.officeId == o?.id)) {
-                  u.personnelId = null;
-                }
-                if (u.currentUserId != null && !personnel.any((p) => p.id == u.currentUserId && p.officeId == o?.id)) {
-                  u.currentUserId = null;
-                }
-              }),
-            ),
-            _optionalDropdown<PersonnelModel>(
-              label: 'Accountable Person',
-              placeholder: 'Select accountable person',
-              required: true,
-              value: people.where((p) => p.id == u.personnelId).firstOrNull,
-              items: people,
-              itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
-              onChanged: (p) => setState(() => u.personnelId = p?.id),
-            ),
-            _optionalDropdown<PersonnelModel>(
-              label: 'Current User (optional)',
-              placeholder: 'Select current user',
-              clearLabel: 'None',
-              value: people.where((p) => p.id == u.currentUserId).firstOrNull,
-              items: people,
-              itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
-              onChanged: (p) => setState(() => u.currentUserId = p?.id),
-            ),
-            if (_acquisitionDate == null) _unitDatePicker(u),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TextFormField(
-                controller: u.specifications,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Technical Specifications (optional)'),
-              ),
-            ),
-            Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(top: 4),
-                title: const Text('More details',
-                    style: TextStyle(color: AppTheme.brand, fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text('Serial number, remarks — blank = same as the form',
-                    style: TextStyle(color: context.colors.textTertiary, fontSize: 11.5)),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: TextFormField(
-                      controller: u.serialNumber,
-                      decoration: InputDecoration(
-                          labelText: 'Serial Number',
-                          hintText: _serialNumber.text.trim().isEmpty ? null : 'Same as above'),
-                    ),
-                  ),
-                  TextFormField(
-                    controller: u.remarks,
-                    decoration: const InputDecoration(labelText: 'Remarks', hintText: 'Same as below'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _unitsSection(List<OfficeModel> offices, List<PersonnelModel> personnel) {
-    final multi = _units.length > 1;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(multi ? 'Devices (${_units.length})' : 'Property & PAR Number',
-              style: TextStyle(color: context.colors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(
-            multi
-                ? 'Each device is saved as its own asset and shown grouped in the list. Give every device its own '
-                    'Property Number and PAR Number, location, accountable person, value, condition and specs; anything under '
-                    '"More details" left blank is copied from this form.'
-                    '${_isEdit ? ' Device 1 is the asset you are editing; the others are added as new assets in the same group.' : ''}'
-                : 'Unique per asset. The PAR year-month follows the Acquisition Date; type the serial after it.',
-            style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          for (var i = 0; i < _units.length; i++) _unitFieldsCard(i, offices, personnel),
-        ],
-      ),
-    );
   }
 
   Widget _datePicker() {
@@ -874,52 +561,14 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
           );
           if (picked != null) setState(() => _acquisitionDate = picked);
         },
-        onLongPress: _units.length > 1 ? () => setState(() => _acquisitionDate = null) : null,
         child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: 'Acquisition Date',
-            helperText: _units.length > 1
-                ? 'Applies to every device. Leave empty to give each device its own date.'
-                : null,
-            helperMaxLines: 2,
-          ),
+          decoration: const InputDecoration(labelText: 'Acquisition Date'),
           child: Text(
-            _acquisitionDate != null
-                ? _acquisitionDate!.toIso8601String().substring(0, 10)
-                : (_units.length > 1 ? 'Not set — each device has its own' : 'Tap to select'),
+            _acquisitionDate != null ? _acquisitionDate!.toIso8601String().substring(0, 10) : 'Tap to select',
             style: TextStyle(color: _acquisitionDate != null ? context.colors.textPrimary : context.colors.textSecondary),
           ),
         ),
       ),
     );
-  }
-}
-
-// Inputs for one device — created/disposed as the quantity changes. Blank/null
-// means "same as the shared details on the form".
-class _UnitFields {
-  final TextEditingController propertyNumber;
-  final TextEditingController parSerial;
-  final TextEditingController serialNumber = TextEditingController();
-  final TextEditingController unitValue = TextEditingController();
-  final TextEditingController specifications = TextEditingController();
-  final TextEditingController remarks = TextEditingController();
-  DateTime? acquisitionDate;
-  int? officeId;
-  int? personnelId;
-  int? currentUserId;
-  String condition = 'SERVICEABLE';
-
-  _UnitFields({String propertyNumber = '', String parSerial = ''})
-      : propertyNumber = TextEditingController(text: propertyNumber),
-        parSerial = TextEditingController(text: parSerial);
-
-  void dispose() {
-    propertyNumber.dispose();
-    parSerial.dispose();
-    serialNumber.dispose();
-    unitValue.dispose();
-    specifications.dispose();
-    remarks.dispose();
   }
 }

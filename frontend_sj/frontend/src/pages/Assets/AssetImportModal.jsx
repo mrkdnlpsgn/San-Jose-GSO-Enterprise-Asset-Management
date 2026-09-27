@@ -88,8 +88,8 @@ function AssetImportModal({ onClose, onImport }) {
               <div>
                 <p className="text-sm font-medium text-slate-800 dark:text-zinc-200">Download Import Template</p>
                 <p className="text-xs text-slate-500 dark:text-zinc-500 mt-px">
-                  Category and Office must match existing names exactly (case-insensitive). PAR Number is required — for
-                  more than one device, either give one PAR Number and set Qty (all devices are on that one receipt), or list a PAR Number per device separated by ";" (Qty must match). Each device becomes its own asset, grouped together, with Property Numbers auto-generated.
+                  Category and Office must match existing names exactly (case-insensitive). PAR Number is required, one
+                  per row — each row registers exactly one device (Qty is always 1) with its Property Number auto-generated.
                 </p>
               </div>
             </div>

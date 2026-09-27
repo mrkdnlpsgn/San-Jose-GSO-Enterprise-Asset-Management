@@ -24,6 +24,10 @@ public class AssetRequest {
     private Long personnelId;
     private Long currentUserId;
     private Integer physicalCount;
+    // Optional, defaults to 0 — a manually recorded shortage (negative) or overage
+    // (positive) found during physical inventory, independent of quantity/physicalCount.
+    private Integer shortageOverageQty;
+    private BigDecimal shortageOverageValue;
     private String location;
     private String condition;       // SERVICEABLE | REPAIRABLE | UNSERVICEABLE
     private String lifecycleStatus; // REGISTERED | ASSIGNED | TRANSFERRED | UNDER_MAINTENANCE | DISPOSED | ARCHIVED

@@ -72,6 +72,10 @@ class AssetModel {
   final PersonnelModel? accountablePerson;
   final PersonnelModel? currentUser;
   final int? physicalCount;
+  // Manually recorded shortage (negative) or overage (positive) found during physical
+  // inventory — independent of quantity/physicalCount, which are always 1. Defaults to 0.
+  final int shortageOverageQty;
+  final double shortageOverageValue;
   final String location;
   final String condition;       // SERVICEABLE | REPAIRABLE | UNSERVICEABLE
   final String lifecycleStatus; // REGISTERED | ASSIGNED | TRANSFERRED | UNDER_MAINTENANCE | DISPOSED | ARCHIVED
@@ -99,6 +103,8 @@ class AssetModel {
     this.accountablePerson,
     this.currentUser,
     this.physicalCount,
+    this.shortageOverageQty = 0,
+    this.shortageOverageValue = 0,
     required this.location,
     required this.condition,
     required this.lifecycleStatus,
@@ -144,6 +150,8 @@ class AssetModel {
             ? PersonnelModel.fromJson(json['currentUser'] as Map<String, dynamic>)
             : null,
         physicalCount: json['physicalCount'] as int?,
+        shortageOverageQty: json['shortageOverageQty'] as int? ?? 0,
+        shortageOverageValue: (json['shortageOverageValue'] as num?)?.toDouble() ?? 0,
         location: json['location'] as String? ?? '',
         condition: json['condition'] as String? ?? '',
         lifecycleStatus: json['lifecycleStatus'] as String? ?? '',

@@ -60,7 +60,7 @@ class AssetDetailScreen extends ConsumerWidget {
               ref.invalidate(disposalByAssetProvider(assetId));
             },
           ),
-          if (isAdmin && assetAsync.value != null) ...[
+          if (assetAsync.value != null)
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               onPressed: () async {
@@ -68,6 +68,7 @@ class AssetDetailScreen extends ConsumerWidget {
                 if (result == true) ref.invalidate(assetDetailProvider(assetId));
               },
             ),
+          if (isAdmin && assetAsync.value != null) ...[
             IconButton(
               icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
               onPressed: () async {
@@ -184,16 +185,14 @@ class _DetailsTab extends StatelessWidget {
           if (asset.accountablePerson != null) _row(context, 'Accountable Person', asset.accountablePerson!.fullName),
           if (asset.currentUser != null) _row(context, 'Current User', asset.currentUser!.fullName),
           _row(context, 'Qty (Property Card)', asset.quantity.toString()),
-          if (asset.physicalCount != null) ...[
+          if (asset.physicalCount != null)
             _row(context, 'Qty (Physical Count)', asset.physicalCount.toString()),
-            ..._shortageOverageRows(context, asset),
-          ],
+          ..._shortageOverageRows(context, asset),
         ]),
         const SizedBox(height: 12),
         _card(context, 'Financial', [
           _row(context, 'Unit Value', '₱${asset.unitValue.toStringAsFixed(2)}'),
           _row(context, 'Acquisition Date', asset.acquisitionDate),
-          _row(context, 'Total Value', '₱${(asset.unitValue * asset.quantity).toStringAsFixed(2)}'),
         ]),
         if (asset.specifications != null && asset.specifications!.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -269,12 +268,11 @@ class _DetailsTab extends StatelessWidget {
         ),
       );
 
-  // Shortage = fewer on hand than the property card says (diff < 0, red);
-  // overage = more on hand than recorded (diff > 0, green) — same COA
-  // reconciliation convention as the web Assets table.
+  // Manually entered, independent of Qty/Physical Count (both always 1). Negative =
+  // shortage (red), positive = overage (green) — same convention as the web app.
   List<Widget> _shortageOverageRows(BuildContext context, AssetModel asset) {
-    final diff = asset.physicalCount! - asset.quantity;
-    final value = diff * asset.unitValue;
+    final diff = asset.shortageOverageQty;
+    final value = asset.shortageOverageValue;
     final color = diff < 0 ? AppTheme.statusDisposed : diff > 0 ? AppTheme.brand : context.colors.textPrimary;
     final diffLabel = diff > 0 ? '+$diff' : '$diff';
     final sign = value > 0 ? '+' : value < 0 ? '-' : '';

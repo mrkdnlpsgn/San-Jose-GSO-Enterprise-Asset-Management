@@ -613,13 +613,22 @@ CREATE PROCEDURE sp_assets_list(
 )
 BEGIN
     SET p_search = TRIM(p_search);
+    -- groupSize/groupTotalValue are only meaningful for a grouped asset (group_id NOT
+    -- NULL) — which no asset can become anymore since the grouping feature was
+    -- removed. The CASE skips the correlated subquery entirely for every ungrouped
+    -- row (i.e. currently every row), which is what made this query take seconds
+    -- over a few thousand assets — MySQL can't cache/batch a correlated subquery,
+    -- so it was re-executing full table lookups once per row for no benefit.
     SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.par_number AS parNumber, a.group_id AS groupId,
-           (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupSize,
-           (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupTotalValue,
+           CASE WHEN a.group_id IS NULL THEN 0
+                ELSE (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) END AS groupSize,
+           CASE WHEN a.group_id IS NULL THEN 0
+                ELSE (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) END AS groupTotalValue,
            a.serial_number AS serialNumber, a.`description`,
            a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
            a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
            a.physical_count AS physicalCount,
+           a.shortage_overage_qty AS shortageOverageQty, a.shortage_overage_value AS shortageOverageValue,
            a.qr_code_path AS qrCodePath, a.sha256_hash AS sha256Hash,
            a.remarks, a.specifications, a.created_at AS createdAt, a.updated_at AS updatedAt,
            c.category_id, c.category_name AS categoryName, c.useful_life_years AS categoryUsefulLifeYears,
@@ -694,12 +703,15 @@ DROP PROCEDURE IF EXISTS sp_assets_get_by_id $$
 CREATE PROCEDURE sp_assets_get_by_id(IN p_id INT)
 BEGIN
     SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.par_number AS parNumber, a.group_id AS groupId,
-           (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupSize,
-           (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupTotalValue,
+           CASE WHEN a.group_id IS NULL THEN 0
+                ELSE (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) END AS groupSize,
+           CASE WHEN a.group_id IS NULL THEN 0
+                ELSE (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) END AS groupTotalValue,
            a.serial_number AS serialNumber, a.`description`,
            a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
            a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
            a.physical_count AS physicalCount,
+           a.shortage_overage_qty AS shortageOverageQty, a.shortage_overage_value AS shortageOverageValue,
            a.qr_code_path AS qrCodePath, a.sha256_hash AS sha256Hash,
            a.remarks, a.specifications, a.created_at AS createdAt, a.updated_at AS updatedAt,
            c.category_id, c.category_name AS categoryName, c.useful_life_years AS categoryUsefulLifeYears,
@@ -720,12 +732,15 @@ DROP PROCEDURE IF EXISTS sp_assets_get_by_group $$
 CREATE PROCEDURE sp_assets_get_by_group(IN p_group_id VARCHAR(36))
 BEGIN
     SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.par_number AS parNumber, a.group_id AS groupId,
-           (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupSize,
-           (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) AS groupTotalValue,
+           CASE WHEN a.group_id IS NULL THEN 0
+                ELSE (SELECT COUNT(*) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) END AS groupSize,
+           CASE WHEN a.group_id IS NULL THEN 0
+                ELSE (SELECT COALESCE(SUM(g.unit_value * g.quantity), 0) FROM assets g WHERE g.group_id = a.group_id AND g.is_deleted = FALSE) END AS groupTotalValue,
            a.serial_number AS serialNumber, a.`description`,
            a.quantity, a.acquisition_date AS acquisitionDate, a.unit_value AS unitValue,
            a.location, a.`condition`, a.lifecycle_status AS lifecycleStatus,
            a.physical_count AS physicalCount,
+           a.shortage_overage_qty AS shortageOverageQty, a.shortage_overage_value AS shortageOverageValue,
            a.qr_code_path AS qrCodePath, a.sha256_hash AS sha256Hash,
            a.remarks, a.specifications, a.created_at AS createdAt, a.updated_at AS updatedAt,
            c.category_id, c.category_name AS categoryName, c.useful_life_years AS categoryUsefulLifeYears,
@@ -750,6 +765,7 @@ CREATE PROCEDURE sp_assets_create(
     IN p_condition VARCHAR(20), IN p_lifecycle_status VARCHAR(30),
     IN p_qr_code_path VARCHAR(255), IN p_sha256_hash VARCHAR(64), IN p_remarks TEXT,
     IN p_specifications TEXT, IN p_current_user_id INT, IN p_group_id VARCHAR(36),
+    IN p_shortage_overage_qty INT, IN p_shortage_overage_value DECIMAL(12,2),
     OUT p_id INT
 )
 BEGIN
@@ -757,12 +773,14 @@ BEGIN
         property_number, par_number, serial_number, `description`, category_id, quantity, acquisition_date,
         unit_value, office_id, personnel_id, current_user_personnel_id, physical_count, location, `condition`,
         lifecycle_status, qr_code_path, sha256_hash, remarks, specifications, group_id,
+        shortage_overage_qty, shortage_overage_value,
         is_deleted, created_at, updated_at
     ) VALUES (
         p_property_number, NULLIF(p_par_number, ''), NULLIF(p_serial_number, ''), p_description, p_category_id, p_quantity, p_acquisition_date,
         p_unit_value, p_office_id, p_personnel_id, p_current_user_id, p_physical_count, p_location, p_condition,
         p_lifecycle_status, NULLIF(p_qr_code_path, ''), NULLIF(p_sha256_hash, ''), NULLIF(p_remarks, ''),
         NULLIF(p_specifications, ''), NULLIF(p_group_id, ''),
+        COALESCE(p_shortage_overage_qty, 0), COALESCE(p_shortage_overage_value, 0),
         FALSE, NOW(), NOW()
     );
     SET p_id = LAST_INSERT_ID();
@@ -776,7 +794,8 @@ CREATE PROCEDURE sp_assets_update(
     IN p_personnel_id INT, IN p_physical_count INT, IN p_location VARCHAR(150),
     IN p_condition VARCHAR(20), IN p_lifecycle_status VARCHAR(30),
     IN p_qr_code_path VARCHAR(255), IN p_sha256_hash VARCHAR(64), IN p_remarks TEXT,
-    IN p_specifications TEXT, IN p_current_user_id INT, IN p_group_id VARCHAR(36)
+    IN p_specifications TEXT, IN p_current_user_id INT, IN p_group_id VARCHAR(36),
+    IN p_shortage_overage_qty INT, IN p_shortage_overage_value DECIMAL(12,2)
 )
 BEGIN
     UPDATE assets SET
@@ -785,6 +804,7 @@ BEGIN
         acquisition_date = p_acquisition_date, unit_value = p_unit_value,
         office_id = p_office_id, personnel_id = p_personnel_id, current_user_personnel_id = p_current_user_id,
         physical_count = p_physical_count,
+        shortage_overage_qty = COALESCE(p_shortage_overage_qty, 0), shortage_overage_value = COALESCE(p_shortage_overage_value, 0),
         location = p_location, `condition` = p_condition,
         lifecycle_status = p_lifecycle_status,
         qr_code_path = NULLIF(p_qr_code_path, ''), sha256_hash = NULLIF(p_sha256_hash, ''),

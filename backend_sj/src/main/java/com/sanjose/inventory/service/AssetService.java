@@ -54,6 +54,8 @@ public class AssetService {
         a.setAcquisitionDate(acqDate != null ? acqDate.toLocalDate() : null);
         a.setUnitValue(rs.getBigDecimal("unitValue"));
         a.setPhysicalCount(rs.getObject("physicalCount", Integer.class));
+        a.setShortageOverageQty(rs.getObject("shortageOverageQty", Integer.class));
+        a.setShortageOverageValue(rs.getBigDecimal("shortageOverageValue"));
         a.setLocation(rs.getString("location"));
         String cond = rs.getString("condition");
         a.setCondition(cond != null ? Asset.AssetCondition.valueOf(cond) : null);
@@ -137,18 +139,12 @@ public class AssetService {
         return list.get(0);
     }
 
-    // Creates one full asset per device. A request for N devices makes N
-    // independent asset records (each with its own numbers, people, price, specs,
-    // condition, maintenance/disposal lifecycle...) that share a group_id so the
-    // UI can present same-model devices together. Returns every created asset.
+    // Registers exactly one asset. Property Number, PAR Number, and Serial Number
+    // (when given) must each be unique across every other asset — see resolveDevices.
     public List<Asset> createAll(AssetRequest req) {
         List<AssetRequest> devices = resolveDevices(req, null);
-        // Same description + category as devices already registered => same model, so this joins
-        // (or starts) their group even when it's added on its own.
-        String matched = autoGroupId(req.getCategoryId(), req.getDescription(), null);
-        String groupId = matched != null ? matched : (devices.size() > 1 ? java.util.UUID.randomUUID().toString() : null);
         List<Asset> created = new ArrayList<>();
-        for (AssetRequest device : devices) created.add(createOne(device, groupId));
+        for (AssetRequest device : devices) created.add(createOne(device, null));
         return created;
     }
 
@@ -157,14 +153,16 @@ public class AssetService {
 
     private Asset createOne(AssetRequest req, String groupId) {
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
-            "CALL sp_assets_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "CALL sp_assets_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             req.getPropertyNumber(), req.getParNumber(), req.getSerialNumber(), req.getDescription(),
             req.getCategoryId(), 1,
             req.getAcquisitionDate(), req.getUnitValue(), req.getOfficeId(),
             req.getPersonnelId(), 1, req.getLocation(),
             req.getCondition(), "ASSIGNED",
             req.getQrCodePath(), req.getSha256Hash(), req.getRemarks(), req.getSpecifications(),
-            req.getCurrentUserId(), groupId);
+            req.getCurrentUserId(), groupId,
+            req.getShortageOverageQty() != null ? req.getShortageOverageQty() : 0,
+            req.getShortageOverageValue() != null ? req.getShortageOverageValue() : BigDecimal.ZERO);
 
         Asset saved = findById(newId);
         handleConditionLedger(saved);
@@ -216,6 +214,8 @@ public class AssetService {
             : java.util.Arrays.stream(row.getParNumber().split("[;\\n\\r]+"))
                 .map(String::trim).filter(x -> !x.isEmpty()).toList();
         if (parNumbers.isEmpty()) throw new IllegalArgumentException("PAR Number is required.");
+        if (parNumbers.size() > 1) throw new IllegalArgumentException(
+            "Only one PAR Number is allowed per row — give each device its own row.");
         if (isBlank(row.getCategoryName())) throw new IllegalArgumentException("Category is required.");
         if (isBlank(row.getOfficeName())) throw new IllegalArgumentException("Location is required.");
         if (isBlank(row.getAccountablePerson())) throw new IllegalArgumentException("Accountable person is required.");
@@ -244,20 +244,13 @@ public class AssetService {
         }
 
         AssetRequest req = new AssetRequest();
-        int quantity = isBlank(row.getQuantity()) ? parNumbers.size() : parseInt(row.getQuantity(), "Qty (Property Card)");
-        // A single PAR Number with a Qty above 1 is one receipt covering that many items —
-        // it applies to every device. Listing several PAR Numbers gives one per device.
-        if (parNumbers.size() == 1 && quantity > 1) {
-            parNumbers = java.util.Collections.nCopies(quantity, parNumbers.get(0));
-        }
-        // Property Numbers are left blank so they auto-generate.
-        List<AssetUnitRequest> importUnits = new ArrayList<>();
-        for (String par : parNumbers) {
-            AssetUnitRequest u = new AssetUnitRequest();
-            u.setParNumber(par);
-            importUnits.add(u);
-        }
-        req.setUnits(importUnits);
+        int quantity = isBlank(row.getQuantity()) ? 1 : parseInt(row.getQuantity(), "Qty (Property Card)");
+        if (quantity != 1) throw new IllegalArgumentException(
+            "Qty (Property Card) must be 1 — give each device its own row.");
+        // Property Number is left blank so it auto-generates.
+        AssetUnitRequest unit = new AssetUnitRequest();
+        unit.setParNumber(parNumbers.get(0));
+        req.setUnits(List.of(unit));
         req.setDescription(row.getDescription().trim());
         req.setCategoryId(categoryId);
         req.setOfficeId(officeId);
@@ -290,108 +283,77 @@ public class AssetService {
     private static final Pattern PAR_NUMBER_PATTERN =
         Pattern.compile("^(\\d{4}-(?:0[1-9]|1[0-2])):([A-Za-z0-9-]+)$");
 
-    private String normalizeParNumber(String raw, LocalDate acquisitionDate, int unitNo) {
-        if (isBlank(raw)) throw new IllegalArgumentException("Device " + unitNo + ": PAR Number is required.");
+    private String normalizeParNumber(String raw, LocalDate acquisitionDate) {
+        if (isBlank(raw)) throw new IllegalArgumentException("PAR Number is required.");
         String par = raw.trim();
         Matcher m = PAR_NUMBER_PATTERN.matcher(par);
         if (!m.matches() || par.length() > 50) {
             throw new IllegalArgumentException(
-                "Device " + unitNo + ": PAR Number \"" + par + "\" must be in YYYY-MM:SERIAL format, e.g. 2026-07:H78JD80.");
+                "PAR Number \"" + par + "\" must be in YYYY-MM:SERIAL format, e.g. 2026-07:H78JD80.");
         }
         if (acquisitionDate != null) {
             String expected = String.format("%d-%02d", acquisitionDate.getYear(), acquisitionDate.getMonthValue());
             if (!m.group(1).equals(expected)) {
                 throw new IllegalArgumentException(
-                    "Device " + unitNo + ": PAR Number \"" + par + "\" must start with the acquisition year-month (" + expected + ").");
+                    "PAR Number \"" + par + "\" must start with the acquisition year-month (" + expected + ").");
             }
         }
         return par;
     }
 
-    // Turns a create/update request into one fully-resolved AssetRequest per device.
-    //
-    // Qty (Property Card) N means N devices, and Qty (Physical Count) must equal it.
-    // The top-level request fields are the values shared by every device (same model);
-    // each entry in `units` may override ANY of them for that one device (its own
-    // numbers, people, price, condition, specs...). Property Number and PAR Number are
-    // the unique identifiers, so they must differ per device and across all assets.
-    //
-    // On update, device 1 is the asset being edited; devices 2..N are new assets added
-    // to the same group (this is also how an old "quantity 3" record gets split up).
+    // Turns a create/update request into one fully-resolved AssetRequest for the single
+    // device it registers. Qty (Property Card) and Qty (Physical Count) are always 1 —
+    // one asset row is always exactly one physical item. Property Number, PAR Number,
+    // and (when given) Serial Number are its unique identifiers: each must differ from
+    // every other asset, though the same Description/Category can be reused freely
+    // (registering another unit of the same model is normal).
     private List<AssetRequest> resolveDevices(AssetRequest req, Asset before) {
         int quantity = req.getQuantity() != null ? req.getQuantity() : 1;
-        if (quantity < 1 || quantity > 500) throw new IllegalArgumentException("Qty (Property Card) must be between 1 and 500.");
-        if (req.getPhysicalCount() == null || req.getPhysicalCount() != quantity) {
-            throw new IllegalArgumentException(
-                "Qty (Physical Count) must equal Qty (Property Card) — each counted device needs its own Property Number and PAR Number.");
+        if (quantity != 1) throw new IllegalArgumentException("Qty (Property Card) is always 1 — register each device as its own asset.");
+        if (req.getPhysicalCount() == null || req.getPhysicalCount() != 1) {
+            throw new IllegalArgumentException("Qty (Physical Count) is always 1.");
         }
 
         List<AssetUnitRequest> raw = req.getUnits();
         if (raw == null || raw.isEmpty()) {
-            if (quantity != 1) {
-                throw new IllegalArgumentException(
-                    quantity + " devices need " + quantity + " entries — one Property Number and PAR Number per device.");
-            }
             AssetUnitRequest only = new AssetUnitRequest();
             only.setPropertyNumber(req.getPropertyNumber());
             only.setParNumber(req.getParNumber());
             raw = List.of(only);
         }
-        if (raw.size() != quantity) {
-            throw new IllegalArgumentException(
-                "Expected " + quantity + " device entries (one Property Number and PAR Number each) but got " + raw.size() + ".");
-        }
-
-        // A device inside a group is always exactly one unit — it can't be edited into several.
-        if (before != null && before.getGroupId() != null && quantity != 1) {
-            throw new IllegalArgumentException("Devices in a group always have Qty (Property Card) and Qty (Physical Count) of 1.");
-        }
+        if (raw.size() != 1) throw new IllegalArgumentException("Only one device entry is allowed per asset.");
 
         Long excludeId = before != null ? before.getId() : null;
-        Set<String> seenProps = new java.util.HashSet<>();
-        List<AssetRequest> out = new ArrayList<>();
+        AssetUnitRequest in = raw.get(0);
+        AssetRequest d = mergeDevice(req, in);
+        if (d.getAcquisitionDate() == null) throw new IllegalArgumentException("Acquisition date is required.");
+        if (d.getUnitValue() == null) throw new IllegalArgumentException("Unit value is required.");
+        if (isBlank(d.getCondition())) throw new IllegalArgumentException("Condition is required.");
 
-        for (int i = 0; i < raw.size(); i++) {
-            AssetUnitRequest in = raw.get(i);
-            int no = i + 1;
-            AssetRequest d = mergeDevice(req, in);
-            // A shared value can be left empty when each device has its own, so check the merged result.
-            if (d.getAcquisitionDate() == null) throw new IllegalArgumentException("Device " + no + ": Acquisition date is required.");
-            if (d.getUnitValue() == null) throw new IllegalArgumentException("Device " + no + ": Unit value is required.");
-            if (isBlank(d.getCondition())) throw new IllegalArgumentException("Device " + no + ": Condition is required.");
+        String par = normalizeParNumber(in.getParNumber(), d.getAcquisitionDate());
+        if (existsElsewhere("par_number", par, excludeId)) {
+            throw new IllegalArgumentException(
+                "PAR Number \"" + par + "\" is already used by another asset — each asset needs its own.");
+        }
+        d.setParNumber(par);
 
-            // One PAR can cover several items issued together, so the same PAR Number may
-            // repeat across devices and across assets — only its format is checked.
-            String par = normalizeParNumber(in.getParNumber(), d.getAcquisitionDate(), no);
-            d.setParNumber(par);
-            // Only device 1 of an update is an existing row; every other device is new.
-            Long ownId = (before != null && i == 0) ? excludeId : null;
-
-            String prop = blankToNull(in.getPropertyNumber());
-            if (prop == null && before != null && i == 0) prop = before.getPropertyNumber(); // blank on edit = keep it
-            if (prop != null) {
-                if (!seenProps.add(prop.toUpperCase())) {
-                    throw new IllegalArgumentException("Device " + no + ": Property Number \"" + prop + "\" is used twice in this request.");
-                }
-                if (existsElsewhere("property_number", prop, ownId)) {
-                    throw new IllegalArgumentException("Device " + no + ": Property Number \"" + prop + "\" is already used by another asset.");
-                }
-            }
-            d.setPropertyNumber(prop);
-            out.add(d);
+        if (!isBlank(d.getSerialNumber()) && existsElsewhere("serial_number", d.getSerialNumber().trim(), excludeId)) {
+            throw new IllegalArgumentException(
+                "Serial Number \"" + d.getSerialNumber().trim() + "\" is already used by another asset — each asset needs its own.");
         }
 
-        // Fill blank Property Numbers only after every explicit one is known, so an
-        // auto-generated number can't collide with one typed further down the list.
-        for (AssetRequest d : out) {
-            if (d.getPropertyNumber() == null) {
-                int year = d.getAcquisitionDate() != null ? d.getAcquisitionDate().getYear() : LocalDate.now().getYear();
-                String generated = generatePropertyNumber(year, seenProps);
-                seenProps.add(generated.toUpperCase());
-                d.setPropertyNumber(generated);
-            }
+        String prop = blankToNull(in.getPropertyNumber());
+        if (prop == null && before != null) prop = before.getPropertyNumber(); // blank on edit = keep it
+        if (prop != null && existsElsewhere("property_number", prop, excludeId)) {
+            throw new IllegalArgumentException("Property Number \"" + prop + "\" is already used by another asset.");
         }
-        return out;
+        if (prop == null) {
+            int year = d.getAcquisitionDate() != null ? d.getAcquisitionDate().getYear() : LocalDate.now().getYear();
+            prop = generatePropertyNumber(year, Set.of());
+        }
+        d.setPropertyNumber(prop);
+
+        return List.of(d);
     }
 
     // Shared request values, overridden field-by-field by whatever the device entry sets.
@@ -401,6 +363,8 @@ public class AssetService {
         d.setCategoryId(shared.getCategoryId());
         d.setQuantity(1);
         d.setPhysicalCount(1);
+        d.setShortageOverageQty(shared.getShortageOverageQty());
+        d.setShortageOverageValue(shared.getShortageOverageValue());
         d.setQrCodePath(shared.getQrCodePath());
         d.setSha256Hash(shared.getSha256Hash());
         d.setLifecycleStatus(shared.getLifecycleStatus());
@@ -479,35 +443,14 @@ public class AssetService {
         return ids.isEmpty() ? null : ids.get(0);
     }
 
-    // Edits one asset. If the request asks for more than one device (Qty > 1), the extra
-    // devices are created as new assets in the same group — an old multi-quantity record
-    // becomes a real group this way.
+    // Edits one asset. Any group_id from before this feature was removed is left
+    // untouched (so a historical group still displays), but editing never creates,
+    // joins, or grows a group.
     public Asset update(Long id, AssetRequest req) {
         Asset before = findById(id);
         List<AssetRequest> devices = resolveDevices(req, before);
         AssetRequest own = devices.get(0);
-
-        String oldGroup = before.getGroupId();
-        String groupId = oldGroup;
-        boolean modelChanged =
-            !normalizeModel(before.getDescription()).equals(normalizeModel(own.getDescription()))
-            || !java.util.Objects.equals(before.getCategory() != null ? before.getCategory().getId() : null, own.getCategoryId());
-        if (modelChanged) {
-            // A different model belongs with its own kind: leave the old group, join (or start) the new one.
-            String matched = autoGroupId(own.getCategoryId(), own.getDescription(), id);
-            groupId = matched != null ? matched : (devices.size() > 1 ? java.util.UUID.randomUUID().toString() : null);
-        } else if (devices.size() > 1 && groupId == null) {
-            String matched = autoGroupId(own.getCategoryId(), own.getDescription(), id);
-            groupId = matched != null ? matched : java.util.UUID.randomUUID().toString();
-        }
-
-        updateOne(id, before, own, groupId);
-        if (oldGroup != null && !java.util.Objects.equals(oldGroup, groupId)) {
-            // sp_assets_update keeps the old group when given none, so clear it explicitly
-            if (groupId == null) jdbcTemplate.update("UPDATE assets SET group_id = NULL WHERE asset_id = ?", id);
-            dissolveIfSingle(oldGroup);
-        }
-        for (int i = 1; i < devices.size(); i++) createOne(devices.get(i), groupId);
+        updateOne(id, before, own, before.getGroupId());
         return findById(id);
     }
 
@@ -541,57 +484,11 @@ public class AssetService {
         }
     }
 
-    private static String normalizeModel(String s) { return s == null ? "" : s.trim().toLowerCase(); }
-
-    // Finds the group that same-model devices already belong to: assets with the same description
-    // (case/space-insensitive) and category. Standalone matches are pulled into it, separate groups
-    // of the same model are merged, and a new group is started if none exists yet. Returns null when
-    // there is no other device of this model.
-    //
-    // Only assets that have a PAR Number take part (devices registered the current way) and only
-    // single-unit records — older assets without one are left as they are until they're edited,
-    // so adding one new device never folds dozens of historical rows into a group.
-    private String autoGroupId(Long categoryId, String description, Long excludeAssetId) {
-        if (categoryId == null || isBlank(description)) return null;
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-            "SELECT asset_id, group_id FROM assets"
-            + " WHERE is_deleted = FALSE AND quantity = 1 AND par_number IS NOT NULL"
-            + " AND category_id = ? AND LOWER(TRIM(description)) = ? AND (? IS NULL OR asset_id <> ?)",
-            categoryId, normalizeModel(description), excludeAssetId, excludeAssetId);
-        if (rows.isEmpty()) return null;
-
-        String existing = null;
-        for (Map<String, Object> r : rows) {
-            if (r.get("group_id") != null) { existing = (String) r.get("group_id"); break; }
-        }
-        final String target = existing != null ? existing : java.util.UUID.randomUUID().toString();
-
-        List<Object> toMove = new ArrayList<>();
-        for (Map<String, Object> r : rows) {
-            if (!target.equals(r.get("group_id"))) toMove.add(r.get("asset_id"));
-        }
-        if (!toMove.isEmpty()) {
-            String placeholders = String.join(",", java.util.Collections.nCopies(toMove.size(), "?"));
-            List<Object> args = new ArrayList<>();
-            args.add(target);
-            args.addAll(toMove);
-            jdbcTemplate.update("UPDATE assets SET group_id = ? WHERE asset_id IN (" + placeholders + ")", args.toArray());
-        }
-        return target;
-    }
-
-    // A group with a single device left is just a normal asset again.
-    private void dissolveIfSingle(String groupId) {
-        Integer n = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM assets WHERE group_id = ? AND is_deleted = FALSE", Integer.class, groupId);
-        if (n != null && n <= 1) jdbcTemplate.update("UPDATE assets SET group_id = NULL WHERE group_id = ?", groupId);
-    }
-
     private Asset updateOne(Long id, Asset before, AssetRequest req, String groupId) {
         Asset.AssetCondition oldCondition = before.getCondition();
         Long oldOfficeId = before.getOffice() != null ? before.getOffice().getId() : null;
 
-        jdbcTemplate.update("CALL sp_assets_update(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbcTemplate.update("CALL sp_assets_update(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id,
             req.getPropertyNumber(), req.getParNumber(), req.getSerialNumber(), req.getDescription(),
             req.getCategoryId(), 1,
@@ -599,7 +496,9 @@ public class AssetService {
             req.getPersonnelId(), 1, req.getLocation(),
             req.getCondition(), req.getLifecycleStatus(),
             req.getQrCodePath(), req.getSha256Hash(), req.getRemarks(), req.getSpecifications(),
-            req.getCurrentUserId(), groupId);
+            req.getCurrentUserId(), groupId,
+            req.getShortageOverageQty() != null ? req.getShortageOverageQty() : 0,
+            req.getShortageOverageValue() != null ? req.getShortageOverageValue() : BigDecimal.ZERO);
 
         Asset saved = findById(id);
         if (oldCondition != saved.getCondition()) {

@@ -91,6 +91,17 @@ public class Asset {
     @Column(name = "physical_count")
     private Integer physicalCount;
 
+    // Manually recorded shortage (negative) or overage (positive) found during physical
+    // inventory — independent of quantity/physicalCount, which are always 1. Optional,
+    // defaults to 0.
+    @Builder.Default
+    @Column(name = "shortage_overage_qty", nullable = false)
+    private Integer shortageOverageQty = 0;
+
+    @Builder.Default
+    @Column(name = "shortage_overage_value", nullable = false, precision = 12, scale = 2)
+    private BigDecimal shortageOverageValue = BigDecimal.ZERO;
+
     @Column(nullable = false, length = 150)
     private String location;
 

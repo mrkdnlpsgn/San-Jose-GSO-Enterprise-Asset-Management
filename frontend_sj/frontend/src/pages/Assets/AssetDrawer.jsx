@@ -161,10 +161,10 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
               <Field label="Accountable Person" value={asset.accountablePerson?.fullName} />
               <Field label="Current User"      value={asset.currentUser?.fullName} />
               <Field label="Location"          value={asset.location} />
-              <Field label="Quantity"          value={asset.quantity} />
               <Field label="Acquisition Date"  value={fmt(asset.acquisitionDate)} />
               <Field label="Unit Value"        value={php(asset.unitValue)} />
-              <Field label="Total Value"       value={php((asset.unitValue || 0) * (asset.quantity || 1))} />
+              <Field label="Shortage/Overage Qty"   value={asset.shortageOverageQty ?? 0} />
+              <Field label="Shortage/Overage Value" value={php(asset.shortageOverageValue ?? 0)} />
               {asset.carryingAmount != null && (
                 <>
                   <Field label="Accumulated Depreciation" value={php(asset.accumulatedDepreciation)} />
