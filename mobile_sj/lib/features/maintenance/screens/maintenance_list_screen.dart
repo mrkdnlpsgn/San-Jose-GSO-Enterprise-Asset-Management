@@ -8,7 +8,6 @@ import '../../../shared/widgets/paginated_list_view.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/status_badge.dart';
-import '../../../features/auth/provider/auth_provider.dart';
 import '../../../core/platform.dart';
 import '../widgets/maintenance_filter_sheet.dart';
 import '../../assets/widgets/asset_group_widgets.dart';
@@ -34,7 +33,6 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
     final search = ref.watch(maintenanceSearchProvider);
     final state = ref.watch(maintenancePagedProvider(search));
     final countAsync = ref.watch(maintenanceCountProvider(search));
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
     final filtersActive = maintenanceFiltersActive(ref);
 
     return Scaffold(
@@ -92,19 +90,6 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
           ),
         ),
       ),
-      floatingActionButton: isAdmin
-          ? FloatingActionButton(
-              backgroundColor: AppTheme.brand,
-              child: const Icon(Icons.add_rounded, color: Colors.white),
-              onPressed: () async {
-                final result = await context.push<bool>('/maintenance/new');
-                if (result == true) {
-                  ref.invalidate(maintenancePagedProvider(search));
-                  ref.invalidate(maintenanceCountProvider(search));
-                }
-              },
-            )
-          : null,
       body: AutoRefreshTicker(
         interval: const Duration(seconds: 30),
         onTick: () => ref.read(maintenancePagedProvider(search).notifier).silentRefresh(),
@@ -168,6 +153,10 @@ class _MaintenanceCard extends StatelessWidget {
               Row(
                 children: [
                   StatusBadge.maintenanceType(item.maintenanceType, dense: true),
+                  if (StatusBadge.approval(item.approvalStatus) case final badge?) ...[
+                    const SizedBox(width: 6),
+                    badge,
+                  ],
                   const Spacer(),
                   StatusBadge.maintenanceStatus(item.status, dense: true),
                 ],

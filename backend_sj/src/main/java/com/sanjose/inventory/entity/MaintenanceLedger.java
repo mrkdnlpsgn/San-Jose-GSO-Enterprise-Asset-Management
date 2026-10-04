@@ -24,7 +24,7 @@ public class MaintenanceLedger {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "asset_id", nullable = false)
+    @JoinColumn(name = "asset_id", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"category", "office", "accountablePerson", "remarks", "qrCodePath", "sha256Hash"})
     private Asset asset;
 
@@ -62,7 +62,7 @@ public class MaintenanceLedger {
     private MaintenanceStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "recorded_by", nullable = false)
+    @JoinColumn(name = "recorded_by", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"password", "office", "failedLoginAttempts", "accountLockedUntil"})
     private User recordedBy;
 
@@ -73,7 +73,7 @@ public class MaintenanceLedger {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @Column(name = "deleted_by")
+    @Column(name = "deleted_by", columnDefinition = "INT")
     private Long deletedBy;
 
     @Column(name = "delete_reason", columnDefinition = "TEXT")

@@ -8,6 +8,14 @@ class StatusBadge extends StatelessWidget {
 
   const StatusBadge({super.key, required this.label, required this.color, this.dense = false});
 
+  // Staff-requested maintenance/disposal awaiting (or refused) admin review — mirrors
+  // web's ApprovalBadge. Null for approved records, which show no badge.
+  static StatusBadge? approval(String? value) => switch (value) {
+        'PENDING_APPROVAL' => const StatusBadge(label: 'Awaiting approval', color: AppTheme.statusMaintenance, dense: true),
+        'REJECTED' => const StatusBadge(label: 'Rejected', color: AppTheme.statusDisposed, dense: true),
+        _ => null,
+      };
+
   static StatusBadge condition(String value) {
     final color = switch (value) {
       'SERVICEABLE' => AppTheme.brand,

@@ -15,7 +15,7 @@ public class Personnel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "personnel_id")
+    @Column(name = "personnel_id", columnDefinition = "INT")
     private Long id;
 
     @Column(name = "full_name", nullable = false, unique = true, length = 150)
@@ -25,7 +25,7 @@ public class Personnel {
     private String position;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "office_id")
+    @JoinColumn(name = "office_id", columnDefinition = "INT")
     @JsonIgnoreProperties({"headUser", "createdAt"})
     private Office office;
 
@@ -33,7 +33,7 @@ public class Personnel {
     private String contactInfo;
 
     // Login account of this person, if any (see UserService.linkPersonnel)
-    @Column(name = "user_id")
+    @Column(name = "user_id", columnDefinition = "INT")
     private Long userId;
 
     @Transient

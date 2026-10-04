@@ -114,25 +114,40 @@ class DashboardScreen extends ConsumerWidget {
           StaggeredEntrance(
             index: 3,
             child: _NavCard(
-              icon: Icons.category_outlined,
-              title: 'Categories',
-              subtitle: 'Manage asset categories',
-              color: AppTheme.brand,
-              onTap: () => context.push('/categories'),
+              icon: Icons.history_rounded,
+              title: 'Asset History',
+              subtitle: isAdmin
+                  ? 'Changes by any user, and staff maintenance/disposal requests'
+                  : 'Your changes and your maintenance/disposal requests',
+              color: AppTheme.statusAssigned,
+              onTap: () => context.push('/asset-history'),
             ),
           ),
-          const SizedBox(height: 10),
-          StaggeredEntrance(
-            index: 4,
-            child: _NavCard(
-              icon: Icons.apartment_outlined,
-              title: 'Offices',
-              subtitle: 'Manage offices and their head users',
-              color: AppTheme.brand,
-              onTap: () => context.push('/offices'),
-            ),
-          ),
+          // Reference data, account management and the recycle bin are ADMIN-only —
+          // staff work only with their office's assets, maintenance, disposal and reports.
           if (isAdmin) ...[
+            const SizedBox(height: 10),
+            StaggeredEntrance(
+              index: 3,
+              child: _NavCard(
+                icon: Icons.category_outlined,
+                title: 'Categories',
+                subtitle: 'Manage asset categories',
+                color: AppTheme.brand,
+                onTap: () => context.push('/categories'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            StaggeredEntrance(
+              index: 4,
+              child: _NavCard(
+                icon: Icons.apartment_outlined,
+                title: 'Offices',
+                subtitle: 'Manage offices and their head users',
+                color: AppTheme.brand,
+                onTap: () => context.push('/offices'),
+              ),
+            ),
             const SizedBox(height: 10),
             StaggeredEntrance(
               index: 5,
@@ -144,18 +159,18 @@ class DashboardScreen extends ConsumerWidget {
                 onTap: () => context.push('/accounts'),
               ),
             ),
-          ],
-          const SizedBox(height: 10),
-          StaggeredEntrance(
-            index: 6,
-            child: _NavCard(
-              icon: Icons.restore_from_trash_outlined,
-              title: 'Recycle Bin',
-              subtitle: 'View and restore deleted assets, maintenance, and disposal records',
-              color: AppTheme.statusRegistered,
-              onTap: () => context.push('/recycle-bin'),
+            const SizedBox(height: 10),
+            StaggeredEntrance(
+              index: 6,
+              child: _NavCard(
+                icon: Icons.restore_from_trash_outlined,
+                title: 'Recycle Bin',
+                subtitle: 'View and restore deleted assets, maintenance, and disposal records',
+                color: AppTheme.statusRegistered,
+                onTap: () => context.push('/recycle-bin'),
+              ),
             ),
-          ),
+          ],
         ],
         ),
       ),

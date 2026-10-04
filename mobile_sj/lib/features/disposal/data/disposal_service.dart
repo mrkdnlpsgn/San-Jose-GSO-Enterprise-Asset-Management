@@ -77,6 +77,23 @@ class DisposalService {
     }
   }
 
+  // Staff-created records are requests an admin approves or rejects (with a reason).
+  Future<void> approve(int id) async {
+    try {
+      await _dio.post('/disposal/$id/approve');
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
+  Future<void> reject(int id, String note) async {
+    try {
+      await _dio.post('/disposal/$id/reject', data: {'note': note});
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
   Future<void> delete(int id, {String? reason}) async {
     try {
       await _dio.delete('/disposal/$id',

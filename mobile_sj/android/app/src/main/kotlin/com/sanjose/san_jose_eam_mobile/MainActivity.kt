@@ -8,12 +8,17 @@ import io.flutter.embedding.android.FlutterActivity
 // activity, and blanks the app's thumbnail in the recent-apps switcher — asset
 // data (property records, accountable persons, contact info) must not leave
 // the device via a captured image, regardless of account role.
+// TEMPORARY: screenshot blocking disabled. Set to true to re-enable.
+private const val SCREENSHOT_PROTECTION_ENABLED = false
+
 class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+        if (SCREENSHOT_PROTECTION_ENABLED) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE
+            )
+        }
         super.onCreate(savedInstanceState)
     }
 }

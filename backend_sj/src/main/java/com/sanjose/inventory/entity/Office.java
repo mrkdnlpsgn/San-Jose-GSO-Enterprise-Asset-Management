@@ -15,14 +15,14 @@ public class Office {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "office_id")
+    @Column(name = "office_id", columnDefinition = "INT")
     private Long id;
 
     @Column(name = "office_name", nullable = false, unique = true, length = 100)
     private String officeName;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "head_user_id")
+    @JoinColumn(name = "head_user_id", columnDefinition = "INT")
     @JsonIgnoreProperties({"office", "password", "failedLoginAttempts", "accountLockedUntil"})
     private User headUser;
 

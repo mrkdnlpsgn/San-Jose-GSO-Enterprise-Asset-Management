@@ -16,6 +16,7 @@ import '../data/asset_service.dart';
 import '../utils/asset_excel.dart';
 import '../widgets/asset_filter_sheet.dart';
 import '../widgets/asset_group_widgets.dart';
+import '../../auth/provider/auth_provider.dart';
 
 class AssetListScreen extends ConsumerStatefulWidget {
   const AssetListScreen({super.key});
@@ -59,6 +60,8 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Adding and importing assets is ADMIN-only (web parity); staff edit their office's.
+    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
     final search = ref.watch(assetSearchProvider);
     final state = ref.watch(assetsPagedProvider(search));
     final countAsync = ref.watch(assetCountProvider(search));
@@ -122,13 +125,14 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
                 }
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'export', child: Row(children: [
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'export', child: Row(children: [
                 Icon(Icons.file_download_outlined, size: 18), SizedBox(width: 10), Text('Export'),
               ])),
-              PopupMenuItem(value: 'import', child: Row(children: [
-                Icon(Icons.file_upload_outlined, size: 18), SizedBox(width: 10), Text('Import'),
-              ])),
+              if (isAdmin)
+                const PopupMenuItem(value: 'import', child: Row(children: [
+                  Icon(Icons.file_upload_outlined, size: 18), SizedBox(width: 10), Text('Import'),
+                ])),
             ],
           ),
         ],
@@ -144,7 +148,7 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
           ),
         ),
       ),
-      floatingActionButton: Padding(
+      floatingActionButton: !isAdmin ? null : Padding(
         padding: const EdgeInsets.only(bottom: kMainShellBarHeight),
         child: FloatingActionButton(
           backgroundColor: AppTheme.brand,

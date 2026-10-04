@@ -13,11 +13,15 @@ class DisposalModel {
   final double? appraisedValue;
   final String? orNumber;
   final double? amount;
-  final double? accumulatedDepreciation; // informational only — never gates disposal
-  final double? carryingAmount;
   final MaintenanceUserModel recordedBy;
   final String createdAt;
   final String? updatedAt;
+  // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED; null = approved.
+  final String? approvalStatus;
+  final String? reviewNote;
+  final String? requestedByName;
+
+  bool get isApproved => approvalStatus == null || approvalStatus == 'APPROVED';
 
   const DisposalModel({
     required this.id,
@@ -31,11 +35,12 @@ class DisposalModel {
     this.appraisedValue,
     this.orNumber,
     this.amount,
-    this.accumulatedDepreciation,
-    this.carryingAmount,
     required this.recordedBy,
     required this.createdAt,
     this.updatedAt,
+    this.approvalStatus,
+    this.reviewNote,
+    this.requestedByName,
   });
 
   factory DisposalModel.fromJson(Map<String, dynamic> json) => DisposalModel(
@@ -50,10 +55,11 @@ class DisposalModel {
         appraisedValue: json['appraisedValue'] != null ? (json['appraisedValue'] as num).toDouble() : null,
         orNumber: json['orNumber'] as String?,
         amount: json['amount'] != null ? (json['amount'] as num).toDouble() : null,
-        accumulatedDepreciation: json['accumulatedDepreciation'] != null ? (json['accumulatedDepreciation'] as num).toDouble() : null,
-        carryingAmount: json['carryingAmount'] != null ? (json['carryingAmount'] as num).toDouble() : null,
         recordedBy: MaintenanceUserModel.fromJson(json['recordedBy'] as Map<String, dynamic>),
         createdAt: json['createdAt'] as String,
         updatedAt: json['updatedAt'] as String?,
+        approvalStatus: json['approvalStatus'] as String?,
+        reviewNote: json['reviewNote'] as String?,
+        requestedByName: json['requestedByName'] as String?,
       );
 }

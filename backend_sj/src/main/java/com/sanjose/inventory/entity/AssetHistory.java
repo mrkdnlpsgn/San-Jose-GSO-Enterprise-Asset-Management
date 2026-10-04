@@ -21,7 +21,7 @@ public class AssetHistory {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "asset_id", nullable = false)
+    @JoinColumn(name = "asset_id", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"category", "office", "accountablePerson", "remarks", "qrCodePath", "sha256Hash"})
     private Asset asset;
 
@@ -30,17 +30,17 @@ public class AssetHistory {
     private EventType eventType;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "from_office_id")
+    @JoinColumn(name = "from_office_id", columnDefinition = "INT")
     @JsonIgnoreProperties({"headUser", "createdAt"})
     private Office fromOffice;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "to_office_id")
+    @JoinColumn(name = "to_office_id", columnDefinition = "INT")
     @JsonIgnoreProperties({"headUser", "createdAt"})
     private Office toOffice;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "performed_by", nullable = false)
+    @JoinColumn(name = "performed_by", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"password", "office", "failedLoginAttempts", "accountLockedUntil"})
     private User performedBy;
 

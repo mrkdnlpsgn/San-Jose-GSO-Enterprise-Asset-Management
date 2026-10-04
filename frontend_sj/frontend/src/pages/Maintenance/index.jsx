@@ -5,7 +5,6 @@ import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useEventStream } from '../../hooks/useEventStream'
 import MainLayout from '../../components/layout/MainLayout'
-import Button from '../../components/common/Button'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { ApprovalBadge, ApprovalActions, RejectRequestModal, isApproved } from '../../components/common/ApprovalControls'
 import GroupDevicesTable, { groupEntries, recordMatches } from '../Assets/GroupDevicesTable'
@@ -13,7 +12,7 @@ import { AssetGroupDrawerById } from '../Assets/AssetGroupDrawer'
 import DeviceRow from '../Assets/DeviceRow'
 import AddMaintenanceModal from './AddMaintenanceModal'
 import EvidenceModal from './EvidenceModal'
-import { getMaintenance, createMaintenance, updateMaintenance, deleteMaintenance, approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
+import { getMaintenance, updateMaintenance, deleteMaintenance, approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
 import { getAssets } from '../../services/assetService'
 import { getUsers } from '../../services/userService'
 
@@ -49,7 +48,6 @@ function Maintenance() {
   const [filterStatus, setFilterStatus]   = useState('')
   const [filterType, setFilterType]       = useState('')
   const [assetFilter, setAssetFilter]     = useState('')
-  const [showAdd, setShowAdd]   = useState(false)
   const [editing, setEditing]   = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [rejecting, setRejecting] = useState(null)
@@ -118,15 +116,6 @@ function Maintenance() {
       return exists ? prev.map((r) => (r.id === data.id ? data : r)) : [data, ...prev]
     })
   })
-
-  const handleCreate = async (payload, idempotencyKey) => {
-    const { data } = await createMaintenance(payload, idempotencyKey)
-    // The SSE 'maintenance' CREATED event (emitted server-side before this
-    // response returns) can already have added this record via the listener
-    // above — check first so a fast round-trip doesn't insert it twice.
-    setRecords((prev) => (prev.some((r) => r.id === data.id) ? prev.map((r) => (r.id === data.id ? data : r)) : [data, ...prev]))
-    toast.show(isApproved(data) ? 'Maintenance record added.' : 'Request sent — an administrator needs to approve it before you can edit it.', 'success')
-  }
 
   const handleUpdate = async (payload) => {
     const { data } = await updateMaintenance(editing.id, payload)
@@ -350,12 +339,6 @@ function Maintenance() {
             <input type="text" placeholder="Search asset, findings…" value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
           </div>
-          <Button size="md" className="self-start sm:self-auto" onClick={() => setShowAdd(true)}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            {isAdmin ? 'Add Maintenance' : 'Request Maintenance'}
-          </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {(isAdmin || pendingCount > 0) && (
@@ -472,7 +455,6 @@ function Maintenance() {
         />
       )}
 
-      {showAdd  && <AddMaintenanceModal onClose={() => setShowAdd(false)} onSave={handleCreate} assets={assets} users={users} requestMode={!isAdmin} />}
       {editing  && <AddMaintenanceModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} assets={assets} users={users} />}
       {viewingEvidence && (
         <EvidenceModal record={viewingEvidence} onClose={() => setViewingEvidence(null)} />

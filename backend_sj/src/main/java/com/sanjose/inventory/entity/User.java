@@ -16,7 +16,7 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
+    @Column(name = "user_id", columnDefinition = "INT")
     private Long id;
 
     @Column(nullable = false, unique = true, length = 50)
@@ -38,7 +38,7 @@ public class User {
     private String role; // "ADMIN" or "STAFF"
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "office_id")
+    @JoinColumn(name = "office_id", columnDefinition = "INT")
     @JsonIgnoreProperties({"headUser", "users", "createdAt"})
     private Office office;
 

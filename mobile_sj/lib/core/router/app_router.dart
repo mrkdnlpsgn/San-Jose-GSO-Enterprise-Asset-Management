@@ -26,6 +26,7 @@ import '../../features/categories/screens/category_form_screen.dart';
 import '../../features/offices/screens/office_list_screen.dart';
 import '../../features/offices/screens/office_form_screen.dart';
 import '../../features/reports/screens/reports_list_screen.dart';
+import '../../features/asset_history/screens/asset_history_screen.dart';
 import '../../features/reports/screens/report_preview_screen.dart';
 import '../../features/recycle_bin/screens/recycle_bin_screen.dart';
 import '../../features/qr_scanner/screens/qr_scanner_screen.dart';
@@ -91,7 +92,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(path: '/maintenance', pageBuilder: (c, s) => fadeThroughPage(c, s, const MaintenanceListScreen())),
-      GoRoute(path: '/maintenance/new', pageBuilder: (c, s) => fadeThroughPage(c, s, const MaintenanceFormScreen())),
       GoRoute(
         path: '/maintenance/:id',
         pageBuilder: (c, s) => fadeThroughPage(c, s, MaintenanceDetailScreen(maintenanceId: int.parse(s.pathParameters['id']!))),
@@ -101,7 +101,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (c, s) => fadeThroughPage(c, s, MaintenanceFormScreen(maintenance: s.extra as MaintenanceModel?)),
       ),
       GoRoute(path: '/disposal', pageBuilder: (c, s) => fadeThroughPage(c, s, const DisposalListScreen())),
-      GoRoute(path: '/disposal/new', pageBuilder: (c, s) => fadeThroughPage(c, s, const DisposalFormScreen())),
       GoRoute(
         path: '/disposal/:id',
         pageBuilder: (c, s) => fadeThroughPage(c, s, DisposalDetailScreen(disposalId: int.parse(s.pathParameters['id']!))),
@@ -133,6 +132,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/reports/:id',
         pageBuilder: (c, s) => fadeThroughPage(c, s, ReportPreviewScreen(reportId: s.pathParameters['id']!)),
       ),
+      GoRoute(path: '/asset-history', pageBuilder: (c, s) => fadeThroughPage(c, s, const AssetHistoryScreen())),
       GoRoute(path: '/recycle-bin', pageBuilder: (c, s) => fadeThroughPage(c, s, const RecycleBinScreen())),
       GoRoute(path: '/legal', pageBuilder: (c, s) => fadeThroughPage(c, s, const LegalScreen())),
       GoRoute(
@@ -169,6 +169,18 @@ class _RouterNotifier extends ChangeNotifier {
     if (needsAck && !onAcknowledge && !onLegal) return '/acknowledge-privacy';
     if (!needsAck && onAcknowledge) return '/dashboard';
 
+    // Mirrors web's AdminRoute — staff are bounced to the dashboard. (The backend
+    // enforces the same rules; this just keeps staff off screens that would fail.)
+    if (isLoggedIn && !user.isAdmin && _isAdminOnly(state.matchedLocation)) return '/dashboard';
+
     return null;
   }
+
+  // Reference data, account management, the recycle bin, and adding/importing assets.
+  static const _adminOnlyPrefixes = ['/accounts', '/categories', '/offices', '/recycle-bin'];
+  static const _adminOnlyPaths = {'/assets/new', '/assets/import'};
+
+  static bool _isAdminOnly(String location) =>
+      _adminOnlyPaths.contains(location) ||
+      _adminOnlyPrefixes.any((p) => location == p || location.startsWith('$p/'));
 }

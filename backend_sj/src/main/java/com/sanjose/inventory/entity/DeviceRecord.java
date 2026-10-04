@@ -19,7 +19,7 @@ public class DeviceRecord {
     @Column(name = "device_id")
     private Long id;
 
-    @Column(name = "equipment_id", nullable = false)
+    @Column(name = "equipment_id", nullable = false, columnDefinition = "INT")
     private Long equipmentId;
 
     @Column(name = "item_code", length = 50)

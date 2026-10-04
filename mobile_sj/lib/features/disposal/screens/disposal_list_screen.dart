@@ -8,7 +8,6 @@ import '../../../shared/widgets/paginated_list_view.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/status_badge.dart';
-import '../../../features/auth/provider/auth_provider.dart';
 import '../../../core/platform.dart';
 import '../widgets/disposal_filter_sheet.dart';
 import '../../assets/widgets/asset_group_widgets.dart';
@@ -34,7 +33,6 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
     final search = ref.watch(disposalSearchProvider);
     final state = ref.watch(disposalPagedProvider(search));
     final countAsync = ref.watch(disposalCountProvider(search));
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
     final filtersActive = disposalFiltersActive(ref);
 
     return Scaffold(
@@ -92,19 +90,6 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
           ),
         ),
       ),
-      floatingActionButton: isAdmin
-          ? FloatingActionButton(
-              backgroundColor: AppTheme.brand,
-              child: const Icon(Icons.add_rounded, color: Colors.white),
-              onPressed: () async {
-                final result = await context.push<bool>('/disposal/new');
-                if (result == true) {
-                  ref.invalidate(disposalPagedProvider(search));
-                  ref.invalidate(disposalCountProvider(search));
-                }
-              },
-            )
-          : null,
       body: AutoRefreshTicker(
         interval: const Duration(seconds: 30),
         onTick: () => ref.read(disposalPagedProvider(search).notifier).silentRefresh(),
@@ -163,6 +148,10 @@ class _DisposalCard extends StatelessWidget {
               Row(
                 children: [
                   StatusBadge.disposalMethod(item.recommendedMethod, dense: true),
+                  if (StatusBadge.approval(item.approvalStatus) case final badge?) ...[
+                    const SizedBox(width: 6),
+                    badge,
+                  ],
                   const Spacer(),
                   StatusBadge.disposalStatus(item.disposalStatus, dense: true),
                 ],
@@ -191,11 +180,6 @@ class _DisposalCard extends StatelessWidget {
                   ],
                 ],
               ),
-              if (item.carryingAmount != null) ...[
-                const SizedBox(height: 6),
-                Text('Carrying Amount: ₱${item.carryingAmount!.toStringAsFixed(2)}',
-                    style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-              ],
             ],
           ),
         ),

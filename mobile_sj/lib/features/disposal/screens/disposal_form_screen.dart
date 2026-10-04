@@ -110,7 +110,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             _assetSelector(),
-            if (_selectedAsset != null) _assetDepreciationPreview(),
+            if (_selectedAsset != null) _assetCostPreview(),
             const SizedBox(height: 14),
             _enumDropdown('Recommended Method', _recommendedMethod,
               ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS'], (v) => setState(() => _recommendedMethod = v!)),
@@ -172,7 +172,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
     );
   }
 
-  Widget _assetDepreciationPreview() {
+  Widget _assetCostPreview() {
     final asset = _selectedAsset!;
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4),
@@ -186,18 +186,14 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _depRow('Unit Cost', '₱${asset.unitValue.toStringAsFixed(2)}'),
-            _depRow('Accumulated Depreciation',
-                asset.accumulatedDepreciation != null ? '₱${asset.accumulatedDepreciation!.toStringAsFixed(2)}' : '—'),
-            _depRow('Carrying Amount',
-                asset.carryingAmount != null ? '₱${asset.carryingAmount!.toStringAsFixed(2)}' : '—'),
+            _costRow('Unit Cost', '₱${asset.unitValue.toStringAsFixed(2)}'),
           ],
         ),
       ),
     );
   }
 
-  Widget _depRow(String label, String value) => Padding(
+  Widget _costRow(String label, String value) => Padding(
         padding: const EdgeInsets.only(bottom: 2),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

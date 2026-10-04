@@ -27,6 +27,12 @@ class MaintenanceModel {
   final MaintenanceUserModel recordedBy;
   final String createdAt;
   final String? updatedAt;
+  // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED; null = approved.
+  final String? approvalStatus;
+  final String? reviewNote;
+  final String? requestedByName;
+
+  bool get isApproved => approvalStatus == null || approvalStatus == 'APPROVED';
 
   const MaintenanceModel({
     required this.id,
@@ -41,6 +47,9 @@ class MaintenanceModel {
     required this.recordedBy,
     required this.createdAt,
     this.updatedAt,
+    this.approvalStatus,
+    this.reviewNote,
+    this.requestedByName,
   });
 
   factory MaintenanceModel.fromJson(Map<String, dynamic> json) => MaintenanceModel(
@@ -56,5 +65,8 @@ class MaintenanceModel {
         recordedBy: MaintenanceUserModel.fromJson(json['recordedBy'] as Map<String, dynamic>),
         createdAt: json['createdAt'] as String,
         updatedAt: json['updatedAt'] as String?,
+        approvalStatus: json['approvalStatus'] as String?,
+        reviewNote: json['reviewNote'] as String?,
+        requestedByName: json['requestedByName'] as String?,
       );
 }

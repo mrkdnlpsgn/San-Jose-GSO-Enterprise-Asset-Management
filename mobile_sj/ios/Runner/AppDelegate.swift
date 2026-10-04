@@ -8,6 +8,8 @@ import UIKit
 // screenshot is taken. Applies regardless of account role.
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  // TEMPORARY: screenshot/recording protection disabled. Set to true to re-enable.
+  private let screenshotProtectionEnabled = false
   private var privacyOverlay: UIVisualEffectView?
 
   private var keyWindow: UIWindow? {
@@ -21,12 +23,14 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(screenCaptureChanged),
-      name: UIScreen.capturedDidChangeNotification, object: nil)
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(screenshotTaken),
-      name: UIApplication.userDidTakeScreenshotNotification, object: nil)
+    if screenshotProtectionEnabled {
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(screenCaptureChanged),
+        name: UIScreen.capturedDidChangeNotification, object: nil)
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(screenshotTaken),
+        name: UIApplication.userDidTakeScreenshotNotification, object: nil)
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

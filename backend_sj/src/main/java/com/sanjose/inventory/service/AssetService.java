@@ -38,6 +38,9 @@ public class AssetService {
     private final AuditLogService auditLogService;
     private final AssetHistoryService assetHistoryService;
     private final SseEmitterService sseEmitterService;
+    private final AccessService accessService;
+    private final MaintenanceLedgerService maintenanceLedgerService;
+    private final DisposalLedgerService disposalLedgerService;
 
     private static final RowMapper<Asset> ASSET_MAPPER = (rs, rn) -> {
         Asset a = new Asset();
@@ -75,7 +78,6 @@ public class AssetService {
             Category c = new Category();
             c.setId(catId);
             c.setCategoryName(rs.getString("categoryName"));
-            c.setUsefulLifeYears(rs.getObject("categoryUsefulLifeYears", Integer.class));
             a.setCategory(c);
         }
 
@@ -103,19 +105,8 @@ public class AssetService {
             a.setCurrentUser(cu);
         }
 
-        applyDepreciation(a);
         return a;
     };
-
-    private static void applyDepreciation(Asset a) {
-        Integer usefulLifeYears = a.getCategory() != null ? a.getCategory().getUsefulLifeYears() : null;
-        DepreciationCalculator.Result result = DepreciationCalculator.compute(
-            a.getUnitValue(), a.getAcquisitionDate(), usefulLifeYears);
-        if (result != null) {
-            a.setAccumulatedDepreciation(result.accumulatedDepreciation());
-            a.setCarryingAmount(result.carryingAmount());
-        }
-    }
 
     public List<Asset> findAll(String search, int page, int size,
                                 Long categoryId, Long officeId, String condition, String lifecycleStatus) {
@@ -546,6 +537,16 @@ public class AssetService {
         Long recorderId = getUserIdByUsername(username);
         int recId = recorderId != null ? recorderId.intValue() : 0;
 
+        if (!accessService.isAdmin()
+                && (asset.getCondition() == Asset.AssetCondition.REPAIRABLE
+                    || asset.getCondition() == Asset.AssetCondition.UNSERVICEABLE)) {
+            // Staff can't put an asset under maintenance or up for disposal directly —
+            // it goes in as a request and the lifecycle moves once an admin approves.
+            requestLifecycleChange(asset.getId(),
+                asset.getCondition() == Asset.AssetCondition.REPAIRABLE ? "UNDER_MAINTENANCE" : "DISPOSED", null);
+            return;
+        }
+
         if (asset.getCondition() == Asset.AssetCondition.REPAIRABLE) {
             jdbcTemplate.update("CALL sp_disposal_delete_by_asset(?)", asset.getId());
             SpHelper.callWithOutLong(jdbcTemplate,
@@ -584,6 +585,63 @@ public class AssetService {
             sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
         }
+    }
+
+    // A staff account's change of an asset to UNDER_MAINTENANCE / DISPOSED: files a
+    // maintenance or disposal request (PENDING_APPROVAL) instead of changing the asset.
+    // requestedCondition (REPAIRABLE / UNSERVICEABLE, or null) is the condition the staff
+    // asked for — held on the request too. The admin's approve() then applies both.
+    // No-op if one is already waiting.
+    public void requestLifecycleChange(Long assetId, String target, String requestedCondition) {
+        boolean maintenance = "UNDER_MAINTENANCE".equals(target);
+        String table = maintenance ? "maintenance_ledger" : "disposal_ledger";
+        if (hasPendingRequest(table, assetId)) return;
+
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Long requesterId = getUserIdByUsername(username);
+        int recId = requesterId != null ? requesterId.intValue() : 0;
+        Long newId;
+        if (maintenance) {
+            newId = SpHelper.callWithOutLong(jdbcTemplate,
+                "CALL sp_maintenance_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                assetId, "CORRECTIVE",
+                "Change to Under Maintenance requested by " + username,
+                "Awaiting administrator review",
+                null, LocalDate.now(), null, "SCHEDULED", recId);
+            jdbcTemplate.update("UPDATE maintenance_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ?, requested_condition = ? WHERE maintenance_id = ?",
+                requesterId, requestedCondition, newId);
+        } else {
+            newId = SpHelper.callWithOutLong(jdbcTemplate,
+                "CALL sp_disposal_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                assetId,
+                "Disposal requested by " + username,
+                "Requested from the asset's status — awaiting administrator review",
+                "OTHERS", "PENDING",
+                LocalDate.now(), null, recId,
+                null, null, null);
+            jdbcTemplate.update("UPDATE disposal_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ?, requested_condition = ? WHERE disposal_id = ?",
+                requesterId, requestedCondition, newId);
+        }
+        Asset asset = findById(assetId);
+        auditLogService.log(maintenance ? "MAINTENANCE_REQUESTED" : "DISPOSAL_REQUESTED",
+            maintenance ? "Maintenance" : "Disposal", newId, maintenance ? "maintenance" : "disposal",
+            (maintenance ? "Maintenance" : "Disposal") + " requested for asset: " + asset.getPropertyNumber());
+        if (maintenance) sseEmitterService.emitMaintenance("CREATED", newId, maintenanceLedgerService.findById(newId));
+        else sseEmitterService.emitDisposal("CREATED", newId, disposalLedgerService.findById(newId));
+    }
+
+    // MAINTENANCE / DISPOSAL when a request for this asset is waiting for an admin, else null.
+    public String pendingRequestKind(Long assetId) {
+        if (hasPendingRequest("disposal_ledger", assetId)) return "DISPOSAL";
+        if (hasPendingRequest("maintenance_ledger", assetId)) return "MAINTENANCE";
+        return null;
+    }
+
+    private boolean hasPendingRequest(String table, Long assetId) {
+        Integer n = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM " + table + " WHERE asset_id = ? AND approval_status = 'PENDING_APPROVAL' AND is_deleted = 0",
+            Integer.class, assetId);
+        return n != null && n > 0;
     }
 
     // Next free COA-YYYY-NNN, skipping

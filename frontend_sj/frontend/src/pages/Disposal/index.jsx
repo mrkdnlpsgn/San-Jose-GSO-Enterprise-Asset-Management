@@ -5,7 +5,6 @@ import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useEventStream } from '../../hooks/useEventStream'
 import MainLayout from '../../components/layout/MainLayout'
-import Button from '../../components/common/Button'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { ApprovalBadge, ApprovalActions, RejectRequestModal, isApproved } from '../../components/common/ApprovalControls'
 import GroupDevicesTable, { groupEntries, recordMatches } from '../Assets/GroupDevicesTable'
@@ -13,7 +12,7 @@ import { AssetGroupDrawerById } from '../Assets/AssetGroupDrawer'
 import DeviceRow from '../Assets/DeviceRow'
 import EvidenceModal from '../../components/common/EvidenceModal'
 import AddDisposalModal from './AddDisposalModal'
-import { getDisposal, createDisposal, updateDisposal, deleteDisposal, approveDisposal, rejectDisposal } from '../../services/disposalService'
+import { getDisposal, updateDisposal, deleteDisposal, approveDisposal, rejectDisposal } from '../../services/disposalService'
 import { getAssets } from '../../services/assetService'
 import { getUsers } from '../../services/userService'
 
@@ -34,13 +33,8 @@ function fmt(dt) {
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function fmtMoney(n) {
-  if (n == null) return '—'
-  return `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
 const PAGE_SIZE = 8
-const HEADERS = ['Asset', 'Reason', 'Carrying Amount', 'Method', 'Status', 'Inspection Date', 'Approved By', 'Recorded By', 'Evidence', '']
+const HEADERS = ['Asset', 'Reason', 'Method', 'Status', 'Inspection Date', 'Approved By', 'Recorded By', 'Evidence', '']
 
 function Disposal() {
   const toast    = useToast()
@@ -54,7 +48,6 @@ function Disposal() {
   const [filterStatus, setFilterStatus]   = useState('')
   const [filterMethod, setFilterMethod]   = useState('')
   const [assetFilter, setAssetFilter]     = useState('')
-  const [showAdd, setShowAdd]   = useState(false)
   const [editing, setEditing]   = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [rejecting, setRejecting] = useState(null)
@@ -122,15 +115,6 @@ function Disposal() {
       return exists ? prev.map((r) => (r.id === data.id ? data : r)) : [data, ...prev]
     })
   })
-
-  const handleCreate = async (payload, idempotencyKey) => {
-    const { data } = await createDisposal(payload, idempotencyKey)
-    // The SSE 'disposal' CREATED event (emitted server-side before this
-    // response returns) can already have added this record via the listener
-    // above — check first so a fast round-trip doesn't insert it twice.
-    setRecords((prev) => (prev.some((r) => r.id === data.id) ? prev.map((r) => (r.id === data.id ? data : r)) : [data, ...prev]))
-    toast.show(isApproved(data) ? 'Disposal record added.' : 'Request sent — an administrator needs to approve it before you can edit it.', 'success')
-  }
 
   const handleUpdate = async (payload) => {
     const { data } = await updateDisposal(editing.id, payload)
@@ -241,10 +225,6 @@ function Disposal() {
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[160px]">
                       <span className="block truncate" title={r.reason}>{r.reason}</span>
                     </td>
-                    <td className="px-5 py-3.5 text-xs whitespace-nowrap" title="Informational only — depreciation never gates disposal; condition does.">
-                      <p className="font-medium text-slate-700 dark:text-zinc-300">{fmtMoney(r.carryingAmount)}</p>
-                      <p className="text-slate-400 dark:text-zinc-500">−{fmtMoney(r.accumulatedDepreciation)} dep.</p>
-                    </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${METHOD_BADGE[r.recommendedMethod] || ''}`}>{r.recommendedMethod}</span>
                     </td>
@@ -289,10 +269,6 @@ function Disposal() {
         className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100 cursor-pointer">
         {assetCell(g, open)}
         <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs">{recs.length} records across {new Set(recs.map((r) => r.asset?.id)).size} devices</td>
-        <td className="px-5 py-3.5 text-xs whitespace-nowrap">
-          <p className="font-medium text-slate-700 dark:text-zinc-300">{fmtMoney(recs.reduce((n, r) => n + Number(r.carryingAmount || 0), 0))}</p>
-          <p className="text-2xs text-slate-400 dark:text-zinc-600">total</p>
-        </td>
         <td className="px-5 py-3.5 whitespace-nowrap">
           {commonOrVarious(recs, (r) => r.recommendedMethod, (v) => (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${METHOD_BADGE[v] || ''}`}>{v}</span>
@@ -357,12 +333,6 @@ function Disposal() {
             <input type="text" placeholder="Search asset, reason…" value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
           </div>
-          <Button size="md" className="self-start sm:self-auto" onClick={() => setShowAdd(true)}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            {isAdmin ? 'Add Disposal' : 'Request Disposal'}
-          </Button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -488,7 +458,6 @@ function Disposal() {
           onClose={() => setViewingEvidence(null)}
         />
       )}
-      {showAdd  && <AddDisposalModal onClose={() => setShowAdd(false)} onSave={handleCreate} assets={assets} users={users} requestMode={!isAdmin} />}
       {editing  && <AddDisposalModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} assets={assets} users={users} />}
       {rejecting && (
         <RejectRequestModal

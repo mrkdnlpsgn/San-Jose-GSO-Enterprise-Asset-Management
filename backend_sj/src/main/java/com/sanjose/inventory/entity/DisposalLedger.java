@@ -24,7 +24,7 @@ public class DisposalLedger {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "asset_id", nullable = false)
+    @JoinColumn(name = "asset_id", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"category", "office", "accountablePerson", "remarks", "qrCodePath", "sha256Hash"})
     private Asset asset;
 
@@ -68,17 +68,8 @@ public class DisposalLedger {
     @Transient
     private String requestedByName;
 
-    // Computed on read from the linked asset (see DepreciationCalculator) — matches
-    // the "Accumulated Depreciation" / "Carrying Amount" columns on the paper IIRUP
-    // form. Informational only; disposal eligibility is gated on asset condition.
-    @Transient
-    private BigDecimal accumulatedDepreciation;
-
-    @Transient
-    private BigDecimal carryingAmount;
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "recorded_by", nullable = false)
+    @JoinColumn(name = "recorded_by", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"password", "office", "failedLoginAttempts", "accountLockedUntil"})
     private User recordedBy;
 
@@ -89,7 +80,7 @@ public class DisposalLedger {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @Column(name = "deleted_by")
+    @Column(name = "deleted_by", columnDefinition = "INT")
     private Long deletedBy;
 
     @Column(name = "delete_reason", columnDefinition = "TEXT")

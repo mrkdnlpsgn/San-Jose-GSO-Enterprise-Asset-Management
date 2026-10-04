@@ -8,6 +8,7 @@ import '../data/disposal_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/delete_dialog.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/approval_banner.dart';
 import '../../../shared/widgets/error_state.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../evidence/evidence_sheet.dart';
@@ -35,7 +36,8 @@ class DisposalDetailScreen extends ConsumerWidget {
                 subtitle: '${async.value!.asset.propertyNumber} — ${async.value!.asset.description}',
               ),
             ),
-          if (isAdmin && async.value != null) ...[
+          // Staff can edit a record only once an admin has approved it (web parity).
+          if (async.value != null && (isAdmin || async.value!.isApproved))
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               onPressed: () async {
@@ -43,6 +45,7 @@ class DisposalDetailScreen extends ConsumerWidget {
                 if (result == true) ref.invalidate(disposalDetailProvider(disposalId));
               },
             ),
+          if (isAdmin && async.value != null) ...[
             IconButton(
               icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
               onPressed: () async {
@@ -63,6 +66,19 @@ class DisposalDetailScreen extends ConsumerWidget {
           ],
         ],
       ),
+      // Admin reviewing a staff request: approving applies it to the asset.
+      bottomNavigationBar: isAdmin && async.value?.approvalStatus == 'PENDING_APPROVAL'
+          ? ApprovalActionsBar(
+              onApprove: () async {
+                await DisposalService().approve(disposalId);
+                if (context.mounted) _afterReview(context, ref, 'Request approved.');
+              },
+              onReject: (note) async {
+                await DisposalService().reject(disposalId, note);
+                if (context.mounted) _afterReview(context, ref, 'Request rejected.');
+              },
+            )
+          : null,
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
         error: (err, _) => ErrorState(
@@ -72,6 +88,16 @@ class DisposalDetailScreen extends ConsumerWidget {
         data: (item) => _Body(item: item),
       ),
     );
+  }
+
+  void _afterReview(BuildContext context, WidgetRef ref, String message) {
+    ref.invalidate(disposalDetailProvider(disposalId));
+    ref.invalidate(disposalPagedProvider(ref.read(disposalSearchProvider)));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+    }
   }
 }
 
@@ -84,6 +110,11 @@ class _Body extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ApprovalBanner(
+          approvalStatus: item.approvalStatus,
+          requestedByName: item.requestedByName,
+          reviewNote: item.reviewNote,
+        ),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -116,14 +147,6 @@ class _Body extends StatelessWidget {
           if (item.orNumber != null) _row(context, 'OR No.', item.orNumber!),
           if (item.amount != null) _row(context, 'Amount', '₱${item.amount!.toStringAsFixed(2)}'),
           _row(context, 'Recorded By', item.recordedBy.fullName),
-        ]),
-        const SizedBox(height: 12),
-        _card(context, 'Depreciation (Informational)', [
-          _row(context, 'Unit Cost', '₱${item.asset.unitValue.toStringAsFixed(2)}'),
-          _row(context, 'Accumulated Depreciation',
-              item.accumulatedDepreciation != null ? '₱${item.accumulatedDepreciation!.toStringAsFixed(2)}' : '—'),
-          _row(context, 'Carrying Amount',
-              item.carryingAmount != null ? '₱${item.carryingAmount!.toStringAsFixed(2)}' : '—'),
         ]),
         const SizedBox(height: 12),
         _card(context, 'Reason for Disposal', [], body: item.reason),

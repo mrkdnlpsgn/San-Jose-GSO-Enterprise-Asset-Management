@@ -5,8 +5,6 @@ import '../../../shared/provider/paginated_list_notifier.dart';
 import '../../asset_history/data/asset_history_service.dart';
 import '../../disposal/data/disposal_service.dart';
 import '../../maintenance/data/maintenance_service.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../auth/provider/auth_provider.dart';
 import '../data/ai_recommendation_service.dart';
 import '../data/asset_service.dart';
 import '../model/ai_recommendation_model.dart';
@@ -324,8 +322,6 @@ class _GroupSheetState extends State<_GroupSheet> {
 
   String _deviceName(int i) => 'Device ${i + 1} · ${_members![i].propertyNumber}';
 
-  bool get _isAdmin => ProviderScope.containerOf(context, listen: false).read(authProvider).value?.isAdmin ?? false;
-
   Future<void> _generate(int assetId) async {
     setState(() => _generating.add(assetId));
     try {
@@ -452,7 +448,7 @@ class _GroupSheetState extends State<_GroupSheet> {
   }
 
   Widget _aiInsight(BuildContext context, List<AssetModel> members) {
-    final isAdmin = _isAdmin;
+    // Any role can generate — web's group drawer doesn't gate it either.
     final anyGenerating = _generating.isNotEmpty;
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -469,14 +465,12 @@ class _GroupSheetState extends State<_GroupSheet> {
           ],
           onChanged: (v) => setState(() => _aiDevice = v),
         ),
-        if (isAdmin) ...[
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: anyGenerating ? null : () => _generateMissing(members),
-            icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-            label: const Text('Generate missing'),
-          ),
-        ],
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: anyGenerating ? null : () => _generateMissing(members),
+          icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+          label: const Text('Generate missing'),
+        ),
         const SizedBox(height: 12),
         for (var i = 0; i < members.length; i++)
           if (_aiDevice == null || _aiDevice == i)
@@ -493,8 +487,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                           child: Text(_deviceName(i),
                               style: const TextStyle(color: AppTheme.brand, fontSize: 11.5, fontWeight: FontWeight.w600)),
                         ),
-                        if (isAdmin)
-                          _generating.contains(members[i].id)
+                        _generating.contains(members[i].id)
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
@@ -508,7 +501,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                     if (!_recs.containsKey(members[i].id))
                       Text('Loading…', style: TextStyle(color: context.colors.textTertiary, fontSize: 12))
                     else if (_recs[members[i].id] == null)
-                      Text(isAdmin ? 'No recommendation yet. Tap Generate.' : 'No recommendation generated yet.',
+                      Text('No recommendation yet. Tap Generate.',
                           style: TextStyle(color: context.colors.textSecondary, fontSize: 13))
                     else ...[
                       Builder(builder: (_) {

@@ -18,7 +18,6 @@ function CategoryModal({ onClose, onSave, initial = null }) {
   const [form, setForm]     = useState({
     categoryName:    initial?.categoryName || '',
     description:     initial?.description || '',
-    usefulLifeYears: initial?.usefulLifeYears != null ? String(initial.usefulLifeYears) : '',
   })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -37,7 +36,6 @@ function CategoryModal({ onClose, onSave, initial = null }) {
       await onSave({
         categoryName: form.categoryName.trim(),
         description: form.description.trim(),
-        usefulLifeYears: form.usefulLifeYears !== '' ? Number(form.usefulLifeYears) : null,
       }, idempotencyKey)
       onClose()
     } catch (err) {
@@ -67,14 +65,6 @@ function CategoryModal({ onClose, onSave, initial = null }) {
             value={form.description}
             onChange={set('description')}
           />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Useful Life (years) <span className="text-slate-400 font-normal">(optional)</span></label>
-          <input type="number" min="1" step="1" className={INPUT_CLASS} placeholder="e.g. 5"
-            value={form.usefulLifeYears} onChange={set('usefulLifeYears')} />
-          <p className="text-xs text-slate-400 dark:text-zinc-500">
-            COA-prescribed estimated useful life, used to compute straight-line depreciation (10% salvage value) for assets in this category. Leave blank if not applicable.
-          </p>
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>
@@ -194,7 +184,7 @@ function Categories() {
             <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
               <thead>
                 <tr>
-                  {['Category Name', 'Description', 'Useful Life', 'Actions'].map((h) => (
+                  {['Category Name', 'Description', 'Actions'].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -205,9 +195,6 @@ function Categories() {
                     <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap">{cat.categoryName}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-xs">
                       <span className="block truncate">{cat.description || '—'}</span>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">
-                      {cat.usefulLifeYears != null ? `${cat.usefulLifeYears} yr${cat.usefulLifeYears !== 1 ? 's' : ''}` : '—'}
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">

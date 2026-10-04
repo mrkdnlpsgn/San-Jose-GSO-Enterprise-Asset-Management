@@ -8,17 +8,12 @@ import Button from '../../components/common/Button'
 import { useToast } from '../../context/ToastContext'
 import { getAssets, updateAssetStatus } from '../../services/assetService'
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
-import AddMaintenanceModal from '../Maintenance/AddMaintenanceModal'
-import AddDisposalModal from '../Disposal/AddDisposalModal'
-import { createMaintenance } from '../../services/maintenanceService'
-import { createDisposal } from '../../services/disposalService'
-import { getUsers } from '../../services/userService'
 
 const READER_ID = 'qr-reader-viewport'
 
 // Staff can't transfer an asset (an admin assigns it), and putting one under maintenance
-// or disposing of it goes through a request an admin approves — picking those statuses
-// opens the matching request form instead of changing the status directly.
+// or disposing of it is sent to an admin as a request on save — the asset keeps its
+// current status until the request is approved.
 const REQUEST_FOR_STATUS = { UNDER_MAINTENANCE: 'maintenance', DISPOSED: 'disposal' }
 const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
 
@@ -102,9 +97,7 @@ function QRScanner() {
   const [editingStatus, setEditingStatus] = useState(false)
   const [statusForm, setStatusForm]   = useState({ condition: '', lifecycleStatus: '' })
   const [savingStatus, setSavingStatus] = useState(false)
-  const [requestKind, setRequestKind] = useState(null)   // 'maintenance' | 'disposal' — staff request form open
   const [statusHint, setStatusHint]   = useState('')
-  const [users, setUsers]             = useState([])
 
   const scannerRef = useRef(null)
   const isRunning  = useRef(false)
@@ -212,34 +205,32 @@ function QRScanner() {
   const handleLifecycleChange = (e) => {
     const value = e.target.value
     setStatusHint('')
+    setStatusForm((p) => ({ ...p, lifecycleStatus: value }))
     const kind = !isAdmin && value !== result.lifecycleStatus ? REQUEST_FOR_STATUS[value] : null
-    if (!kind) { setStatusForm((p) => ({ ...p, lifecycleStatus: value })); return }
-    if (kind === 'disposal' && !DISPOSABLE_CONDITIONS.includes(result.condition)) {
-      setStatusHint('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — save that condition first, then request disposal.')
-      return
+    if (kind) {
+      setStatusHint(`Saving sends a ${kind} request to an administrator — the asset stays ${result.lifecycleStatus.replace('_', ' ')} until it's approved.`)
     }
-    if (users.length === 0) getUsers().then(({ data }) => setUsers(data)).catch(() => {})
-    setRequestKind(kind)
-  }
-
-  const sendRequest = async (payload, idempotencyKey) => {
-    const create = requestKind === 'maintenance' ? createMaintenance : createDisposal
-    await create(payload, idempotencyKey)
-    setEditingStatus(false)
-    show(`${requestKind === 'maintenance' ? 'Maintenance' : 'Disposal'} request sent — an administrator needs to approve it.`, 'success')
   }
 
   const lifecycleOptions = Object.keys(LIFECYCLE_BADGE).filter(
     (s) => isAdmin || s !== 'TRANSFERRED' || result?.lifecycleStatus === 'TRANSFERRED')
 
   const saveStatus = async () => {
+    if (!isAdmin && statusForm.lifecycleStatus === 'DISPOSED' && statusForm.lifecycleStatus !== result.lifecycleStatus
+        && !DISPOSABLE_CONDITIONS.includes(statusForm.condition)) {
+      setStatusHint('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.')
+      return
+    }
     setSavingStatus(true)
     try {
       const { data } = await updateAssetStatus(result.id, statusForm.condition, statusForm.lifecycleStatus)
       setResult(data)
       dispatch(updateAssetInStore(data))
       setEditingStatus(false)
-      show('Asset status updated.', 'success')
+      setStatusHint('')
+      show(data.pendingRequest
+        ? `${data.pendingRequest === 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent — an administrator needs to approve it.`
+        : 'Asset status updated.', 'success')
     } catch (err) {
       show(err.response?.data?.message || 'Failed to update status.', 'error')
     } finally {
@@ -423,7 +414,7 @@ function QRScanner() {
                         >
                           {lifecycleOptions.map((s) => (
                             <option key={s} value={s} disabled={!isAdmin && s === 'TRANSFERRED'}>
-                              {s.replace('_', ' ')}{!isAdmin && REQUEST_FOR_STATUS[s] && s !== result.lifecycleStatus ? ' — request…' : ''}
+                              {s.replace('_', ' ')}{!isAdmin && REQUEST_FOR_STATUS[s] && s !== result.lifecycleStatus ? ' (needs approval)' : ''}
                             </option>
                           ))}
                         </select>
@@ -472,10 +463,6 @@ function QRScanner() {
                     { label: 'Unit Value',      value: php(result.unitValue) },
                     { label: 'Quantity',        value: result.quantity },
                     { label: 'Acquisition Date', value: fmt(result.acquisitionDate) },
-                    ...(result.carryingAmount != null ? [
-                      { label: 'Accumulated Depreciation', value: php(result.accumulatedDepreciation) },
-                      { label: 'Carrying Amount',          value: php(result.carryingAmount) },
-                    ] : []),
                     { label: 'Specifications',  value: result.specifications, full: true, multiline: true },
                     { label: 'Remarks',         value: result.remarks },
                   ].filter((f) => f.value).map(({ label, value, full, multiline }) => (
@@ -490,14 +477,6 @@ function QRScanner() {
           )}
         </div>
       </div>
-      {requestKind === 'maintenance' && result && (
-        <AddMaintenanceModal requestMode presetAssetId={result.id} assets={[result]} users={users}
-          onClose={() => setRequestKind(null)} onSave={sendRequest} />
-      )}
-      {requestKind === 'disposal' && result && (
-        <AddDisposalModal requestMode presetAssetId={result.id} assets={[result]} users={users}
-          onClose={() => setRequestKind(null)} onSave={sendRequest} />
-      )}
     </MainLayout>
   )
 }

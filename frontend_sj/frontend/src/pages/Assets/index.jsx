@@ -155,7 +155,9 @@ function Assets() {
     dispatch(updateAsset(data))
     if (selected?.id === data.id) setSelected(data)
     setEditing(null)
-    toast.show('Asset updated.', 'success')
+    toast.show(data.pendingRequest
+      ? `Asset updated. ${data.pendingRequest === 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent — an administrator needs to approve it.`
+      : 'Asset updated.', 'success')
   }
 
   const handleDelete = async () => {

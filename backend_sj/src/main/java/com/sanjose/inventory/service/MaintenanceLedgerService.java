@@ -197,6 +197,16 @@ public class MaintenanceLedgerService {
             assetHistoryService.logEvent(saved.getAsset().getId(), "MAINTENANCE", null, null, reviewerId,
             "Maintenance logged (" + saved.getMaintenanceType() + "): " + saved.getFindings() + " — requested by " + saved.getRequestedByName());
         }
+        // a staff edit's condition change (REPAIRABLE / UNSERVICEABLE) was held on the
+        // request — the asset takes it only now
+        if (saved.getAsset() != null) {
+            String requestedCondition = jdbcTemplate.queryForObject(
+                "SELECT requested_condition FROM maintenance_ledger WHERE maintenance_id = ?", String.class, id);
+            if (requestedCondition != null) {
+                jdbcTemplate.update("UPDATE assets SET `condition` = ? WHERE asset_id = ?",
+                    requestedCondition, saved.getAsset().getId());
+            }
+        }
         // the request stood in for putting the asset under maintenance — do that now
         if (saved.getAsset() != null && !"COMPLETED".equals(String.valueOf(saved.getStatus()))) {
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)", saved.getAsset().getId(), "UNDER_MAINTENANCE");

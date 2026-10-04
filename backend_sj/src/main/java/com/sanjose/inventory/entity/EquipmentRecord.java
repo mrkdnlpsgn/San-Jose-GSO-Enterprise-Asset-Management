@@ -16,7 +16,7 @@ public class EquipmentRecord {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "equipment_id")
+    @Column(name = "equipment_id", columnDefinition = "INT")
     private Long id;
 
     @Column(nullable = false, length = 50)

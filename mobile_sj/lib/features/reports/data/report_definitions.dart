@@ -228,9 +228,7 @@ List<ReportDefinition> buildReportDefinitions() {
           final d = row as DisposalModel;
           return fmtMoney(d.asset.unitValue * d.asset.quantity);
         }),
-        ReportColumn('Accumulated Depreciation', (row) => fmtMoney((row as DisposalModel).accumulatedDepreciation)),
         ReportColumn('Accumulated Impairment Losses', (row) => '—'),
-        ReportColumn('Carrying Amount', (row) => fmtMoney((row as DisposalModel).carryingAmount)),
         ReportColumn('Remarks', (row) => (row as DisposalModel).inspectionFindings),
         ReportColumn('Sale', (row) {
           final d = row as DisposalModel;

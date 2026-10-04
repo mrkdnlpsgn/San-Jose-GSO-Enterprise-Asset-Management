@@ -86,16 +86,6 @@ public class DisposalLedgerService {
             }
 
             d.setAsset(a);
-
-            Integer usefulLifeYears = rs.getObject("asset_categoryUsefulLifeYears", Integer.class);
-            DepreciationCalculator.Result result = DepreciationCalculator.compute(
-                a.getUnitValue(), a.getAcquisitionDate(), usefulLifeYears);
-            if (result != null) {
-                a.setAccumulatedDepreciation(result.accumulatedDepreciation());
-                a.setCarryingAmount(result.carryingAmount());
-                d.setAccumulatedDepreciation(result.accumulatedDepreciation());
-                d.setCarryingAmount(result.carryingAmount());
-            }
         }
 
         Long rbId = rs.getObject("rb_id", Long.class);
@@ -241,6 +231,16 @@ public class DisposalLedgerService {
         if (saved.getAsset() != null) {
             assetHistoryService.logEvent(saved.getAsset().getId(), "DISPOSAL", null, null, reviewerId,
             "Disposal logged (" + saved.getRecommendedMethod() + "): " + saved.getReason() + " — requested by " + saved.getRequestedByName());
+        }
+        // a staff edit's condition change (REPAIRABLE / UNSERVICEABLE) was held on the
+        // request — the asset takes it only now
+        if (saved.getAsset() != null) {
+            String requestedCondition = jdbcTemplate.queryForObject(
+                "SELECT requested_condition FROM disposal_ledger WHERE disposal_id = ?", String.class, id);
+            if (requestedCondition != null) {
+                jdbcTemplate.update("UPDATE assets SET `condition` = ? WHERE asset_id = ?",
+                    requestedCondition, saved.getAsset().getId());
+            }
         }
         // the request stood in for putting the asset up for disposal — do that now
         if (saved.getAsset() != null && true) {

@@ -165,12 +165,6 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
               <Field label="Unit Value"        value={php(asset.unitValue)} />
               <Field label="Shortage/Overage Qty"   value={asset.shortageOverageQty ?? 0} />
               <Field label="Shortage/Overage Value" value={php(asset.shortageOverageValue ?? 0)} />
-              {asset.carryingAmount != null && (
-                <>
-                  <Field label="Accumulated Depreciation" value={php(asset.accumulatedDepreciation)} />
-                  <Field label="Carrying Amount"           value={php(asset.carryingAmount)} />
-                </>
-              )}
               {asset.remarks && <Field label="Remarks" value={asset.remarks} />}
               <Field label="Added"             value={fmt(asset.createdAt)} />
               <Field label="Last Updated"      value={fmt(asset.updatedAt)} />

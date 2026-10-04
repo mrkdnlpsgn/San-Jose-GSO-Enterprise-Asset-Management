@@ -20,7 +20,7 @@ public class Asset {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "asset_id")
+    @Column(name = "asset_id", columnDefinition = "INT")
     private Long id;
 
     @Column(name = "property_number", nullable = false, unique = true, length = 50)
@@ -42,7 +42,7 @@ public class Asset {
     private String description;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", nullable = false)
+    @JoinColumn(name = "category_id", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"description"})
     private Category category;
 
@@ -57,19 +57,19 @@ public class Asset {
     private BigDecimal unitValue;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "office_id", nullable = false)
+    @JoinColumn(name = "office_id", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"headUser", "createdAt"})
     private Office office;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "personnel_id")
+    @JoinColumn(name = "personnel_id", columnDefinition = "INT")
     @JsonIgnoreProperties({"office"})
     private Personnel accountablePerson;
 
     // The person who currently has physical possession/use of the asset — can
     // differ from accountablePerson, who is formally responsible for it on paper.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "current_user_personnel_id")
+    @JoinColumn(name = "current_user_personnel_id", columnDefinition = "INT")
     @JsonIgnoreProperties({"office"})
     private Personnel currentUser;
 
@@ -87,6 +87,11 @@ public class Asset {
 
     @Transient
     private java.math.BigDecimal groupTotalValue;
+
+    // Set on a staff edit's response: MAINTENANCE / DISPOSAL when the asset has a request
+    // waiting for an admin (its lifecycle status stays as-is until approved), else null.
+    @Transient
+    private String pendingRequest;
 
     @Column(name = "physical_count")
     private Integer physicalCount;
@@ -127,15 +132,6 @@ public class Asset {
     // matching how these are recorded on the paper Property Acknowledgment Receipt.
     @Column(columnDefinition = "TEXT")
     private String specifications;
-    // Computed on read from unitValue + acquisitionDate + category.usefulLifeYears
-    // (see DepreciationCalculator) — informational only, never persisted, and
-    // never used to gate disposal eligibility (that's driven by `condition`).
-    @Transient
-    private java.math.BigDecimal accumulatedDepreciation;
-
-    @Transient
-    private java.math.BigDecimal carryingAmount;
-
     @Builder.Default
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false;
@@ -143,7 +139,7 @@ public class Asset {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @Column(name = "deleted_by")
+    @Column(name = "deleted_by", columnDefinition = "INT")
     private Long deletedBy;
 
     @Column(name = "delete_reason", columnDefinition = "TEXT")

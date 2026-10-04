@@ -73,6 +73,25 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   // relocate an asset.
   bool get _staffMode => !(ref.read(authProvider).value?.isAdmin ?? false);
 
+  // 'maintenance' / 'disposal' when staff picked a status — or marked the asset
+  // REPAIRABLE / UNSERVICEABLE — which has to be approved by an admin first.
+  String? get _staffRequest {
+    if (!_isEdit || !_staffMode) return null;
+    final asset = widget.asset!;
+    final byStatus = _lifecycleStatus == asset.lifecycleStatus ? null : switch (_lifecycleStatus) {
+      'UNDER_MAINTENANCE' => 'maintenance',
+      'DISPOSED' => 'disposal',
+      _ => null,
+    };
+    if (byStatus != null) return byStatus;
+    if (_condition == asset.condition) return null;
+    return switch (_condition) {
+      'REPAIRABLE' => 'maintenance',
+      'UNSERVICEABLE' => 'disposal',
+      _ => null,
+    };
+  }
+
   @override
   void initState() {
     super.initState();
@@ -195,6 +214,10 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       _showError('Please select an acquisition date.');
       return;
     }
+    if (_staffRequest == 'disposal' && !const ['REPAIRABLE', 'UNSERVICEABLE'].contains(_condition)) {
+      _showError('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.');
+      return;
+    }
     setState(() => _loading = true);
     try {
       final offices = ref.read(officesProvider).value ?? [];
@@ -237,7 +260,17 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       final becameRepairable = _condition == 'REPAIRABLE' && _originalCondition != 'REPAIRABLE';
       final becameUnserviceable = _condition == 'UNSERVICEABLE' && _originalCondition != 'UNSERVICEABLE';
 
-      if (becameRepairable && mounted) {
+      // Staff's maintenance/disposal goes in as a request an admin approves (no editable
+      // record yet), so only an admin is taken straight to the auto-created record.
+      if (saved.pendingRequest != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${saved.pendingRequest == 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent — '
+              'an administrator needs to approve it.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else if (_staffMode) {
+        // nothing to open
+      } else if (becameRepairable && mounted) {
         final records = await MaintenanceService().getByAsset(saved.id);
         if (records.isNotEmpty && mounted) {
           await context.push('/maintenance/${records.first.id}/edit', extra: records.first);
@@ -397,6 +430,20 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                     _enumDropdown('Condition', _condition,
                       ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
                       (v) => setState(() => _condition = v!)),
+                    if (_staffRequest != null && _lifecycleStatus == widget.asset?.lifecycleStatus)
+                      _requestNotice(),
+                    // Editing only — a new asset starts as Registered. Staff can't transfer
+                    // (an admin assigns), and Under Maintenance / Disposed become requests.
+                    if (_isEdit) ...[
+                      _enumDropdown('Lifecycle Status', _lifecycleStatus,
+                        [
+                          for (final s in const ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED'])
+                            if (!_staffMode || s != 'TRANSFERRED' || widget.asset!.lifecycleStatus == 'TRANSFERRED') s,
+                        ],
+                        (v) => setState(() => _lifecycleStatus = v!)),
+                      if (_staffRequest != null && _lifecycleStatus != widget.asset!.lifecycleStatus)
+                        _requestNotice(),
+                    ],
                     _field(_specifications, 'Technical Specifications', maxLines: 6),
                     _field(_remarks, 'Remarks', maxLines: 3),
                     const SizedBox(height: 24),
@@ -514,6 +561,15 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       ),
     );
   }
+
+  Widget _requestNotice() => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Text(
+          'Saving sends a $_staffRequest request to an administrator — the asset keeps its '
+          "current condition and status until it's approved.",
+          style: const TextStyle(color: AppTheme.statusMaintenance, fontSize: 12.5),
+        ),
+      );
 
   Widget _enumDropdown(String label, String value, List<String> options, void Function(String?) onChanged) {
     return Padding(

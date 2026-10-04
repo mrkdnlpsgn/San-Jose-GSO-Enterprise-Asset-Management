@@ -135,21 +135,62 @@ public class AssetController {
     @PutMapping("/{id}")
     public Asset update(@PathVariable Long id, @RequestBody AssetRequest req) {
         accessService.requireAssetAccess(id);
-        if (!accessService.isAdmin()) limitStaffEdit(id, req);
-        return assetService.update(id, req);
+        if (accessService.isAdmin()) return assetService.update(id, req);
+        StaffRequest requested = limitStaffEdit(id, req);
+        Asset result = assetService.update(id, req);
+        return withRequest(id, requested, result);
     }
 
     // Condition/lifecycle only — used by the QR scanner's "Update Status".
     @PutMapping("/{id}/status")
     public Asset updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         accessService.requireAssetAccess(id);
-        if (!accessService.isAdmin()) limitStaffLifecycle(assetService.findById(id), body.get("lifecycleStatus"));
-        return assetService.updateStatus(id, body.get("condition"), body.get("lifecycleStatus"));
+        if (accessService.isAdmin()) return assetService.updateStatus(id, body.get("condition"), body.get("lifecycleStatus"));
+        Asset before = assetService.findById(id);
+        StaffRequest requested = staffRequest(before, body.get("condition"), body.get("lifecycleStatus"));
+        String condition = requested != null ? name(before.getCondition()) : body.get("condition");
+        String lifecycle = requested != null ? name(before.getLifecycleStatus()) : body.get("lifecycleStatus");
+        Asset result = assetService.updateStatus(id, condition, lifecycle);
+        return withRequest(id, requested, result);
+    }
+
+    // What a staff edit asks for that needs an admin: the lifecycle it should move to
+    // (UNDER_MAINTENANCE / DISPOSED) and the condition it asked for, if that changed.
+    private record StaffRequest(String lifecycle, String condition) {}
+
+    private static String name(Enum<?> e) { return e != null ? e.name() : null; }
+
+    // Putting an asset under maintenance or up for disposal — by picking that status, or by
+    // marking it REPAIRABLE / UNSERVICEABLE — is a request: the asset keeps its condition
+    // and status until an admin approves. Returns null when nothing needs approval.
+    private StaffRequest staffRequest(Asset before, String askedCondition, String askedLifecycle) {
+        String conditionBefore = name(before.getCondition());
+        String condition = askedCondition == null || askedCondition.isBlank()
+            ? conditionBefore : askedCondition.trim().toUpperCase();
+        String heldCondition = !java.util.Objects.equals(condition, conditionBefore)
+            && ("REPAIRABLE".equals(condition) || "UNSERVICEABLE".equals(condition)) ? condition : null;
+        String lifecycle = limitStaffLifecycle(before, askedLifecycle, condition);
+        if (lifecycle == null && heldCondition != null) {
+            lifecycle = "REPAIRABLE".equals(heldCondition) ? "UNDER_MAINTENANCE" : "DISPOSED";
+        }
+        return lifecycle != null ? new StaffRequest(lifecycle, heldCondition) : null;
+    }
+
+    // Files the staff's maintenance/disposal request (if any) once the edit is saved, and
+    // flags the response so the client can say a request is waiting.
+    private Asset withRequest(Long id, StaffRequest requested, Asset result) {
+        if (requested != null) assetService.requestLifecycleChange(id, requested.lifecycle(), requested.condition());
+        String pending = assetService.pendingRequestKind(id);
+        if (pending == null) return result;
+        Asset fresh = assetService.findById(id);
+        fresh.setPendingRequest(pending);
+        return fresh;
     }
 
     // Staff edit their office's assets but can't move one to another office (that takes it
     // out of their scope) or add devices (adding assets is admin-only).
-    private void limitStaffEdit(Long id, AssetRequest req) {
+    // Returns what the edit asks for that becomes a request (see staffRequest), else null.
+    private StaffRequest limitStaffEdit(Long id, AssetRequest req) {
         Asset before = assetService.findById(id);
         Long office = before.getOffice() != null ? before.getOffice().getId() : null;
         boolean moves = (req.getOfficeId() != null && !req.getOfficeId().equals(office))
@@ -161,23 +202,34 @@ public class AssetController {
             throw new ForbiddenException("Only an administrator can add devices to an asset.");
         }
         req.setOfficeId(office);
-        limitStaffLifecycle(before, req.getLifecycleStatus());
+        StaffRequest requested = staffRequest(before, req.getCondition(), req.getLifecycleStatus());
+        // the asset keeps its condition and status until an admin approves the request
+        if (requested != null) {
+            req.setLifecycleStatus(name(before.getLifecycleStatus()));
+            req.setCondition(name(before.getCondition()));
+        }
+        return requested;
     }
 
-    // Staff can't transfer an asset (admins assign it), and put it under maintenance or
-    // dispose of it only through a maintenance / disposal request an admin approves.
-    private void limitStaffLifecycle(Asset before, String requested) {
-        if (requested == null || requested.isBlank()) return;
+    // Staff can't transfer an asset (admins assign it). Putting it under maintenance or
+    // disposing of it comes back as the change to request — an admin approves it.
+    private String limitStaffLifecycle(Asset before, String requested, String conditionAfter) {
+        if (requested == null || requested.isBlank()) return null;
         String current = before.getLifecycleStatus() != null ? before.getLifecycleStatus().name() : null;
         String next = requested.trim().toUpperCase();
-        if (next.equals(current)) return;
+        if (next.equals(current)) return null;
         switch (next) {
             case "TRANSFERRED" -> throw new ForbiddenException("Only an administrator can transfer an asset.");
-            case "UNDER_MAINTENANCE" -> throw new ForbiddenException(
-                "Send a maintenance request instead — an administrator approves it.");
-            case "DISPOSED" -> throw new ForbiddenException(
-                "Send a disposal request instead — an administrator approves it.");
-            default -> { }
+            case "UNDER_MAINTENANCE" -> { return next; }
+            case "DISPOSED" -> {
+                String cond = conditionAfter == null ? "" : conditionAfter.trim().toUpperCase();
+                if (!cond.equals("REPAIRABLE") && !cond.equals("UNSERVICEABLE")) {
+                    throw new IllegalStateException(
+                        "Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.");
+                }
+                return next;
+            }
+            default -> { return null; }
         }
     }
 

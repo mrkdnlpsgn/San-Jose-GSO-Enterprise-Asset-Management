@@ -9,6 +9,10 @@ import { newIdempotencyKey } from '../../utils/idempotency'
 
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 const CONDITIONS  = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
+const LIFECYCLES  = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED']
+// Staff picking these doesn't change the asset — saving sends the matching request to an admin.
+const REQUEST_FOR_STATUS = { UNDER_MAINTENANCE: 'maintenance', DISPOSED: 'disposal' }
+const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
 const PAR_SERIAL_RE = /^[A-Za-z0-9-]+$/
 
 // PAR number = acquisition year-month + ':' + a serial typed by hand,
@@ -188,6 +192,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         resolvedCategoryId = newCat.id
       }
 
+      if (staffRequest === 'disposal' && !DISPOSABLE_CONDITIONS.includes(form.condition)) {
+        setErrors({ _global: 'Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.' })
+        return
+      }
       const selectedOfficeName = offices.find((o) => String(o.id) === String(form.officeId))?.officeName || ''
       const payload = {
         propertyNumber:    form.propertyNumber.trim() || null,
@@ -219,10 +227,21 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     }
   }
 
-  const conditionNote = form.condition === 'REPAIRABLE'
-    ? { color: 'amber', text: 'A maintenance ledger record will be automatically created.' }
+  const conditionChanged = !isEditing || form.condition !== initial.condition
+  const conditionNote = !conditionChanged ? null
+    : form.condition === 'REPAIRABLE'
+    ? { color: 'amber', text: staffMode
+        ? 'A maintenance request will be sent to an administrator — the asset keeps its current condition and status until approved.'
+        : 'A maintenance ledger record will be automatically created.' }
     : form.condition === 'UNSERVICEABLE'
-    ? { color: 'red',   text: 'A disposal ledger record will be automatically created.' }
+    ? { color: 'red',   text: staffMode
+        ? 'A disposal request will be sent to an administrator — the asset keeps its current condition and status until approved.'
+        : 'A disposal ledger record will be automatically created.' }
+    : null
+
+  // Staff choosing Under Maintenance / Disposed: the status change becomes a request.
+  const staffRequest = staffMode && isEditing && form.lifecycleStatus !== initial.lifecycleStatus
+    ? REQUEST_FOR_STATUS[form.lifecycleStatus] ?? null
     : null
 
   return (
@@ -484,6 +503,28 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             <ChevronIcon />
           </div>
         </div>
+
+        {/* Lifecycle Status — editing only (a new asset starts as Registered) */}
+        {isEditing && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Lifecycle Status</label>
+            <div className="relative">
+              <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.lifecycleStatus} onChange={set('lifecycleStatus')}>
+                {LIFECYCLES.map((s) => (
+                  <option key={s} value={s} disabled={staffMode && s === 'TRANSFERRED' && initial.lifecycleStatus !== 'TRANSFERRED'}>
+                    {s.replace('_', ' ')}{staffMode && REQUEST_FOR_STATUS[s] && s !== initial.lifecycleStatus ? ' (needs approval)' : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronIcon />
+            </div>
+            {staffRequest && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Saving sends a {staffRequest} request to an administrator — the asset stays {initial.lifecycleStatus.replace('_', ' ')} until it's approved.
+              </p>
+            )}
+          </div>
+        )}
 
         {conditionNote && (
           <div className={`flex items-start gap-2.5 px-4 py-3 rounded-lg border ${

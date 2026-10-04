@@ -594,13 +594,13 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    // Any role can generate — web's asset drawer doesn't gate it either.
     final recAsync = ref.watch(aiRecommendationProvider(widget.assetId));
 
     ref.listen<AsyncValue<AiRecommendationModel?>>(
       aiRecommendationProvider(widget.assetId),
       (previous, next) {
-        if (isAdmin && !_generating && !_autoGenerateAttempted && next.hasValue && next.value == null) {
+        if (!_generating && !_autoGenerateAttempted && next.hasValue && next.value == null) {
           _autoGenerateAttempted = true;
           _generate(silent: true);
         }
@@ -622,8 +622,7 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
                       style: TextStyle(color: context.colors.textTertiary, fontSize: 12,
                           fontWeight: FontWeight.w600, letterSpacing: 0.8)),
                 ),
-                if (isAdmin)
-                  _generating
+                _generating
                       ? const SizedBox(width: 16, height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
                       : IconButton(
@@ -674,9 +673,7 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
                   }
                   return Text(
                     key: const ValueKey('empty'),
-                    isAdmin
-                        ? 'No recommendation yet. Tap refresh to generate one.'
-                        : 'No recommendation generated yet.',
+                    'No recommendation yet. Tap refresh to generate one.',
                     style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
                   );
                 }

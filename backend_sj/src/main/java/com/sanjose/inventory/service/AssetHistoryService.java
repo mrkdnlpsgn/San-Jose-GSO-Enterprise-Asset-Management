@@ -2,6 +2,7 @@ package com.sanjose.inventory.service;
 
 import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.AssetHistoryRequest;
+import com.sanjose.inventory.dto.EditRequestView;
 import com.sanjose.inventory.entity.Asset;
 import com.sanjose.inventory.entity.Personnel;
 import com.sanjose.inventory.entity.AssetHistory;
@@ -15,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -93,6 +96,50 @@ public class AssetHistoryService {
             return jdbcTemplate.query("CALL sp_asset_history_search(?, ?)", HISTORY_MAPPER, search.trim(), officeId);
         }
         return jdbcTemplate.query("CALL sp_asset_history_get_all(?)", HISTORY_MAPPER, officeId);
+    }
+
+    // A staff account's history: every event (by anyone) on the assets it is the accountable
+    // person for — through the personnel record(s) linked to the account.
+    public List<AssetHistory> findForAccountable(String search, Long userId) {
+        Set<Long> personnelIds = new HashSet<>(jdbcTemplate.queryForList(
+            "SELECT personnel_id FROM personnel WHERE user_id = ?", Long.class, userId));
+        if (personnelIds.isEmpty()) return List.of();
+        return findAll(search, null).stream()
+            .filter(h -> h.getAsset() != null && h.getAsset().getAccountablePerson() != null
+                && personnelIds.contains(h.getAsset().getAccountablePerson().getId()))
+            .toList();
+    }
+
+    // Maintenance / disposal requests filed by staff (null requestedById = every requester),
+    // newest first, with where each stands — Pending, Approved or Rejected.
+    public List<EditRequestView> findRequests(Long requestedById) {
+        String select = """
+            SELECT '%s' AS kind, r.%s AS record_id, a.asset_id, a.property_number, a.par_number,
+                   a.description, r.%s AS detail, r.approval_status, r.review_note,
+                   r.created_at, r.reviewed_at, ru.user_id AS requester_id,
+                   COALESCE(ru.full_name, ru.username) AS requester_name,
+                   COALESCE(rv.full_name, rv.username) AS reviewer_name
+            FROM %s r
+            JOIN assets a ON a.asset_id = r.asset_id
+            JOIN users ru ON ru.user_id = r.requested_by
+            LEFT JOIN users rv ON rv.user_id = r.reviewed_by
+            WHERE r.requested_by IS NOT NULL AND r.is_deleted = 0 AND (? IS NULL OR r.requested_by = ?)
+            """;
+        String sql = select.formatted("MAINTENANCE", "maintenance_id", "findings", "maintenance_ledger")
+            + " UNION ALL "
+            + select.formatted("DISPOSAL", "disposal_id", "reason", "disposal_ledger")
+            + " ORDER BY created_at DESC";
+        return jdbcTemplate.query(sql, (rs, rn) -> {
+            Timestamp requested = rs.getTimestamp("created_at");
+            Timestamp reviewed = rs.getTimestamp("reviewed_at");
+            return new EditRequestView(
+                rs.getString("kind"), rs.getLong("record_id"), rs.getLong("asset_id"),
+                rs.getString("property_number"), rs.getString("par_number"), rs.getString("description"),
+                rs.getString("detail"), rs.getString("approval_status"), rs.getString("review_note"),
+                requested != null ? requested.toLocalDateTime() : null,
+                reviewed != null ? reviewed.toLocalDateTime() : null,
+                rs.getLong("requester_id"), rs.getString("requester_name"), rs.getString("reviewer_name"));
+        }, requestedById, requestedById, requestedById, requestedById);
     }
 
     public List<AssetHistory> findByAsset(Long assetId) {
