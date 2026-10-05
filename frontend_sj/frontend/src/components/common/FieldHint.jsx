@@ -13,7 +13,7 @@ function FieldHint({ text, placement = 'center' }) {
         type="button"
         tabIndex={0}
         aria-label={text}
-        className="w-3.5 h-3.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400 text-[9px] font-bold flex items-center justify-center cursor-default select-none leading-none focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900"
+        className="w-3.5 h-3.5 rounded-full bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400 text-[0.5625rem] font-bold flex items-center justify-center cursor-default select-none leading-none focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-zinc-900"
       >
         ?
       </button>

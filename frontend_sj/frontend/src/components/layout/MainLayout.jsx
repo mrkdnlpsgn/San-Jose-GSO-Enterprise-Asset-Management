@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
-import GovMasthead from './GovMasthead'
 import IdleWarningModal from '../common/IdleWarningModal'
 import OnboardingModal, { useOnboarding } from '../common/OnboardingModal'
 import PrivacyAcknowledgmentModal from '../common/PrivacyAcknowledgmentModal'
@@ -38,7 +37,7 @@ function MainLayout({ children }) {
   }
 
   const handleWarn = useCallback(() => setShowWarning(true),  [])
-  const handleIdle = useCallback(() => { setShowWarning(false); signOut() }, [signOut])
+  const handleIdle = useCallback(() => { setShowWarning(false); signOut({ reason: 'idle' }) }, [signOut])
 
   const { reset } = useIdleTimeout({
     idleAfterMs: IDLE_MS,
@@ -59,7 +58,6 @@ function MainLayout({ children }) {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-white dark:bg-zinc-950">
-      <GovMasthead />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar
           isCollapsed={isCollapsed}

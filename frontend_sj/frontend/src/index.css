@@ -56,6 +56,14 @@
   background-color: #52525b;         /* zinc-600 */
 }
 
+/* Larger type inside every data table. Cells set their size with text-2xs / text-xs /
+   text-sm, so each step is bumped here (table + class outranks the plain utility)
+   instead of editing every cell's class list. */
+table.text-sm,
+table .text-sm  { font-size: 1rem;      line-height: 1.5rem; }   /* 14px → 16px */
+table .text-xs  { font-size: 0.9375rem; line-height: 1.375rem; } /* 12px → 15px */
+table .text-2xs { font-size: 0.8125rem; line-height: 1.25rem; }  /* 11px → 13px (headers) */
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

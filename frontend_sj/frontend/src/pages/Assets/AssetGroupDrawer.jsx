@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { HEADER_OFFSET } from '../../components/layout/layoutSizes'
 import api from '../../services/api'
 import Modal from '../../components/common/Modal'
 import { getAssetHistory } from '../../services/assetHistoryService'
@@ -155,15 +156,15 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
 
   return (
     <>
-      <div className="fixed inset-0 z-30 backdrop-blur-sm pointer-events-none" style={{ top: '60px' }} />
+      <div className="fixed inset-0 z-30 backdrop-blur-sm pointer-events-none" style={{ top: HEADER_OFFSET }} />
       <div
         className={`fixed inset-0 z-30 bg-zinc-950/20 ${exiting ? 'animate-fade-out' : 'animate-fade-in'}`}
-        style={{ top: '60px' }}
+        style={{ top: HEADER_OFFSET }}
         onClick={onClose}
       />
       <aside
         className={`fixed right-0 bottom-0 z-40 w-full max-w-lg bg-white dark:bg-zinc-950 border-l border-slate-200 dark:border-zinc-800 flex flex-col shadow-2xl overflow-hidden ${exiting ? 'animate-slide-out-drawer' : 'animate-slide-in-drawer'}`}
-        style={{ top: '60px' }}
+        style={{ top: HEADER_OFFSET }}
       >
         {/* Header */}
         <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">

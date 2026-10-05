@@ -203,7 +203,7 @@ function Maintenance() {
           {chevronButton(g.key, open, open ? 'Hide records' : `Show all ${recs.length} records`)}
           <div className="min-w-0">
             <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold bg-brand-500/10 text-brand-400 ring-1 ring-brand-500/20">{recs.length} records</span>
-            <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[160px] mt-0.5">{recs[0].asset?.description}</p>
+            <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem] mt-0.5">{recs[0].asset?.description}</p>
             <p className="text-2xs text-slate-400 dark:text-zinc-500">{devices} device{devices !== 1 ? 's' : ''} · same model</p>
           </div>
         </div>
@@ -221,12 +221,12 @@ function Maintenance() {
                     <td className="px-5 py-3.5">
                       <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{r.asset?.propertyNumber}</p>
                       {r.asset?.parNumber && <p className="font-mono text-2xs text-slate-400 dark:text-zinc-500">PAR: {r.asset.parNumber}</p>}
-                      <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[160px]">{r.asset?.description}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem]">{r.asset?.description}</p>
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${TYPE_BADGE[r.maintenanceType] || ''}`}>{r.maintenanceType}</span>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[160px]">
+                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[10rem]">
                       <span className="block truncate" title={r.findings}>{r.findings}</span>
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">

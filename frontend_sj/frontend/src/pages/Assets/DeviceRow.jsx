@@ -28,7 +28,7 @@ export default function DeviceRow({ asset: a, onOpen }) {
       <td className="px-5 py-3.5 whitespace-nowrap"><span className="font-mono text-xs text-slate-600 dark:text-zinc-300">{a.propertyNumber}</span></td>
       <td className="px-5 py-3.5 whitespace-nowrap"><span className="font-mono text-xs text-slate-600 dark:text-zinc-300">{a.parNumber || dash}</span></td>
       <td className="px-5 py-3.5">
-        <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[180px]">{a.description}</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[11.25rem]">{a.description}</p>
         <div className="mt-0.5 space-y-0.5 text-2xs text-slate-400 dark:text-zinc-500">
           {a.serialNumber && <p className="font-mono">S/N {a.serialNumber}</p>}
           {a.accountablePerson?.fullName && <p>Accountable: {a.accountablePerson.fullName}</p>}
@@ -45,7 +45,7 @@ export default function DeviceRow({ asset: a, onOpen }) {
       <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{a.office?.officeName || '—'}</td>
       <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{php(a.unitValue)}</td>
       <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{fmt(a.acquisitionDate)}</td>
-      <td className="px-5 py-3.5 text-xs max-w-[200px]">
+      <td className="px-5 py-3.5 text-xs max-w-[12.5rem]">
         <div className="flex flex-col gap-1">
           <span className={`inline-flex items-center self-start px-2 py-0.5 rounded-full text-xs font-semibold ${CONDITION_BADGE[a.condition] || ''}`}>{a.condition}</span>
           {a.remarks && <span className="text-slate-500 dark:text-zinc-400 truncate" title={a.remarks}>{a.remarks}</span>}

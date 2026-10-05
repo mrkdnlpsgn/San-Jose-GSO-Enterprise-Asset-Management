@@ -296,7 +296,7 @@ function AssetImportModal({ onClose, onImport }) {
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {failed.map((f, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs">
-                      <span className="text-slate-400 dark:text-zinc-400 flex-shrink-0 font-medium truncate max-w-[160px]">
+                      <span className="text-slate-400 dark:text-zinc-400 flex-shrink-0 font-medium truncate max-w-[10rem]">
                         {f.row.description || `Row ${i + 1}`}:
                       </span>
                       <span className="text-red-400 leading-snug">{f.reason}</span>

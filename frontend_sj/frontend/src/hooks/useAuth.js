@@ -31,10 +31,13 @@ export function useAuth() {
     dispatch(setCredentials({ user: data.user }))
   }, [dispatch])
 
-  const signOut = useCallback(async () => {
+  // `reason` ('idle') lets the login page say why the user was signed out. Callers that
+  // pass a click event (e.g. onConfirm={signOut}) simply have no reason.
+  const signOut = useCallback(async (options) => {
+    const reason = typeof options?.reason === 'string' ? options.reason : undefined
     try { await logoutApi() } catch {} // clears the HttpOnly cookie on the backend
     dispatch(logout())
-    navigate('/login', { replace: true })
+    navigate('/login', { replace: true, state: reason ? { reason } : undefined })
   }, [dispatch, navigate])
 
   const acknowledgePrivacy = useCallback(async () => {

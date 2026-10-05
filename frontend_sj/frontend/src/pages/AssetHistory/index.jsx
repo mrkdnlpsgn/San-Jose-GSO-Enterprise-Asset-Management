@@ -283,7 +283,7 @@ function AssetHistory() {
                     <td className="px-5 py-3.5">
                       <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{h.asset?.propertyNumber}</p>
                       {h.asset?.parNumber && <p className="font-mono text-2xs text-slate-400 dark:text-zinc-500">PAR: {h.asset.parNumber}</p>}
-                      <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[160px]">{h.asset?.description}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem]">{h.asset?.description}</p>
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${EVENT_BADGE[h.eventType] || 'bg-zinc-500/10 text-zinc-400 ring-1 ring-zinc-500/20'}`}>
@@ -293,7 +293,7 @@ function AssetHistory() {
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{h.fromOffice?.officeName || '—'}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{h.performedBy?.fullName || h.performedBy?.username || '—'}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{formatDate(h.eventDate || h.createdAt)}</td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[160px]">
+                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[10rem]">
                       <span className="block truncate" title={h.notes}>{h.notes || '—'}</span>
                     </td>
                   </tr>
@@ -319,14 +319,14 @@ function AssetHistory() {
                       <td className="px-5 py-3.5">
                         <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{r.propertyNumber}</p>
                         {r.parNumber && <p className="font-mono text-2xs text-slate-400 dark:text-zinc-500">PAR: {r.parNumber}</p>}
-                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[160px]">{r.assetDescription}</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem]">{r.assetDescription}</p>
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${EVENT_BADGE[r.kind]}`}>
                           {r.kind === 'MAINTENANCE' ? 'Under Maintenance' : 'Disposal'}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[200px]">
+                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[12.5rem]">
                         <span className="block truncate" title={r.detail}>{r.detail || '—'}</span>
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{r.requestedByName || '—'}</td>
@@ -334,7 +334,7 @@ function AssetHistory() {
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${status.cls}`}>{status.label}</span>
                       </td>
-                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[200px]">
+                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[12.5rem]">
                         {r.approvalStatus === 'PENDING_APPROVAL' ? '—' : (
                           <>
                             <p className="whitespace-nowrap">{r.reviewedByName || '—'} · {formatDate(r.reviewedAt)}</p>

@@ -341,7 +341,7 @@ function ConditionDistribution({ condDist, total, loading, onSelect }) {
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
                     <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate text-left group-hover:text-slate-700 dark:group-hover:text-zinc-200 transition-colors duration-150">{cfg.label}</span>
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
+                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
                   </button>
                 )
               })}
@@ -414,7 +414,7 @@ function LifecycleDistribution({ lifecycleDist, total, loading }) {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-2xl font-extrabold text-slate-900 dark:text-white tabular-nums">{animatedTotal}</span>
-                <span className="text-[10px] font-semibold text-slate-400 dark:text-zinc-600 tracking-wide">ASSETS</span>
+                <span className="text-[0.625rem] font-semibold text-slate-400 dark:text-zinc-600 tracking-wide">ASSETS</span>
               </div>
             </div>
             <div className="space-y-2.5">
@@ -428,7 +428,7 @@ function LifecycleDistribution({ lifecycleDist, total, loading }) {
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
                     <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate">{cfg.label}</span>
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
+                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
                   </div>
                 )
               })}
@@ -472,10 +472,10 @@ function OfficeDistribution({ offices, total, loading, onSelect }) {
                 className={`w-full text-left group ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[150px] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={office}>{office}</span>
+                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[9.375rem] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={office}>{office}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
+                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
                   </div>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
@@ -588,6 +588,26 @@ const INSIGHT_RANGES = [
   { key: 'month', label: 'Month' },
   { key: 'year',  label: 'Year' },
 ]
+
+// Today's date and a live clock. Ticks on its own so the rest of the dashboard
+// doesn't re-render every few seconds.
+function LiveDateTime() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 5000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <p className="flex flex-wrap items-baseline gap-x-3 text-base">
+      <span className="font-semibold text-slate-800 dark:text-zinc-100">
+        {now.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      </span>
+      <span className="pl-3 border-l border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 tabular-nums">
+        {now.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}
+      </span>
+    </p>
+  )
+}
 
 function InsightDelta({ now, before }) {
   if (now === before) return <span className="text-2xs text-slate-400 dark:text-zinc-500">same as previous period</span>
@@ -817,10 +837,10 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
                 className={`w-full text-left group ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[150px] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={category}>{category}</span>
+                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[9.375rem] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={category}>{category}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                     <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[10px] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
+                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
                   </div>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
@@ -1082,8 +1102,6 @@ function Dashboard() {
   }
   const animUsers   = useCountUp(isAdmin ? userCount : pendingRequests, !loading)
 
-  const today = now.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-
   const stats = [
     {
       label: 'Assets', value: animAssets.toLocaleString(),
@@ -1114,8 +1132,8 @@ function Dashboard() {
   return (
     <MainLayout>
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <p className="text-xs text-slate-400 dark:text-zinc-600">{today}</p>
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <LiveDateTime />
         <div className="flex items-center gap-2">
           {error && (
             <span className="text-xs text-red-400 flex items-center gap-1.5">

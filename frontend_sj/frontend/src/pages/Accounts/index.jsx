@@ -333,7 +333,7 @@ function AuditLogsTab() {
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
-        <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
+        <div className="relative w-full sm:flex-1 sm:min-w-[12.5rem] sm:max-w-xs">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
           </svg>
@@ -431,7 +431,7 @@ function AuditLogsTab() {
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 flex items-center justify-center flex-shrink-0">
-                            <span className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400">{(log.user?.username || 'S').charAt(0).toUpperCase()}</span>
+                            <span className="text-[0.625rem] font-semibold text-slate-500 dark:text-zinc-400">{(log.user?.username || 'S').charAt(0).toUpperCase()}</span>
                           </div>
                           <span className="text-slate-500 dark:text-zinc-400 text-xs">{log.user?.username || 'System'}</span>
                         </div>

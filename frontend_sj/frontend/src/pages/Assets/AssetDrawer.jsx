@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { HEADER_OFFSET } from '../../components/layout/layoutSizes'
 import { useNavigate } from 'react-router-dom'
 import { getMaintenanceByAsset } from '../../services/maintenanceService'
 import { getDisposalByAsset } from '../../services/disposalService'
@@ -105,15 +106,15 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
       {/* Blur is static — animating opacity on the same element that carries
           backdrop-blur forces the browser to resample the (busy) table behind
           it every frame. It snaps in instantly; only the tint below fades. */}
-      <div className="fixed inset-0 z-30 backdrop-blur-sm pointer-events-none" style={{ top: '60px' }} />
+      <div className="fixed inset-0 z-30 backdrop-blur-sm pointer-events-none" style={{ top: HEADER_OFFSET }} />
       <div
         className={`fixed inset-0 z-30 bg-zinc-950/20 ${exiting ? 'animate-fade-out' : 'animate-fade-in'}`}
-        style={{ top: '60px' }}
+        style={{ top: HEADER_OFFSET }}
         onClick={onClose}
       />
       <aside
         className={`fixed right-0 bottom-0 z-40 w-full max-w-lg bg-white dark:bg-zinc-950 border-l border-slate-200 dark:border-zinc-800 flex flex-col shadow-2xl overflow-hidden ${exiting ? 'animate-slide-out-drawer' : 'animate-slide-in-drawer'}`}
-        style={{ top: '60px' }}
+        style={{ top: HEADER_OFFSET }}
       >
         {/* Header */}
         <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">

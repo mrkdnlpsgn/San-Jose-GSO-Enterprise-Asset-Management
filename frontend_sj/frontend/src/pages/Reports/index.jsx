@@ -1,4 +1,4 @@
-import { Fragment, useState, useRef, useMemo, useEffect, useCallback } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import MainLayout from '../../components/layout/MainLayout'
@@ -6,10 +6,6 @@ import Button from '../../components/common/Button'
 import { useToast } from '../../context/ToastContext'
 import api from '../../services/api'
 import { getAssetHistory } from '../../services/assetHistoryService'
-import GroupDevicesTable, { deviceMatches, groupEntries } from '../Assets/GroupDevicesTable'
-import { AssetGroupDrawerById } from '../Assets/AssetGroupDrawer'
-import DeviceRow from '../Assets/DeviceRow'
-import { useNavigate } from 'react-router-dom'
 
 // Reports need the full dataset, not a paginated page. getAssets()/getDisposal()/getMaintenance()
 // default to the backend's page size of 20 — fine for list pages, wrong here, so fetch directly
@@ -178,7 +174,7 @@ const REPORTS = [
       { label: 'From Office',     display: (r) => r.fromOffice?.officeName || '—',                                                                        raw: (r) => r.fromOffice?.officeName || '' },
       { label: 'To Office',       display: (r) => r.toOffice?.officeName || '—',                                                                          raw: (r) => r.toOffice?.officeName || '' },
       { label: 'Performed By',    display: (r) => r.performedBy?.fullName || r.performedBy?.username || '—',                                              raw: (r) => r.performedBy?.fullName || r.performedBy?.username || '' },
-      { label: 'Notes',           display: (r) => r.notes ? <span className="max-w-[160px] truncate block" title={r.notes}>{r.notes}</span> : '—',        raw: (r) => r.notes || '' },
+      { label: 'Notes',           display: (r) => r.notes ? <span className="max-w-[10rem] truncate block" title={r.notes}>{r.notes}</span> : '—',        raw: (r) => r.notes || '' },
       { label: 'Date',            display: (r) => <span className="text-xs whitespace-nowrap">{fmtDate(r.eventDate)}</span>,                              raw: (r) => r.eventDate || '' },
     ],
   },
@@ -241,7 +237,7 @@ const REPORTS = [
     headers: [
       { label: 'Asset',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || '—'}</span>,       raw: (r) => r.asset?.description || '' },
       { label: 'Type',            display: (r) => r.maintenanceType || '—',                                                                               raw: (r) => r.maintenanceType || '' },
-      { label: 'Findings',        display: (r) => r.findings ? <span className="max-w-[180px] truncate block" title={r.findings}>{r.findings}</span> : '—', raw: (r) => r.findings || '' },
+      { label: 'Findings',        display: (r) => r.findings ? <span className="max-w-[11.25rem] truncate block" title={r.findings}>{r.findings}</span> : '—', raw: (r) => r.findings || '' },
       { label: 'Status',          display: (r) => r.status || '—',                                                                                        raw: (r) => r.status || '' },
       { label: 'Assigned To',     display: (r) => r.assignedTo?.fullName || r.assignedTo?.username || '—',                                                raw: (r) => r.assignedTo?.fullName || r.assignedTo?.username || '' },
       { label: 'Cost',            display: (r) => r.cost != null ? fmtMoney(r.cost) : '—',                                                               raw: (r) => r.cost != null ? Number(r.cost).toFixed(2) : '' },
@@ -306,7 +302,7 @@ const REPORTS = [
       { label: 'Unit Cost',                     display: (r) => fmtMoney(r.asset?.unitValue),                                                                     raw: (r) => r.asset?.unitValue != null ? Number(r.asset.unitValue).toFixed(2) : '' },
       { label: 'Total Cost',                    display: (r) => fmtMoney((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)),                   raw: (r) => ((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)).toFixed(2) },
       { label: 'Accumulated Impairment Losses', display: () => '—',                                                                                               raw: () => '' },
-      { label: 'Remarks',                       display: (r) => r.inspectionFindings ? <span className="max-w-[180px] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : '—', raw: (r) => r.inspectionFindings || '' },
+      { label: 'Remarks',                       display: (r) => r.inspectionFindings ? <span className="max-w-[11.25rem] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : '—', raw: (r) => r.inspectionFindings || '' },
       { label: 'Sale',                          display: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '' },
       { label: 'Transfer',                      display: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '' },
       { label: 'Destruction',                   display: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : '' },
@@ -471,22 +467,6 @@ function Reports() {
   const [dateTo, setDateTo]         = useState('')
   const [page, setPage]             = useState(1)
   const previewRef = useRef(null)
-  const navigate = useNavigate()
-
-  // Rows whose device belongs to a group (same model) collapse into one expandable row in the
-  // preview; exports still list every device on its own row.
-  const [expanded, setExpanded] = useState(() => new Set())
-  const [groupId, setGroupId] = useState(null)
-  const [groupExiting, setGroupExiting] = useState(false)
-  const toggleExpanded = (key) => setExpanded((prev) => {
-    const next = new Set(prev)
-    if (next.has(key)) next.delete(key); else next.add(key)
-    return next
-  })
-  const closeGroup = useCallback(() => {
-    setGroupExiting(true)
-    setTimeout(() => { setGroupId(null); setGroupExiting(false) }, 220)
-  }, [])
 
   const activeReport = REPORTS.find((r) => r.id === activeId)
 
@@ -540,30 +520,9 @@ function Reports() {
 
   const isDateFiltered = Boolean(dateFrom || dateTo)
 
-  // Aggregated reports (e.g. the Condition Report's counts) aren't per-device, so they aren't grouped.
-  const entries = useMemo(() => {
-    if (!activeReport || activeReport.aggregated) return displayRows.map((row, i) => ({ type: 'item', key: `i:${i}`, item: row }))
-    return groupEntries(displayRows.map((row, i) => ({ row, id: i })), (x) => x.row.groupId ?? x.row.asset?.groupId)
-      .map((e) => (e.type === 'group'
-        ? { ...e, members: e.members.map((m) => m.row) }
-        : { type: 'item', key: e.key, item: e.item.row }))
-  }, [displayRows, activeReport])
-
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
-  const pagedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  // Summary cell for a group's row: the shared value if every device agrees; the sum for amounts
-  // and quantities; otherwise "Various".
-  const summarize = (h, rows) => {
-    const raws = rows.map((r) => h.raw(r))
-    if (new Set(raws.map(String)).size === 1) return h.display(rows[0])
-    const nums = raws.map((v) => Number(String(v).replace(/[^0-9.-]/g, '')))
-    if (/value|cost|amount/i.test(h.label) && nums.every((n) => !Number.isNaN(n))) {
-      return <span>{fmtMoney(nums.reduce((a, b) => a + b, 0))}<span className="block text-2xs text-slate-400 dark:text-zinc-600">total</span></span>
-    }
-    if (/^qty|quantity/i.test(h.label) && nums.every((n) => !Number.isNaN(n))) return nums.reduce((a, b) => a + b, 0)
-    return <span className="text-slate-400 dark:text-zinc-500">Various</span>
-  }
+  // Every asset is its own row, same as the Assets table — no grouping by model.
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE))
+  const pagedRows = displayRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const renderReportRow = (row, key) => (
     <tr key={key} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors duration-100">
@@ -572,46 +531,6 @@ function Reports() {
           {h.display(row)}
         </td>
       ))}
-    </tr>
-  )
-
-  const renderGroupRow = (g, open) => (
-    <tr key={g.key} onClick={() => toggleExpanded(g.key)}
-      className="hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors duration-100 cursor-pointer">
-      {activeReport.headers.map((h, j) => (
-        <td key={h.label} className="px-4 py-3 text-slate-600 dark:text-zinc-300 whitespace-nowrap">
-          {j === 0 ? (
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={(e) => { e.stopPropagation(); toggleExpanded(g.key) }}
-                title={open ? 'Hide rows' : `Show all ${g.members.length} rows`} aria-expanded={open}
-                className="p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <span className="px-1.5 py-0.5 rounded-full text-2xs font-semibold bg-brand-500/10 text-brand-400 ring-1 ring-brand-500/20">{g.members.length} in group</span>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setGroupId(g.groupId) }} title="Group details & lifecycle"
-                className="p-1 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-              </button>
-            </div>
-          ) : summarize(h, g.members)}
-        </td>
-      ))}
-    </tr>
-  )
-
-  const renderGroupPanel = (g) => (
-    <tr key={`${g.key}:panel`} className="bg-slate-50/60 dark:bg-zinc-900/40">
-      <td colSpan={activeReport.headers.length} className="px-4 py-4">
-        <GroupDevicesTable
-          members={g.members}
-          headers={activeReport.headers.map((h) => h.label)}
-          matches={(row, q) => deviceMatches(row.asset ?? row, q)}
-          noun="rows"
-          renderRow={(row) => renderReportRow(row, `${g.key}:${g.members.indexOf(row)}`)}
-        />
-      </td>
     </tr>
   )
 
@@ -735,28 +654,17 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-zinc-950 divide-y divide-slate-100 dark:divide-zinc-800/60">
-                    {pagedEntries.map((entry) => {
-                      if (entry.type === 'group') {
-                        const open = expanded.has(entry.key)
-                        return (
-                          <Fragment key={entry.key}>
-                            {renderGroupRow(entry, open)}
-                            {open && renderGroupPanel(entry)}
-                          </Fragment>
-                        )
-                      }
-                      return renderReportRow(entry.item, entry.key)
-                    })}
+                    {pagedRows.map((row, i) => renderReportRow(row, `r:${(page - 1) * PAGE_SIZE + i}`))}
                     {activeId === 'valuation' && <ValuationTotalsRow rows={displayRows} />}
                   </tbody>
                 </table>
               </div>
             )}
 
-            {!loading && entries.length > PAGE_SIZE && (
+            {!loading && displayRows.length > PAGE_SIZE && (
               <div className="pt-3 flex items-center justify-between gap-3">
                 <p className="text-xs text-slate-400 dark:text-zinc-500">
-                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, entries.length)} of {entries.length}
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, displayRows.length)} of {displayRows.length}
                 </p>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
@@ -769,17 +677,6 @@ function Reports() {
             )}
           </div>
         </div>
-      )}
-
-      {groupId && (
-        <AssetGroupDrawerById
-          groupId={groupId}
-          exiting={groupExiting}
-          onClose={closeGroup}
-          renderDeviceRow={(m) => (
-            <DeviceRow key={m.id} asset={m} onOpen={(a) => navigate(`/assets?search=${encodeURIComponent(a.propertyNumber)}`)} />
-          )}
-        />
       )}
 
       {/* ── No active report placeholder ───────────────────────────────── */}

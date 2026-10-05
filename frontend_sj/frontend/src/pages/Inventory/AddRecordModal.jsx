@@ -474,21 +474,21 @@ function AddRecordModal({ onClose, onSave, initialData = null, generatedCode = '
                         />
                       </div>
                       <div className="flex flex-col items-center gap-1 text-center w-full">
-                        <p className="text-[11px] font-semibold text-slate-800 dark:text-zinc-100 leading-tight truncate w-full">
+                        <p className="text-2xs font-semibold text-slate-800 dark:text-zinc-100 leading-tight truncate w-full">
                           {savedItem.article || '—'}
                         </p>
                         {device?.serialNumber && (
-                          <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 truncate max-w-full">
+                          <span className="text-[0.625rem] font-mono text-slate-500 dark:text-zinc-400 truncate max-w-full">
                             {device.serialNumber}
                           </span>
                         )}
-                        <span className="text-[10px] bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 px-2 py-0.5 rounded-full font-semibold">
+                        <span className="text-[0.625rem] bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 px-2 py-0.5 rounded-full font-semibold">
                           {code}
                         </span>
                       </div>
                       <button
                         onClick={() => printDeviceQR(savedItem, device, svgId)}
-                        className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-500 transition-colors"
+                        className="flex items-center gap-1 text-[0.625rem] font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-500 transition-colors"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />

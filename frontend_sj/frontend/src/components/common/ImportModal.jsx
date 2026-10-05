@@ -508,7 +508,7 @@ function ImportModal({ onClose, onImport }) {
                 <div className="space-y-1.5 max-h-28 overflow-y-auto">
                   {failedItems.map((f, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs">
-                      <span className="text-slate-400 dark:text-zinc-400 flex-shrink-0 font-medium truncate max-w-[140px]">
+                      <span className="text-slate-400 dark:text-zinc-400 flex-shrink-0 font-medium truncate max-w-[8.75rem]">
                         {f.row.article || f.row.itemCode || `Row ${i + 1}`}:
                       </span>
                       <span className="text-red-400 leading-snug">{f.reason}</span>
@@ -543,13 +543,13 @@ function ImportModal({ onClose, onImport }) {
                     {item.article || '—'}
                   </p>
                   {item.itemCode && (
-                    <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                    <span className="text-[0.625rem] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
                       {item.itemCode}
                     </span>
                   )}
                   <button
                     onClick={() => printSingleQR(item)}
-                    className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 hover:text-brand-500 transition-colors mt-0.5"
+                    className="flex items-center gap-1 text-[0.625rem] font-semibold text-brand-600 hover:text-brand-500 transition-colors mt-0.5"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
