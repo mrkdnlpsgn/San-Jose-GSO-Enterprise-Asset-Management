@@ -1,5 +1,6 @@
 package com.sanjose.inventory.service;
 
+import com.sanjose.inventory.config.AppTime;
 import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.AssetImportRow;
 import com.sanjose.inventory.dto.AssetRequest;
@@ -339,7 +340,7 @@ public class AssetService {
             throw new IllegalArgumentException("Property Number \"" + prop + "\" is already used by another asset.");
         }
         if (prop == null) {
-            int year = d.getAcquisitionDate() != null ? d.getAcquisitionDate().getYear() : LocalDate.now().getYear();
+            int year = d.getAcquisitionDate() != null ? d.getAcquisitionDate().getYear() : AppTime.today().getYear();
             prop = generatePropertyNumber(year, Set.of());
         }
         d.setPropertyNumber(prop);
@@ -554,7 +555,7 @@ public class AssetService {
                 asset.getId(), "REPAIR",
                 "Asset flagged as repairable — requires maintenance",
                 "Pending review and assignment",
-                null, LocalDate.now(), null, "ONGOING", recId);
+                null, AppTime.today(), null, "ONGOING", recId);
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
                 asset.getId(), "UNDER_MAINTENANCE");
             assetHistoryService.logEvent(asset.getId(), "MAINTENANCE", null, null, recorderId,
@@ -569,7 +570,7 @@ public class AssetService {
                 "Asset is unserviceable and flagged for disposal",
                 "Auto-generated from asset condition change",
                 "SALE", "PENDING",
-                LocalDate.now(), null, recId,
+                AppTime.today(), null, recId,
                 null, null, null);
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
                 asset.getId(), "DISPOSED");
@@ -607,7 +608,7 @@ public class AssetService {
                 assetId, "CORRECTIVE",
                 "Change to Under Maintenance requested by " + username,
                 "Awaiting administrator review",
-                null, LocalDate.now(), null, "SCHEDULED", recId);
+                null, AppTime.today(), null, "SCHEDULED", recId);
             jdbcTemplate.update("UPDATE maintenance_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ?, requested_condition = ? WHERE maintenance_id = ?",
                 requesterId, requestedCondition, newId);
         } else {
@@ -617,7 +618,7 @@ public class AssetService {
                 "Disposal requested by " + username,
                 "Requested from the asset's status — awaiting administrator review",
                 "OTHERS", "PENDING",
-                LocalDate.now(), null, recId,
+                AppTime.today(), null, recId,
                 null, null, null);
             jdbcTemplate.update("UPDATE disposal_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ?, requested_condition = ? WHERE disposal_id = ?",
                 requesterId, requestedCondition, newId);

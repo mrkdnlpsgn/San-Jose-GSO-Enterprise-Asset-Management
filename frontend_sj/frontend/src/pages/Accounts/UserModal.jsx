@@ -6,10 +6,13 @@ import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPo
 
 const ROLES = [
   { value: 'ADMIN', label: 'Administrator' },
-  { value: 'STAFF', label: 'ICT Officer / Staff' },
+  { value: 'STAFF', label: 'GSO Staff' },
 ]
 
-const EMPTY = { username: '', email: '', fullName: '', password: '', confirmPassword: '', generatePassword: false, role: 'STAFF', isActive: true }
+// Markers that LastPass, 1Password and Bitwarden respect to skip a field.
+const NO_EXTENSION_AUTOFILL = { 'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true' }
+
+const EMPTY = { username: '', email: '', fullName: '', password: '', confirmPassword: '', generatePassword: false, role: 'STAFF', isActive: true, twoFactorEnabled: true }
 
 function Field({ label, required, error, children }) {
   return (
@@ -65,6 +68,7 @@ function UserModal({ onClose, onSave, initial = null }) {
           confirmPassword: '',
           role: initial.role || 'STAFF',
           isActive: initial.isActive !== undefined ? initial.isActive : true,
+          twoFactorEnabled: Boolean(initial.twoFactorEnabled),
         }
       : EMPTY
   )
@@ -85,6 +89,13 @@ function UserModal({ onClose, onSave, initial = null }) {
       setForm((p) => ({ ...p, generatePassword: false }))
     }
   }, [form.generatePassword, emailValid])
+
+  // The sign-in code is emailed, so 2-step verification can't stay on without an email.
+  useEffect(() => {
+    if (form.twoFactorEnabled && !emailValid) {
+      setForm((p) => ({ ...p, twoFactorEnabled: false }))
+    }
+  }, [form.twoFactorEnabled, emailValid])
 
   const validate = () => {
     const errs = {}
@@ -134,7 +145,10 @@ function UserModal({ onClose, onSave, initial = null }) {
       subtitle={isEditing ? `Editing ${initial.fullName || initial.username}` : 'Add a new staff or admin account'}
       onClose={onClose}
     >
-      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      {/* The admin types someone else's details here, so browser autofill (and password-manager
+          extensions) must stay out: they'd offer the admin's own name/email — and Chrome's
+          name/address autofill popup was crashing the whole browser on the Full Name field. */}
+      <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-4">
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">
             {errors._global}
@@ -144,6 +158,7 @@ function UserModal({ onClose, onSave, initial = null }) {
         <Field label="Username" required error={errors.username}>
           <TextInput
             placeholder="e.g. jdelacruz"
+            {...NO_EXTENSION_AUTOFILL}
             value={form.username}
             onChange={set('username')}
             error={errors.username}
@@ -154,6 +169,8 @@ function UserModal({ onClose, onSave, initial = null }) {
         <Field label="Email" error={errors.email}>
           <TextInput
             type="email"
+            autoComplete="off"
+            {...NO_EXTENSION_AUTOFILL}
             placeholder="e.g. jdelacruz@sanjosebatangas.gov.ph"
             value={form.email}
             onChange={set('email')}
@@ -167,6 +184,8 @@ function UserModal({ onClose, onSave, initial = null }) {
         <Field label="Full Name" required error={errors.fullName}>
           <TextInput
             placeholder="e.g. Juan Dela Cruz"
+            autoComplete="off"
+            {...NO_EXTENSION_AUTOFILL}
             value={form.fullName}
             onChange={set('fullName')}
             error={errors.fullName}
@@ -258,6 +277,30 @@ function UserModal({ onClose, onSave, initial = null }) {
               <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
             </div>
             <span className="text-sm text-slate-600 dark:text-zinc-300">{form.isActive ? 'Active' : 'Inactive'}</span>
+          </label>
+        </Field>
+
+        <Field label="2-step verification">
+          <label className={`flex items-start gap-2.5 select-none ${emailValid ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+            <div className="relative mt-0.5">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={form.twoFactorEnabled}
+                disabled={!emailValid}
+                onChange={set('twoFactorEnabled')}
+              />
+              <div className="w-9 h-5 rounded-full transition-colors duration-200 bg-slate-200 dark:bg-zinc-700 peer-checked:bg-brand-500 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 peer-focus-visible:ring-offset-2" />
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 peer-checked:translate-x-4" />
+            </div>
+            <span className="text-sm text-slate-600 dark:text-zinc-300">
+              {form.twoFactorEnabled ? 'Required at sign-in' : 'Off'}
+              <span className="block text-xs text-slate-400 dark:text-zinc-500 mt-0.5">
+                {emailValid
+                  ? 'When on, signing in also needs a 6-digit code emailed to the address above.'
+                  : 'Needs an email address — the sign-in code is sent there.'}
+              </span>
+            </span>
           </label>
         </Field>
 

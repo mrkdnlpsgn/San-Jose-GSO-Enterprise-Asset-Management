@@ -175,7 +175,7 @@ function Personnel() {
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs text-slate-500 dark:text-zinc-400">@{p.username}</span>
-                        <Badge label={p.userRole === 'ADMIN' ? 'Administrator' : 'Staff'} color={p.userRole === 'ADMIN' ? 'green' : 'gray'} />
+                        <Badge label={p.userRole === 'ADMIN' ? 'Administrator' : 'GSO Staff'} color={p.userRole === 'ADMIN' ? 'green' : 'gray'} />
                         {p.userActive === false && (
                           <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-full">Inactive</span>
                         )}

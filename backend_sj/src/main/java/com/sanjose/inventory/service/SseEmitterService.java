@@ -2,8 +2,10 @@ package com.sanjose.inventory.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.sanjose.inventory.dto.RecordChangedEvent;
 import com.sanjose.inventory.dto.SseEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 //
 // Data events are only delivered to users allowed to see the office the record belongs
 // to (admins: all; staff: their assigned office — see AccessService).
+//
+// Each data change is also published in-process as a RecordChangedEvent (AiAutoGenerator
+// uses it), and the "ai" channel announces background AI results: action "READY", id of the
+// asset / maintenance / disposal record, data {kind: recommendation|summary|justification|digest}.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -32,6 +38,7 @@ public class SseEmitterService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AccessService accessService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Keyed by emitter so multiple tabs/connections from the same user are
     // tracked individually, but presence collapses them back to distinct usernames.
@@ -55,11 +62,13 @@ public class SseEmitterService {
     }
 
     public void emitAsset(String action, Long id, Object data) {
+        eventPublisher.publishEvent(new RecordChangedEvent("asset", action, id));
         broadcastScoped("asset", new SseEvent(action, id, data, currentUsername()),
             officeOf("SELECT office_id FROM assets WHERE asset_id = ?", id));
     }
 
     public void emitMaintenance(String action, Long id, Object data) {
+        eventPublisher.publishEvent(new RecordChangedEvent("maintenance", action, id));
         // "CHANGED" (condition cascade) carries the asset id rather than a record id
         broadcastScoped("maintenance", new SseEvent(action, id, data, currentUsername()), "CHANGED".equals(action)
             ? officeOf("SELECT office_id FROM assets WHERE asset_id = ?", id)
@@ -67,9 +76,20 @@ public class SseEmitterService {
     }
 
     public void emitDisposal(String action, Long id, Object data) {
+        eventPublisher.publishEvent(new RecordChangedEvent("disposal", action, id));
         broadcastScoped("disposal", new SseEvent(action, id, data, currentUsername()), "CHANGED".equals(action)
             ? officeOf("SELECT office_id FROM assets WHERE asset_id = ?", id)
             : officeOf("SELECT a.office_id FROM disposal_ledger d JOIN assets a ON a.asset_id = d.asset_id WHERE d.disposal_id = ?", id));
+    }
+
+    // A background AI result is ready. officeId null = admins only (the audit digest).
+    public void emitAiReady(String kind, Long id, Long officeId) {
+        broadcastScoped("ai", new SseEvent("READY", id, Map.of("kind", kind), null), officeId);
+    }
+
+    // A background AI job failed (e.g. the daily quota is used up) — screens stop waiting.
+    public void emitAiFailed(String kind, Long id, Long officeId, String message) {
+        broadcastScoped("ai", new SseEvent("FAILED", id, Map.of("kind", kind, "message", message), null), officeId);
     }
 
     private void broadcastPresence() {

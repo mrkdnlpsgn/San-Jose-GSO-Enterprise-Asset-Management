@@ -285,7 +285,7 @@ class _DetailsTab extends StatelessWidget {
 
   String _fmt(String raw) {
     try {
-      final dt = DateTime.parse(raw);
+      final dt = DateTime.parse(raw).toLocal();
       return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     } catch (_) {
       return raw;
@@ -364,7 +364,7 @@ class _LifecycleEntry {
   });
 
   factory _LifecycleEntry.fromHistory(AssetHistoryModel h) {
-    final date = DateTime.tryParse(h.eventDate) ?? DateTime.now();
+    final date = DateTime.tryParse(h.eventDate)?.toLocal() ?? DateTime.now();
     return _LifecycleEntry(
       id: 'h-${h.id}',
       date: date,
@@ -380,8 +380,8 @@ class _LifecycleEntry {
   }
 
   factory _LifecycleEntry.fromMaintenance(MaintenanceModel m) {
-    final date = DateTime.tryParse(m.maintenanceDate) ?? DateTime.now();
-    final sortDate = DateTime.tryParse(m.updatedAt ?? m.createdAt) ?? date;
+    final date = DateTime.tryParse(m.maintenanceDate)?.toLocal() ?? DateTime.now();
+    final sortDate = DateTime.tryParse(m.updatedAt ?? m.createdAt)?.toLocal() ?? date;
     return _LifecycleEntry(
       id: 'm-${m.id}',
       date: date,
@@ -397,8 +397,8 @@ class _LifecycleEntry {
   }
 
   factory _LifecycleEntry.fromDisposal(DisposalModel d) {
-    final date = DateTime.tryParse(d.inspectionDate) ?? DateTime.now();
-    final sortDate = DateTime.tryParse(d.updatedAt ?? d.createdAt) ?? date;
+    final date = DateTime.tryParse(d.inspectionDate)?.toLocal() ?? DateTime.now();
+    final sortDate = DateTime.tryParse(d.updatedAt ?? d.createdAt)?.toLocal() ?? date;
     return _LifecycleEntry(
       id: 'd-${d.id}',
       date: date,
@@ -435,7 +435,7 @@ class _LifecycleEntry {
 
   static String _fmtStatic(String raw) {
     try {
-      final dt = DateTime.parse(raw);
+      final dt = DateTime.parse(raw).toLocal();
       return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     } catch (_) {
       return raw;
@@ -585,7 +585,7 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
 
   String _fmtDate(String raw) {
     try {
-      final dt = DateTime.parse(raw);
+      final dt = DateTime.parse(raw).toLocal();
       return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     } catch (_) {
       return raw;

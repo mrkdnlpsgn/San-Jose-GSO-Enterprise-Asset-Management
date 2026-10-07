@@ -3,6 +3,7 @@ import { useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import ConfirmDialog from '../common/ConfirmDialog'
 import SettingsMenu from '../common/SettingsMenu'
+import UserAvatar from '../common/UserAvatar'
 
 const pageMeta = {
   '/dashboard':     'Dashboard',
@@ -26,8 +27,7 @@ function Header({ onMenuOpen }) {
 
   const title = pageMeta[pathname] ?? 'San Jose GSO Inventory Management System'
   const name = user?.fullName ?? user?.username ?? 'Administrator'
-  const initials = name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
-  const roleLabel = user?.role === 'ADMIN' ? 'System Administrator' : user?.role === 'STAFF' ? 'ICT Staff' : (user?.role ?? 'Staff')
+  const roleLabel = user?.role === 'ADMIN' ? 'System Administrator' : user?.role === 'STAFF' ? 'GSO Staff' : (user?.role ?? 'Staff')
 
   return (
     <header className="h-[3.75rem] bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 px-4 sm:px-6 flex items-center justify-between flex-shrink-0 gap-3">
@@ -55,9 +55,7 @@ function Header({ onMenuOpen }) {
             <p className="text-sm font-medium text-slate-700 dark:text-zinc-200 group-hover:text-slate-900 dark:group-hover:text-white leading-tight transition-colors duration-150">{name}</p>
             <p className="text-xs text-slate-400 dark:text-zinc-500 leading-tight mt-px">{roleLabel}</p>
           </div>
-          <div className="w-8 h-8 rounded-full bg-brand-500 text-white text-xs font-bold flex items-center justify-center select-none flex-shrink-0 ring-2 ring-transparent group-hover:ring-brand-400 transition-all duration-150">
-            {initials}
-          </div>
+          <UserAvatar user={user} className="w-8 h-8 text-xs ring-2 ring-transparent group-hover:ring-brand-400 transition-all duration-150" />
         </Link>
 
         <div className="w-px h-5 bg-slate-200 dark:bg-zinc-800 mx-1" />

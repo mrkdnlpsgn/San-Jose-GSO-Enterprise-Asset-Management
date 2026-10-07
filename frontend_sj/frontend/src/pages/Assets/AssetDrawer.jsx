@@ -5,6 +5,7 @@ import { getMaintenanceByAsset } from '../../services/maintenanceService'
 import { getDisposalByAsset } from '../../services/disposalService'
 import { getHistoryByAsset } from '../../services/assetHistoryService'
 import { getLatestRecommendation, generateRecommendation } from '../../services/aiRecommendationService'
+import { useEventStream } from '../../hooks/useEventStream'
 import AssetQrModal from './AssetQrModal'
 import EvidenceModal from '../../components/common/EvidenceModal'
 
@@ -50,6 +51,10 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
   const [recommendation, setRecommendation] = useState(null)
   const [aiLoading, setAiLoading]     = useState(false)
   const [aiError, setAiError]         = useState('')
+  // The server makes one in the background when there is none yet (see AiAutoGenerator)
+  const [aiGenerating, setAiGenerating] = useState(false)
+  // Why nothing is coming (e.g. the AI's daily limit is used up) — shown instead of waiting
+  const [aiNotice, setAiNotice]       = useState('')
   const [showQr, setShowQr]           = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const isFirstRender = useRef(true)
@@ -67,7 +72,9 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
       }
       setRecommendation(null)
       setAiError('')
-      getLatestRecommendation(asset.id).then(({ data }) => setRecommendation(data)).catch(() => {})
+      setAiGenerating(false)
+      setAiNotice('')
+      loadRecommendation(asset.id)
     }
 
     // Only the drawer's very first render (its entrance) needs to wait — a
@@ -86,9 +93,33 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
     fetchAssetData()
   }, [asset])
 
+  // If the server never announces a result (e.g. the AI quota ran out), offer the button again.
+  useEffect(() => {
+    if (!aiGenerating) return
+    const timer = setTimeout(() => setAiGenerating(false), 90_000)
+    return () => clearTimeout(timer)
+  }, [aiGenerating])
+
+  useEventStream('ai', ({ action, id, data }) => {
+    if (data?.kind !== 'recommendation' || !asset || id !== asset.id) return
+    if (action === 'FAILED') { setAiGenerating(false); setAiNotice(data.message || '') }
+    else loadRecommendation(asset.id)
+  })
+
+  function loadRecommendation(assetId) {
+    getLatestRecommendation(assetId)
+      .then(({ data }) => { setRecommendation(data); setAiGenerating(false); setAiNotice('') })
+      .catch((err) => {
+        const body = err.response?.data
+        setAiGenerating(Boolean(body?.generating))
+        setAiNotice(body?.unavailable || '')
+      })
+  }
+
   const handleGenerate = () => {
     setAiLoading(true)
     setAiError('')
+    setAiNotice('')
     generateRecommendation(asset.id)
       .then(({ data }) => setRecommendation(data))
       .catch((err) => setAiError(err.response?.data?.message || 'Failed to generate recommendation.'))
@@ -319,11 +350,24 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-9 w-9 text-slate-200 dark:text-zinc-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
-                  <p className="text-sm text-slate-400 dark:text-zinc-600">No AI recommendation generated yet.</p>
-                  <button onClick={handleGenerate} disabled={aiLoading}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm font-medium hover:bg-brand-500/20 transition-all disabled:opacity-50">
-                    {aiLoading ? 'Generating…' : 'Generate Recommendation'}
-                  </button>
+                  {aiNotice && !aiGenerating && (
+                    <p role="status" className="max-w-xs text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3.5 py-2.5">
+                      {aiNotice}
+                    </p>
+                  )}
+                  {aiGenerating ? (
+                    <p className="text-sm text-slate-500 dark:text-zinc-400" role="status">
+                      Preparing a recommendation… it will appear here in a moment.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-400 dark:text-zinc-600">No AI recommendation generated yet.</p>
+                      <button onClick={handleGenerate} disabled={aiLoading}
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm font-medium hover:bg-brand-500/20 transition-all disabled:opacity-50">
+                        {aiLoading ? 'Generating…' : 'Generate Recommendation'}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

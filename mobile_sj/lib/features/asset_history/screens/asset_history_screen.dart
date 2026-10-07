@@ -233,7 +233,7 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
 }
 
 String _fmtDate(String? iso) {
-  final d = iso != null ? DateTime.tryParse(iso) : null;
+  final d = iso != null ? DateTime.tryParse(iso)?.toLocal() : null;
   if (d == null) return '—';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return '${months[d.month - 1]} ${d.day}, ${d.year}';

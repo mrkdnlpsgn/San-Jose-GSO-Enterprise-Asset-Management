@@ -40,13 +40,15 @@ END $$
 DROP PROCEDURE IF EXISTS sp_auth_login_failure $$
 CREATE PROCEDURE sp_auth_login_failure(IN p_user_id INT, IN p_max_attempts INT, IN p_lockout_minutes INT)
 BEGIN
+    -- MySQL applies SET assignments left to right: decide the lock before incrementing,
+    -- or the CASE sees the new count and locks one try early.
     UPDATE users
-    SET failed_login_attempts = failed_login_attempts + 1,
-        account_locked_until = CASE
+    SET account_locked_until = CASE
             WHEN failed_login_attempts + 1 >= p_max_attempts
                 THEN DATE_ADD(NOW(), INTERVAL p_lockout_minutes MINUTE)
             ELSE account_locked_until
-        END
+        END,
+        failed_login_attempts = failed_login_attempts + 1
     WHERE user_id = p_user_id;
 END $$
 
@@ -944,13 +946,43 @@ BEGIN
     FROM ai_recommendations r
     JOIN assets a ON r.asset_id = a.asset_id
     WHERE r.asset_id = p_asset_id
-    ORDER BY r.generated_at DESC
+    ORDER BY r.generated_at DESC, r.recommendation_id DESC
     LIMIT 1;
 END $$
 
--- =============================================================
--- ASSET HISTORY
--- =============================================================
+DROP PROCEDURE IF EXISTS sp_ai_recommendations_create $$
+CREATE PROCEDURE sp_ai_recommendations_create(
+    IN p_asset_id INT, IN p_asset_age_years DECIMAL(5,2), IN p_total_repair_cost DECIMAL(12,2),
+    IN p_repair_frequency INT, IN p_condition_score INT, IN p_recommendation VARCHAR(30),
+    IN p_rationale TEXT, OUT p_id INT)
+BEGIN
+    INSERT INTO ai_recommendations(
+        asset_id, asset_age_years, total_repair_cost, repair_frequency,
+        condition_score, recommendation, rationale, generated_at, generated_by_system
+    ) VALUES (
+        p_asset_id, p_asset_age_years, p_total_repair_cost, p_repair_frequency,
+        p_condition_score, p_recommendation, p_rationale, NOW(), TRUE
+    );
+    SET p_id = LAST_INSERT_ID();
+END $$
+
+-- Dashboard counts: each asset's latest recommendation only (highest id, so two generated in
+-- the same second are not double-counted), and only for assets still in service — disposed
+-- or deleted assets no longer need a lifecycle decision.
+DROP PROCEDURE IF EXISTS sp_ai_recommendations_summary $$
+CREATE PROCEDURE sp_ai_recommendations_summary()
+BEGIN
+    SELECT r.recommendation, COUNT(*) AS cnt
+    FROM ai_recommendations r
+    INNER JOIN (
+        SELECT asset_id, MAX(recommendation_id) AS latest_id
+        FROM ai_recommendations
+        GROUP BY asset_id
+    ) latest ON r.recommendation_id = latest.latest_id
+    INNER JOIN assets a ON a.asset_id = r.asset_id
+        AND a.is_deleted = FALSE AND a.lifecycle_status <> 'DISPOSED'
+    GROUP BY r.recommendation;
+END $$
 
 DROP PROCEDURE IF EXISTS sp_ai_recommendations_summary_by_office $$
 CREATE PROCEDURE sp_ai_recommendations_summary_by_office(IN p_office_id INT)
@@ -958,13 +990,75 @@ BEGIN
     SELECT r.recommendation, COUNT(*) AS cnt
     FROM ai_recommendations r
     INNER JOIN (
-        SELECT asset_id, MAX(generated_at) AS max_gen
+        SELECT asset_id, MAX(recommendation_id) AS latest_id
         FROM ai_recommendations
         GROUP BY asset_id
-    ) latest ON r.asset_id = latest.asset_id AND r.generated_at = latest.max_gen
+    ) latest ON r.recommendation_id = latest.latest_id
     INNER JOIN assets a ON a.asset_id = r.asset_id AND a.office_id = p_office_id
+        AND a.is_deleted = FALSE AND a.lifecycle_status <> 'DISPOSED'
     GROUP BY r.recommendation;
 END $$
+
+-- =============================================================
+-- AI SUMMARIES / JUSTIFICATIONS / DIGESTS
+-- =============================================================
+
+DROP PROCEDURE IF EXISTS sp_maintenance_summaries_create $$
+CREATE PROCEDURE sp_maintenance_summaries_create(IN p_maintenance_id BIGINT, IN p_summary TEXT, OUT p_id BIGINT)
+BEGIN
+    INSERT INTO maintenance_summaries(maintenance_id, summary, generated_at, generated_by_system)
+    VALUES (p_maintenance_id, p_summary, NOW(), TRUE);
+    SET p_id = LAST_INSERT_ID();
+END $$
+
+DROP PROCEDURE IF EXISTS sp_maintenance_summaries_get_latest $$
+CREATE PROCEDURE sp_maintenance_summaries_get_latest(IN p_maintenance_id BIGINT)
+BEGIN
+    SELECT summary_id AS id, maintenance_id, summary, generated_at, generated_by_system
+    FROM maintenance_summaries
+    WHERE maintenance_id = p_maintenance_id
+    ORDER BY generated_at DESC, summary_id DESC
+    LIMIT 1;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_disposal_justifications_create $$
+CREATE PROCEDURE sp_disposal_justifications_create(IN p_disposal_id BIGINT, IN p_justification TEXT, OUT p_id INT)
+BEGIN
+    INSERT INTO disposal_justifications(disposal_id, justification, generated_at, generated_by_system)
+    VALUES (p_disposal_id, p_justification, NOW(), TRUE);
+    SET p_id = LAST_INSERT_ID();
+END $$
+
+DROP PROCEDURE IF EXISTS sp_disposal_justifications_get_latest $$
+CREATE PROCEDURE sp_disposal_justifications_get_latest(IN p_disposal_id BIGINT)
+BEGIN
+    SELECT justification_id AS id, disposal_id, justification, generated_at, generated_by_system
+    FROM disposal_justifications
+    WHERE disposal_id = p_disposal_id
+    ORDER BY generated_at DESC, justification_id DESC
+    LIMIT 1;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_audit_log_digests_create $$
+CREATE PROCEDURE sp_audit_log_digests_create(IN p_digest TEXT, IN p_covered_entries INT, OUT p_id BIGINT)
+BEGIN
+    INSERT INTO audit_log_digests(digest, covered_entries, generated_at, generated_by_system)
+    VALUES (p_digest, p_covered_entries, NOW(), TRUE);
+    SET p_id = LAST_INSERT_ID();
+END $$
+
+DROP PROCEDURE IF EXISTS sp_audit_log_digests_get_latest $$
+CREATE PROCEDURE sp_audit_log_digests_get_latest()
+BEGIN
+    SELECT digest_id AS id, digest, covered_entries, generated_at, generated_by_system
+    FROM audit_log_digests
+    ORDER BY generated_at DESC, digest_id DESC
+    LIMIT 1;
+END $$
+
+-- =============================================================
+-- ASSET HISTORY
+-- =============================================================
 
 DROP PROCEDURE IF EXISTS sp_asset_history_get_all $$
 CREATE PROCEDURE sp_asset_history_get_all(IN p_office_id INT)

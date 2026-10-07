@@ -54,11 +54,14 @@ class AuthService {
   // POST /api/auth/login/verify-otp — completes a login that was interrupted by
   // 2FA: proves the emailed code and returns a real session, same shape as a
   // normal login response.
-  Future<UserModel> verifyLoginOtp(String identifier, String otp) async {
+  // rememberDevice: skip the code on this phone for 30 days (the backend sets a cookie that the
+  // persistent cookie jar keeps); the password is still required.
+  Future<UserModel> verifyLoginOtp(String identifier, String otp, {bool rememberDevice = false}) async {
     try {
       final res = await _dio.post('/auth/login/verify-otp', data: {
         'identifier': identifier,
         'otp': otp,
+        'rememberDevice': rememberDevice,
       });
       return UserModel.fromJson(res.data['user'] as Map<String, dynamic>);
     } catch (e) {

@@ -1,3 +1,6 @@
+// How a role is shown to people (the stored value stays ADMIN / STAFF).
+String roleLabel(String role) => role == 'ADMIN' ? 'Administrator' : 'GSO Staff';
+
 class UserModel {
   final String username;
   final String role; // ADMIN | STAFF

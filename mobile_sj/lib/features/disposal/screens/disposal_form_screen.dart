@@ -50,7 +50,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
     _recommendedMethod = d?.recommendedMethod ?? 'SALE';
     _disposalStatus = d?.disposalStatus ?? 'PENDING';
     _selectedAsset = d?.asset ?? widget.preselectedAsset;
-    if (d?.inspectionDate != null) _inspectionDate = DateTime.tryParse(d!.inspectionDate);
+    if (d?.inspectionDate != null) _inspectionDate = DateTime.tryParse(d!.inspectionDate)?.toLocal();
   }
 
   @override

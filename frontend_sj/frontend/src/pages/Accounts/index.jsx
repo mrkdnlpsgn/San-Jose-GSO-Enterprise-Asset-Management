@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useSelector, useDispatch } from 'react-redux'
-import { setCredentials } from '../../store/slices/authSlice'
+import { useSelector } from 'react-redux'
 import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { usePolling } from '../../hooks/usePolling'
@@ -11,9 +10,9 @@ import Badge from '../../components/common/Badge'
 import UserModal from './UserModal'
 import DeactivateAccountModal from './DeactivateAccountModal'
 import ResetPasswordModal from './ResetPasswordModal'
-import { getUsers, createUser, updateUser, deactivateUser, changePassword, resetPassword } from '../../services/userService'
+import { getUsers, createUser, updateUser, deactivateUser, resetPassword } from '../../services/userService'
+import MyAccountTab from './MyAccountTab'
 import { getAuditLogs } from '../../services/auditLogService'
-import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatDateTime(dt) {
@@ -170,12 +169,13 @@ function AccountsTab() {
                     </p>
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <Badge
-                        label={user.role === 'ADMIN' ? 'Administrator' : 'Staff'}
+                        label={user.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'}
                         color={user.role === 'ADMIN' ? 'green' : 'gray'}
                       />
                       {!user.isActive && (
                         <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-full">Inactive</span>
                       )}
+                      {user.twoFactorEnabled && <TwoStepChip />}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -237,7 +237,7 @@ function AccountsTab() {
                       </td>
                       <td className="px-5 py-3.5">
                         <Badge
-                          label={user.role === 'ADMIN' ? 'Administrator' : 'Staff'}
+                          label={user.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'}
                           color={user.role === 'ADMIN' ? 'green' : 'gray'}
                         />
                       </td>
@@ -246,6 +246,7 @@ function AccountsTab() {
                           <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                           {user.isActive ? 'Active' : 'Inactive'}
                         </span>
+                        {user.twoFactorEnabled && <TwoStepChip className="ml-1.5" />}
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1">
@@ -464,151 +465,6 @@ function AuditLogsTab() {
 }
 
 // ── My Account tab ────────────────────────────────────────────────────────────
-const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800/60 ' +
-  'px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 ' +
-  'dark:placeholder:text-zinc-600 hover:border-slate-400 dark:hover:border-zinc-600 ' +
-  'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
-
-function MyAccountTab({ user }) {
-  const toast                         = useToast()
-  const [current, setCurrent]         = useState('')
-  const [newPass, setNewPass]         = useState('')
-  const [confirm, setConfirm]         = useState('')
-  const [showCurrent, setShowCurrent] = useState(false)
-  const [showNew, setShowNew]         = useState(false)
-  const [saving, setSaving]           = useState(false)
-  const [error, setError]             = useState('')
-
-  const complexityMet = isPasswordComplex(newPass)
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    if (!complexityMet) { setError('New password does not meet the requirements below.'); return }
-    if (newPass !== confirm) { setError('New passwords do not match.'); return }
-    setSaving(true)
-    try {
-      await changePassword({ currentPassword: current, newPassword: newPass })
-      toast.show('Password updated successfully.', 'success')
-      setCurrent(''); setNewPass(''); setConfirm('')
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update password.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const EyeIcon = ({ open }) => open ? (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-      <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-    </svg>
-  ) : (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-    </svg>
-  )
-
-  const displayName = user?.fullName || user?.username || 'User'
-  const initials = displayName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
-
-  return (
-    <div className="flex justify-center">
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start w-full max-w-4xl">
-      {/* Profile card */}
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-5">
-        <p className="text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider mb-4">Profile</p>
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 rounded-full bg-brand-500 text-white flex items-center justify-center flex-shrink-0">
-            <span className="text-lg font-bold">{initials}</span>
-          </div>
-          <div>
-            <p className="font-semibold text-slate-900 dark:text-white text-sm">{displayName}</p>
-            <p className="text-xs font-mono text-brand-400 mt-0.5">@{user?.username}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2.5 border-t border-slate-100 dark:border-zinc-800 pt-3">
-          <span className="text-xs text-slate-400 dark:text-zinc-500">Role</span>
-          <Badge label={user?.role === 'ADMIN' ? 'Administrator' : 'ICT Staff'} color={user?.role === 'ADMIN' ? 'green' : 'gray'} />
-        </div>
-      </div>
-
-      {/* Change password card */}
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-5">
-        <p className="text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider mb-4">Change Password</p>
-
-        {error && (
-          <div className="flex items-start gap-2 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 rounded-lg px-4 py-3 text-sm mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Current Password</label>
-            <div className="relative">
-              <input type={showCurrent ? 'text' : 'password'} value={current}
-                onChange={(e) => { setCurrent(e.target.value); setError('') }}
-                placeholder="Enter current password" className={INPUT_CLASS + ' pr-10'} />
-              <button type="button" tabIndex={-1} onClick={() => setShowCurrent(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors">
-                <EyeIcon open={showCurrent} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">New Password</label>
-            <div className="relative">
-              <input type={showNew ? 'text' : 'password'} value={newPass}
-                onChange={(e) => { setNewPass(e.target.value); setError('') }}
-                placeholder="Enter new password" className={INPUT_CLASS + ' pr-10'} />
-              <button type="button" tabIndex={-1} onClick={() => setShowNew(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors">
-                <EyeIcon open={showNew} />
-              </button>
-            </div>
-            {newPass && (
-              <ul className="mt-1 space-y-0.5">
-                {PASSWORD_REQUIREMENTS.map(({ key, label, test }) => {
-                  const met = test(newPass)
-                  return (
-                    <li key={key} className={`flex items-center gap-1.5 text-xs transition-colors ${met ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-zinc-500'}`}>
-                      {met
-                        ? <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                        : <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-                      }
-                      {label}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Confirm New Password</label>
-            <input type={showNew ? 'text' : 'password'} value={confirm}
-              onChange={(e) => { setConfirm(e.target.value); setError('') }}
-              placeholder="Re-enter new password" className={INPUT_CLASS} />
-          </div>
-
-          <div className="pt-1">
-            <Button type="submit" size="md" disabled={saving || !current || !newPass || !confirm}>
-              {saving ? 'Saving…' : 'Update Password'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-    </div>
-  )
-}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 // Account management stays ADMIN-only; audit logs and the user's own profile are
@@ -621,6 +477,19 @@ const TABS_ADMIN = [
 const TABS_STAFF = [
   { id: 'my-account', label: 'My Account' },
 ]
+
+// Marks accounts that need the emailed sign-in code.
+function TwoStepChip({ className = '' }) {
+  return (
+    <span title="2-step verification is on: signing in needs a code sent to this account's email"
+      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-400/10 ${className}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+      </svg>
+      2-step
+    </span>
+  )
+}
 
 function Accounts() {
   const navigate  = useNavigate()

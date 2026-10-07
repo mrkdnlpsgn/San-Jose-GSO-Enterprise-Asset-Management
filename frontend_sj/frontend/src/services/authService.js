@@ -12,8 +12,9 @@ export const forceChangePassword = ({ identifier, currentPassword, newPassword }
 
 // Completes a login that was interrupted by 2FA (every account except admin and
 // ict_staff) — proves the emailed code, then issues the session.
-export const verifyLoginOtp = (identifier, otp) =>
-  api.post('/auth/login/verify-otp', { identifier, otp })
+// rememberDevice: skip the code on this browser for 30 days (password still required)
+export const verifyLoginOtp = (identifier, otp, rememberDevice = false) =>
+  api.post('/auth/login/verify-otp', { identifier, otp, rememberDevice })
 
 // Step 1: email a one-time code to the account's registered address.
 export const requestPasswordReset = (username) =>

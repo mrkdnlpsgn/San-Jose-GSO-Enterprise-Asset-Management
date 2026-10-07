@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../auth/model/user_model.dart' show roleLabel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../model/account_model.dart';
 import '../data/account_service.dart';
@@ -295,7 +296,7 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
                 label: 'Role',
                 value: _role,
                 items: const ['ADMIN', 'STAFF'],
-                itemLabel: (r) => r,
+                itemLabel: roleLabel,
                 onChanged: (r) => setState(() => _role = r!),
               ),
               // No office field here at all — matches the web app's account form,

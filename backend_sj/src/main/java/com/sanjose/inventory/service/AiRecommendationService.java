@@ -1,5 +1,6 @@
 package com.sanjose.inventory.service;
 
+import com.sanjose.inventory.config.AppTime;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.errors.ApiException;
@@ -25,6 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
@@ -93,13 +95,12 @@ public class AiRecommendationService {
                 rs.getLong("cnt")), args);
     }
 
-    public AiRecommendation generate(Long assetId) {
-        geminiConfig.requireConfigured();
+    // What the AI is shown about an asset's history.
+    private record Inputs(BigDecimal ageYears, int conditionScore, BigDecimal totalRepairCost, int repairFrequency) {}
 
-        Asset asset = assetService.findById(assetId);
-
+    private Inputs inputsFor(Asset asset) {
         BigDecimal ageYears = BigDecimal.valueOf(
-                ChronoUnit.DAYS.between(asset.getAcquisitionDate(), LocalDate.now()) / 365.25)
+                ChronoUnit.DAYS.between(asset.getAcquisitionDate(), AppTime.today()) / 365.25)
             .setScale(2, RoundingMode.HALF_UP);
 
         int conditionScore = switch (asset.getCondition()) {
@@ -110,16 +111,25 @@ public class AiRecommendationService {
 
         BigDecimal totalRepairCost = jdbcTemplate.queryForObject(
             "SELECT COALESCE(SUM(cost), 0) FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0",
-            BigDecimal.class, assetId);
+            BigDecimal.class, asset.getId());
         Integer repairFrequency = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0",
-            Integer.class, assetId);
+            Integer.class, asset.getId());
+        return new Inputs(ageYears, conditionScore, totalRepairCost, repairFrequency);
+    }
 
-        AssetLifecycleAdvice advice = requestAdvice(asset, ageYears, conditionScore, totalRepairCost, repairFrequency);
+    public AiRecommendation generate(Long assetId) {
+        geminiConfig.requireConfigured();
+
+        Asset asset = assetService.findById(assetId);
+        Inputs in = inputsFor(asset);
+
+        AssetLifecycleAdvice advice = requestAdvice(asset, in.ageYears(), in.conditionScore(),
+            in.totalRepairCost(), in.repairFrequency());
 
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
             "CALL sp_ai_recommendations_create(?, ?, ?, ?, ?, ?, ?, ?)",
-            assetId, ageYears, totalRepairCost, repairFrequency, conditionScore,
+            assetId, in.ageYears(), in.totalRepairCost(), in.repairFrequency(), in.conditionScore(),
             advice.recommendation().name(), advice.rationale());
 
         auditLogService.log("AI_RECOMMENDATION_GENERATED", "Assets", assetId, "asset",
@@ -192,7 +202,7 @@ public class AiRecommendationService {
             response = client.models.generateContent(MODEL, prompt, config);
         } catch (ApiException e) {
             log.error("AI recommendation request failed for asset {}: {}", asset.getId(), e.getMessage());
-            throw new IllegalStateException("AI recommendation request failed: " + e.getMessage(), e);
+            throw geminiConfig.failure("AI recommendation request", e);
         }
 
         String json = response.text();

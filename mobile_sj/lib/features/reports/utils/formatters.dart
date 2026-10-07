@@ -6,7 +6,7 @@ const _months = [
 /// string (or '—') if it isn't parseable — reports show partial data over a crash.
 String fmtDate(String? iso) {
   if (iso == null || iso.isEmpty) return '—';
-  final d = DateTime.tryParse(iso);
+  final d = DateTime.tryParse(iso)?.toLocal();
   if (d == null) return iso;
   return '${_months[d.month - 1]} ${d.day}, ${d.year}';
 }

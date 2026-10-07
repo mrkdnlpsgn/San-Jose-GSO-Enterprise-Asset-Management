@@ -21,4 +21,5 @@ public class UserResponse {
     private String personnelName;
     private int assetCount; // assets this account is accountable for or currently using
     private Boolean isActive;
+    private Boolean twoFactorEnabled;
 }

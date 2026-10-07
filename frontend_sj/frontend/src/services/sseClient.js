@@ -1,11 +1,12 @@
 // Single shared EventSource for real-time asset/maintenance/disposal updates.
 // Multiple pages subscribe through this module instead of each opening their
 // own connection (browsers cap concurrent HTTP/1.1 connections per origin).
-const EVENT_TYPES = ['asset', 'maintenance', 'disposal', 'presence']
+// 'ai': a background AI result is ready — { id, data: { kind } } (see AiAutoGenerator).
+const EVENT_TYPES = ['asset', 'maintenance', 'disposal', 'presence', 'ai']
 
 let eventSource = null
 let refCount = 0
-const listeners = { asset: new Set(), maintenance: new Set(), disposal: new Set(), presence: new Set() }
+const listeners = { asset: new Set(), maintenance: new Set(), disposal: new Set(), presence: new Set(), ai: new Set() }
 
 function ensureConnection() {
   if (eventSource) return

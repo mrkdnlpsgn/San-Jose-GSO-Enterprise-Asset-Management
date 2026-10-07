@@ -46,7 +46,7 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
     _maintenanceType = m?.maintenanceType ?? 'PREVENTIVE';
     _status = m?.status ?? 'SCHEDULED';
     _selectedAsset = m?.asset ?? widget.preselectedAsset;
-    if (m?.maintenanceDate != null) _maintenanceDate = DateTime.tryParse(m!.maintenanceDate);
+    if (m?.maintenanceDate != null) _maintenanceDate = DateTime.tryParse(m!.maintenanceDate)?.toLocal();
   }
 
   @override

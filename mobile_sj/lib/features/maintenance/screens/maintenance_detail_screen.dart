@@ -217,7 +217,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
 
   String _fmtDate(String raw) {
     try {
-      final dt = DateTime.parse(raw);
+      final dt = DateTime.parse(raw).toLocal();
       return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     } catch (_) {
       return raw;
@@ -282,7 +282,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
                 if (summary == null) {
                   return Text(
                     key: const ValueKey('empty'),
-                    isAdmin ? 'No summary yet. Tap refresh to generate one.' : 'No summary generated yet.',
+                    isAdmin ? 'No summary yet. New records get one automatically — tap refresh to write one now.' : 'No summary generated yet.',
                     style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
                   );
                 }

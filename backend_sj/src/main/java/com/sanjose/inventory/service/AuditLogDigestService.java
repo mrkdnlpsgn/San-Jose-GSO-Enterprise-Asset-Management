@@ -16,7 +16,10 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sanjose.inventory.config.AppTime;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -84,18 +87,24 @@ public class AuditLogDigestService {
         hours). If nothing stands out, say so plainly instead of inventing a concern. Do not list every \
         entry individually — synthesize. Plain text only, no markdown, no headers.""";
 
+    // Stored times are UTC; the "outside business hours" check needs Philippine time.
+    private static String manilaTime(LocalDateTime utc) {
+        if (utc == null) return "unknown time";
+        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(AppTime.ZONE).toLocalDateTime().toString();
+    }
+
     private String requestDigest(List<AuditLog> logs) {
         Client client = geminiConfig.buildClient();
 
         String logLines = logs.stream()
             .map(l -> "- [%s] %s | module=%s | by=%s | target=%s#%s | %s".formatted(
-                l.getLoggedAt(), l.getAction(), l.getModule(),
+                manilaTime(l.getLoggedAt()), l.getAction(), l.getModule(),
                 l.getUser() != null ? l.getUser().getUsername() : "unknown",
                 l.getTargetType(), l.getTargetId(),
                 l.getDetails() != null ? l.getDetails() : ""))
             .collect(Collectors.joining("\n"));
 
-        String prompt = "Recent audit log entries (most recent first):\n" + logLines;
+        String prompt = "Recent audit log entries (most recent first; times are Philippine time):\n" + logLines;
 
         GenerateContentConfig config = GenerateContentConfig.builder()
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
@@ -106,7 +115,7 @@ public class AuditLogDigestService {
             response = client.models.generateContent(MODEL, prompt, config);
         } catch (ApiException e) {
             log.error("Audit log digest request failed: {}", e.getMessage());
-            throw new IllegalStateException("AI digest request failed: " + e.getMessage(), e);
+            throw geminiConfig.failure("AI digest request", e);
         }
 
         String text = response.text();

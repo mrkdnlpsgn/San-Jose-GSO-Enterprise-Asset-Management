@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { setAssets } from '../../store/slices/assetSlice'
 import MainLayout from '../../components/layout/MainLayout'
+import { manilaDateKey } from '../../utils/helpers'
 import { getAssets } from '../../services/assetService'
 import { getAssetHistory } from '../../services/assetHistoryService'
 import { getUsers } from '../../services/userService'
@@ -191,7 +192,7 @@ function computeActivityTrend(history, range = 'week') {
   })
   history.forEach((h) => {
     if (!h.eventDate) return
-    const key = h.eventDate.slice(0, 10)
+    const key = manilaDateKey(h.eventDate)
     const b = buckets.find((x) => x.key === key)
     if (b) b.count++
   })
@@ -637,8 +638,14 @@ function LifecycleInsights({ refreshToken }) {
   useEffect(() => {
     let alive = true
     setLoading(true)
+    // The last AI summary comes back with the numbers when it still matches them; a new one
+    // is only written when someone presses Generate (the Gemini free plan allows ~20 a day).
     getLifecycleInsights(range)
-      .then(({ data }) => { if (alive) setData(data) })
+      .then(({ data }) => {
+        if (!alive) return
+        setData(data)
+        setSummaries((prev) => ({ ...prev, [range]: data.summary || null }))
+      })
       .catch(() => { if (alive) setData(null) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
@@ -648,7 +655,7 @@ function LifecycleInsights({ refreshToken }) {
     setGenerating(true)
     setAiError('')
     try {
-      const { data } = await generateLifecycleSummary(range)
+      const { data } = await generateLifecycleSummary(range, true)
       setData(data)
       setSummaries((prev) => ({ ...prev, [range]: data.summary }))
     } catch (err) {
@@ -739,6 +746,8 @@ function LifecycleInsights({ refreshToken }) {
                 <p className="text-xs text-red-400 mt-2">{aiError}</p>
               ) : summary ? (
                 <p className="text-sm text-slate-600 dark:text-zinc-300 leading-relaxed mt-2">{summary}</p>
+              ) : generating ? (
+                <p className="text-sm text-slate-500 dark:text-zinc-400 mt-2" role="status">Writing a summary of this period…</p>
               ) : (
                 <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">
                   Get a plain-language summary of this period's maintenance and disposal activity, written by AI from the numbers above.

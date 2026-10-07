@@ -125,7 +125,7 @@ public class AssetOcrService {
             response = client.models.generateContent(MODEL, content, config);
         } catch (ApiException e) {
             log.error("Asset label OCR request failed: {}", e.getMessage());
-            throw new IllegalStateException("Couldn't read that photo right now: " + e.getMessage(), e);
+            throw geminiConfig.failure("Reading the photo", e);
         }
 
         String json = response.text();

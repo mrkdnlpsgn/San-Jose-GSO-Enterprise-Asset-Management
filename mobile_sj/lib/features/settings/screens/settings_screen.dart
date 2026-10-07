@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../auth/model/user_model.dart' show roleLabel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -98,7 +99,7 @@ class SettingsScreen extends ConsumerWidget {
                             style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
                         const SizedBox(height: 4),
                         StatusBadge(
-                          label: user.role,
+                          label: roleLabel(user.role),
                           color: user.isAdmin ? AppTheme.brand : AppTheme.statusAssigned,
                         ),
                       ],

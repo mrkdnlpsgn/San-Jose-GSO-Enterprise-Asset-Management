@@ -228,7 +228,6 @@ List<ReportDefinition> buildReportDefinitions() {
           final d = row as DisposalModel;
           return fmtMoney(d.asset.unitValue * d.asset.quantity);
         }),
-        ReportColumn('Accumulated Impairment Losses', (row) => '—'),
         ReportColumn('Remarks', (row) => (row as DisposalModel).inspectionFindings),
         ReportColumn('Sale', (row) {
           final d = row as DisposalModel;

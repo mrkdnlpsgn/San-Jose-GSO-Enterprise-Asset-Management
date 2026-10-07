@@ -220,7 +220,7 @@ class _AiJustificationCardState extends ConsumerState<_AiJustificationCard> {
 
   String _fmtDate(String raw) {
     try {
-      final dt = DateTime.parse(raw);
+      final dt = DateTime.parse(raw).toLocal();
       return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     } catch (_) {
       return raw;
@@ -272,7 +272,7 @@ class _AiJustificationCardState extends ConsumerState<_AiJustificationCard> {
                 if (just == null) {
                   return Text(
                     isAdmin
-                        ? 'No justification drafted yet. Tap refresh to generate one.'
+                        ? 'No justification drafted yet. New records get one automatically — tap refresh to draft one now.'
                         : 'No justification drafted yet.',
                     style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
                   );

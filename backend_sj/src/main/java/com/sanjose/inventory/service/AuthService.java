@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
+import com.sanjose.inventory.exception.AccountLockedException;
+import com.sanjose.inventory.exception.LoginFailedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -16,6 +18,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -69,6 +72,8 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
     private final AuditLogService auditLogService;
+    private final ProfilePictureService profilePictureService;
+    private final TrustedDeviceService trustedDeviceService;
     private final PlatformTransactionManager transactionManager;
 
     // A failed-attempt counter (login lockout, OTP attempts) must survive even
@@ -85,6 +90,42 @@ public class AuthService {
         TransactionTemplate tt = new TransactionTemplate(transactionManager);
         tt.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         tt.executeWithoutResult(status -> jdbcCall.run());
+    }
+
+    private void checkNotLocked(LoginUserData user) {
+        if (user.accountLockedUntil() != null && LocalDateTime.now().isBefore(user.accountLockedUntil()))
+            throw locked(user.accountLockedUntil());
+    }
+
+    private AccountLockedException locked(LocalDateTime until) {
+        long seconds = Math.max(1, Duration.between(LocalDateTime.now(), until).getSeconds());
+        long minutes = (seconds + 59) / 60;
+        return new AccountLockedException("Account is temporarily locked. Try again in " + minutes
+            + (minutes == 1 ? " minute." : " minutes."), seconds);
+    }
+
+    // Wrong password for an existing (not currently locked) account: count it, and say how many
+    // tries are left — or, on the last one, that the account is now locked.
+    private RuntimeException failedAttempt(LoginUserData user) {
+        // A lockout that has run out starts a fresh count; otherwise the counter is still at the
+        // limit and the very next mistake would lock the account again straight away.
+        boolean lockExpired = user.accountLockedUntil() != null;
+        int before = lockExpired || user.failedLoginAttempts() == null ? 0 : user.failedLoginAttempts();
+        recordAttemptDurably(() -> {
+            if (lockExpired) {
+                jdbcTemplate.update("UPDATE users SET failed_login_attempts = 0, account_locked_until = NULL WHERE user_id = ?",
+                    user.id());
+            }
+            // Not sp_auth_login_failure: MySQL applies SET assignments left to right, so its CASE saw
+            // the already-incremented count and locked one try early (after 2 of 3). Lock first, count second.
+            jdbcTemplate.update("UPDATE users SET account_locked_until = CASE WHEN failed_login_attempts + 1 >= ? "
+                    + "THEN DATE_ADD(NOW(), INTERVAL ? MINUTE) ELSE account_locked_until END, "
+                    + "failed_login_attempts = failed_login_attempts + 1 WHERE user_id = ?",
+                maxFailedAttempts, lockoutMinutes, user.id());
+        });
+        int remaining = maxFailedAttempts - (before + 1);
+        if (remaining <= 0) return locked(LocalDateTime.now().plusMinutes(lockoutMinutes));
+        return new LoginFailedException(remaining);
     }
 
     private record LoginUserData(
@@ -115,6 +156,13 @@ public class AuthService {
 
     @Transactional
     public Map<String, Object> login(String identifier, String password) {
+        return login(identifier, password, null);
+    }
+
+    // trustedDevices: the browser's remembered-device cookie (TrustedDeviceService), if any —
+    // a remembered account skips the emailed code; the password is still checked first.
+    @Transactional
+    public Map<String, Object> login(String identifier, String password, String trustedDevices) {
         if (identifier == null || identifier.isBlank())
             throw new BadCredentialsException("Invalid credentials");
 
@@ -124,14 +172,9 @@ public class AuthService {
         if (!Boolean.TRUE.equals(user.isActive()))
             throw new LockedException("Account is deactivated");
 
-        if (user.accountLockedUntil() != null && LocalDateTime.now().isBefore(user.accountLockedUntil()))
-            throw new LockedException("Account is temporarily locked. Try again after " + lockoutMinutes + " minutes.");
+        checkNotLocked(user);
 
-        if (!passwordEncoder.matches(password, user.password())) {
-            recordAttemptDurably(() -> jdbcTemplate.update("CALL sp_auth_login_failure(?, ?, ?)",
-                user.id(), maxFailedAttempts, lockoutMinutes));
-            throw new BadCredentialsException("Invalid credentials");
-        }
+        if (!passwordEncoder.matches(password, user.password())) throw failedAttempt(user);
 
         jdbcTemplate.update("CALL sp_auth_login_success(?)", user.id());
 
@@ -146,7 +189,8 @@ public class AuthService {
         // Correct credentials, 2FA enabled on this account (everyone except admin
         // and ict_staff, who are trusted fixture/service accounts) — withhold the
         // session token until the emailed code is verified via verifyLoginOtp().
-        if (Boolean.TRUE.equals(user.twoFactorEnabled())) {
+        if (Boolean.TRUE.equals(user.twoFactorEnabled()) && !trustedDeviceService.isTrusted(
+                user.id(), user.tokenVersion() != null ? user.tokenVersion() : 0, trustedDevices)) {
             issueOrReuseLoginOtp(user);
             return Map.of("requiresTwoFactor", true, "username", user.username());
         }
@@ -158,7 +202,7 @@ public class AuthService {
         userMap.put("username", user.username());
         userMap.put("fullName", user.fullName());
         userMap.put("role", user.role());
-        putOffice(userMap, user.id());
+        putProfile(userMap, user.id());
         userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
 
         return Map.of("token", token, "user", userMap);
@@ -257,7 +301,7 @@ public class AuthService {
         userMap.put("username", data.username());
         userMap.put("fullName", data.fullName());
         userMap.put("role", data.role());
-        putOffice(userMap, data.id());
+        putProfile(userMap, data.id());
         userMap.put("privacyAcknowledgedAt", data.privacyAcknowledgedAt());
 
         return Map.of("token", token, "user", userMap);
@@ -273,17 +317,12 @@ public class AuthService {
         if (!Boolean.TRUE.equals(user.isActive()))
             throw new LockedException("Account is deactivated");
 
-        if (user.accountLockedUntil() != null && LocalDateTime.now().isBefore(user.accountLockedUntil()))
-            throw new LockedException("Account is temporarily locked. Try again after " + lockoutMinutes + " minutes.");
+        checkNotLocked(user);
 
         if (!Boolean.TRUE.equals(user.mustChangePassword()))
             throw new IllegalStateException("This account does not require a password change.");
 
-        if (!passwordEncoder.matches(currentPassword, user.password())) {
-            recordAttemptDurably(() -> jdbcTemplate.update("CALL sp_auth_login_failure(?, ?, ?)",
-                user.id(), maxFailedAttempts, lockoutMinutes));
-            throw new BadCredentialsException("Invalid credentials");
-        }
+        if (!passwordEncoder.matches(currentPassword, user.password())) throw failedAttempt(user);
 
         jdbcTemplate.update("CALL sp_auth_complete_forced_password_change(?, ?)",
             user.id(), passwordEncoder.encode(newPassword));
@@ -300,7 +339,7 @@ public class AuthService {
         userMap.put("username", user.username());
         userMap.put("fullName", user.fullName());
         userMap.put("role", user.role());
-        putOffice(userMap, user.id());
+        putProfile(userMap, user.id());
         userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
 
         return Map.of("token", token, "user", userMap);
@@ -318,7 +357,7 @@ public class AuthService {
         userMap.put("username", user.username());
         userMap.put("fullName", user.fullName());
         userMap.put("role", user.role());
-        putOffice(userMap, user.id());
+        putProfile(userMap, user.id());
         userMap.put("privacyAcknowledgedAt", user.privacyAcknowledgedAt());
         return userMap;
     }
@@ -533,7 +572,9 @@ public class AuthService {
     }
 
     // Office drives what a STAFF account can see and edit (see AccessService).
-    private void putOffice(Map<String, Object> userMap, Long userId) {
+    // Office + profile picture for the signed-in user's payload (login / me).
+    private void putProfile(Map<String, Object> userMap, Long userId) {
+        userMap.put("avatarUrl", profilePictureService.urlFor(userId));
         jdbcTemplate.query(
             "SELECT o.office_id, o.office_name FROM users u LEFT JOIN offices o ON o.office_id = u.office_id WHERE u.user_id = ?",
             rs -> {

@@ -1,5 +1,6 @@
 package com.sanjose.inventory.service;
 
+import com.sanjose.inventory.config.AppTime;
 import com.google.genai.Client;
 import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
@@ -95,7 +96,7 @@ public class DisposalJustificationService {
         Client client = geminiConfig.buildClient();
 
         String ageYears = asset.getAcquisitionDate() != null
-            ? BigDecimal.valueOf(ChronoUnit.DAYS.between(asset.getAcquisitionDate(), LocalDate.now()) / 365.25)
+            ? BigDecimal.valueOf(ChronoUnit.DAYS.between(asset.getAcquisitionDate(), AppTime.today()) / 365.25)
                 .setScale(1, RoundingMode.HALF_UP).toString()
             : "unknown";
 
@@ -141,7 +142,7 @@ public class DisposalJustificationService {
             response = client.models.generateContent(MODEL, prompt, config);
         } catch (ApiException e) {
             log.error("AI justification request failed for disposal {}: {}", disposal.getId(), e.getMessage());
-            throw new IllegalStateException("AI justification request failed: " + e.getMessage(), e);
+            throw geminiConfig.failure("AI justification request", e);
         }
 
         String text = response.text();

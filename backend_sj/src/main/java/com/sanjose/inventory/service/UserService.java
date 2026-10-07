@@ -81,15 +81,34 @@ public class UserService {
 
     public List<UserResponse> findAll(String search) {
         if (search != null && !search.isBlank()) {
-            return jdbcTemplate.query("CALL sp_users_search(?)", USER_MAPPER, search.trim());
+            return withTwoFactor(jdbcTemplate.query("CALL sp_users_search(?)", USER_MAPPER, search.trim()));
         }
-        return jdbcTemplate.query("CALL sp_users_get_all()", USER_MAPPER);
+        return withTwoFactor(jdbcTemplate.query("CALL sp_users_get_all()", USER_MAPPER));
     }
 
     public UserResponse findById(Long id) {
         List<UserResponse> list = jdbcTemplate.query("CALL sp_users_get_by_id(?)", USER_MAPPER, id);
         if (list.isEmpty()) throw new ResourceNotFoundException("User not found: " + id);
-        return list.get(0);
+        return withTwoFactor(list).get(0);
+    }
+
+    // The users procedures predate 2-step verification and don't return the flag, so it is
+    // filled in here with one extra query instead of changing every procedure.
+    private List<UserResponse> withTwoFactor(List<UserResponse> users) {
+        if (users.isEmpty()) return users;
+        java.util.Map<Long, Boolean> flags = new java.util.HashMap<>();
+        jdbcTemplate.query("SELECT user_id, two_factor_enabled FROM users",
+            rs -> { flags.put(rs.getLong("user_id"), rs.getBoolean("two_factor_enabled")); });
+        users.forEach(u -> u.setTwoFactorEnabled(flags.getOrDefault(u.getId(), false)));
+        return users;
+    }
+
+    private static boolean hasText(String s) {
+        return s != null && !s.isBlank();
+    }
+
+    private void setTwoFactor(Long userId, boolean enabled) {
+        jdbcTemplate.update("UPDATE users SET two_factor_enabled = ? WHERE user_id = ?", enabled, userId);
     }
 
     public UserResponse create(UserRequest req) {
@@ -123,6 +142,9 @@ public class UserService {
             plainPassword = req.getPassword();
         }
         requireFreePersonnelName(req.getFullName(), null);
+        if (Boolean.TRUE.equals(req.getTwoFactorEnabled()) && !hasText(req.getEmail())) {
+            throw new IllegalArgumentException("2-step verification sends a code by email — add an email address first.");
+        }
         String hash = passwordEncoder.encode(plainPassword);
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
             "CALL sp_users_create(?, ?, ?, ?, ?, ?, ?, ?)",
@@ -131,6 +153,11 @@ public class UserService {
             0, // office is assigned by an admin on the Personnel module
             req.getIsActive() != null ? req.getIsActive() : true);
         jdbcTemplate.update("CALL sp_personnel_sync_accounts()");
+        // the column defaults to on, which would lock out an account that has no email
+        setTwoFactor(newId, req.getTwoFactorEnabled() != null ? req.getTwoFactorEnabled() : hasText(req.getEmail()));
+        // Only an auto-generated (emailed) password is temporary and must be changed at first
+        // sign-in; the column defaults to TRUE, which also forced it for passwords the admin chose.
+        jdbcTemplate.update("UPDATE users SET must_change_password = ? WHERE user_id = ?", generate, newId);
         UserResponse saved = findById(newId);
         auditLogService.log("USER_CREATED", "Users", newId, "user", "Created: " + saved.getUsername());
         if (generate) {
@@ -164,6 +191,13 @@ public class UserService {
                     + " asset(s). Use Deactivate on the Accounts list to transfer them to another account first.");
             }
         }
+        boolean twoFactor = req.getTwoFactorEnabled() != null
+            ? req.getTwoFactorEnabled() : Boolean.TRUE.equals(existing.getTwoFactorEnabled());
+        if (twoFactor && !hasText(newEmail)) {
+            throw new IllegalArgumentException(req.getTwoFactorEnabled() != null
+                ? "2-step verification sends a code by email — add an email address first."
+                : "This account uses 2-step verification, which needs an email address. Turn 2-step verification off before removing the email.");
+        }
         String hash = (req.getPassword() != null && !req.getPassword().isBlank())
             ? passwordEncoder.encode(req.getPassword()) : null;
         // officeId on the request is ignored — offices are assigned on the Personnel module
@@ -175,6 +209,12 @@ public class UserService {
             req.getIsActive() != null ? req.getIsActive() : existing.getIsActive(),
             hash);
         jdbcTemplate.update("CALL sp_personnel_sync_accounts()"); // personnel name follows the account
+        boolean twoFactorChanged = twoFactor != Boolean.TRUE.equals(existing.getTwoFactorEnabled());
+        if (twoFactorChanged) {
+            setTwoFactor(id, twoFactor);
+            auditLogService.log(twoFactor ? "USER_2FA_ENABLED" : "USER_2FA_DISABLED", "Users", id, "user",
+                "2-step verification turned " + (twoFactor ? "on" : "off") + " for " + existing.getUsername());
+        }
         if (deactivating) endSessions(id);
         UserResponse saved = findById(id);
         auditLogService.log(deactivating ? "USER_DEACTIVATED" : "USER_UPDATED", "Users", id, "user",

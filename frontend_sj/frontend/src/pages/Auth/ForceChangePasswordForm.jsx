@@ -30,7 +30,7 @@ function ForceChangePasswordForm({ identifier, currentPassword, onSubmit }) {
   }
 
   return (
-    <div className="w-full max-w-sm animate-fade-slide">
+    <div className="w-full max-w-sm animate-rise-in">
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Set a new password</h1>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">

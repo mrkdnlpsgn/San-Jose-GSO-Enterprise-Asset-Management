@@ -96,7 +96,7 @@ public class MaintenanceSummaryService {
             response = client.models.generateContent(MODEL, prompt, config);
         } catch (ApiException e) {
             log.error("Maintenance summary request failed for record {}: {}", record.getId(), e.getMessage());
-            throw new IllegalStateException("AI summary request failed: " + e.getMessage(), e);
+            throw geminiConfig.failure("AI summary request", e);
         }
 
         String text = response.text();

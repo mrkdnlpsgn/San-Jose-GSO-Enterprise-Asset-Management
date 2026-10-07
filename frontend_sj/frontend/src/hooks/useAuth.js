@@ -26,8 +26,8 @@ export function useAuth() {
     dispatch(setCredentials({ user: data.user }))
   }, [dispatch])
 
-  const completeLoginOtp = useCallback(async ({ identifier, otp }) => {
-    const { data } = await verifyLoginOtpApi(identifier, otp)
+  const completeLoginOtp = useCallback(async ({ identifier, otp, rememberDevice }) => {
+    const { data } = await verifyLoginOtpApi(identifier, otp, rememberDevice)
     dispatch(setCredentials({ user: data.user }))
   }, [dispatch])
 

@@ -117,7 +117,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     _originalCondition = a?.condition;
     _lifecycleStatus = a?.lifecycleStatus ?? 'REGISTERED';
     if (a?.acquisitionDate != null) {
-      _acquisitionDate = DateTime.tryParse(a!.acquisitionDate);
+      _acquisitionDate = DateTime.tryParse(a!.acquisitionDate)?.toLocal();
     }
     _description.addListener(_onDescriptionChanged);
   }

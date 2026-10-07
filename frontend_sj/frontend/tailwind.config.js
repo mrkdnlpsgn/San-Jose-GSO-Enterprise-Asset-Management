@@ -56,6 +56,12 @@ export default {
         'slide-in-drawer':   `slideInDrawer 0.32s ${EASE_ENTER} both`,
         'slide-out-drawer':  `slideOutDrawer 0.22s ${EASE_EXIT} both`,
         'fade-out':          `fadeOut 0.2s ${EASE_EXIT} both`,
+        // Login side panel entrance — `both` so delayed (staggered) items stay hidden until their turn
+        'rise-in':           `fadeSlide 0.6s ${EASE_ENTER} both`,
+        'seal-in':           `sealIn 0.7s ${EASE_ENTER} both`,
+        'draw-x':            `drawX 0.8s ${EASE_ENTER} both`,
+        // failed sign-in: a short sideways nudge, once
+        'shake':             'shake 0.4s ease-in-out',
       },
       keyframes: {
         fadeSlide: {
@@ -97,6 +103,19 @@ export default {
         fadeOut: {
           '0%':   { opacity: '1' },
           '100%': { opacity: '0' },
+        },
+        sealIn: {
+          '0%':   { opacity: '0', transform: 'scale(0.9)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        shake: {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '20%, 60%': { transform: 'translateX(-6px)' },
+          '40%, 80%': { transform: 'translateX(6px)' },
+        },
+        drawX: {
+          '0%':   { transform: 'scaleX(0)' },
+          '100%': { transform: 'scaleX(1)' },
         },
       },
     },

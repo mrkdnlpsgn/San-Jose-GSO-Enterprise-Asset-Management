@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import { useToast } from '../../context/ToastContext'
+import { manilaDateKey, manilaDateTime } from '../../utils/helpers'
 import api from '../../services/api'
 import { getAssetHistory } from '../../services/assetHistoryService'
 
@@ -60,7 +61,7 @@ function applyDateFilter(rows, dateField, from, to) {
   return rows.filter((r) => {
     const v = r[dateField]
     if (!v) return false
-    const d = String(v).slice(0, 10)
+    const d = manilaDateKey(v)
     if (from && d < from) return false
     if (to && d > to) return false
     return true
@@ -175,7 +176,7 @@ const REPORTS = [
       { label: 'To Office',       display: (r) => r.toOffice?.officeName || '—',                                                                          raw: (r) => r.toOffice?.officeName || '' },
       { label: 'Performed By',    display: (r) => r.performedBy?.fullName || r.performedBy?.username || '—',                                              raw: (r) => r.performedBy?.fullName || r.performedBy?.username || '' },
       { label: 'Notes',           display: (r) => r.notes ? <span className="max-w-[10rem] truncate block" title={r.notes}>{r.notes}</span> : '—',        raw: (r) => r.notes || '' },
-      { label: 'Date',            display: (r) => <span className="text-xs whitespace-nowrap">{fmtDate(r.eventDate)}</span>,                              raw: (r) => r.eventDate || '' },
+      { label: 'Date',            display: (r) => <span className="text-xs whitespace-nowrap">{fmtDate(r.eventDate)}</span>,                              raw: (r) => manilaDateTime(r.eventDate) },
     ],
   },
   {
@@ -301,7 +302,6 @@ const REPORTS = [
       { label: 'Qty.',                          display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
       { label: 'Unit Cost',                     display: (r) => fmtMoney(r.asset?.unitValue),                                                                     raw: (r) => r.asset?.unitValue != null ? Number(r.asset.unitValue).toFixed(2) : '' },
       { label: 'Total Cost',                    display: (r) => fmtMoney((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)),                   raw: (r) => ((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)).toFixed(2) },
-      { label: 'Accumulated Impairment Losses', display: () => '—',                                                                                               raw: () => '' },
       { label: 'Remarks',                       display: (r) => r.inspectionFindings ? <span className="max-w-[11.25rem] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : '—', raw: (r) => r.inspectionFindings || '' },
       { label: 'Sale',                          display: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '' },
       { label: 'Transfer',                      display: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '' },

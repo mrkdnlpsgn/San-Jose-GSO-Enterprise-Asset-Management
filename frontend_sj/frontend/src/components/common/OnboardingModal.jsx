@@ -62,7 +62,7 @@ function OnboardingModal({ onDismiss }) {
             Before you start
           </h2>
           <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            Five things every ICT staff member should know.
+            Five things every GSO staff member should know.
           </p>
         </div>
 

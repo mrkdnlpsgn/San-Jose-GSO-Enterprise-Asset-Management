@@ -5,6 +5,9 @@ import com.sanjose.inventory.dto.ForgotPasswordConfirmRequest;
 import com.sanjose.inventory.dto.ForgotPasswordRequest;
 import com.sanjose.inventory.dto.LoginVerifyOtpRequest;
 import com.sanjose.inventory.service.AuthService;
+import com.sanjose.inventory.service.TrustedDeviceService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -30,13 +33,15 @@ public class AuthController {
     private boolean cookieSecure;
 
     private final AuthService authService;
+    private final TrustedDeviceService trustedDeviceService;
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> body,
+                                                      @CookieValue(name = TrustedDeviceService.COOKIE, required = false) String trustedDevices,
                                                       HttpServletResponse response) {
         String identifier = body.get("identifier");
         String password   = body.get("password");
-        Map<String, Object> result = authService.login(identifier, password);
+        Map<String, Object> result = authService.login(identifier, password, trustedDevices);
 
         // Correct credentials, but a temp password — no session yet, frontend must
         // collect a new password via /force-change-password before one is issued.
@@ -60,9 +65,17 @@ public class AuthController {
 
     @PostMapping("/login/verify-otp")
     public ResponseEntity<Map<String, Object>> verifyLoginOtp(@Valid @RequestBody LoginVerifyOtpRequest req,
+                                                               @CookieValue(name = TrustedDeviceService.COOKIE, required = false) String trustedDevices,
                                                                HttpServletResponse response) {
         Map<String, Object> result = authService.verifyLoginOtp(req.identifier(), req.otp());
         setSessionCookie(response, (String) result.get("token"));
+        if (Boolean.TRUE.equals(req.rememberDevice())) {
+            // Only ever sent back to /api/auth (where sign-in happens), never readable by scripts.
+            response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie
+                .from(TrustedDeviceService.COOKIE, trustedDeviceService.remember(req.identifier(), trustedDevices))
+                .httpOnly(true).secure(cookieSecure).path("/api/auth").sameSite("Strict")
+                .maxAge(TrustedDeviceService.LIFETIME).build().toString());
+        }
         return ResponseEntity.ok(Map.of("user", result.get("user")));
     }
 

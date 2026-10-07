@@ -5,6 +5,7 @@ import Modal from '../../components/common/Modal'
 import { getAssetHistory } from '../../services/assetHistoryService'
 import GroupDevicesTable from './GroupDevicesTable'
 import { getLatestRecommendation, generateRecommendation } from '../../services/aiRecommendationService'
+import { useEventStream } from '../../hooks/useEventStream'
 
 // Drawer for a group of same-model devices (assets that were added together and share
 // a groupId). Every device is still its own complete asset; this is the roll-up view:
@@ -112,15 +113,40 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
     return () => { cancelled = true }
   }, [tab, memberKey]) // eslint-disable-line
 
-  // Latest recommendation for each device, loaded when the AI tab is opened.
+  // Latest recommendation for each device, loaded when the AI tab is opened. A device with none
+  // gets one made in the background (AiAutoGenerator); an 'ai' event says when it is ready.
+  const [autoPending, setAutoPending] = useState({})
+  const [aiNotice, setAiNotice] = useState('')   // e.g. the AI's daily limit is used up
   useEffect(() => {
     if (tab !== 'ai') return undefined
     let cancelled = false
     Promise.all(members.map((m) =>
-      getLatestRecommendation(m.id).then((r) => [m.id, r.data]).catch(() => [m.id, null]),
-    )).then((pairs) => { if (!cancelled) setRecs(Object.fromEntries(pairs)) })
+      getLatestRecommendation(m.id)
+        .then((r) => [m.id, r.data, false])
+        .catch((err) => {
+          if (err.response?.data?.unavailable) setAiNotice(err.response.data.unavailable)
+          return [m.id, null, Boolean(err.response?.data?.generating)]
+        }),
+    )).then((rows) => {
+      if (cancelled) return
+      setRecs(Object.fromEntries(rows.map(([id, rec]) => [id, rec])))
+      setAutoPending(Object.fromEntries(rows.map(([id, , pending]) => [id, pending])))
+    })
     return () => { cancelled = true }
   }, [tab, memberKey]) // eslint-disable-line
+
+  useEventStream('ai', ({ action, id, data }) => {
+    if (data?.kind !== 'recommendation' || !members.some((m) => m.id === id)) return
+    if (action === 'FAILED') {
+      setAutoPending((p) => ({ ...p, [id]: false }))
+      if (data.message) setAiNotice(data.message)
+      return
+    }
+    getLatestRecommendation(id).then(({ data: rec }) => {
+      setRecs((r) => ({ ...r, [id]: rec }))
+      setAutoPending((p) => ({ ...p, [id]: false }))
+    }).catch(() => {})
+  })
 
   const generateFor = async (id) => {
     setGenerating((g) => ({ ...g, [id]: true }))
@@ -304,6 +330,9 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
                 </button>
               </div>
               {aiError && <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/40 rounded-lg px-3.5 py-2.5">{aiError}</div>}
+              {aiNotice && !aiError && (
+                <div role="status" className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3.5 py-2.5">{aiNotice}</div>
+              )}
 
               {members.map((m, i) => {
                 if (aiDevice !== '' && aiDevice !== String(i)) return null
@@ -320,7 +349,9 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
                     {rec === undefined ? (
                       <p className="text-xs text-zinc-500 mt-2">Loading…</p>
                     ) : rec === null ? (
-                      <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">No AI recommendation generated yet.</p>
+                      <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2" role="status">
+                        {autoPending[m.id] ? 'Preparing a recommendation… it will appear here in a moment.' : 'No AI recommendation generated yet.'}
+                      </p>
                     ) : (
                       <div className="mt-2 space-y-2">
                         <div className="flex items-center justify-between gap-2">

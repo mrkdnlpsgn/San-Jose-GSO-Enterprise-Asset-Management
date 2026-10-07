@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../auth/model/user_model.dart' show roleLabel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../model/account_model.dart';
@@ -127,7 +128,7 @@ class _AccountCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text('@${account.username} · ${account.role}',
+                    Text('@${account.username} · ${roleLabel(account.role)}',
                         style: TextStyle(color: _roleColor, fontSize: 12)),
                     if (account.officeName != null) ...[
                       const SizedBox(height: 2),

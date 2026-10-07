@@ -26,6 +26,8 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
   bool _loading = false;
   bool _resending = false;
   bool _resent = false;
+  // Skip the code (not the password) on this phone for 30 days — see TrustedDeviceService.
+  bool _remember = false;
   String? _error;
 
   @override
@@ -43,7 +45,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
     }
     setState(() => _loading = true);
     try {
-      await ref.read(authProvider.notifier).completeLoginOtp(widget.identifier, otp);
+      await ref.read(authProvider.notifier).completeLoginOtp(widget.identifier, otp, rememberDevice: _remember);
       if (!mounted) return;
       final error = ref.read(authProvider).error;
       if (error != null) {
@@ -137,7 +139,17 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                   const SizedBox(height: 4),
                   Text("Code expires 10 minutes after it's sent.",
                       style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    value: _remember,
+                    onChanged: _loading ? null : (v) => setState(() => _remember = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text("Don't ask for a code on this phone for 30 days"),
+                    subtitle: Text("Only on a phone that only you use. You'll still need your password.",
+                        style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                  ),
+                  const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: _loading ? null : _submit,
                     child: _loading

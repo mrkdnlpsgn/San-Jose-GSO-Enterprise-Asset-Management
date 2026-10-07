@@ -99,6 +99,9 @@ public class SecurityConfig {
                 // Users: GET + own password change for any authenticated user; all else ADMIN only
                 .requestMatchers(HttpMethod.GET, "/api/users", "/api/users/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/users/me/password").authenticated()
+                .requestMatchers("/api/users/me/avatar").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/users/me/two-factor").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/users/me/forget-devices").authenticated()
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
                 .requestMatchers("/api/audit-logs/**").hasRole("ADMIN")
                 .requestMatchers("/api/deleted-records/**").hasRole("ADMIN")

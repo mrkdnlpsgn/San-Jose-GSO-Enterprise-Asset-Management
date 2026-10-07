@@ -17,6 +17,7 @@ function TwoFactorForm({ identifier, onSubmit, onResend, onBack }) {
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
   const [resent, setResent]   = useState(false)
+  const [remember, setRemember] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,7 +25,7 @@ function TwoFactorForm({ identifier, onSubmit, onResend, onBack }) {
     if (!/^\d{6}$/.test(otp.trim())) { setError('Enter the 6-digit code from your email.'); return }
     setLoading(true)
     try {
-      await onSubmit({ identifier, otp: otp.trim() })
+      await onSubmit({ identifier, otp: otp.trim(), rememberDevice: remember })
     } catch (err) {
       setError(err?.response?.data?.message || 'Invalid or expired code. Please try again.')
     } finally {
@@ -48,7 +49,7 @@ function TwoFactorForm({ identifier, onSubmit, onResend, onBack }) {
   }
 
   return (
-    <div className="w-full max-w-sm animate-fade-slide">
+    <div className="w-full max-w-sm animate-rise-in">
       <div className="mb-7">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Enter verification code</h1>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
@@ -87,6 +88,22 @@ function TwoFactorForm({ identifier, onSubmit, onResend, onBack }) {
           />
           <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1.5">Code expires 10 minutes after it's sent.</p>
         </div>
+
+        {/* Skips this code (not the password) on this browser for 30 days — see TrustedDeviceService */}
+        <label className="flex items-start gap-3 mb-6 cursor-pointer select-none rounded-lg border border-slate-200 dark:border-zinc-800 px-3.5 py-3 hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors duration-150">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          />
+          <span className="text-sm text-slate-700 dark:text-zinc-200">
+            Don't ask for a code on this computer for 30 days
+            <span className="block text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+              Only tick this on a computer that only you use. You'll still need your password.
+            </span>
+          </span>
+        </label>
 
         <button
           type="submit"

@@ -3,7 +3,8 @@ import { forwardRef, useId } from 'react'
 // Without an explicit `id`, one is generated so the label is always tied to its input
 // (clicking the label focuses the field; screen readers announce the label). The hint /
 // error text is linked with aria-describedby, and an error sets aria-invalid.
-const Input = forwardRef(function Input({ label, error, hint, endAdornment, adornmentClassName = 'w-10', className = '', id, ...props }, ref) {
+// startIcon: a small decorative icon drawn inside the left edge of the field.
+const Input = forwardRef(function Input({ label, error, hint, startIcon, endAdornment, adornmentClassName = 'w-10', className = '', id, ...props }, ref) {
   const autoId = useId()
   const inputId = id || autoId
   const noteId = `${inputId}-note`
@@ -17,6 +18,11 @@ const Input = forwardRef(function Input({ label, error, hint, endAdornment, ador
         </label>
       )}
       <div className="relative">
+        {startIcon && (
+          <div className={`pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 ${error ? 'text-red-500' : 'text-slate-400 dark:text-zinc-500'}`} aria-hidden="true">
+            {startIcon}
+          </div>
+        )}
         <input
           ref={ref}
           id={inputId}
@@ -28,6 +34,7 @@ const Input = forwardRef(function Input({ label, error, hint, endAdornment, ador
             focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500
             transition-all duration-150
             ${endAdornment ? 'pr-10' : ''}
+            ${startIcon ? 'pl-11' : ''}
             ${error
               ? 'border-red-500 focus:ring-red-400'
               : 'border-slate-300 dark:border-zinc-700 hover:border-slate-400 dark:hover:border-zinc-600'

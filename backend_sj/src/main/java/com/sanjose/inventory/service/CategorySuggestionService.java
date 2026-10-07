@@ -88,7 +88,7 @@ public class CategorySuggestionService {
             response = client.models.generateContent(MODEL, prompt, config);
         } catch (ApiException e) {
             log.error("Category suggestion request failed: {}", e.getMessage());
-            throw new IllegalStateException("AI category suggestion failed: " + e.getMessage(), e);
+            throw geminiConfig.failure("AI category suggestion", e);
         }
 
         String json = response.text();

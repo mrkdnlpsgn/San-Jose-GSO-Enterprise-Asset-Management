@@ -11,6 +11,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -50,6 +51,20 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(LoginFailedException.class)
+    public ResponseEntity<Map<String, Object>> handleLoginFailed(LoginFailedException ex) {
+        ResponseEntity<Map<String, Object>> res = buildResponse(HttpStatus.UNAUTHORIZED, "Invalid email or password.");
+        res.getBody().put("attemptsRemaining", ex.getAttemptsRemaining());
+        return res;
+    }
+
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccountLocked(AccountLockedException ex) {
+        ResponseEntity<Map<String, Object>> res = buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        res.getBody().put("retryAfterSeconds", ex.getRetryAfterSeconds());
+        return res;
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
         return buildResponse(HttpStatus.UNAUTHORIZED, "Invalid email or password.");
@@ -77,6 +92,12 @@ public class GlobalExceptionHandler {
         body.put("status", HttpStatus.BAD_REQUEST.value());
         body.put("errors", errors);
         return ResponseEntity.badRequest().body(body);
+    }
+
+    // A missing /uploads/** file (e.g. a replaced profile picture) — not a server error.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex) {
+        return buildResponse(HttpStatus.NOT_FOUND, "Not found.");
     }
 
     @ExceptionHandler(Exception.class)

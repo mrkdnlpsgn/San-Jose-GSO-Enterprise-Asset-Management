@@ -20,11 +20,12 @@ public class LifecycleInsightController {
 
     @GetMapping
     public Map<String, Object> stats(@RequestParam(defaultValue = "month") String range) {
-        return lifecycleInsightService.stats(Range.parse(range), accessService.scopeOfficeId());
+        return lifecycleInsightService.statsWithCachedSummary(Range.parse(range), accessService.scopeOfficeId());
     }
 
     @PostMapping("/summary")
-    public Map<String, Object> summarize(@RequestParam(defaultValue = "month") String range) {
-        return lifecycleInsightService.summarize(Range.parse(range), accessService.scopeOfficeId());
+    public Map<String, Object> summarize(@RequestParam(defaultValue = "month") String range,
+                                         @RequestParam(defaultValue = "false") boolean refresh) {
+        return lifecycleInsightService.summarize(Range.parse(range), accessService.scopeOfficeId(), refresh);
     }
 }

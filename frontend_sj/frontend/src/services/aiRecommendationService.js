@@ -5,6 +5,8 @@ export const generateRecommendation  = (assetId) => api.post(`/assets/${assetId}
 export const getRecommendationSummary = () => api.get('/ai-recommendations/summary');
 
 // Maintenance / disposal activity over a period ('day' | 'week' | 'month' | 'year'), scoped to
-// the staff member's office; the summary endpoint adds an AI-written paragraph (Gemini).
+// the staff member's office; the summary endpoint adds an AI-written paragraph (Gemini). The server
+// reuses its last summary while the numbers are unchanged; refresh = true always writes a new one.
 export const getLifecycleInsights     = (range) => api.get('/ai-insights/lifecycle', { params: { range } });
-export const generateLifecycleSummary = (range) => api.post('/ai-insights/lifecycle/summary', null, { params: { range } });
+export const generateLifecycleSummary = (range, refresh = false) =>
+  api.post('/ai-insights/lifecycle/summary', null, { params: { range, refresh } });

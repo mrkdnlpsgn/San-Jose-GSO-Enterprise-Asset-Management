@@ -27,9 +27,10 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
         () => _service.forceChangePassword(identifier, currentPassword, newPassword));
   }
 
-  Future<void> completeLoginOtp(String identifier, String otp) async {
+  Future<void> completeLoginOtp(String identifier, String otp, {bool rememberDevice = false}) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _service.verifyLoginOtp(identifier, otp));
+    state = await AsyncValue.guard(
+        () => _service.verifyLoginOtp(identifier, otp, rememberDevice: rememberDevice));
   }
 
   // Re-triggers login with the original credentials so the backend can email a

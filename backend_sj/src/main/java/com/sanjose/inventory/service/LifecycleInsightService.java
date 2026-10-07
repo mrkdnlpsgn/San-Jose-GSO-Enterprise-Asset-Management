@@ -1,5 +1,6 @@
 package com.sanjose.inventory.service;
 
+import com.sanjose.inventory.config.AppTime;
 import com.google.genai.Client;
 import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 // How many assets were maintained / disposed over a period (last day, 7 days, 30 days or
@@ -50,7 +52,7 @@ public class LifecycleInsightService {
     }
 
     public Map<String, Object> stats(Range range, Long officeId) {
-        LocalDate end = LocalDate.now();                       // inclusive
+        LocalDate end = AppTime.today();                       // inclusive
         LocalDate start = end.minusDays(range.days - 1L);
         LocalDate prevEnd = start.minusDays(1);
         LocalDate prevStart = prevEnd.minusDays(range.days - 1L);
@@ -66,11 +68,38 @@ public class LifecycleInsightService {
         return out;
     }
 
-    public Map<String, Object> summarize(Range range, Long officeId) {
+    // The dashboard asks for this on every load, so the last summary per range + office is kept
+    // and reused while the numbers behind it are unchanged; refresh = true always asks Gemini.
+    private record CachedSummary(String statsJson, String summary) {}
+    private final Map<String, CachedSummary> summaryCache = new ConcurrentHashMap<>();
+
+    // The numbers, plus the last AI summary when it was written from exactly these numbers — so
+    // the dashboard shows it on load without asking Gemini (free-plan quota); new numbers mean
+    // someone presses Generate.
+    public Map<String, Object> statsWithCachedSummary(Range range, Long officeId) {
+        Map<String, Object> stats = stats(range, officeId);
+        CachedSummary cached = summaryCache.get(range.name() + ":" + officeId);
+        if (cached == null || !cached.statsJson().equals(toJson(stats))) return stats;
+        Map<String, Object> out = new LinkedHashMap<>(stats);
+        out.put("summary", cached.summary());
+        return out;
+    }
+
+    public Map<String, Object> summarize(Range range, Long officeId, boolean refresh) {
         geminiConfig.requireConfigured();
         Map<String, Object> stats = stats(range, officeId);
+        String statsJson = toJson(stats);
+        String key = range.name() + ":" + officeId;
+        CachedSummary cached = summaryCache.get(key);
+        String summary;
+        if (!refresh && cached != null && cached.statsJson().equals(statsJson)) {
+            summary = cached.summary();
+        } else {
+            summary = requestSummary(statsJson);
+            summaryCache.put(key, new CachedSummary(statsJson, summary));
+        }
         Map<String, Object> out = new LinkedHashMap<>(stats);
-        out.put("summary", requestSummary(stats));
+        out.put("summary", summary);
         return out;
     }
 
@@ -177,9 +206,9 @@ public class LifecycleInsightService {
         if any are waiting for approval. Money is in Philippine pesos (write it as PHP). If a period has \
         no activity, say so plainly. Plain text only, no markdown, no bullet points, no headers.""";
 
-    private String requestSummary(Map<String, Object> stats) {
+    private String requestSummary(String statsJson) {
         Client client = geminiConfig.buildClient();
-        String prompt = "Reporting period statistics:\n" + toJson(stats);
+        String prompt = "Reporting period statistics:\n" + statsJson;
         GenerateContentConfig config = GenerateContentConfig.builder()
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
@@ -188,7 +217,7 @@ public class LifecycleInsightService {
             response = client.models.generateContent(MODEL, prompt, config);
         } catch (ApiException e) {
             log.error("Lifecycle summary request failed: {}", e.getMessage());
-            throw new IllegalStateException("AI summary request failed: " + e.getMessage(), e);
+            throw geminiConfig.failure("AI summary request", e);
         }
         String text = response.text();
         if (text == null || text.isBlank()) throw new IllegalStateException("The AI did not return a summary.");
