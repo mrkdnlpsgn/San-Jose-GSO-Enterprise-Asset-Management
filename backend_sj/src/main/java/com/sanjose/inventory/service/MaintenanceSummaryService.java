@@ -70,7 +70,7 @@ public class MaintenanceSummaryService {
     }
 
     private static final String SYSTEM_PROMPT = """
-        You write a one-sentence summary of a maintenance record for a municipal government ICT/equipment \
+        You write a one-sentence summary of a maintenance record for a municipal government equipment \
         inventory system, to be shown in a compact list view. Read the maintenance type, findings, and \
         actions taken, and produce ONE short sentence (under 20 words) that captures what was wrong and \
         what was done about it. Plain language, no markdown, no leading label like "Summary:". If either \

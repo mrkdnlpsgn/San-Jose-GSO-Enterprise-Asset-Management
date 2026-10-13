@@ -12,9 +12,11 @@ import { AssetGroupDrawerById } from '../Assets/AssetGroupDrawer'
 import DeviceRow from '../Assets/DeviceRow'
 import AddMaintenanceModal from './AddMaintenanceModal'
 import EvidenceModal from './EvidenceModal'
-import { getMaintenance, updateMaintenance, deleteMaintenance, approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
+import { getMaintenance, updateMaintenance, deleteMaintenance, approveMaintenance, rejectMaintenance, getMaintenanceById } from '../../services/maintenanceService'
 import { getAssets } from '../../services/assetService'
 import { getUsers } from '../../services/userService'
+import DraftRows from '../../components/common/DraftRows'
+import { useDraftList } from '../../hooks/useFormDraft'
 
 const STATUS_BADGE = {
   COMPLETED: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
@@ -49,6 +51,33 @@ function Maintenance() {
   const [filterType, setFilterType]       = useState('')
   const [assetFilter, setAssetFilter]     = useState('')
   const [editing, setEditing]   = useState(null)
+  const { drafts, discard: discardDraft } = useDraftList('maintenance')
+  // Reopen the form a draft came from; it restores the draft itself.
+  const continueDraft = async (d) => {
+    const record = records.find((r) => String(r.id) === d.id) || (await getMaintenanceById(d.id).catch(() => null))?.data
+    if (!record) { discardDraft(d.key); toast.show('That record no longer exists, so its draft was removed.', 'error'); return }
+    setEditing(record)
+  }
+
+  // Draft rows use the table's columns: draft fields laid over the saved record.
+  const draftRecord = (d) => {
+    const base = records.find((r) => String(r.id) === d.id) || {}
+    return { ...base, ...d.data, asset: base.asset }
+  }
+  const DRAFT_TXT = 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap'
+  const draftColumns = [
+    { className: 'px-5 py-3.5', render: (r) => (<>
+      <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{r.asset?.propertyNumber}</p>
+      <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem]">{r.asset?.description}</p>
+    </>) },
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (r) => <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${TYPE_BADGE[r.maintenanceType] || ''}`}>{r.maintenanceType}</span> },
+    { className: 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[10rem]', render: (r) => <span className="block truncate" title={r.findings}>{r.findings || '—'}</span> },
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (r) => <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[r.status] || ''}`}>{r.status}</span> },
+    { className: DRAFT_TXT, render: (r) => (r.maintenanceDate ? formatDate(r.maintenanceDate) : '—') },
+    { className: DRAFT_TXT, render: (r) => (typeof r.assignedTo === 'string' ? r.assignedTo : r.assignedTo?.fullName || r.assignedTo?.username) || '—' },
+    { className: DRAFT_TXT, render: (r) => (r.cost !== '' && r.cost != null ? `₱${Number(r.cost).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` : '—') },
+    { className: DRAFT_TXT, render: () => '—' },
+  ]
   const [deleting, setDeleting] = useState(null)
   const [rejecting, setRejecting] = useState(null)
   // ?pending=1 (e.g. from the dashboard's Pending Approvals) opens with only requests awaiting approval
@@ -411,6 +440,7 @@ function Maintenance() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
                 {paged.map((entry) => {
                   if (entry.type === 'group') {
                     const open = expanded.has(entry.key)

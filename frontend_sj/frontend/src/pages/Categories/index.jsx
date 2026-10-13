@@ -8,6 +8,9 @@ import AlertDialog from '../../components/common/AlertDialog'
 import Modal from '../../components/common/Modal'
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../../services/categoryService'
 import { newIdempotencyKey } from '../../utils/idempotency'
+import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
+import DraftNotice from '../../components/common/DraftNotice'
+import DraftRows from '../../components/common/DraftRows'
 
 const PAGE_SIZE = 8
 
@@ -18,6 +21,9 @@ function CategoryModal({ onClose, onSave, initial = null }) {
   const [form, setForm]     = useState({
     categoryName:    initial?.categoryName || '',
     description:     initial?.description || '',
+  })
+  const draft = useFormDraft(`category:${initial?.id ?? 'new'}`, form, setForm, {
+    title: (f) => f.categoryName.trim() || initial?.categoryName || 'Untitled category',
   })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -37,6 +43,7 @@ function CategoryModal({ onClose, onSave, initial = null }) {
         categoryName: form.categoryName.trim(),
         description: form.description.trim(),
       }, idempotencyKey)
+      draft.clear()
       onClose()
     } catch (err) {
       setErrors({ _global: err.response?.data?.message || 'Failed to save.' })
@@ -48,6 +55,7 @@ function CategoryModal({ onClose, onSave, initial = null }) {
   return (
     <Modal title={isEditing ? 'Edit Category' : 'Add Category'} onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <DraftNotice draft={draft} />
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
@@ -82,6 +90,21 @@ function Categories() {
   const [search, setSearch]         = useState('')
   const [showAdd, setShowAdd]       = useState(false)
   const [editing, setEditing]       = useState(null)
+  const { drafts, discard: discardDraft } = useDraftList('category')
+  // Reopen the form a draft came from; it restores the draft itself.
+  const continueDraft = async (d) => {
+    if (d.id === 'new') { setShowAdd(true); return }
+    const record = categories.find((r) => String(r.id) === d.id)
+    if (!record) { discardDraft(d.key); toast.show('That record no longer exists, so its draft was removed.', 'error'); return }
+    setEditing(record)
+  }
+
+  // Draft rows use the table's columns.
+  const draftRecord = (d) => d.data
+  const draftColumns = [
+    { className: 'px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap', render: (c) => c.categoryName || <span className="italic font-normal text-slate-400">No name yet</span> },
+    { className: 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-xs', render: (c) => <span className="block truncate">{c.description || '—'}</span> },
+  ]
   const [deleting, setDeleting]     = useState(null)
   const [blockedDelete, setBlockedDelete] = useState(null)
   const [page, setPage]             = useState(1)
@@ -190,6 +213,7 @@ function Categories() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
                 {paged.map((cat) => (
                   <tr key={cat.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
                     <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap">{cat.categoryName}</td>

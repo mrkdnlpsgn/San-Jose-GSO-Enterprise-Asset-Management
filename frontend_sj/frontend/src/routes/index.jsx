@@ -7,7 +7,6 @@ import AssetHistory from '../pages/AssetHistory'
 import Maintenance  from '../pages/Maintenance'
 import Disposal     from '../pages/Disposal'
 import Reports      from '../pages/Reports'
-import QRScanner    from '../pages/QRScanner'
 import Accounts     from '../pages/Accounts'
 import Offices      from '../pages/Offices'
 import Categories   from '../pages/Categories'
@@ -46,7 +45,8 @@ function AppRoutes() {
       <Route path="/maintenance"  element={<ProtectedRoute><Maintenance  /></ProtectedRoute>} />
       <Route path="/disposal"     element={<ProtectedRoute><Disposal     /></ProtectedRoute>} />
       <Route path="/reports"      element={<ProtectedRoute><Reports      /></ProtectedRoute>} />
-      <Route path="/qr-scanner"   element={<ProtectedRoute><QRScanner    /></ProtectedRoute>} />
+      {/* QR scanning lives in the mobile app; old links land on the dashboard */}
+      <Route path="/qr-scanner"   element={<Navigate to="/dashboard" replace />} />
       <Route path="/accounts"     element={<AdminRoute><Accounts          /></AdminRoute>} />
       <Route path="/audit-logs"   element={<AdminRoute><Accounts     /></AdminRoute>} />
       <Route path="/my-account"   element={<ProtectedRoute><Accounts      /></ProtectedRoute>} />

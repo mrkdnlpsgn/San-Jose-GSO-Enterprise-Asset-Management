@@ -141,7 +141,7 @@ public class AiRecommendationService {
     }
 
     private static final String SYSTEM_PROMPT = """
-        You are an asset-lifecycle advisor for a Philippine municipal government's ICT/equipment \
+        You are an asset-lifecycle advisor for a Philippine municipal government's equipment \
         inventory system. Given an asset's age, condition, value, and recorded repair history, \
         recommend exactly one lifecycle action and explain it in 2-3 sentences a non-technical \
         municipal employee can act on. Be conservative: a repair-frequency or cost of zero means no \

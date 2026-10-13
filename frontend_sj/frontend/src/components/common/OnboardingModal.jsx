@@ -21,8 +21,8 @@ const CONCEPTS = [
     desc: 'The Dashboard automatically flags items that need attention — overdue returns, aging equipment, high-value missing assets, devices with no maintenance record, and equipment that has never been tracked. Click any suggestion to log an action directly.',
   },
   {
-    term: 'Item Code and QR Scanner',
-    desc: 'Each record gets a unique item code assigned automatically. Print the QR code and attach it to the device. Use the QR Scanner to look up any record instantly by scanning.',
+    term: 'Item Code and QR Code',
+    desc: 'Each record gets a unique item code assigned automatically. Print the QR code and attach it to the device. Scan it with the QR Scanner in the mobile app to look up the record instantly.',
   },
 ]
 

@@ -1,6 +1,7 @@
 package com.sanjose.inventory.service;
 
 import com.sanjose.inventory.dto.PersonnelRequest;
+import com.sanjose.inventory.dto.UserResponse;
 import com.sanjose.inventory.entity.Office;
 import com.sanjose.inventory.entity.Personnel;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
@@ -9,9 +10,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.HtmlUtils;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,8 @@ public class PersonnelService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
+    private final UserService userService;
+    private final EmailService emailService;
 
     private static final RowMapper<Personnel> PERSONNEL_MAPPER = (rs, rn) -> {
         Personnel p = new Personnel();
@@ -74,6 +79,26 @@ public class PersonnelService {
         Personnel saved = findById(id);
         auditLogService.log("PERSONNEL_UPDATED", "Personnel", id, "personnel",
             "Updated: " + saved.getFullName() + " — office " + (saved.getOffice() != null ? saved.getOffice().getOfficeName() : "none"));
+        Long previousOfficeId = existing.getOffice() != null ? existing.getOffice().getId() : null;
+        if (saved.getOffice() != null && !Objects.equals(previousOfficeId, saved.getOffice().getId())) {
+            notifyOfficeAssigned(saved, existing.getOffice());
+        }
         return saved;
+    }
+
+    // Only on an actual office change — re-saving the same office or editing contact info sends nothing.
+    private void notifyOfficeAssigned(Personnel saved, Office previous) {
+        UserResponse user = userService.findById(saved.getUserId());
+        if (!Boolean.TRUE.equals(user.getIsActive()) || user.getEmail() == null || user.getEmail().isBlank()) return;
+        String office = HtmlUtils.htmlEscape(saved.getOffice().getOfficeName());
+        String html = "<p>Hello " + HtmlUtils.htmlEscape(saved.getFullName()) + ",</p>"
+            + (previous == null
+                ? "<p>You have been assigned to an office in the San Jose GSO Inventory Management System.</p>"
+                : "<p>Your office in the San Jose GSO Inventory Management System has been changed from <b>"
+                    + HtmlUtils.htmlEscape(previous.getOfficeName()) + "</b>.</p>")
+            + "<p><b>Assigned office:</b> " + office + "</p>"
+            + "<p>When you sign in, you will see and manage the assets of this office.</p>"
+            + "<p>If you think this is a mistake, please contact the GSO system administrator.</p>";
+        emailService.send(user.getEmail(), "You have been assigned to " + saved.getOffice().getOfficeName(), html);
     }
 }

@@ -6,6 +6,8 @@ import { createCategory } from '../../services/categoryService'
 import { scanAssetLabel } from '../../services/assetService'
 import { useToast } from '../../context/ToastContext'
 import { newIdempotencyKey } from '../../utils/idempotency'
+import { useFormDraft } from '../../hooks/useFormDraft'
+import DraftNotice from '../../components/common/DraftNotice'
 
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 const CONDITIONS  = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
@@ -55,6 +57,9 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     lifecycleStatus:  initial?.lifecycleStatus        || 'REGISTERED',
     specifications:   initial?.specifications         || '',
     remarks:          initial?.remarks                || '',
+  })
+  const draft = useFormDraft(`asset:${initial?.id ?? 'new'}`, form, setForm, {
+    title: (f) => isEditing ? `${initial.propertyNumber || 'Asset'} — ${f.description || initial.description || ''}` : (f.description.trim() || 'Untitled asset'),
   })
   const [errors, setErrors]         = useState({})
   const [saving, setSaving]         = useState(false)
@@ -219,6 +224,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         remarks:           form.remarks.trim() || null,
       }
       await onSave(payload, idempotencyKey, wasScanned)
+      draft.clear()
       onClose()
     } catch (err) {
       setErrors({ _global: err.response?.data?.message || 'Failed to save asset.' })
@@ -251,6 +257,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     )}
     <Modal title={isEditing ? 'Edit Asset' : 'Add Asset'} size="lg" onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <DraftNotice draft={draft} />
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}

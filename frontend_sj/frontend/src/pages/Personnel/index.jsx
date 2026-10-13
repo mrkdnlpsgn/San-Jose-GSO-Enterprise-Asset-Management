@@ -7,6 +7,9 @@ import Modal from '../../components/common/Modal'
 import Badge from '../../components/common/Badge'
 import { getPersonnel, updatePersonnel } from '../../services/personnelService'
 import { getOffices } from '../../services/officeService'
+import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
+import DraftNotice from '../../components/common/DraftNotice'
+import DraftRows from '../../components/common/DraftRows'
 
 const PAGE_SIZE = 8
 
@@ -20,6 +23,7 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
     officeId:    initial.office?.id ? String(initial.office.id) : '',
     contactInfo: initial.contactInfo || '',
   })
+  const draft = useFormDraft(`personnel:${initial?.id}`, form, setForm, { title: initial.fullName })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
 
@@ -38,6 +42,7 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
         position:    form.position.trim() || null,
         contactInfo: form.contactInfo.trim() || null,
       })
+      draft.clear()
       onClose()
     } catch (err) {
       setErrors({ _global: err.response?.data?.message || 'Failed to save.' })
@@ -49,6 +54,7 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
   return (
     <Modal title="Assign Office" subtitle={`${initial.fullName} · @${initial.username}`} onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <DraftNotice draft={draft} />
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
@@ -85,6 +91,27 @@ function Personnel() {
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [editing, setEditing]       = useState(null)
+  const { drafts, discard: discardDraft } = useDraftList('personnel')
+  // Reopen the form a draft came from; it restores the draft itself.
+  const continueDraft = async (d) => {
+    const record = personnel.find((r) => String(r.id) === d.id)
+    if (!record) { discardDraft(d.key); toast.show('That record no longer exists, so its draft was removed.', 'error'); return }
+    setEditing(record)
+  }
+
+  // Draft rows use the table's columns: draft fields laid over the saved person.
+  const draftRecord = (d) => {
+    const base = personnel.find((x) => String(x.id) === d.id) || {}
+    return { ...base, contactInfo: d.data.contactInfo, officeName: offices.find((o) => String(o.id) === String(d.data.officeId))?.officeName }
+  }
+  const draftColumns = [
+    { className: 'px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap', render: (p) => p.fullName },
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (p) => <span className="font-mono text-xs text-slate-500 dark:text-zinc-400">@{p.username}</span> },
+    { className: 'px-5 py-3.5 text-xs', render: (p) => p.officeName
+        ? <span className="text-slate-600 dark:text-zinc-300">{p.officeName}</span>
+        : <span className="text-amber-500 dark:text-amber-400 italic">Not assigned</span> },
+    { className: 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap', render: (p) => p.contactInfo || '—' },
+  ]
   const [page, setPage]             = useState(1)
 
   const debouncedSearch = useDebounce(search, 300)
@@ -158,17 +185,44 @@ function Personnel() {
             </svg>
             <p className="text-sm text-zinc-400 font-medium">{debouncedSearch ? 'No personnel match your search' : 'No accounts yet — create one on the Accounts page'}</p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
+        ) : (<>
+          {/* Phones: one card per person so the office and action stay visible */}
+          <ul className="md:hidden divide-y divide-slate-100 dark:divide-zinc-800/60">
+            {drafts.map((d) => {
+              const p = draftRecord(d)
+              return (
+                <li key={d.key} className="px-4 py-3.5 bg-sky-50/70 dark:bg-sky-950/25">
+                  <PersonCard p={p} office={p.officeName} tag={d.id === 'new' ? 'New draft' : 'Unsaved changes'}>
+                    <button type="button" onClick={() => continueDraft(d)}
+                      className="px-3 py-2 rounded-md text-xs font-semibold bg-brand-700 text-white hover:bg-brand-800 transition-colors">Continue</button>
+                    <button type="button" onClick={() => discardDraft(d.key)}
+                      className="px-3 py-2 rounded-md text-xs font-semibold text-slate-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors">Discard</button>
+                  </PersonCard>
+                </li>
+              )
+            })}
+            {paged.map((p) => (
+              <li key={p.id} className="px-4 py-3.5">
+                <PersonCard p={p} office={p.office?.officeName}>
+                  <button onClick={() => setEditing(p)}
+                    className="px-3 py-2 rounded-md border border-brand-500/40 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors">
+                    {p.office ? 'Change office' : 'Assign office'}
+                  </button>
+                </PersonCard>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
               <thead>
                 <tr>
-                  {['Full Name', 'Account', 'Office', 'Position', 'Contact Info', ''].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">{h}</th>
+                  {['Full Name', 'Account', 'Office', 'Contact Info', ''].map((h) => (
+                    <th key={h} className="px-5 py-3 text-left whitespace-nowrap text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
                 {paged.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
                     <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap">{p.fullName}</td>
@@ -181,17 +235,16 @@ function Personnel() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-xs whitespace-nowrap">
+                    <td className="px-5 py-3.5 text-xs">
                       {p.office?.officeName
                         ? <span className="text-slate-600 dark:text-zinc-300">{p.office.officeName}</span>
                         : <span className="text-amber-500 dark:text-amber-400 italic">Not assigned</span>}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{p.position || '—'}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{p.contactInfo || '—'}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setEditing(p)}
-                          className="px-2.5 py-1.5 rounded-md text-xs font-semibold text-brand-500 dark:text-brand-400 hover:bg-brand-500/10 transition-all duration-150">
+                          className="px-2.5 py-1.5 rounded-md whitespace-nowrap text-xs font-semibold text-brand-500 dark:text-brand-400 hover:bg-brand-500/10 transition-all duration-150">
                           {p.office ? 'Change office' : 'Assign office'}
                         </button>
                       </div>
@@ -201,7 +254,7 @@ function Personnel() {
               </tbody>
             </table>
           </div>
-        )}
+        </>)}
 
         {!loading && filtered.length > PAGE_SIZE && (
           <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
@@ -221,6 +274,35 @@ function Personnel() {
 
       {editing  && <PersonnelModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} offices={offices} />}
     </MainLayout>
+  )
+}
+
+function PersonCard({ p, office, tag, children }) {
+  return (
+    <>
+      {tag && (
+        <span className="mb-1.5 inline-flex items-center rounded-full border border-sky-300 dark:border-sky-800 bg-white dark:bg-sky-950 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-sky-800 dark:text-sky-300">{tag}</span>
+      )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-900 dark:text-white">{p.fullName}</p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <span className="font-mono text-xs text-slate-500 dark:text-zinc-400">@{p.username}</span>
+            {p.userRole && <Badge label={p.userRole === 'ADMIN' ? 'Administrator' : 'GSO Staff'} color={p.userRole === 'ADMIN' ? 'green' : 'gray'} />}
+            {p.userActive === false && <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-full">Inactive</span>}
+          </div>
+        </div>
+      </div>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dt className="text-slate-400 dark:text-zinc-500">Office</dt>
+        <dd>{office
+          ? <span className="text-slate-700 dark:text-zinc-200">{office}</span>
+          : <span className="text-amber-600 dark:text-amber-400 italic">Not assigned</span>}</dd>
+        <dt className="text-slate-400 dark:text-zinc-500">Contact</dt>
+        <dd className="text-slate-600 dark:text-zinc-300 break-words">{p.contactInfo || '—'}</dd>
+      </dl>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">{children}</div>
+    </>
   )
 }
 

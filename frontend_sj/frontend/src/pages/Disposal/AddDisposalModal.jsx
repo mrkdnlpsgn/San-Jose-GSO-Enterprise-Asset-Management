@@ -2,6 +2,8 @@ import { useState } from 'react'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 import { newIdempotencyKey } from '../../utils/idempotency'
+import { useFormDraft } from '../../hooks/useFormDraft'
+import DraftNotice from '../../components/common/DraftNotice'
 
 const METHODS   = ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS']
 const STATUSES  = ['PENDING', 'APPROVED', 'COMPLETED']
@@ -27,6 +29,9 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
     appraisedValue:     initial?.appraisedValue != null ? String(initial.appraisedValue) : '',
     orNumber:           initial?.orNumber             || '',
     amount:             initial?.amount != null      ? String(initial.amount) : '',
+  })
+  const draft = useFormDraft(`disposal:${initial?.id ?? 'new'}`, form, setForm, {
+    title: isEditing ? `${initial.asset?.propertyNumber || ''} — ${initial.asset?.description || 'Disposal record'}` : 'Disposal record',
   })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -69,6 +74,7 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
         amount:             form.amount !== ''         ? Number(form.amount) : null,
       }
       await onSave(payload, idempotencyKey)
+      draft.clear()
       onClose()
     } catch (err) {
       setErrors({ _global: err.response?.data?.message || 'Failed to save disposal record.' })
@@ -80,6 +86,7 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
   return (
     <Modal title={isEditing ? 'Edit Disposal Record' : 'Add Disposal Record'} size="lg" onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <DraftNotice draft={draft} />
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}

@@ -197,7 +197,7 @@ public class LifecycleInsightService {
 
     private static final String SYSTEM_PROMPT = """
         You write a short plain-English summary for the General Services Office of a Philippine \
-        municipal government, describing how many ICT and other government assets were maintained \
+        municipal government, describing how many government assets were maintained \
         and disposed of during a reporting period. You are given pre-computed statistics (JSON) — use \
         only those numbers, never invent figures. In 3-5 short sentences: state how many assets were \
         maintained and how many disposed of, compare each with the previous period of the same length \

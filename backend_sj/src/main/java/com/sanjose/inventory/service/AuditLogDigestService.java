@@ -79,7 +79,7 @@ public class AuditLogDigestService {
     }
 
     private static final String SYSTEM_PROMPT = """
-        You write a short plain-English activity digest for the ICT administrator of a Philippine municipal \
+        You write a short plain-English activity digest for the GSO administrator of a Philippine municipal \
         government asset inventory system, based on a list of recent audit log entries. Summarize in 2-4 \
         short sentences: what kinds of actions happened and roughly how many, which modules were most \
         active, and call out anything that looks unusual or worth a second look (e.g. a burst of deletions, \

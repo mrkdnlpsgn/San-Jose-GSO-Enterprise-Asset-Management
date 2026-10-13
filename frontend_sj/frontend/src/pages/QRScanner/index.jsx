@@ -250,7 +250,7 @@ function QRScanner() {
           <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800">
               <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">Camera Scanner</p>
-              <p className="text-xs text-slate-400 dark:text-zinc-500 mt-px">Point your camera at an ICT asset QR code</p>
+              <p className="text-xs text-slate-400 dark:text-zinc-500 mt-px">Point your camera at an asset QR code</p>
             </div>
 
             {/* Video viewport */}

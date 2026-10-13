@@ -13,6 +13,8 @@ import ResetPasswordModal from './ResetPasswordModal'
 import { getUsers, createUser, updateUser, deactivateUser, resetPassword } from '../../services/userService'
 import MyAccountTab from './MyAccountTab'
 import { getAuditLogs } from '../../services/auditLogService'
+import DraftRows from '../../components/common/DraftRows'
+import { useDraftList } from '../../hooks/useFormDraft'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatDateTime(dt) {
@@ -48,6 +50,32 @@ function AccountsTab() {
   const [loading, setLoading]       = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [editing, setEditing]       = useState(null)
+  const { drafts, discard: discardDraft } = useDraftList('account')
+  // Reopen the form a draft came from; it restores the draft itself.
+  const continueDraft = async (d) => {
+    if (d.id === 'new') { setShowCreate(true); return }
+    const record = users.find((r) => String(r.id) === d.id)
+    if (!record) { discardDraft(d.key); toast.show('That record no longer exists, so its draft was removed.', 'error'); return }
+    setEditing(record)
+  }
+
+  // Draft rows use the table's columns: draft fields laid over the saved account (if editing).
+  const draftRecord = (d) => {
+    const base = d.id === 'new' ? {} : users.find((u) => String(u.id) === d.id) || {}
+    return { ...base, ...d.data }
+  }
+  const draftColumns = [
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (u) => <span className="font-mono text-xs text-slate-600 dark:text-zinc-400">{u.username ? `@${u.username}` : '—'}</span> },
+    { className: 'px-5 py-3.5 text-xs whitespace-nowrap', render: (u) => u.email
+        ? <span className="text-slate-500 dark:text-zinc-400">{u.email}</span>
+        : <span className="text-amber-500 dark:text-amber-400 italic">No email</span> },
+    { className: 'px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap', render: (u) => u.fullName || '—' },
+    { className: 'px-5 py-3.5 text-xs whitespace-nowrap', render: (u) => u.officeName
+        ? <span className="text-slate-600 dark:text-zinc-300">{u.officeName}</span>
+        : <span className="text-amber-500 dark:text-amber-400 italic">Not assigned</span> },
+    { className: 'px-5 py-3.5', render: (u) => <Badge label={u.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'} color={u.role === 'ADMIN' ? 'green' : 'gray'} /> },
+    { className: 'px-5 py-3.5 text-xs text-slate-500 dark:text-zinc-400', render: (u) => (u.isActive === false ? 'Inactive' : 'Active') },
+  ]
   const [deleting, setDeleting]     = useState(null)
   const [resetting, setResetting]   = useState(null)
   const [search, setSearch]         = useState('')
@@ -214,6 +242,7 @@ function AccountsTab() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                  <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
                   {users.map((user) => (
                     <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
                       <td className="px-5 py-3.5 whitespace-nowrap">

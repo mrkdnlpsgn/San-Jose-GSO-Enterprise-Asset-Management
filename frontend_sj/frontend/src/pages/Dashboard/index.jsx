@@ -219,22 +219,24 @@ function Sk({ className, style }) {
 function StatStrip({ stats, loading }) {
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
-      <div className="grid grid-cols-2 xl:grid-cols-4 divide-x divide-y xl:divide-y-0 divide-slate-200 dark:divide-zinc-800">
+      {/* Four across when there's room for 14rem each, otherwise two — measured in rem, so it
+          follows the Text Size setting. The 1px gap over a tinted background draws the dividers. */}
+      <div className="flex flex-wrap gap-px bg-slate-200 dark:bg-zinc-800">
         {stats.map(({ label, value, sub, delta, href, icon }) => (
           <Link
             key={label}
             to={href}
-            className="group flex items-start gap-3 px-5 py-4 hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors duration-150"
+            className="grow basis-[clamp(24%,(56rem_-_100%)_*_999,49%)] min-w-0 group flex items-start gap-3 px-3.5 sm:px-5 py-4 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors duration-150"
           >
-            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5 text-slate-400 dark:text-zinc-500 group-hover:text-brand-500 dark:group-hover:text-brand-400 group-hover:bg-brand-500/10 transition-all duration-150">
+            <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-zinc-800 hidden sm:flex items-center justify-center flex-shrink-0 mt-0.5 text-slate-400 dark:text-zinc-500 group-hover:text-brand-500 dark:group-hover:text-brand-400 group-hover:bg-brand-500/10 transition-all duration-150">
               {icon}
             </div>
             <div className="min-w-0">
-              <p className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider leading-none">{label}</p>
+              <p className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-normal sm:tracking-wider leading-tight sm:leading-none [overflow-wrap:anywhere]">{label}</p>
               {loading ? (
                 <Sk className="h-7 w-16 mt-2 mb-1" />
               ) : (
-                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5 leading-none tabular-nums truncate">{value}</p>
+                <p className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white mt-1.5 leading-tight sm:leading-none tabular-nums [overflow-wrap:anywhere]">{value}</p>
               )}
               <div className="flex items-center gap-1.5 mt-1">
                 <p className="text-xs text-slate-400 dark:text-zinc-600 leading-tight">{sub}</p>
@@ -265,8 +267,8 @@ function QuickActions({ isAdmin }) {
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>,
     },
     {
-      label: 'Scan QR', desc: 'Identify by QR code', to: '/qr-scanner',
-      icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V5h1v1H5zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zm2 2v-1h1v1H5zM13 3a1 1 0 00-1 1v3a1 1 0 001 1h3a1 1 0 001-1V4a1 1 0 00-1-1h-3zm1 2v1h1V5h-1zM11 7a1 1 0 112 0v1h1a1 1 0 110 2h-2a1 1 0 01-1-1V7zM7 11a1 1 0 100 2h1v1a1 1 0 102 0v-2a1 1 0 00-1-1H7zM13 11a1 1 0 100 2h.01a1 1 0 100-2H13zM15 13a1 1 0 100 2h.01a1 1 0 100-2H15zM13 15a1 1 0 100 2h.01a1 1 0 100-2H13z" clipRule="evenodd" /></svg>,
+      label: 'Maintenance', desc: 'Repairs and requests', to: '/maintenance',
+      icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>,
     },
     {
       label: 'Reports', desc: 'RPCPPE, IIRUP & more', to: '/reports?report=rpcppe',
@@ -274,9 +276,9 @@ function QuickActions({ isAdmin }) {
     },
   ]
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+    <div className="flex flex-wrap gap-2.5">
       {actions.map(({ label, desc, to, icon }) => (
-        <Link key={label} to={to} className="group flex items-center gap-3 px-3.5 py-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-brand-500/40 hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-all duration-150">
+        <Link key={label} to={to} className="grow basis-[clamp(22%,(48rem_-_100%)_*_999,46%)] min-w-0 group flex items-center gap-3 px-3.5 py-3 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl hover:border-brand-500/40 hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition-all duration-150">
           <span className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 group-hover:bg-brand-500/15 group-hover:text-brand-500 dark:group-hover:text-brand-400 transition-all duration-150">{icon}</span>
           <div className="min-w-0">
             <p className="text-sm font-medium text-slate-700 dark:text-zinc-200 leading-tight truncate">{label}</p>
@@ -869,6 +871,38 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
 // dashboard's SSE reload, so it doubles as the admin's request notification.
 const PENDING_PREVIEW = 6
 
+// Staff accounts are scoped to their office's assets (see AccessService), so an
+// active staff account with no office sees nothing until one is assigned.
+function UnassignedOffices({ accounts }) {
+  const count = accounts.length
+  const names = accounts.slice(0, 3).map((u) => u.fullName || u.username)
+  const more  = count - names.length
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-amber-500/40 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4" role="status">
+      <div className="w-9 h-9 rounded-full bg-amber-50 dark:bg-amber-950 flex items-center justify-center shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-500 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">
+          {count === 1 ? '1 staff account has no office assigned' : `${count} staff accounts have no office assigned`}
+        </p>
+        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
+          {names.join(', ')}{more > 0 ? ` and ${more} more` : ''} — {count === 1 ? 'this account' : 'these accounts'} can't see any assets until an office is assigned.
+        </p>
+      </div>
+      <Link
+        to="/personnel"
+        className="shrink-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md bg-brand-700 text-white hover:bg-brand-800 transition-colors duration-150"
+      >
+        Assign offices
+      </Link>
+    </div>
+  )
+}
+
 function PendingApprovals({ requests, loading, onApprove, onReject, busyId }) {
   const count = requests.length
   const shown = requests.slice(0, PENDING_PREVIEW)
@@ -965,6 +999,7 @@ function Dashboard() {
   const [assets, setLocalAssets] = useState([])
   const [history, setHistory]   = useState([])
   const [userCount, setUserCount] = useState(0)
+  const [unassignedStaff, setUnassignedStaff] = useState([])
   const [maintenanceRecords, setMaintenanceRecords] = useState([])
   const [disposalRecords, setDisposalRecords] = useState([])
   const [activityRange, setActivityRange] = useState('week')
@@ -990,6 +1025,7 @@ function Dashboard() {
       dispatch(setAssets(a))
       setHistory(h)
       setUserCount(u.length)
+      setUnassignedStaff(u.filter((x) => x.role === 'STAFF' && x.isActive && !x.officeId && !x.officeName))
       setMaintenanceRecords(maintRes?.data ?? [])
       setDisposalRecords(dispRes?.data ?? [])
       setInsightToken((t) => t + 1)
@@ -1167,6 +1203,12 @@ function Dashboard() {
       <div className="mb-5">
         <StatStrip stats={stats} loading={loading} />
       </div>
+
+      {isAdmin && !loading && unassignedStaff.length > 0 && (
+        <div className="mb-5">
+          <UnassignedOffices accounts={unassignedStaff} />
+        </div>
+      )}
 
       {isAdmin && (
         <div className="mb-5">

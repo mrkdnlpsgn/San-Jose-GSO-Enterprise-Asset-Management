@@ -362,12 +362,12 @@ function MyAccountTab({ user }) {
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3">
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={avatarBusy}
-                  className="text-sm font-medium text-brand-700 dark:text-brand-400 hover:underline underline-offset-2 disabled:opacity-50 disabled:no-underline">
+                  className="py-1.5 -my-1.5 text-sm font-medium text-brand-700 dark:text-brand-400 hover:underline underline-offset-2 disabled:opacity-50 disabled:no-underline">
                   {avatarBusy ? 'Saving…' : user?.avatarUrl ? 'Change profile picture' : 'Add profile picture'}
                 </button>
                 {user?.avatarUrl && !avatarBusy && (
                   <button type="button" onClick={handleRemovePicture}
-                    className="text-sm font-medium text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:underline underline-offset-2">
+                    className="py-1.5 -my-1.5 text-sm font-medium text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:underline underline-offset-2">
                     Remove picture
                   </button>
                 )}

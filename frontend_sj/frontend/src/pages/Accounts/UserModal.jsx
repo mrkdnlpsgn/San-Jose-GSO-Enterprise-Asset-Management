@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
+import AlertDialog from '../../components/common/AlertDialog'
 import { newIdempotencyKey } from '../../utils/idempotency'
 import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
+import { useFormDraft } from '../../hooks/useFormDraft'
+import DraftNotice from '../../components/common/DraftNotice'
 
 const ROLES = [
   { value: 'ADMIN', label: 'Administrator' },
@@ -72,7 +75,12 @@ function UserModal({ onClose, onSave, initial = null }) {
         }
       : EMPTY
   )
+  const draft = useFormDraft(`account:${initial?.id ?? 'new'}`, form, setForm, {
+    omit: ['password', 'confirmPassword'],
+    title: (f) => initial ? `${initial.fullName || initial.username} (@${initial.username})` : (f.fullName.trim() || f.username.trim() || 'Untitled account'),
+  })
   const [errors, setErrors]   = useState({})
+  const [saveError, setSaveError] = useState(null)
   const [saving, setSaving]   = useState(false)
   const [idempotencyKey] = useState(() => newIdempotencyKey())
 
@@ -130,10 +138,11 @@ function UserModal({ onClose, onSave, initial = null }) {
       if (!isEditing && payload.generatePassword) delete payload.password
       if (isEditing && !payload.password) delete payload.password
       await onSave(payload, idempotencyKey)
+      draft.clear()
       onClose()
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to save account.'
-      setErrors({ _global: msg })
+      setSaveError(msg)
     } finally {
       setSaving(false)
     }
@@ -149,12 +158,7 @@ function UserModal({ onClose, onSave, initial = null }) {
           extensions) must stay out: they'd offer the admin's own name/email — and Chrome's
           name/address autofill popup was crashing the whole browser on the Full Name field. */}
       <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-4">
-        {errors._global && (
-          <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">
-            {errors._global}
-          </div>
-        )}
-
+        <DraftNotice draft={draft} />
         <Field label="Username" required error={errors.username}>
           <TextInput
             placeholder="e.g. jdelacruz"
@@ -311,6 +315,14 @@ function UserModal({ onClose, onSave, initial = null }) {
           </Button>
         </div>
       </form>
+
+      {saveError && (
+        <AlertDialog
+          title={isEditing ? "Couldn't save account" : "Couldn't create account"}
+          message={saveError}
+          onClose={() => setSaveError(null)}
+        />
+      )}
     </Modal>
   )
 }

@@ -68,6 +68,11 @@ function applyDateFilter(rows, dateField, from, to) {
   })
 }
 
+// PAR numbers are compared trimmed and case-insensitive, matching how the Assets search treats them.
+const normPar = (v) => String(v || '').trim().toUpperCase()
+const lineAmount = (r) => (Number(r.unitValue) || 0) * (Number(r.quantity) || 1)
+const uniqueJoined = (rows, pick) => [...new Set(rows.map(pick).filter(Boolean))].join(', ')
+
 // RPCPPE physical-count variance: quantity per records vs. quantity per physical count.
 // physicalCount is null until someone has actually counted the asset — don't assume a shortage.
 const assetVariance = (r) => {
@@ -90,7 +95,7 @@ const REPORTS = [
   {
     id: 'inventory',
     title: 'Asset Inventory',
-    description: 'Complete list of all ICT assets with condition, lifecycle status, and location.',
+    description: 'Complete list of all GSO assets with condition, lifecycle status, and location.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
@@ -182,7 +187,7 @@ const REPORTS = [
   {
     id: 'valuation',
     title: 'Asset Valuation',
-    description: 'Financial summary of ICT asset acquisition values, sorted by unit value.',
+    description: 'Financial summary of GSO asset acquisition values, sorted by unit value.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
@@ -225,7 +230,7 @@ const REPORTS = [
   {
     id: 'maintenance',
     title: 'Maintenance Ledger',
-    description: 'All maintenance and repair records for ICT assets.',
+    description: 'All maintenance and repair records for GSO assets.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -244,6 +249,31 @@ const REPORTS = [
       { label: 'Cost',            display: (r) => r.cost != null ? fmtMoney(r.cost) : '—',                                                               raw: (r) => r.cost != null ? Number(r.cost).toFixed(2) : '' },
       { label: 'Date',            display: (r) => fmtDate(r.maintenanceDate),                                                                             raw: (r) => r.maintenanceDate || '' },
       { label: 'Recorded By',     display: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '—',                                               raw: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '' },
+    ],
+  },
+  {
+    id: 'par',
+    title: 'PAR (Property Acknowledgment Receipt)',
+    description: 'All assets issued under one PAR number, with the accountable person and total amount.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+        <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+      </svg>
+    ),
+    async load() {
+      return (await getAllAssets()).data
+    },
+    // No date filter: the PAR number picker above the table selects the rows instead.
+    parFilter: true,
+    headers: [
+      { label: 'Qty',            display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
+      { label: 'Description',    display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || '—'}</span>,              raw: (r) => r.description || '' },
+      { label: 'Serial No.',     display: (r) => <span className="font-mono text-xs">{r.serialNumber || '—'}</span>,                                     raw: (r) => r.serialNumber || '' },
+      { label: 'Property No.',   display: (r) => <span className="font-mono text-xs">{r.propertyNumber || '—'}</span>,                                   raw: (r) => r.propertyNumber || '' },
+      { label: 'Date Acquired',  display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
+      { label: 'Unit Cost',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
+      { label: 'Amount',         display: (r) => fmtMoney(lineAmount(r)),                                                                                raw: (r) => lineAmount(r).toFixed(2) },
     ],
   },
   {
@@ -322,6 +352,9 @@ const REPORTS = [
 ]
 
 // ── Export helpers ────────────────────────────────────────────────────────────
+// File and sheet names can't contain : \ / ? * [ ] — PAR numbers like 2026-09:GA21231 do.
+const safeName = (s) => s.replace(/[:\\/?*[\]]/g, '-')
+
 function exportExcel(rows, headers, title) {
   const data = rows.map((row) => {
     const obj = {}
@@ -334,8 +367,8 @@ function exportExcel(rows, headers, title) {
   }))
   ws['!cols'] = colWidths
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31))
-  XLSX.writeFile(wb, `${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  XLSX.utils.book_append_sheet(wb, ws, safeName(title).slice(0, 31))
+  XLSX.writeFile(wb, `${safeName(title).replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 function exportPDF(rows, headers, title, certification) {
@@ -393,6 +426,148 @@ function exportPDF(rows, headers, title, certification) {
   const win = window.open('', '_blank', 'width=1100,height=800')
   win.document.write(html)
   win.document.close()
+}
+
+// ── PAR form export ───────────────────────────────────────────────────────────
+// Follows the LGU's printed Property Acknowledgment Receipt: one block per item, where
+// the Description cell runs down several rows — item name, Brand/Model, S/N, then
+// "Technical Specifications:" and one spec per row (from the asset's free-text specs).
+const PAR_ENTITY = 'San Jose, Batangas'
+const PAR_FUND   = 'General Fund'
+
+function parDescriptionLines(a) {
+  const specs = String(a.specifications || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  const ident = specs.filter((l) => /^(brand|model)\s*:/i.test(l))
+  const rest  = specs.filter((l) => !/^(brand|model)\s*:/i.test(l))
+  const lines = [a.description || '—', ...ident]
+  if (a.serialNumber) lines.push(`S/N: ${a.serialNumber}`)
+  if (rest.length) lines.push('', 'Technical Specifications:', ...rest)
+  return lines
+}
+
+function parHeader(rows, par) {
+  return {
+    office: uniqueJoined(rows, (r) => r.office?.officeName) || 'No office assigned',
+    receivedBy: uniqueJoined(rows, (r) => r.accountablePerson?.fullName),
+    total: rows.reduce((s, r) => s + lineAmount(r), 0),
+    par,
+  }
+}
+
+function exportParPDF(rows, par) {
+  const h = parHeader(rows, par)
+  const body = rows.map((a) => parDescriptionLines(a).map((line, i) => {
+    const cls = line === 'Technical Specifications:' ? ' class="spec-head"' : ''
+    return i === 0
+      ? `<tr><td class="c">${esc(a.quantity ?? 1)}</td><td class="c">Unit</td><td${cls}>${esc(line)}</td><td class="c">${esc(a.propertyNumber)}</td><td class="c">${esc(fmtDate(a.acquisitionDate))}</td><td class="r">${esc(fmtMoney(lineAmount(a)))}</td></tr>`
+      : `<tr class="cont"><td></td><td></td><td${cls}>${esc(line) || '&nbsp;'}</td><td></td><td></td><td></td></tr>`
+  }).join('')).join('')
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>PAR No. ${esc(par)}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 28px; color: #000; }
+    .title { text-align: center; font-family: 'Times New Roman', serif; }
+    .title h1 { font-size: 20px; font-weight: 700; letter-spacing: .02em; }
+    .title h2 { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    .info { display: flex; justify-content: space-between; align-items: flex-end; margin: 18px 0 8px; font-family: 'Times New Roman', serif; font-weight: 700; font-size: 14px; }
+    .info p { line-height: 1.5; }
+    .info span { display: inline-block; width: 110px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-family: 'Times New Roman', serif; font-size: 14px; font-weight: 700; padding: 8px 6px; border: 1px solid #000; text-align: center; }
+    td { padding: 3px 8px; border-left: 1px solid #000; border-right: 1px solid #000; border-top: 1px solid #000; vertical-align: top; }
+    tr.cont td { border-top: 1px solid #bbb; }
+    tbody tr:last-child td { border-bottom: 1px solid #000; }
+    td.c { text-align: center; } td.r { text-align: right; white-space: nowrap; }
+    td.spec-head { font-style: italic; }
+    tr.total td { border: 1px solid #000; font-weight: 700; padding: 6px 8px; }
+    .sign { display: flex; border: 1px solid #000; border-top: none; page-break-inside: avoid; }
+    .sign > div { flex: 1; padding: 10px 14px 14px; }
+    .sign > div + div { border-left: 1px solid #000; }
+    .sign .who { font-weight: 700; }
+    .sign .name { margin-top: 30px; border-bottom: 1px solid #000; text-align: center; font-weight: 700; min-height: 18px; text-transform: uppercase; }
+    .sign .cap { text-align: center; font-size: 10px; margin-bottom: 12px; }
+    .sign .line { margin-top: 18px; border-bottom: 1px solid #000; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="title">
+    <h1>PROPERTY ACKNOWLEDGMENT RECEIPT</h1>
+    <h2>(${esc(h.office.toUpperCase())})</h2>
+  </div>
+  <div class="info">
+    <div>
+      <p><span>Entity Name</span>: ${esc(PAR_ENTITY)}</p>
+      <p><span>Fund Cluster</span>: ${esc(PAR_FUND)}</p>
+    </div>
+    <p>PAR No. : ${esc(par)}</p>
+  </div>
+  <table>
+    <thead><tr><th style="width:8%">Quantity</th><th style="width:8%">Unit</th><th>Description</th><th style="width:17%">Property Number</th><th style="width:11%">Date Acquired</th><th style="width:12%">Amount</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tr class="total"><td colspan="5" style="text-align:right">TOTAL</td><td class="r">${esc(fmtMoney(h.total))}</td></tr>
+  </table>
+  <div class="sign">
+    <div>
+      <p class="who">Received by:</p>
+      <p class="name">${esc(h.receivedBy)}</p>
+      <p class="cap">Signature over Printed Name of End User</p>
+      <p class="line"></p><p class="cap">Position/Office</p>
+      <p class="line"></p><p class="cap">Date</p>
+    </div>
+    <div>
+      <p class="who">Issued by:</p>
+      <p class="name"></p>
+      <p class="cap">Signature over Printed Name of Supply and/or Property Custodian</p>
+      <p class="line"></p><p class="cap">Position/Office</p>
+      <p class="line"></p><p class="cap">Date</p>
+    </div>
+  </div>
+  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
+</body>
+</html>`
+
+  const win = window.open('', '_blank', 'width=1100,height=800')
+  win.document.write(html)
+  win.document.close()
+}
+
+function exportParExcel(rows, par) {
+  const h = parHeader(rows, par)
+  const aoa = [
+    ['', '', 'PROPERTY ACKNOWLEDGMENT RECEIPT'],
+    ['', '', `(${h.office.toUpperCase()})`],
+    [],
+    ['Entity Name', '', `: ${PAR_ENTITY}`, '', 'PAR No.', `: ${par}`],
+    ['Fund Cluster', '', `: ${PAR_FUND}`],
+    [],
+    ['Quantity', 'Unit', 'Description', 'Property Number', 'Date Acquired', 'Amount'],
+  ]
+  rows.forEach((a) => {
+    parDescriptionLines(a).forEach((line, i) => {
+      aoa.push(i === 0
+        ? [a.quantity ?? 1, 'Unit', line, a.propertyNumber || '', a.acquisitionDate || '', Number(lineAmount(a).toFixed(2))]
+        : ['', '', line, '', '', ''])
+    })
+  })
+  aoa.push(['', '', '', '', 'TOTAL', Number(h.total.toFixed(2))])
+  aoa.push([], ['Received by:', '', '', 'Issued by:'], [], ['', '', h.receivedBy, '', '', ''],
+    ['', '', 'Signature over Printed Name of End User', '', 'Signature over Printed Name of Supply and/or Property Custodian'],
+    [], ['', '', 'Position/Office', '', 'Position/Office'], [], ['', '', 'Date', '', 'Date'])
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  ws['!cols'] = [{ wch: 10 }, { wch: 8 }, { wch: 60 }, { wch: 24 }, { wch: 16 }, { wch: 16 }]
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }]
+  ws.A1 = { t: 's', v: 'PROPERTY ACKNOWLEDGMENT RECEIPT' }
+  ws.A2 = { t: 's', v: `(${h.office.toUpperCase()})` }
+  delete ws.C1; delete ws.C2
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, safeName(`PAR ${par}`).slice(0, 31))
+  XLSX.writeFile(wb, `PAR_${safeName(par)}_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 // ── Totals row for valuation report ──────────────────────────────────────────
@@ -466,6 +641,7 @@ function Reports() {
   const [dateFrom, setDateFrom]     = useState('')
   const [dateTo, setDateTo]         = useState('')
   const [page, setPage]             = useState(1)
+  const [parNumber, setParNumber]   = useState('')
   const previewRef = useRef(null)
 
   const activeReport = REPORTS.find((r) => r.id === activeId)
@@ -478,6 +654,7 @@ function Reports() {
       setReportData([])
       setDateFrom('')
       setDateTo('')
+      setParNumber('')
       setPage(1)
       return
     }
@@ -486,6 +663,7 @@ function Reports() {
     setReportData([])
     setDateFrom('')
     setDateTo('')
+    setParNumber('')
     setPage(1)
     try {
       const data = await report.load()
@@ -512,13 +690,30 @@ function Reports() {
   // Date filter runs on the raw loaded rows first, then any per-report
   // aggregation (`transform`, e.g. the Condition Report's grouping) runs on
   // top of that — so filtering a range re-aggregates instead of just hiding rows.
+  // Distinct PAR numbers in the loaded assets, with how many assets each covers.
+  const parOptions = useMemo(() => {
+    if (!activeReport?.parFilter) return []
+    const counts = new Map()
+    reportData.forEach((a) => {
+      const key = normPar(a.parNumber)
+      if (key) counts.set(key, { par: a.parNumber.trim(), count: (counts.get(key)?.count || 0) + 1 })
+    })
+    return [...counts.values()].sort((a, b) => a.par.localeCompare(b.par))
+  }, [reportData, activeReport])
+
   const displayRows = useMemo(() => {
     if (!activeReport) return []
+    if (activeReport.parFilter) {
+      const key = normPar(parNumber)
+      return key ? reportData.filter((a) => normPar(a.parNumber) === key) : []
+    }
     const filtered = applyDateFilter(reportData, activeReport.dateField, dateFrom, dateTo)
     return activeReport.transform ? activeReport.transform(filtered) : filtered
-  }, [reportData, activeReport, dateFrom, dateTo])
+  }, [reportData, activeReport, dateFrom, dateTo, parNumber])
 
   const isDateFiltered = Boolean(dateFrom || dateTo)
+  const selectedPar = parOptions.find((o) => normPar(o.par) === normPar(parNumber))?.par || parNumber.trim()
+  const canExport   = !loading && reportData.length > 0 && (!activeReport?.parFilter || displayRows.length > 0)
 
   // Every asset is its own row, same as the Assets table — no grouping by model.
   const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE))
@@ -592,15 +787,15 @@ function Reports() {
                 </p>
               )}
             </div>
-            {!loading && reportData.length > 0 && (
+            {canExport && (
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="md" onClick={() => exportExcel(getExportRows(), activeReport.headers, activeReport.title)}>
+                <Button variant="secondary" size="md" onClick={() => activeReport.parFilter ? exportParExcel(displayRows, selectedPar) : exportExcel(getExportRows(), activeReport.headers, activeReport.title)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                   <span className="hidden sm:inline">Export Excel</span>
                 </Button>
-                <Button variant="secondary" size="md" onClick={() => exportPDF(getExportRows(), activeReport.headers, activeReport.title, activeReport.certification)}>
+                <Button variant="secondary" size="md" onClick={() => activeReport.parFilter ? exportParPDF(displayRows, selectedPar) : exportPDF(getExportRows(), activeReport.headers, activeReport.title, activeReport.certification)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
                   </svg>
@@ -609,6 +804,33 @@ function Reports() {
               </div>
             )}
           </div>
+
+          {!loading && activeReport?.parFilter && (
+            <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/20 flex flex-wrap items-center gap-3">
+              <label htmlFor="par-number" className="text-sm font-medium text-slate-700 dark:text-zinc-300">PAR No.</label>
+              <input
+                id="par-number"
+                list="par-number-options"
+                value={parNumber}
+                onChange={(e) => { setParNumber(e.target.value); setPage(1) }}
+                placeholder={parOptions.length ? 'Type or choose a PAR number' : 'No assets have a PAR number yet'}
+                disabled={!parOptions.length}
+                className="w-72 max-w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:opacity-60"
+              />
+              <datalist id="par-number-options">
+                {parOptions.map((o) => (
+                  <option key={o.par} value={o.par}>{o.count} {o.count === 1 ? 'asset' : 'assets'}</option>
+                ))}
+              </datalist>
+              {displayRows.length > 0 && (
+                <p className="text-sm text-slate-500 dark:text-zinc-400">
+                  {uniqueJoined(displayRows, (r) => r.accountablePerson?.fullName) || 'No accountable person'}
+                  {' · '}{uniqueJoined(displayRows, (r) => r.office?.officeName) || 'No office'}
+                  {' · '}Total {fmtMoney(displayRows.reduce((s, r) => s + lineAmount(r), 0))}
+                </p>
+              )}
+            </div>
+          )}
 
           {!loading && reportData.length > 0 && activeReport?.dateField && (
             <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/20">
@@ -636,9 +858,11 @@ function Reports() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p className="text-sm">
-                  {reportData.length > 0 && isDateFiltered
-                    ? 'No records in the selected date range.'
-                    : 'No data available for this report.'}
+                  {activeReport?.parFilter
+                    ? (parNumber.trim() ? `No assets found under PAR No. ${parNumber.trim()}.` : 'Type or choose a PAR number above to list its assets.')
+                    : reportData.length > 0 && isDateFiltered
+                      ? 'No records in the selected date range.'
+                      : 'No data available for this report.'}
                 </p>
               </div>
             ) : (

@@ -80,7 +80,7 @@ public class DisposalJustificationService {
     }
 
     private static final String SYSTEM_PROMPT = """
-        You draft disposal justification write-ups for a Philippine municipal government's ICT/equipment \
+        You draft disposal justification write-ups for a Philippine municipal government's equipment \
         inventory system, for internal use in preparing a formal property disposal request. Write 2-4 \
         short paragraphs covering: (1) identification of the asset and why it is being considered for \
         disposal, (2) the inspection findings and condition supporting that conclusion, including a brief \

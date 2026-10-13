@@ -6,15 +6,15 @@ import { useTheme } from '../../context/ThemeContext'
 const TERMS_SECTIONS = [
   {
     title: '1. Acceptance of these terms',
-    body: 'By logging into the San Jose GSO Enterprise Asset Management System ("the System"), you agree to these Terms and Conditions, the Data Privacy Notice, and the User Consent below. If you do not agree, do not use the System and contact the ICT Division.',
+    body: 'By logging into the San Jose GSO Enterprise Asset Management System ("the System"), you agree to these Terms and Conditions, the Data Privacy Notice, and the User Consent below. If you do not agree, do not use the System and contact the General Services Office.',
   },
   {
     title: '2. Restricted system — authorized government use only',
-    body: 'This is a private, internal government inventory system operated by the General Services Office (GSO) of the San Jose Municipal Hall, Batangas. It is not a public service and has no public-facing features. Access is limited exclusively to GSO and ICT personnel who have been issued an account by an administrator. Attempting to access, scan, or probe this System without an authorized account is prohibited and may be referred for investigation and prosecution under the Cybercrime Prevention Act of 2012 (RA 10175) and other applicable law.',
+    body: 'This is a private, internal government inventory system operated by the General Services Office (GSO) of the San Jose Municipal Hall, Batangas. It is not a public service and has no public-facing features. Access is limited exclusively to GSO personnel who have been issued an account by an administrator. Attempting to access, scan, or probe this System without an authorized account is prohibited and may be referred for investigation and prosecution under the Cybercrime Prevention Act of 2012 (RA 10175) and other applicable law.',
   },
   {
     title: '3. Eligibility and account responsibility',
-    body: 'Accounts are issued only to GSO/ICT staff, by an administrator, for legitimate government-property-management duties. You are responsible for every action taken under your account. Do not share your credentials. Report a lost device, a suspected compromised account, or any suspicious activity to the ICT Division immediately.',
+    body: 'Accounts are issued only to GSO staff, by an administrator, for legitimate government-property-management duties. You are responsible for every action taken under your account. Do not share your credentials. Report a lost device, a suspected compromised account, or any suspicious activity to the GSO system administrator immediately.',
   },
   {
     title: '4. Acceptable use',
@@ -26,7 +26,7 @@ const TERMS_SECTIONS = [
   },
   {
     title: '6. Availability and no warranty',
-    body: 'The System is provided on an as-available basis for internal government use. The ICT Division makes reasonable efforts to keep it available and secure but does not warrant uninterrupted operation. Planned maintenance and unplanned outages may occur.',
+    body: 'The System is provided on an as-available basis for internal government use. The General Services Office makes reasonable efforts to keep it available and secure but does not warrant uninterrupted operation. Planned maintenance and unplanned outages may occur.',
   },
   {
     title: '7. Changes to these terms',
@@ -53,7 +53,7 @@ const PRIVACY_SECTIONS = [
   },
   {
     title: '4. Who can access it',
-    body: 'Access is restricted to authorized GSO and ICT staff accounts, gated by role (Admin or Staff). Every account holder can see their own recorded activity via the Audit Logs module. Data is not shared with third parties except where required by law — for example, COA audits or a lawful government request. The System has no public login, no public API, and no anonymous access of any kind.',
+    body: 'Access is restricted to authorized GSO staff accounts, gated by role (Admin or Staff). Every account holder can see their own recorded activity via the Audit Logs module. Data is not shared with third parties except where required by law — for example, COA audits or a lawful government request. The System has no public login, no public API, and no anonymous access of any kind.',
   },
   {
     title: '5. How long we keep it',
@@ -61,11 +61,11 @@ const PRIVACY_SECTIONS = [
   },
   {
     title: '6. Your responsibilities as a system user',
-    body: 'If you are a GSO or ICT staff member with an account: enter only accurate information; never share your login credentials with anyone else, since actions taken under your account are attributed to you; and report any suspected data breach, unauthorized access, or misuse to the ICT Division immediately.',
+    body: 'If you are a GSO staff member with an account: enter only accurate information; never share your login credentials with anyone else, since actions taken under your account are attributed to you; and report any suspected data breach, unauthorized access, or misuse to the GSO system administrator immediately.',
   },
   {
     title: '7. Your rights',
-    body: 'As a data subject under RA 10173, you have the right to be informed, to access your own data, to request correction of inaccurate data, and to lodge a complaint with the National Privacy Commission. For any request regarding your personal data held in this system, contact the ICT Division of the San Jose Municipal Hall.',
+    body: 'As a data subject under RA 10173, you have the right to be informed, to access your own data, to request correction of inaccurate data, and to lodge a complaint with the National Privacy Commission. For any request regarding your personal data held in this system, contact the General Services Office of the San Jose Municipal Hall.',
   },
   {
     title: '8. How this System implements the Data Privacy Act',
@@ -106,11 +106,11 @@ const CONSENT_SECTIONS = [
   },
   {
     title: '4. Withdrawing consent / exercising your rights',
-    body: 'Because this processing fulfills a public authority\'s mandate (COA property accountability), full withdrawal of consent is not possible while you hold an active account — the System cannot function without your account activity being logged. You may still exercise your rights to access, correct, or ask questions about your own data at any time by contacting the ICT Division. Deactivating your account (on separation from GSO/ICT duties) stops further collection.',
+    body: 'Because this processing fulfills a public authority\'s mandate (COA property accountability), full withdrawal of consent is not possible while you hold an active account — the System cannot function without your account activity being logged. You may still exercise your rights to access, correct, or ask questions about your own data at any time by contacting the General Services Office. Deactivating your account (on separation from GSO duties) stops further collection.',
   },
   {
     title: '5. Questions or concerns',
-    body: 'Direct any question about this notice, your data, or how to exercise your rights under RA 10173 to the ICT Division, San Jose Municipal Hall. You may also lodge a complaint with the National Privacy Commission (privacy.gov.ph) if you believe your rights have been violated.',
+    body: 'Direct any question about this notice, your data, or how to exercise your rights under RA 10173 to the General Services Office, San Jose Municipal Hall. You may also lodge a complaint with the National Privacy Commission (privacy.gov.ph) if you believe your rights have been violated.',
   },
 ]
 
@@ -135,7 +135,7 @@ function PrivacyNotice() {
         <div className="flex items-center justify-between mb-10">
           <button
             onClick={() => navigate(isAuthenticated ? '/dashboard' : '/login')}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors duration-150"
+            className="inline-flex items-center gap-1.5 py-2 -my-2 text-sm font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors duration-150"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -174,7 +174,7 @@ function PrivacyNotice() {
             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
           </svg>
           <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-            This is a <strong>private, internal government system</strong> for San Jose GSO/ICT staff only. It is not a public
+            This is a <strong>private, internal government system</strong> for San Jose GSO staff only. It is not a public
             service and is not accessible to the public.
           </p>
         </div>
@@ -191,7 +191,7 @@ function PrivacyNotice() {
             <button
               key={t.key}
               onClick={() => setActiveTab(t.key)}
-              className={`px-3.5 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors duration-150 ${
+              className={`min-w-0 flex-1 sm:flex-none px-2 sm:px-3.5 py-2.5 text-sm leading-snug text-center font-semibold border-b-2 -mb-px transition-colors duration-150 ${
                 activeTab === t.key
                   ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                   : 'border-transparent text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
@@ -240,7 +240,7 @@ function PrivacyNotice() {
 
         <p className="text-xs text-slate-400 dark:text-zinc-600 mt-12 pt-6 border-t border-slate-100 dark:border-zinc-800">
           Last updated {new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}.
-          Questions about this notice or your data should be directed to the ICT Division, San Jose Municipal Hall.
+          Questions about this notice or your data should be directed to the General Services Office, San Jose Municipal Hall.
         </p>
       </div>
     </div>

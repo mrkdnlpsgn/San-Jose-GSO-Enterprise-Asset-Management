@@ -2,6 +2,8 @@ import { useState } from 'react'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 import { newIdempotencyKey } from '../../utils/idempotency'
+import { useFormDraft } from '../../hooks/useFormDraft'
+import DraftNotice from '../../components/common/DraftNotice'
 
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
@@ -39,6 +41,9 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
         }
       : { ...EMPTY }
   )
+  const draft = useFormDraft(`maintenance:${initial?.id ?? 'new'}`, form, setForm, {
+    title: isEditing ? `${initial.asset?.propertyNumber || ''} — ${initial.asset?.description || 'Maintenance record'}` : 'Maintenance record',
+  })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [idempotencyKey] = useState(() => newIdempotencyKey())
@@ -70,6 +75,7 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
         status: form.status,
       }
       await onSave(payload, idempotencyKey)
+      draft.clear()
       onClose()
     } catch (err) {
       setErrors({ _global: err.response?.data?.message || 'Failed to save.' })
@@ -84,6 +90,7 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <DraftNotice draft={draft} />
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}

@@ -13,7 +13,7 @@ const SECTIONS = [
   },
   {
     term: 'Your responsibilities',
-    desc: 'Enter only accurate information, never share your login credentials, and report any suspected data breach or misuse to the ICT Division immediately.',
+    desc: 'Enter only accurate information, never share your login credentials, and report any suspected data breach or misuse to the GSO system administrator immediately.',
   },
   {
     term: 'Retention',
@@ -50,7 +50,7 @@ function PrivacyAcknowledgmentModal({ onAcknowledge, loading = false }) {
             Privacy, Terms &amp; Conditions
           </h2>
           <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
-            This is a private, internal government system for authorized GSO/ICT staff only. Please review before continuing.
+            This is a private, internal government system for authorized GSO staff only. Please review before continuing.
           </p>
         </div>
 

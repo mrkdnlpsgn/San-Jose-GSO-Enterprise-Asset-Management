@@ -85,15 +85,6 @@ const navItems = [
     ),
   },
   {
-    to: '/qr-scanner',
-    label: 'QR Scanner',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-[1.125rem] w-[1.125rem] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V5h1v1H5zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zm2 2v-1h1v1H5zM13 3a1 1 0 00-1 1v3a1 1 0 001 1h3a1 1 0 001-1V4a1 1 0 00-1-1h-3zm1 2v1h1V5h-1zM11 7a1 1 0 112 0v1h1a1 1 0 110 2h-2a1 1 0 01-1-1V7zM7 11a1 1 0 100 2h1v1a1 1 0 102 0v-2a1 1 0 00-1-1H7zM13 11a1 1 0 100 2h.01a1 1 0 100-2H13zM15 13a1 1 0 100 2h.01a1 1 0 100-2H15zM13 15a1 1 0 100 2h.01a1 1 0 100-2H13z" clipRule="evenodd" />
-      </svg>
-    ),
-  },
-  {
     to: '/reports',
     label: 'Reports',
     icon: (
@@ -240,6 +231,19 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
   // Close mobile sidebar on navigation
   useEffect(() => { onMobileClose?.() }, [pathname]) // eslint-disable-line
 
+  // On short screens the nav scrolls; show a hint while links are hidden below.
+  const navRef = useRef(null)
+  const [moreBelow, setMoreBelow] = useState(false)
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const update = () => setMoreBelow(nav.scrollHeight - nav.scrollTop - nav.clientHeight > 8)
+    update()
+    nav.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => { nav.removeEventListener('scroll', update); window.removeEventListener('resize', update) }
+  }, [isMobileOpen, isCollapsed, isAdmin])
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -292,7 +296,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
         {/* Close button — mobile only */}
         <button
           onClick={onMobileClose}
-          className="lg:hidden p-1.5 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150 flex-shrink-0"
+          className="lg:hidden p-2.5 -mr-2 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150 flex-shrink-0"
           aria-label="Close menu"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -302,7 +306,8 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-3 overflow-y-auto overflow-x-hidden flex flex-col gap-0.5">
+      <div className="relative flex-1 min-h-0 flex flex-col">
+      <nav ref={navRef} className="flex-1 px-2 py-3 overflow-y-auto overflow-x-hidden flex flex-col gap-0.5">
         <p className={`text-2xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-widest px-2 mb-1.5 whitespace-nowrap ${isCollapsed ? 'lg:hidden' : ''}`}>
           Main Menu
         </p>
@@ -349,6 +354,22 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
           </>
         )}
       </nav>
+      {moreBelow && (
+        <button
+          type="button"
+          onClick={() => navRef.current?.scrollBy({ top: navRef.current.clientHeight * 0.8, behavior: 'smooth' })}
+          className="absolute inset-x-0 bottom-0 pt-6 pb-1.5 flex justify-center bg-gradient-to-t from-white via-white/90 to-transparent dark:from-zinc-950 dark:via-zinc-950/90"
+          aria-label="Scroll menu for more links"
+        >
+          <span className={`flex items-center gap-1 rounded-full border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-zinc-300 shadow-sm ${isCollapsed ? 'lg:px-1.5' : ''}`}>
+            <span className={isCollapsed ? 'lg:hidden' : ''}>More</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </span>
+        </button>
+      )}
+      </div>
 
       {/* Footer */}
       <div
@@ -358,7 +379,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
         <p className="text-2xs text-slate-400 dark:text-zinc-600 mt-0.5 whitespace-nowrap">Republic of the Philippines</p>
         <NavLink
           to="/privacy"
-          className="text-2xs text-slate-400 dark:text-zinc-600 hover:text-brand-500 dark:hover:text-brand-400 mt-1.5 inline-block transition-colors duration-150"
+          className="text-2xs text-slate-400 dark:text-zinc-600 hover:text-brand-500 dark:hover:text-brand-400 mt-0.5 py-1.5 inline-block transition-colors duration-150"
         >
           Privacy, Terms & Conditions
         </NavLink>

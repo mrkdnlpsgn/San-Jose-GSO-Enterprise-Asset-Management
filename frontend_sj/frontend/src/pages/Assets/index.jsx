@@ -15,10 +15,12 @@ import AssetImportModal from './AssetImportModal'
 import AssetQrModal from './AssetQrModal'
 import { exportAssetsToExcel } from './assetExcel'
 import { setAssets, addAsset, updateAsset, removeAsset } from '../../store/slices/assetSlice'
-import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset, bulkImportAssets } from '../../services/assetService'
+import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset, bulkImportAssets, getAssetById } from '../../services/assetService'
 import { getCategories } from '../../services/categoryService'
 import { getOffices } from '../../services/officeService'
 import { getPersonnel } from '../../services/personnelService'
+import DraftRows from '../../components/common/DraftRows'
+import { useDraftList } from '../../hooks/useFormDraft'
 
 const CONDITION_BADGE = {
   SERVICEABLE:   'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
@@ -64,6 +66,58 @@ function Assets() {
   const [showAdd, setShowAdd]       = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [editing, setEditing]       = useState(null)
+  const { drafts, discard: discardDraft } = useDraftList('asset')
+  // Reopen the form a draft came from; it restores the draft itself.
+  const continueDraft = async (d) => {
+    if (d.id === 'new') { setShowAdd(true); return }
+    const record = items.find((r) => String(r.id) === d.id) || (await getAssetById(d.id).catch(() => null))?.data
+    if (!record) { discardDraft(d.key); toast.show('That record no longer exists, so its draft was removed.', 'error'); return }
+    setEditing(record)
+  }
+
+  // Draft rows use the table's columns: draft fields laid over the saved asset (if editing).
+  const draftRecord = (d) => {
+    const f = d.data || {}
+    const base = d.id === 'new' ? {} : items.find((a) => String(a.id) === d.id) || {}
+    const cat = String(f.categoryId || '').startsWith('pre:')
+      ? f.categoryId.slice(4)
+      : categories.find((c) => String(c.id) === String(f.categoryId))?.categoryName
+    return {
+      propertyNumber: f.propertyNumber || base.propertyNumber,
+      parNumber: f.parSerial ? `${(f.acquisitionDate || '').slice(0, 7) || 'YYYY-MM'}:${f.parSerial}` : base.parNumber,
+      description: f.description || base.description,
+      categoryName: cat || base.category?.categoryName,
+      shortageOverageQty: Number(f.shortageOverageQty || 0),
+      shortageOverageValue: Number(f.shortageOverageValue || 0),
+      officeName: offices.find((o) => String(o.id) === String(f.officeId))?.officeName || base.office?.officeName,
+      unitValue: f.unitValue,
+      acquisitionDate: f.acquisitionDate,
+      condition: f.condition || base.condition,
+      remarks: f.remarks,
+    }
+  }
+  const DRAFT_TXT = 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap'
+  const draftColumns = [
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (r) => r.propertyNumber
+        ? <span className="font-mono text-xs text-slate-600 dark:text-zinc-300">{r.propertyNumber}</span>
+        : <span className="text-xs italic text-slate-400 dark:text-zinc-500">Auto-generated</span> },
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (r) => <span className="font-mono text-xs text-slate-600 dark:text-zinc-300">{r.parNumber || dash}</span> },
+    { className: 'px-5 py-3.5', render: (r) => <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[11.25rem]">{r.description || <span className="italic font-normal text-slate-400">No description yet</span>}</p> },
+    { className: DRAFT_TXT, render: (r) => r.categoryName || '—' },
+    { className: DRAFT_TXT + ' text-center', render: () => 1 },
+    { className: 'px-5 py-3.5 text-xs whitespace-nowrap text-center', render: () => 1 },
+    { className: DRAFT_TXT + ' text-center font-medium', render: (r) => (r.shortageOverageQty > 0 ? `+${r.shortageOverageQty}` : r.shortageOverageQty) },
+    { className: DRAFT_TXT + ' text-center font-medium', render: (r) => (r.shortageOverageValue > 0 ? '+' : r.shortageOverageValue < 0 ? '-' : '') + '₱' + Math.abs(r.shortageOverageValue).toLocaleString('en-PH', { minimumFractionDigits: 2 }) },
+    { className: DRAFT_TXT, render: (r) => r.officeName || '—' },
+    { className: DRAFT_TXT, render: (r) => (r.unitValue === '' || r.unitValue == null ? '—' : php(r.unitValue)) },
+    { className: DRAFT_TXT, render: (r) => (r.acquisitionDate ? fmt(r.acquisitionDate) : '—') },
+    { className: 'px-5 py-3.5 text-xs max-w-[12.5rem]', render: (r) => (
+      <div className="flex flex-col gap-1">
+        {r.condition && <span className={`inline-flex items-center self-start px-2 py-0.5 rounded-full text-xs font-semibold ${CONDITION_BADGE[r.condition] || ''}`}>{r.condition}</span>}
+        {r.remarks && <span className="text-slate-500 dark:text-zinc-400 truncate" title={r.remarks}>{r.remarks}</span>}
+      </div>
+    ) },
+  ]
   const [deleting, setDeleting]     = useState(null)
   const [deleteReason, setDeleteReason] = useState('')
   const [selected, setSelected]     = useState(null)
@@ -284,21 +338,21 @@ function Assets() {
             <input type="text" placeholder="Search assets…" value={search} onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <Button variant="secondary" size="md" onClick={handleExport}>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <Button variant="secondary" size="md" onClick={handleExport} className="whitespace-nowrap">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm4.293 8.707a1 1 0 011.414-1.414L9 10.586V17a1 1 0 102 0v-6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3z" clipRule="evenodd" />
               </svg>
               Export
             </Button>
             {isAdmin && (<>
-            <Button variant="secondary" size="md" onClick={() => setShowImport(true)}>
+            <Button variant="secondary" size="md" onClick={() => setShowImport(true)} className="whitespace-nowrap">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
               Import
             </Button>
-            <Button size="md" onClick={() => setShowAdd(true)}>
+            <Button size="md" onClick={() => setShowAdd(true)} className="whitespace-nowrap">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
               </svg>
@@ -367,6 +421,7 @@ function Assets() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
                 {paged.map((a) => renderAssetRow(a))}
               </tbody>
             </table>
@@ -462,9 +517,9 @@ function Assets() {
 
 function SelectFilter({ value, onChange, placeholder, options }) {
   return (
-    <div className="relative">
+    <div className="relative w-full sm:w-auto sm:max-w-[16rem]">
       <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="appearance-none text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+        className="w-full truncate appearance-none text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
         <option value="">{placeholder}</option>
         {options.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
       </select>

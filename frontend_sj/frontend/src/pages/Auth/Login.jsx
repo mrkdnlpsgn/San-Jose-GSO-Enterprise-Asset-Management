@@ -16,7 +16,7 @@ const LOCKOUT_MINUTES = 15
 function describeLoginError(err) {
   const res = err?.response
   if (!res) {
-    return { message: "Can't reach the server. Check that this computer is connected to the network, then try again. If it keeps happening, contact the ICT Division." }
+    return { message: "Can't reach the server. Check that this computer is connected to the network, then try again. If it keeps happening, contact the GSO system administrator." }
   }
   const data = res.data || {}
   if (data.retryAfterSeconds) {
@@ -26,7 +26,7 @@ function describeLoginError(err) {
     }
   }
   if (res.status >= 500) {
-    return { message: 'Something went wrong on the server. Please try again in a moment, or contact the ICT Division.' }
+    return { message: 'Something went wrong on the server. Please try again in a moment, or contact the GSO system administrator.' }
   }
   const msg = data.message
   if (!msg || /invalid (credentials|email or password|username or password)|bad credentials/i.test(msg)) {
@@ -36,7 +36,7 @@ function describeLoginError(err) {
     }
     return { message: `The username or password is incorrect. Please check and try again. After ${MAX_ATTEMPTS} incorrect tries, the account is locked for ${LOCKOUT_MINUTES} minutes.` }
   }
-  if (/deactivated/i.test(msg)) return { message: 'This account has been deactivated. Please contact the ICT Division.' }
+  if (/deactivated/i.test(msg)) return { message: 'This account has been deactivated. Please contact the GSO system administrator.' }
   return { message: msg }
 }
 
@@ -351,7 +351,7 @@ function Login() {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-sm font-medium text-brand-700 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 hover:underline underline-offset-2 transition-colors duration-150"
+                  className="py-2 -my-2 text-sm font-medium text-brand-700 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 hover:underline underline-offset-2 transition-colors duration-150"
                 >
                   Forgot password?
                 </button>

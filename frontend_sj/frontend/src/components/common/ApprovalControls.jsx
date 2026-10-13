@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Modal from './Modal'
 import Button from './Button'
+import DraftNotice from './DraftNotice'
+import { useFormDraft } from '../../hooks/useFormDraft'
 
 // Maintenance / disposal records a STAFF account adds are requests: they wait for an
 // admin to approve (then staff can edit them) or reject them with a reason.
@@ -45,6 +47,8 @@ export function ApprovalActions({ record, onApprove, onReject }) {
 
 export function RejectRequestModal({ record, describe, onClose, onConfirm }) {
   const [note, setNote]     = useState('')
+  // Maintenance and disposal ids overlap, so the draft key says which one this is.
+  const draft = useFormDraft(`reject:${'maintenanceType' in record ? 'maintenance' : 'disposal'}:${record.id}`, note, setNote)
   const [error, setError]   = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -53,6 +57,7 @@ export function RejectRequestModal({ record, describe, onClose, onConfirm }) {
     setSaving(true)
     try {
       await onConfirm(note.trim())
+      draft.clear()
       onClose()
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to reject the request.')
@@ -64,6 +69,7 @@ export function RejectRequestModal({ record, describe, onClose, onConfirm }) {
   return (
     <Modal title="Reject request?" subtitle={describe(record)} onClose={onClose}>
       <div className="space-y-4">
+        <DraftNotice draft={draft} />
         {error && <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{error}</div>}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Reason<span className="text-red-400 ml-0.5">*</span></label>

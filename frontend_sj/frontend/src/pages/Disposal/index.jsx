@@ -12,9 +12,11 @@ import { AssetGroupDrawerById } from '../Assets/AssetGroupDrawer'
 import DeviceRow from '../Assets/DeviceRow'
 import EvidenceModal from '../../components/common/EvidenceModal'
 import AddDisposalModal from './AddDisposalModal'
-import { getDisposal, updateDisposal, deleteDisposal, approveDisposal, rejectDisposal } from '../../services/disposalService'
+import { getDisposal, updateDisposal, deleteDisposal, approveDisposal, rejectDisposal, getDisposalById } from '../../services/disposalService'
 import { getAssets } from '../../services/assetService'
 import { getUsers } from '../../services/userService'
+import DraftRows from '../../components/common/DraftRows'
+import { useDraftList } from '../../hooks/useFormDraft'
 
 const STATUS_BADGE = {
   PENDING:   'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20',
@@ -49,6 +51,33 @@ function Disposal() {
   const [filterMethod, setFilterMethod]   = useState('')
   const [assetFilter, setAssetFilter]     = useState('')
   const [editing, setEditing]   = useState(null)
+  const { drafts, discard: discardDraft } = useDraftList('disposal')
+  // Reopen the form a draft came from; it restores the draft itself.
+  const continueDraft = async (d) => {
+    const record = records.find((r) => String(r.id) === d.id) || (await getDisposalById(d.id).catch(() => null))?.data
+    if (!record) { discardDraft(d.key); toast.show('That record no longer exists, so its draft was removed.', 'error'); return }
+    setEditing(record)
+  }
+
+  // Draft rows use the table's columns: draft fields laid over the saved record.
+  const draftRecord = (d) => {
+    const base = records.find((r) => String(r.id) === d.id) || {}
+    return { ...base, ...d.data, asset: base.asset, recordedBy: base.recordedBy }
+  }
+  const DRAFT_TXT = 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap'
+  const draftColumns = [
+    { className: 'px-5 py-3.5', render: (r) => (<>
+      <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{r.asset?.propertyNumber}</p>
+      <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem]">{r.asset?.description}</p>
+    </>) },
+    { className: 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[10rem]', render: (r) => <span className="block truncate" title={r.reason}>{r.reason || '—'}</span> },
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (r) => <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${METHOD_BADGE[r.recommendedMethod] || ''}`}>{r.recommendedMethod}</span> },
+    { className: 'px-5 py-3.5 whitespace-nowrap', render: (r) => <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_BADGE[r.disposalStatus] || ''}`}>{r.disposalStatus}</span> },
+    { className: DRAFT_TXT, render: (r) => (r.inspectionDate ? fmt(r.inspectionDate) : '—') },
+    { className: DRAFT_TXT, render: (r) => (typeof r.approvedBy === 'string' ? r.approvedBy : r.approvedBy?.fullName || r.approvedBy?.username) || '—' },
+    { className: DRAFT_TXT, render: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '—' },
+    { className: DRAFT_TXT, render: () => '—' },
+  ]
   const [deleting, setDeleting] = useState(null)
   const [rejecting, setRejecting] = useState(null)
   // ?pending=1 (e.g. from the dashboard's Pending Approvals) opens with only requests awaiting approval
@@ -406,6 +435,7 @@ function Disposal() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
+                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
                 {paged.map((entry) => {
                   if (entry.type === 'group') {
                     const open = expanded.has(entry.key)
