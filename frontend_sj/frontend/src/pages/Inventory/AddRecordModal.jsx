@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Modal from '../../components/common/Modal'
+import DatePicker from '../../components/common/DatePicker'
 import Button from '../../components/common/Button'
 import { addDevice as addDeviceApi, updateDevice as updateDeviceApi } from '../../services/inventoryService'
 import { escapeHtml } from '../../utils/helpers'
@@ -681,12 +682,11 @@ function AddRecordModal({ onClose, onSave, initialData = null, generatedCode = '
                 </div>
               </Field>
               <Field label="Acquisition Date">
-                <input
+                <DatePicker
                   name="acquisitionDate"
-                  type="date"
                   value={form.acquisitionDate}
                   onChange={handleChange}
-                  className="w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150 [color-scheme:light] dark:[color-scheme:dark]"
+                  className="w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150"
                 />
               </Field>
             </div>

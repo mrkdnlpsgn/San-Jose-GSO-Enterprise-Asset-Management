@@ -4,6 +4,7 @@ import Button from '../../components/common/Button'
 import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
+import DatePicker from '../../components/common/DatePicker'
 
 const METHODS   = ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS']
 const STATUSES  = ['PENDING', 'APPROVED', 'COMPLETED']
@@ -146,7 +147,7 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Inspection Date<span className="text-red-400 ml-0.5">*</span></label>
-            <input type="date" className={INPUT_CLASS} value={form.inspectionDate} onChange={set('inspectionDate')} />
+            <DatePicker required className={INPUT_CLASS} value={form.inspectionDate} onChange={set('inspectionDate')} />
             {errors.inspectionDate && <p className="text-xs text-red-400">{errors.inspectionDate}</p>}
           </div>
           <div className="flex flex-col gap-1.5">

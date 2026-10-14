@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
+import DatePicker from '../../components/common/DatePicker'
 import { useToast } from '../../context/ToastContext'
 import { manilaDateKey, manilaDateTime } from '../../utils/helpers'
 import api from '../../services/api'
@@ -585,7 +586,7 @@ function ValuationTotalsRow({ rows }) {
 // ── Date range filter ─────────────────────────────────────────────────────────
 const PAGE_SIZE = 8
 
-const DATE_INPUT_CLASS ='rounded-md border border-slate-200 dark:border-zinc-700 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150 [color-scheme:light] dark:[color-scheme:dark]'
+const DATE_INPUT_CLASS ='rounded-md border border-slate-200 dark:border-zinc-700 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
 function DateRangeFilter({ from, to, onChange }) {
   const activePreset = (() => {
@@ -614,9 +615,9 @@ function DateRangeFilter({ from, to, onChange }) {
         ))}
       </div>
       <div className="flex items-center gap-1.5">
-        <input type="date" value={from} max={to || undefined} onChange={(e) => onChange({ from: e.target.value, to })} className={DATE_INPUT_CLASS} />
+        <DatePicker placeholder="From" value={from} max={to || undefined} onChange={(e) => onChange({ from: e.target.value, to })} className={DATE_INPUT_CLASS} />
         <span className="text-2xs text-slate-400 dark:text-zinc-600">to</span>
-        <input type="date" value={to} min={from || undefined} onChange={(e) => onChange({ from, to: e.target.value })} className={DATE_INPUT_CLASS} />
+        <DatePicker placeholder="To" value={to} min={from || undefined} onChange={(e) => onChange({ from, to: e.target.value })} className={DATE_INPUT_CLASS} />
       </div>
       {(from || to) && (
         <button

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSelector } from 'react-redux'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
+import DatePicker from '../../components/common/DatePicker'
 
 const INITIAL_FORM = {
   model:           '',
@@ -271,9 +272,9 @@ function AddDeviceModal({ onClose, onSave, initialDevice = null, inventoryItem =
                 </div>
               </Field>
               <Field label="Acquisition Date">
-                <input
-                  type="date" value={form.acquisitionDate} onChange={set('acquisitionDate')}
-                  className="w-full rounded-md border border-zinc-700 px-3.5 py-2.5 text-sm bg-zinc-800 text-white hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150 [color-scheme:dark]"
+                <DatePicker
+                  value={form.acquisitionDate} onChange={set('acquisitionDate')}
+                  className="w-full rounded-md border border-zinc-700 px-3.5 py-2.5 text-sm bg-zinc-800 text-white hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150"
                 />
               </Field>
             </div>

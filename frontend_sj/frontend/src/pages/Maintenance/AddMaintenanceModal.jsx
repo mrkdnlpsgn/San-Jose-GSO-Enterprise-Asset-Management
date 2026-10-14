@@ -4,6 +4,7 @@ import Button from '../../components/common/Button'
 import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
+import DatePicker from '../../components/common/DatePicker'
 
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
@@ -140,7 +141,7 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Maintenance Date<span className="text-red-400 ml-0.5">*</span></label>
-            <input type="date" className={INPUT_CLASS} value={form.maintenanceDate} onChange={set('maintenanceDate')} />
+            <DatePicker required className={INPUT_CLASS} value={form.maintenanceDate} onChange={set('maintenanceDate')} />
             {errors.maintenanceDate && <p className="text-xs text-red-400">{errors.maintenanceDate}</p>}
           </div>
         </div>

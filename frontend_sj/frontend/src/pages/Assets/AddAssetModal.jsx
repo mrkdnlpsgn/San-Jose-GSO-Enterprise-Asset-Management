@@ -8,6 +8,7 @@ import { useToast } from '../../context/ToastContext'
 import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
+import DatePicker from '../../components/common/DatePicker'
 
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 const CONDITIONS  = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
@@ -386,7 +387,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300 min-h-[2.5rem] flex items-start">Acquisition Date<span className="text-red-400 ml-0.5">*</span></label>
-            <input type="date" className={INPUT_CLASS} value={form.acquisitionDate} onChange={set('acquisitionDate')} />
+            <DatePicker required className={INPUT_CLASS} value={form.acquisitionDate} onChange={set('acquisitionDate')} />
             {errors.acquisitionDate && <p className="text-xs text-red-400">{errors.acquisitionDate}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
