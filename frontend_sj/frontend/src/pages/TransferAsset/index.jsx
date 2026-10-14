@@ -172,7 +172,7 @@ function TransferAsset() {
     )
     if (asset) { setResult(asset); setNotFound(false) }
     else        { setNotFound(true); setResult(null) }
-    // On phones the result sits below Step 1 — bring it into view.
+    // On phones the result sits below the search card — bring it into view.
     if (window.matchMedia?.('(max-width: 1023px)').matches) {
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
     }
@@ -402,14 +402,9 @@ function TransferAsset() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
-        {/* Step 1 — on phones the found asset comes right after this, then the requests */}
+        {/* Find the asset — on phones the found asset comes right after this, then the requests */}
         <div className="lg:col-start-1 lg:row-start-1">
-          <section className={`${CARD} overflow-hidden`} aria-labelledby="find-heading">
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800">
-              <h2 id="find-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">Step 1 — Find the asset</h2>
-              <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">Scan the QR code sticker on the asset, or type its Property Number.</p>
-            </div>
-
+          <section className={`${CARD} overflow-hidden`} aria-label="Find an asset">
             <div className="p-5 space-y-4">
               {/* Live webcam viewport (desktops). Phones use the camera app instead. */}
               <div className={scanning || starting ? 'rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-950' : 'hidden'}>
@@ -446,20 +441,25 @@ function TransferAsset() {
 
               <div className="flex items-center gap-3" aria-hidden="true">
                 <span className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
-                <span className="text-xs text-slate-400 dark:text-zinc-500">or type it</span>
+                <span className="text-xs text-slate-400 dark:text-zinc-500">or</span>
                 <span className="h-px flex-1 bg-slate-200 dark:bg-zinc-800" />
               </div>
 
               <form onSubmit={handleManualSearch} className="flex gap-2">
                 <label htmlFor="manual-code" className="sr-only">Property Number or PAR Number</label>
-                <input
-                  id="manual-code"
-                  type="text"
-                  placeholder="Property No. or PAR No., e.g. COA-2024-001"
-                  value={manualCode}
-                  onChange={(e) => setManualCode(e.target.value)}
-                  className={INPUT}
-                />
+                <div className="relative flex-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-zinc-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                  <input
+                    id="manual-code"
+                    type="search"
+                    placeholder="Search asset"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                    className={`${INPUT} pl-9`}
+                  />
+                </div>
                 <Button type="submit" size="md">Search</Button>
               </form>
             </div>
@@ -476,7 +476,7 @@ function TransferAsset() {
                 </svg>
               </div>
               <p className="text-sm text-slate-500 dark:text-zinc-400 text-center max-w-xs">
-                Scan or search for an asset first. Its details and the transfer form will appear here.
+                Scan or search for an asset.
               </p>
             </div>
           )}
@@ -537,10 +537,10 @@ function TransferAsset() {
                 </div>
               </div>
 
-              {/* Step 2: transfer */}
+              {/* Transfer */}
               <section className={`${CARD} border-2 border-brand-500/50 overflow-hidden`} aria-labelledby="transfer-heading">
                 <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800 bg-brand-50 dark:bg-brand-500/10">
-                  <h2 id="transfer-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">Step 2 — Transfer this asset</h2>
+                  <h2 id="transfer-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">Transfer this asset</h2>
                   <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5">
                     {isAdmin
                       ? 'The transfer takes effect as soon as you save it.'
