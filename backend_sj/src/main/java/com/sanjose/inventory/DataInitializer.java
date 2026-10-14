@@ -6,6 +6,7 @@ import com.sanjose.inventory.repository.OfficeRepository;
 import com.sanjose.inventory.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,11 @@ public class DataInitializer implements CommandLineRunner {
     private final OfficeRepository officeRepository;
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    // Resets admin/ict_staff to their fixture passwords on every boot — dev only.
+    // Set SEED_DEFAULT_ACCOUNTS=false on any public deployment.
+    @Value("${app.seed-default-accounts:true}")
+    private boolean seedDefaultAccounts;
 
     private static final List<String> DEFAULT_OFFICES = List.of(
         "Office of the Mayor",
@@ -44,9 +50,13 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        log.info("DataInitializer: seeding default accounts...");
-        seedUser("admin", "admin123", "Administrator", "ADMIN", "admin@sanjosegso.local");
-        seedUser("ict_staff", "ict2024", "ICT Officer", "STAFF", "ict.staff@sanjosegso.local");
+        if (seedDefaultAccounts) {
+            log.info("DataInitializer: seeding default accounts...");
+            seedUser("admin", "admin123", "Administrator", "ADMIN", "admin@sanjosegso.local");
+            seedUser("ict_staff", "ict2024", "ICT Officer", "STAFF", "ict.staff@sanjosegso.local");
+        } else {
+            log.info("DataInitializer: default account seeding disabled");
+        }
 
         log.info("DataInitializer: seeding default offices...");
         DEFAULT_OFFICES.forEach(this::seedOffice);
