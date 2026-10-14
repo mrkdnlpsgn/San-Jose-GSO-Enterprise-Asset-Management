@@ -8,6 +8,31 @@
   }
 }
 
+/* ── iOS Safari date/time inputs ─────────────────────────────────────────────
+   Safari on iPhone/iPad draws these as native buttons: centred text, extra
+   height, and an intrinsic min-width that overflows `w-full` inside narrow
+   modals. Strip that so they match the other fields. Scoped to touch WebKit
+   (-webkit-touch-callout only exists there) so desktop pickers keep their icon.
+   ─────────────────────────────────────────────────────────────────────────── */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    text-align: left;
+    margin: 0;
+    min-height: 1.25rem; /* text-sm line height, so an empty field keeps its height */
+  }
+}
+
 /* ── Hide scrollbars app-wide ────────────────────────────────────────────────
    Scrolling still works via wheel/trackpad/keyboard — just no visible track,
    thumb, or arrow buttons, in either theme.
