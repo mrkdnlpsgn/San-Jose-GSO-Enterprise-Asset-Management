@@ -264,7 +264,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         )}
 
         {!isEditing && (
-          <div>
+          <section
+            aria-labelledby="autofill-heading"
+            className="rounded-lg border-2 border-brand-500/60 bg-brand-50 dark:bg-brand-500/10 p-4"
+          >
             <input
               ref={uploadInputRef}
               type="file"
@@ -272,40 +275,62 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               className="hidden"
               onChange={handleUploadChange}
             />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-start gap-3 mb-3">
+              <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7V5a1 1 0 011-1h2M17 4h2a1 1 0 011 1v2M20 17v2a1 1 0 01-1 1h-2M7 20H5a1 1 0 01-1-1v-2M8 9h8M8 12h8M8 15h5" />
+                </svg>
+              </span>
+              <div>
+                <h3 id="autofill-heading" className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Auto-fill from a photo — no typing needed
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-zinc-300 mt-0.5 leading-relaxed">
+                  Take a photo of the device label/sticker or the PAR document. The system reads the
+                  description, serial number, and specifications and fills them in for you to review.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={scanning}
                 onClick={() => setShowCamera(true)}
-                className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 dark:border-zinc-700 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-all duration-150 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-3 text-sm font-semibold shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900 transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-400 dark:text-zinc-500 ${scanning ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 17a4 4 0 100-8 4 4 0 000 8z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${scanning ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 17a4 4 0 100-8 4 4 0 000 8z" />
                 </svg>
-                <span className="text-sm font-medium text-slate-500 dark:text-zinc-400">
-                  {scanning ? 'Scanning…' : 'Take Photo'}
-                </span>
+                {scanning ? 'Reading photo…' : 'Take Photo'}
               </button>
               <button
                 type="button"
                 disabled={scanning}
                 onClick={() => uploadInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 dark:border-zinc-700 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-all duration-150 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 rounded-md border-2 border-brand-600 bg-white dark:bg-zinc-900 text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-zinc-800 px-4 py-2.5 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900 transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-slate-400 dark:text-zinc-500 ${scanning ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 8.25L12 3.75m0 0L7.5 8.25M12 3.75v12.75" />
+                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${scanning ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 8.25L12 3.75m0 0L7.5 8.25M12 3.75v12.75" />
                 </svg>
-                <span className="text-sm font-medium text-slate-500 dark:text-zinc-400">
-                  {scanning ? 'Scanning…' : 'Upload Image'}
-                </span>
+                {scanning ? 'Reading photo…' : 'Upload Image'}
               </button>
             </div>
-            <p className="text-2xs text-slate-400 dark:text-zinc-600 mt-1.5">
-              Scan a device label/sticker or a property document (e.g. a PAR with a Technical
-              Specifications section) to auto-fill the description, serial number, and specifications below.
-            </p>
-          </div>
+
+            {wasScanned && !scanning ? (
+              <p className="flex items-center gap-1.5 text-xs font-medium text-brand-700 dark:text-brand-400 mt-3" role="status">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Fields filled in from your photo — please check them below before saving.
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-3">
+                Or skip this and type the details below.
+              </p>
+            )}
+          </section>
         )}
 
         {/* Serial No. */}
@@ -558,7 +583,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             onChange={set('specifications')}
           />
           <p className="text-2xs text-slate-400 dark:text-zinc-600">
-            Free-form — enter whatever specs apply to this device type (processor/memory/storage for a computer, engine/plate no. for a vehicle, etc.), one per line. Auto-filled by Scan Label/Upload Image when available.
+            Free-form — enter whatever specs apply to this device type (processor/memory/storage for a computer, engine/plate no. for a vehicle, etc.), one per line. Auto-filled by Take Photo/Upload Image when available.
           </p>
         </div>
 
