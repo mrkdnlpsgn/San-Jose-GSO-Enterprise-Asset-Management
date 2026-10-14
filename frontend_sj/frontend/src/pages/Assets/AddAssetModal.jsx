@@ -36,6 +36,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const isEditing = !!initial
   const toast = useToast()
   const uploadInputRef = useRef(null)
+  // Phones/tablets: a capture input hands off to the device's own camera app, which is
+  // full-screen and familiar — far easier for older staff than an in-page webcam preview.
+  // Desktops have no camera app, so they keep CameraCaptureModal.
+  const cameraInputRef = useRef(null)
   const [scanning, setScanning] = useState(false)
   const [wasScanned, setWasScanned] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
@@ -162,6 +166,11 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     scanFile(file)
   }
 
+  const openCamera = () => {
+    if (window.matchMedia?.('(pointer: coarse)').matches) cameraInputRef.current?.click()
+    else setShowCamera(true)
+  }
+
   const handleCameraCapture = (file) => {
     setShowCamera(false)
     scanFile(file)
@@ -275,6 +284,14 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               className="hidden"
               onChange={handleUploadChange}
             />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleUploadChange}
+            />
             <div className="flex items-start gap-3 mb-3">
               <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -296,7 +313,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               <button
                 type="button"
                 disabled={scanning}
-                onClick={() => setShowCamera(true)}
+                onClick={openCamera}
                 className="flex items-center justify-center gap-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white px-4 py-3 text-sm font-semibold shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900 transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${scanning ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
