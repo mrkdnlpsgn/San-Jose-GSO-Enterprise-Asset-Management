@@ -474,6 +474,28 @@ function AuditLogsTab() {
           </div>
         )}
 
+        {/* Phones: the table above is hidden below md, so list the same entries as cards */}
+        {!loading && filtered.length > 0 && (
+          <ul className="md:hidden divide-y divide-slate-100 dark:divide-zinc-800/60">
+            {paged.map((log) => {
+              const aStyle = ACTION_STYLES[log.action] || { bg: 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300', label: log.action }
+              const mStyle = MODULE_STYLES[log.module] || { bg: 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300' }
+              return (
+                <li key={log.id} className="px-4 py-3.5 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${aStyle.bg}`}>{aStyle.label}</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${mStyle.bg}`}>{log.module}</span>
+                  </div>
+                  <p className="text-sm text-slate-700 dark:text-zinc-200 break-words">{log.details}</p>
+                  <p className="text-xs text-slate-400 dark:text-zinc-500">
+                    {log.user?.username || 'System'} · <span className="font-mono">{formatDateTime(log.loggedAt)}</span>
+                  </p>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
         {!loading && filtered.length > AUDIT_PAGE_SIZE && (
           <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
             <p className="text-xs text-slate-400 dark:text-zinc-500">

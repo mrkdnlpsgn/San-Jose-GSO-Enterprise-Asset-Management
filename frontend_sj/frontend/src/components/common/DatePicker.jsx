@@ -108,31 +108,42 @@ function DatePicker({ value, onChange, name, min, max, required = false, placeho
       if (popRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return
       close(false)
     }
+    // Capture phase on document runs before the surrounding Modal's own Escape listener,
+    // wherever focus happens to be — so Escape closes only the calendar, never the form.
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return
+      e.stopImmediatePropagation()
+      e.preventDefault()
+      close()
+    }
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     document.addEventListener('mousedown', onDown)
     document.addEventListener('touchstart', onDown)
+    document.addEventListener('keydown', onEsc, true)
     return () => {
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('touchstart', onDown)
+      document.removeEventListener('keydown', onEsc, true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Keep keyboard focus on the highlighted day as it moves.
+  // Keep keyboard focus on the highlighted day as it moves. Waits for `pos`: the popover
+  // renders hidden until it's positioned, and hidden elements can't take focus.
   useEffect(() => {
-    if (open && view === 'days') gridRef.current?.querySelector(`[data-key="${focusKey}"]`)?.focus()
-  }, [open, view, focusKey])
+    if (open && pos && view === 'days') gridRef.current?.querySelector(`[data-key="${focusKey}"]`)?.focus()
+  }, [open, pos, view, focusKey])
 
   useEffect(() => {
-    if (open && view === 'years') {
+    if (open && pos && view === 'years') {
       const el = yearListRef.current?.querySelector('[data-selected="true"]')
       el?.scrollIntoView({ block: 'center' })
       el?.focus()
     }
-  }, [open, view])
+  }, [open, pos, view])
 
   const onGridKey = (e) => {
     const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }
@@ -140,15 +151,6 @@ function DatePicker({ value, onChange, name, min, max, required = false, placeho
     else if (e.key === 'PageUp') { e.preventDefault(); setFocusKey(shiftMonthKey(focusKey, e.shiftKey ? -12 : -1)) }
     else if (e.key === 'PageDown') { e.preventDefault(); setFocusKey(shiftMonthKey(focusKey, e.shiftKey ? 12 : 1)) }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(focusKey) }
-  }
-
-  const onPopKey = (e) => {
-    if (e.key === 'Escape') {
-      // Stop here so the surrounding Modal's Escape handler doesn't close the whole form.
-      e.stopPropagation()
-      e.nativeEvent.stopImmediatePropagation?.()
-      close()
-    }
   }
 
   const today = todayKey()
@@ -185,7 +187,6 @@ function DatePicker({ value, onChange, name, min, max, required = false, placeho
           ref={popRef}
           role="dialog"
           aria-label="Choose date"
-          onKeyDown={onPopKey}
           style={pos ? { top: pos.top, left: pos.left, width: pos.width } : { visibility: 'hidden', top: 0, left: 0 }}
           className="fixed z-[60] rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-xl shadow-black/15 dark:shadow-black/60 p-3 select-none"
         >

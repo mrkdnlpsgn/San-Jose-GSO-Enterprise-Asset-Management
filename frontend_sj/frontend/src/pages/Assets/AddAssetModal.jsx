@@ -12,7 +12,8 @@ import DatePicker from '../../components/common/DatePicker'
 
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 const CONDITIONS  = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
-const LIFECYCLES  = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED']
+// REGISTERED and ARCHIVED exist in the database enum but nothing ever sets them, so they aren't offered.
+const LIFECYCLES  = ['ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED']
 // Staff picking these doesn't change the asset — saving sends the matching request to an admin.
 const REQUEST_FOR_STATUS = { UNDER_MAINTENANCE: 'maintenance', DISPOSED: 'disposal' }
 const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']

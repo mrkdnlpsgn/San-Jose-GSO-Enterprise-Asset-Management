@@ -372,7 +372,7 @@ function Assets() {
               }`}>{label}</button>
           ))}
           <SelectFilter value={filterLifecycle} onChange={setFilterLifecycle} placeholder="All Statuses"
-            options={[['REGISTERED','Registered'],['ASSIGNED','Assigned'],['TRANSFERRED','Transferred'],['UNDER_MAINTENANCE','Under Maintenance'],['DISPOSED','Disposed'],['ARCHIVED','Archived']]} />
+            options={[['ASSIGNED','Assigned'],['TRANSFERRED','Transferred'],['UNDER_MAINTENANCE','Under Maintenance'],['DISPOSED','Disposed']]} />
           <SelectFilter value={filterCategory} onChange={setFilterCategory} placeholder="All Categories"
             options={categories.map((c) => [String(c.id), c.categoryName])} />
           <SelectFilter value={filterOffice} onChange={setFilterOffice} placeholder="All Offices"

@@ -11,7 +11,8 @@ import { ApprovalActions, RejectRequestModal } from '../../components/common/App
 import { approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
 import { approveDisposal, rejectDisposal } from '../../services/disposalService'
 
-const EVENT_TYPES = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'MAINTENANCE', 'DISPOSAL', 'ARCHIVED']
+// Only the events the system actually records (ASSIGNED / ARCHIVED are never logged).
+const EVENT_TYPES = ['REGISTERED', 'TRANSFERRED', 'MAINTENANCE', 'DISPOSAL']
 
 const EVENT_BADGE = {
   REGISTERED:  'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',

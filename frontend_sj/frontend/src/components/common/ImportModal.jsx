@@ -268,14 +268,15 @@ function ImportModal({ onClose, onImport }) {
       {stage === 'idle' && (
         <div className="space-y-4">
           {/* Template download banner */}
-          <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-zinc-800 rounded-lg border border-slate-200 dark:border-zinc-700">
-            <div className="flex items-center gap-3">
+          {/* Stacks on phones: side by side, the long note was squeezed into a one-word column */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-slate-50 dark:bg-zinc-800 rounded-lg border border-slate-200 dark:border-zinc-700">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-lg bg-emerald-950 flex items-center justify-center flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-800 dark:text-zinc-200">Download Import Template</p>
                 <p className="text-xs text-slate-500 dark:text-zinc-500 mt-px">
                   Use this template to ensure your file has the correct column headers
@@ -284,12 +285,12 @@ function ImportModal({ onClose, onImport }) {
             </div>
             <button
               onClick={downloadTemplate}
-              className="flex items-center gap-1.5 text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors duration-150 whitespace-nowrap"
+              className="shrink-0 flex items-center justify-center gap-1.5 rounded-md border border-brand-600/40 bg-white dark:bg-zinc-900 px-3 py-2 text-xs font-semibold text-brand-700 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-zinc-800 transition-colors duration-150 whitespace-nowrap"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
-              inventory_template.xlsx
+              Download template <span className="font-normal opacity-75">(.xlsx)</span>
             </button>
           </div>
 

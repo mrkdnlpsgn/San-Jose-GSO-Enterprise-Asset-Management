@@ -15,6 +15,7 @@ const pageMeta = {
   '/offices':       'Offices',
   '/categories':    'Categories',
   '/reports':       'Reports',
+  '/transfer':      'Transfer Asset',
   '/accounts':      'Accounts',
   '/audit-logs':    'Audit Logs',
   '/my-account':    'My Account',

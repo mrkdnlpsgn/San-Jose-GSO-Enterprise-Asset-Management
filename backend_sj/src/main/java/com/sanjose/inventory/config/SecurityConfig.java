@@ -114,6 +114,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/maintenance/*/approve", "/api/maintenance/*/reject",
                                  "/api/disposal/*/approve", "/api/disposal/*/reject").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/maintenance/*", "/api/disposal/*").hasRole("ADMIN")
+                // Transfers: anyone may file one (staff's wait for approval); approving is ADMIN only
+                .requestMatchers("/api/transfers/*/approve", "/api/transfers/*/reject").hasRole("ADMIN")
+                .requestMatchers("/api/transfers/**", "/api/transfers").authenticated()
                 .requestMatchers("/api/maintenance/**", "/api/maintenance").authenticated()
                 .requestMatchers("/api/disposal/**", "/api/disposal").authenticated()
                 // Reference data: readable by everyone (form dropdowns), managed by ADMIN
