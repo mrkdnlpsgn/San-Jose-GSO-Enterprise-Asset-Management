@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Html5Qrcode } from 'html5-qrcode'
 import { QRCodeSVG } from 'qrcode.react'
+import { readQrFromPhoto } from '../../utils/qrFromPhoto'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import { useToast } from '../../context/ToastContext'
@@ -17,7 +18,6 @@ import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices
 // member's goes to an admin for approval. Update Status and Print QR stay available.
 
 const LIVE_READER_ID = 'qr-reader-viewport'
-const FILE_READER_ID = 'qr-file-reader'
 
 // Staff can't set TRANSFERRED here (that's what the transfer form is for), and putting an
 // asset under maintenance or disposing of it is sent to an admin as a request on save.
@@ -194,9 +194,8 @@ function TransferAsset() {
     if (!file) return
     setReading(true)
     try {
-      const reader = new Html5Qrcode(FILE_READER_ID)
-      const text = await reader.scanFile(file, false)
-      reader.clear()
+      const text = await readQrFromPhoto(file)
+      if (!text) throw new Error('no QR code')
       processCode(text)
     } catch {
       setCameraError("Couldn't find a QR code in that photo. Hold the phone a little closer so the QR code fills most of the picture, then try again.")
@@ -398,7 +397,6 @@ function TransferAsset() {
   return (
     <MainLayout>
       <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
-      <div id={FILE_READER_ID} className="hidden" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
