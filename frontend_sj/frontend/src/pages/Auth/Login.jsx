@@ -6,6 +6,7 @@ import ForgotPasswordForm from './ForgotPasswordForm'
 import ForceChangePasswordForm from './ForceChangePasswordForm'
 import TwoFactorForm from './TwoFactorForm'
 import SettingsMenu from '../../components/common/SettingsMenu'
+import { waitForServer, isServerAsleep } from '../../services/api'
 
 // Must match the backend's auth.max-failed-attempts / auth.lockout-minutes (application.properties).
 const MAX_ATTEMPTS = 3
@@ -93,6 +94,17 @@ function Login() {
   const [lockedUntil, setLockedUntil] = useState(null)
   const [now, setNow]                 = useState(Date.now())
   const locked = lockedUntil != null && now < lockedUntil
+  // The backend may be asleep (free hosting). Start waking it as soon as this page opens, so it
+  // is usually ready by the time the password is typed; sign-in waits for it instead of failing.
+  const [serverWaking, setServerWaking] = useState(false)
+  const serverReady = useRef(null)
+  const wakeServer = () => {
+    serverReady.current = waitForServer({ onWaiting: () => setServerWaking(true) })
+      .catch(() => {})   // still down after 5 minutes — let the sign-in itself show the error
+      .finally(() => setServerWaking(false))
+    return serverReady.current
+  }
+  useEffect(() => { wakeServer() }, [])
 
   useEffect(() => {
     if (lockedUntil == null) return undefined
@@ -120,7 +132,16 @@ function Login() {
     if (missing.password) { passwordRef.current?.focus(); return }
     setLoading(true)
     try {
-      const result = await login(form)
+      await serverReady.current
+      let result
+      try {
+        result = await login(form)
+      } catch (err) {
+        // went to sleep again, or was mid-restart — wait for it once more, then retry
+        if (!isServerAsleep(err)) throw err
+        await wakeServer()
+        result = await login(form)
+      }
       if (result?.mustChangePassword) {
         setForcedChange({ identifier: form.identifier, currentPassword: form.password })
       } else if (result?.requiresTwoFactor) {
@@ -299,6 +320,17 @@ function Login() {
             </div>
           )}
 
+          {serverWaking && !error && (
+            <div role="status"
+              className="flex items-start gap-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 rounded-lg px-4 py-3 mb-5 text-sm">
+              <svg className="animate-spin h-5 w-5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              <span>The system is starting up after a quiet period. This can take up to 3 minutes. You can enter your username and password now — you will be signed in as soon as it is ready.</span>
+            </div>
+          )}
+
           {error && (
             <div
               key={error}
@@ -410,7 +442,7 @@ function Login() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                   </svg>
-                  Signing in…
+                  {serverWaking ? 'Waiting for the system to start…' : 'Signing in…'}
                 </span>
               ) : locked ? `Locked — try again in ${timeLeft(lockedUntil - now)}` : 'Sign In'}
             </button>

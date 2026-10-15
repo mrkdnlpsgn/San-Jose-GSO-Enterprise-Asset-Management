@@ -33,4 +33,32 @@ api.interceptors.response.use(
   }
 )
 
+// The free Render backend sleeps after ~15 idle minutes and takes up to ~3 minutes to start.
+// Meanwhile requests fail with no response, or a 502/503/504 from the Vercel proxy or Render
+// (the Vite dev proxy answers 500 with no body). The backend's own errors are always JSON.
+export const isServerAsleep = (err) => {
+  const res = err?.response
+  if (!res) return true
+  if ([502, 503, 504].includes(res.status)) return true
+  return res.status >= 500 && (typeof res.data !== 'object' || res.data === null)
+}
+
+// Resolves once the backend answers at all (a 401 from /auth/me counts — it's awake).
+// Calls onWaiting() the first time a check fails. Gives up (rejects) after maxWaitMs.
+export async function waitForServer({ onWaiting, maxWaitMs = 5 * 60 * 1000 } = {}) {
+  const deadline = Date.now() + maxWaitMs
+  let notified = false
+  for (;;) {
+    try {
+      await api.get('/auth/me', { timeout: 20000 })
+      return
+    } catch (err) {
+      if (!isServerAsleep(err)) return
+      if (Date.now() > deadline) throw err
+      if (!notified) { notified = true; onWaiting?.() }
+      await new Promise((r) => setTimeout(r, 4000))
+    }
+  }
+}
+
 export default api
