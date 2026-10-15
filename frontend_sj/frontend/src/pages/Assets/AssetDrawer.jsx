@@ -10,6 +10,8 @@ import AssetQrModal from './AssetQrModal'
 import EvidenceModal from '../../components/common/EvidenceModal'
 
 const TAB_LABELS = { details: 'Details', history: 'Lifecycle', specs: 'Specifications', ai: 'AI Insight', maintenance: 'Maintenance' }
+// Shorter labels for phones so every tab fits on one row at any Text Size
+const TAB_LABELS_SHORT = { details: 'Details', history: 'History', specs: 'Specs', ai: 'AI', maintenance: 'Repairs' }
 
 const RECOMMENDATION_BADGE = {
   MAINTAIN:            'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
@@ -174,14 +176,16 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
         </div>
 
         {/* Tabs */}
-        {/* Tabs wrap onto a second row on narrow screens / large Text Size instead of
-            scrolling sideways, so every tab stays visible with whole words */}
-        <div className="flex flex-wrap border-b border-slate-200 dark:border-zinc-800 px-3 sm:px-5 gap-x-1 flex-shrink-0">
+        {/* One row of equal-width tabs; phones get the short labels */}
+        <div className="grid grid-flow-col auto-cols-fr border-b border-slate-200 dark:border-zinc-800 px-2 sm:px-5 flex-shrink-0" role="tablist">
           {tabs.map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-all border-b-2 -mb-px ${
+            <button key={t} onClick={() => setTab(t)} role="tab" aria-selected={tab === t} title={TAB_LABELS[t]}
+              className={`min-w-0 px-1 sm:px-3 py-2.5 text-xs font-semibold text-center whitespace-nowrap overflow-hidden text-ellipsis transition-all border-b-2 -mb-px ${
                 tab === t ? 'border-slate-900 dark:border-white text-slate-900 dark:text-white' : 'border-transparent text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
-              }`}>{TAB_LABELS[t] || t}</button>
+              }`}>
+              <span className="sm:hidden">{TAB_LABELS_SHORT[t] || TAB_LABELS[t]}</span>
+              <span className="hidden sm:inline">{TAB_LABELS[t] || t}</span>
+            </button>
           ))}
         </div>
 

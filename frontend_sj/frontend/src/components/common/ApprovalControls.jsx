@@ -47,8 +47,8 @@ export function ApprovalActions({ record, onApprove, onReject }) {
 
 export function RejectRequestModal({ record, describe, onClose, onConfirm }) {
   const [note, setNote]     = useState('')
-  // Maintenance and disposal ids overlap, so the draft key says which one this is.
-  const draft = useFormDraft(`reject:${'maintenanceType' in record ? 'maintenance' : 'disposal'}:${record.id}`, note, setNote)
+  // Maintenance, disposal and transfer ids overlap, so the draft key says which one this is.
+  const draft = useFormDraft(`reject:${record.kind || ('maintenanceType' in record ? 'maintenance' : 'disposal')}:${record.id}`, note, setNote)
   const [error, setError]   = useState('')
   const [saving, setSaving] = useState(false)
 

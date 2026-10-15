@@ -10,6 +10,7 @@ import { getUsers } from '../../services/userService'
 import { getLifecycleInsights, generateLifecycleSummary } from '../../services/aiRecommendationService'
 import { getMaintenance, approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
 import { getDisposal, approveDisposal, rejectDisposal } from '../../services/disposalService'
+import { getTransfers, approveTransfer, rejectTransfer } from '../../services/transferService'
 import { useToast } from '../../context/ToastContext'
 import { RejectRequestModal } from '../../components/common/ApprovalControls'
 import { useEventStream } from '../../hooks/useEventStream'
@@ -903,11 +904,14 @@ function UnassignedOffices({ accounts }) {
   )
 }
 
+const KIND_LABEL = { maintenance: 'Maintenance', disposal: 'Disposal', transfer: 'Transfer' }
+
 function PendingApprovals({ requests, loading, onApprove, onReject, busyId }) {
   const count = requests.length
   const shown = requests.slice(0, PENDING_PREVIEW)
   const kinds = new Set(requests.map((r) => r.kind))
-  const viewAll = kinds.size === 1 && kinds.has('disposal') ? '/disposal?pending=1' : '/maintenance?pending=1'
+  const viewAll = kinds.size === 1 && kinds.has('disposal') ? '/disposal?pending=1'
+    : kinds.size === 1 && kinds.has('transfer') ? '/transfer' : '/maintenance?pending=1'
 
   return (
     <div className={`bg-white dark:bg-zinc-900 rounded-xl border ${count > 0 ? 'border-amber-500/40' : 'border-slate-200 dark:border-zinc-800'}`}>
@@ -940,20 +944,25 @@ function PendingApprovals({ requests, loading, onApprove, onReject, busyId }) {
           ))}
         </div>
       ) : count === 0 ? (
-        <p className="px-5 py-4 text-sm text-slate-400 dark:text-zinc-500">No maintenance or disposal requests are waiting for approval.</p>
+        <p className="px-5 py-4 text-sm text-slate-400 dark:text-zinc-500">No maintenance, disposal or transfer requests are waiting for approval.</p>
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
           {shown.map((r) => {
             const isMaint = r.kind === 'maintenance'
-            const detail = isMaint
-              ? `${r.maintenanceType || ''}${r.findings ? ` · ${r.findings}` : ''}`
-              : `${r.recommendedMethod || ''}${r.reason ? ` · ${r.reason}` : ''}`
+            const isTransfer = r.kind === 'transfer'
+            const detail = isTransfer
+              ? `${r.fromOfficeName || 'Unassigned'} → ${r.toOfficeName} · ${r.toLocation}`
+              : isMaint
+                ? `${r.maintenanceType || ''}${r.findings ? ` · ${r.findings}` : ''}`
+                : `${r.recommendedMethod || ''}${r.reason ? ` · ${r.reason}` : ''}`
+            const badge = isTransfer ? ['Transfer', 'text-orange-500 bg-orange-500/10']
+              : isMaint ? ['Maintenance', 'text-amber-500 bg-amber-500/10'] : ['Disposal', 'text-red-400 bg-red-400/10']
             return (
               <div key={`${r.kind}:${r.id}`} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold leading-none whitespace-nowrap ${isMaint ? 'text-amber-500 bg-amber-500/10' : 'text-red-400 bg-red-400/10'}`}>
-                  {isMaint ? 'Maintenance' : 'Disposal'}
+                <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold leading-none whitespace-nowrap ${badge[1]}`}>
+                  {badge[0]}
                 </span>
-                <Link to={`/${r.kind}?assetId=${r.asset?.id ?? ''}&pending=1`} className="flex-1 min-w-0 group">
+                <Link to={isTransfer ? '/transfer' : `/${r.kind}?assetId=${r.asset?.id ?? ''}&pending=1`} className="flex-1 min-w-0 group">
                   <p className="text-sm text-slate-700 dark:text-zinc-200 leading-snug truncate font-medium group-hover:text-slate-900 dark:group-hover:text-white">
                     <span className="font-mono text-xs text-slate-400 dark:text-zinc-500 mr-1.5">{r.asset?.propertyNumber}</span>
                     {r.asset?.description || '—'}
@@ -1002,6 +1011,7 @@ function Dashboard() {
   const [unassignedStaff, setUnassignedStaff] = useState([])
   const [maintenanceRecords, setMaintenanceRecords] = useState([])
   const [disposalRecords, setDisposalRecords] = useState([])
+  const [transferRequests, setTransferRequests] = useState([])
   const [activityRange, setActivityRange] = useState('week')
   const [insightToken, setInsightToken] = useState(0)   // bumps on every (re)load so the summary card refetches
 
@@ -1013,7 +1023,8 @@ function Dashboard() {
       isAdmin ? getUsers().catch(() => null) : Promise.resolve(null),
       getMaintenance().catch(() => null),
       getDisposal().catch(() => null),
-    ]).then(([assetRes, histRes, userRes, maintRes, dispRes]) => {
+      getTransfers('PENDING_APPROVAL').catch(() => null),
+    ]).then(([assetRes, histRes, userRes, maintRes, dispRes, transferRes]) => {
       if (!assetRes && !histRes) {
         if (!silent) { setError(true); setLoading(false) }
         return
@@ -1028,6 +1039,7 @@ function Dashboard() {
       setUnassignedStaff(u.filter((x) => x.role === 'STAFF' && x.isActive && !x.officeId && !x.officeName))
       setMaintenanceRecords(maintRes?.data ?? [])
       setDisposalRecords(dispRes?.data ?? [])
+      setTransferRequests(transferRes?.data ?? [])
       setInsightToken((t) => t + 1)
       if (!silent) setLoading(false)
     })
@@ -1122,15 +1134,20 @@ function Dashboard() {
   const pendingList = useMemo(() => [
     ...maintenanceRecords.map((r) => ({ ...r, kind: 'maintenance' })),
     ...disposalRecords.map((r) => ({ ...r, kind: 'disposal' })),
+    // transfer requests (Transfer Asset page) come back in their own shape — map them onto the same fields
+    ...transferRequests.map((t) => ({
+      ...t, kind: 'transfer', approvalStatus: t.status, createdAt: t.requestedAt,
+      asset: { id: t.assetId, propertyNumber: t.propertyNumber, description: t.assetDescription },
+    })),
   ].filter((r) => r.approvalStatus === 'PENDING_APPROVAL')
-   .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [maintenanceRecords, disposalRecords])
+   .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [maintenanceRecords, disposalRecords, transferRequests])
   const pendingRequests = pendingList.length
 
   const approveRequest = async (r) => {
     setBusyId(`${r.kind}:${r.id}`)
     try {
-      await (r.kind === 'maintenance' ? approveMaintenance : approveDisposal)(r.id)
-      toast.show(`${r.kind === 'maintenance' ? 'Maintenance' : 'Disposal'} request approved.`, 'success')
+      await ({ maintenance: approveMaintenance, disposal: approveDisposal, transfer: approveTransfer })[r.kind](r.id)
+      toast.show(`${KIND_LABEL[r.kind]} request approved.`, 'success')
       load({ silent: true })
     } catch (err) {
       toast.show(err.response?.data?.message || 'Failed to approve the request.', 'error')
@@ -1141,7 +1158,7 @@ function Dashboard() {
 
   const rejectRequest = async (note) => {
     const r = rejecting
-    await (r.kind === 'maintenance' ? rejectMaintenance : rejectDisposal)(r.id, note)
+    await ({ maintenance: rejectMaintenance, disposal: rejectDisposal, transfer: rejectTransfer })[r.kind](r.id, note)
     toast.show('Request rejected.', 'warning')
     load({ silent: true })
   }
@@ -1169,7 +1186,7 @@ function Dashboard() {
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>,
     } : {
       label: 'Awaiting Approval', value: animUsers.toLocaleString(),
-      sub: 'Maintenance & disposal requests', href: '/maintenance',
+      sub: 'Maintenance, disposal & transfer requests', href: '/maintenance',
       icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>,
     },
   ]
@@ -1253,7 +1270,7 @@ function Dashboard() {
       {rejecting && (
         <RejectRequestModal
           record={rejecting}
-          describe={(r) => `${r.kind === 'maintenance' ? 'Maintenance' : 'Disposal'} — ${r.asset?.propertyNumber || ''} ${r.asset?.description || ''}`}
+          describe={(r) => `${KIND_LABEL[r.kind]} — ${r.asset?.propertyNumber || ''} ${r.asset?.description || ''}`}
           onClose={() => setRejecting(null)}
           onConfirm={rejectRequest}
         />

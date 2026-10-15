@@ -110,6 +110,8 @@ public class TransferService {
         }
         auditLogService.log("TRANSFER_REQUESTED", "Assets", req.assetId(), "asset",
             "Requested transfer of " + asset.getPropertyNumber() + " to " + officeName(req.toOfficeId()));
+        // no asset change yet — "CHANGED" with no data just tells open dashboards to refresh
+        sseEmitterService.emitAsset("CHANGED", req.assetId(), null);
         return Map.of("status", "PENDING_APPROVAL", "transfer", findView(transferId));
     }
 
@@ -144,6 +146,7 @@ public class TransferService {
             """, accessService.current().id(), now(), trimmed == null || trimmed.isEmpty() ? null : trimmed, transferId);
         auditLogService.log("TRANSFER_REJECTED", "Assets", t.assetId(), "asset",
             "Rejected transfer of " + t.propertyNumber() + " to " + t.toOfficeName());
+        sseEmitterService.emitAsset("CHANGED", t.assetId(), null);
         return findView(transferId);
     }
 
