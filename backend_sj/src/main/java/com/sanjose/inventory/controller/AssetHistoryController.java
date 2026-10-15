@@ -24,15 +24,16 @@ public class AssetHistoryController {
     }
 
     // Asset History page. Admin: everything. Staff: every event (by anyone) on the assets
-    // they're the accountable person for.
+    // they're the accountable person for or that are in their office, plus events that moved
+    // an asset into or out of their office.
     @GetMapping("/accountable")
     public List<AssetHistory> getAccountable(@RequestParam(required = false) String search) {
         AccessService.CurrentUser me = accessService.current();
         if (me.admin()) return assetHistoryService.findAll(search, null);
-        return assetHistoryService.findForAccountable(search, me.id());
+        return assetHistoryService.findForAccountable(search, me.id(), me.officeId());
     }
 
-    // Staff requests (maintenance/disposal) and their outcome. Admin: anyone's, or one
+    // Staff requests (maintenance/disposal/transfer) and their outcome. Admin: anyone's, or one
     // person's via userId. Staff: always just their own.
     @GetMapping("/requests")
     public List<EditRequestView> getRequests(@RequestParam(required = false) Long userId) {

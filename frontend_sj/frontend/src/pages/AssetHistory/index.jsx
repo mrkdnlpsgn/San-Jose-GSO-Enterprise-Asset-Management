@@ -10,6 +10,7 @@ import { useEventStream } from '../../hooks/useEventStream'
 import { ApprovalActions, RejectRequestModal } from '../../components/common/ApprovalControls'
 import { approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
 import { approveDisposal, rejectDisposal } from '../../services/disposalService'
+import { approveTransfer, rejectTransfer } from '../../services/transferService'
 
 // Only the events the system actually records (ASSIGNED / ARCHIVED are never logged).
 const EVENT_TYPES = ['REGISTERED', 'TRANSFERRED', 'MAINTENANCE', 'DISPOSAL']
@@ -20,10 +21,18 @@ const EVENT_BADGE = {
   TRANSFERRED: 'bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20',
   MAINTENANCE: 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20',
   DISPOSAL:    'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
+  TRANSFER:    'bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20',
   ARCHIVED:    'bg-zinc-500/10 text-zinc-400 ring-1 ring-zinc-500/20',
 }
 
-// Where a staff request (maintenance / disposal) stands.
+// Staff request kinds: label in the list, the API calls, and what approving does.
+const REQUEST_KIND = {
+  MAINTENANCE: { label: 'Under Maintenance', approve: approveMaintenance, reject: rejectMaintenance, done: 'is now under maintenance' },
+  DISPOSAL:    { label: 'Disposal',          approve: approveDisposal,    reject: rejectDisposal,    done: 'is now disposed' },
+  TRANSFER:    { label: 'Transfer',          approve: approveTransfer,    reject: rejectTransfer,    done: 'has been transferred' },
+}
+
+// Where a staff request (maintenance / disposal / transfer) stands.
 const REQUEST_STATUS = {
   PENDING_APPROVAL: { label: 'Pending',  cls: 'bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/20' },
   APPROVED:         { label: 'Approved', cls: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' },
@@ -117,8 +126,8 @@ function AssetHistory() {
   // Admin approves / rejects a staff request right from the list.
   const handleApprove = async (r) => {
     try {
-      await (r.kind === 'MAINTENANCE' ? approveMaintenance : approveDisposal)(r.recordId)
-      toast.show(`Request approved — ${r.propertyNumber} is now ${r.kind === 'MAINTENANCE' ? 'under maintenance' : 'disposed'}.`, 'success')
+      await REQUEST_KIND[r.kind].approve(r.recordId)
+      toast.show(`Request approved — ${r.propertyNumber} ${REQUEST_KIND[r.kind].done}.`, 'success')
       fetchRequests(performer || null)
     } catch (err) {
       toast.show(err.response?.data?.message || 'Failed to approve the request.', 'error')
@@ -126,7 +135,7 @@ function AssetHistory() {
   }
 
   const handleReject = async (note) => {
-    await (rejecting.kind === 'MAINTENANCE' ? rejectMaintenance : rejectDisposal)(rejecting.recordId, note)
+    await REQUEST_KIND[rejecting.kind].reject(rejecting.recordId, note)
     toast.show('Request rejected.', 'success')
     fetchRequests(performer || null)
   }
@@ -324,7 +333,7 @@ function AssetHistory() {
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${EVENT_BADGE[r.kind]}`}>
-                          {r.kind === 'MAINTENANCE' ? 'Under Maintenance' : 'Disposal'}
+                          {REQUEST_KIND[r.kind]?.label || r.kind}
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[12.5rem]">
