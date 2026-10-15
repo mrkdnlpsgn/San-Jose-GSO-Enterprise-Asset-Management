@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../data/auth_service.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/api_exception.dart';
 import '../provider/auth_provider.dart';
 import 'force_change_password_screen.dart';
 import 'two_factor_screen.dart';
@@ -22,6 +24,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
   String? _error;   // shown in a red box above the fields, like the web sign-in page
+  bool _serverWaking = false;
+  Future<bool>? _serverReady;
+
+  @override
+  void initState() {
+    super.initState();
+    _wake();
+  }
+
+  Future<bool> _wake() {
+    return _serverReady = ApiClient.instance.waitForServer(onWaiting: () {
+      if (mounted) setState(() => _serverWaking = true);
+    }).whenComplete(() {
+      if (mounted) setState(() => _serverWaking = false);
+    });
+  }
 
   @override
   void dispose() {
@@ -35,9 +53,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     final identifier = _identifierCtrl.text.trim();
     final password = _passwordCtrl.text;
+    await _serverReady;
     await ref.read(authProvider.notifier).login(identifier, password);
     if (!mounted) return;
-    final error = ref.read(authProvider).error;
+    var error = ref.read(authProvider).error;
+    // went to sleep again or was mid-restart — wait for it once more, then retry
+    if (error is ApiException && error.serverAsleep) {
+      if (await _wake() && mounted) {
+        await ref.read(authProvider.notifier).login(identifier, password);
+        if (!mounted) return;
+        error = ref.read(authProvider).error;
+      }
+    }
     if (error is MustChangePasswordRequired) {
       // Not a real auth failure — clear it so it isn't mistaken for one, then
       // hand off to the password-change step.
@@ -165,6 +192,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             const SizedBox(height: 20),
 
+                            if (_serverWaking && _error == null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.statusMaintenance.withValues(alpha: context.isLight ? 0.10 : 0.16),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppTheme.statusMaintenance.withValues(alpha: 0.4)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(
+                                        width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'The system is starting up after a quiet period. This can take up to 3 minutes. '
+                                        'You can enter your username and password now — you will be signed in as soon as it is ready.',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          height: 1.4,
+                                          color: context.isLight ? const Color(0xFF92400E) : const Color(0xFFFBBF24),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                             if (_error != null) ...[
                               Container(
                                 padding: const EdgeInsets.all(14),

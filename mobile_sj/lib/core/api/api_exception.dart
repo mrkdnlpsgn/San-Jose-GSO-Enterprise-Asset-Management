@@ -3,8 +3,11 @@ import 'package:dio/dio.dart';
 class ApiException implements Exception {
   final int? statusCode;
   final String message;
+  /// No answer, a timeout, or a 502/503/504 from Render's proxy — the server is asleep or
+  /// restarting, not refusing. Callers can wait for it and retry instead of failing.
+  final bool serverAsleep;
 
-  ApiException({this.statusCode, required this.message});
+  ApiException({this.statusCode, required this.message, this.serverAsleep = false});
 
   @override
   String toString() => message;
@@ -31,7 +34,11 @@ class ApiException implements Exception {
         msg = 'Cannot reach the server. Check your network.';
       }
 
-      return ApiException(statusCode: status, message: msg);
+      final asleep = e.response == null
+          ? const [DioExceptionType.connectionTimeout, DioExceptionType.receiveTimeout,
+              DioExceptionType.connectionError, DioExceptionType.sendTimeout].contains(e.type)
+          : const [502, 503, 504].contains(status);
+      return ApiException(statusCode: status, message: msg, serverAsleep: asleep);
     }
     if (e is ApiException) return e;
     return ApiException(message: e.toString());

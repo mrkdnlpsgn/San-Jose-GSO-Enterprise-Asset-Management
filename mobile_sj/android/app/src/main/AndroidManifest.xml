@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- release builds need this to reach the server (debug builds get it from src/debug) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Required by mobile_scanner for QR/asset-status lookup -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
