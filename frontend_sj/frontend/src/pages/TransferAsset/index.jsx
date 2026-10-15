@@ -6,6 +6,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import QrScannerOverlay from '../../components/common/QrScannerOverlay'
+import { printQrSticker } from '../../utils/printQrSticker'
 import { useToast } from '../../context/ToastContext'
 import { getAssets, updateAssetStatus } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
@@ -64,37 +65,7 @@ const isTouchDevice = () => window.matchMedia?.('(pointer: coarse)').matches
 function printAssetQR(asset) {
   const svgEl = document.getElementById('qr-result-svg')
   if (!svgEl) return
-  const svgHTML = svgEl.outerHTML
-  const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-  const win = window.open('', '_blank', 'width=480,height=640')
-  win.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>QR Code – ${esc(asset.propertyNumber)}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
-    .card { border: 2px solid #e5e7eb; border-radius: 16px; padding: 28px 32px; text-align: center; max-width: 300px; width: 100%; }
-    .card svg { display: block; margin: 0 auto 16px; }
-    .title { font-size: 17px; font-weight: 700; color: #111827; margin-bottom: 4px; }
-    .sub   { font-size: 12px; color: #6b7280; margin-bottom: 2px; }
-    .badge { display: inline-block; margin-top: 10px; padding: 3px 12px; background: #f3f4f6; border-radius: 999px; font-size: 11px; font-weight: 600; color: #374151; }
-    .org   { margin-top: 14px; padding-top: 12px; border-top: 1px solid #f3f4f6; font-size: 10px; color: #9ca3af; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    ${svgHTML}
-    <p class="title">${esc(asset.description)}</p>
-    <p class="sub">${esc(asset.category?.categoryName || '')}</p>
-    <p class="sub">${esc(asset.office?.officeName || '')}${asset.location ? ' · ' + esc(asset.location) : ''}</p>
-    <span class="badge">${esc(asset.propertyNumber)}</span>
-    <p class="org">San Jose Municipal Hall · GSO Inventory Management System</p>
-  </div>
-  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
-</body>
-</html>`)
-  win.document.close()
+  printQrSticker({ qrHtml: svgEl.outerHTML, propertyNumber: asset.propertyNumber, description: asset.description })
 }
 
 function TransferAsset() {
