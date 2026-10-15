@@ -1,7 +1,7 @@
 // One staff request (a maintenance or disposal record a STAFF account filed, e.g. by
 // changing an asset's status) as returned by GET /asset-history/requests.
 class EditRequestModel {
-  final String kind; // MAINTENANCE | DISPOSAL
+  final String kind; // MAINTENANCE | DISPOSAL | TRANSFER
   final int recordId;
   final int assetId;
   final String propertyNumber;

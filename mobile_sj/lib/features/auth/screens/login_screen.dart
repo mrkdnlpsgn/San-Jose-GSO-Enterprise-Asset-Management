@@ -21,6 +21,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _identifierCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
+  String? _error;   // shown in a red box above the fields, like the web sign-in page
 
   @override
   void dispose() {
@@ -30,6 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
     final identifier = _identifierCtrl.text.trim();
     final password = _passwordCtrl.text;
@@ -58,155 +60,241 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ));
       return;
     }
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString()),
-          backgroundColor: Colors.red.shade800,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    if (error != null) setState(() => _error = _describe(error.toString()));
+  }
+
+  // The backend's wording is terse — say it in plain words, as the web sign-in page does.
+  String _describe(String msg) {
+    if (RegExp(r'invalid (credentials|email or password|username or password)|bad credentials', caseSensitive: false)
+        .hasMatch(msg)) {
+      return 'The username or password is incorrect. Please check and try again.';
     }
+    return msg;
   }
 
   @override
   Widget build(BuildContext context) {
     final isLoading = ref.watch(authProvider).isLoading;
+    final c = context.colors;
+    final errorFg = context.isLight ? const Color(0xFFB91C1C) : const Color(0xFFFCA5A5);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_ethernet_rounded),
-            tooltip: 'Connection settings',
-            onPressed: () => Navigator.of(context).push(fadeThroughRoute(const ConnectionSettingsScreen())),
-          ),
-        ],
-      ),
+      backgroundColor: c.surface,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppTheme.brand.withValues(alpha: 0.3),
-                            width: 3,
-                          ),
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            'assets/images/images.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'San Jose GSO',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: context.colors.textPrimary,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Enterprise Asset Management',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: context.colors.textSecondary,
-                          ),
-                    ),
-                    const SizedBox(height: 40),
-                    TextFormField(
-                      controller: _identifierCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Username or Email',
-                        prefixIcon: Icon(Icons.person_outline_rounded),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.username, AutofillHints.email],
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordCtrl,
-                      obscureText: _obscure,
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscure
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                          ),
-                          tooltip: _obscure ? 'Show password' : 'Hide password',
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
-                        ),
-                      ),
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.password],
-                      onFieldSubmitted: (_) => _submit(),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => context.push('/forgot-password'),
-                        child: const Text('Forgot password?'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: isLoading ? null : _submit,
-                      child: isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Sign In'),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'For access issues, contact the ICT Administrator.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: context.colors.textSecondary,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+        child: Column(
+          children: [
+            // Philippine flag stripe, as on the web sign-in page and official government sites
+            const SizedBox(
+              height: 6,
+              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Expanded(child: ColoredBox(color: Color(0xFF0038A8))),
+                Expanded(child: ColoredBox(color: Color(0xFFCE1126))),
+                Expanded(child: ColoredBox(color: Color(0xFFFCD116))),
+              ]),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4, right: 4),
+                child: TextButton.icon(
+                  icon: const Icon(Icons.settings_ethernet_rounded, size: 20),
+                  label: const Text('Connection'),
+                  style: TextButton.styleFrom(foregroundColor: c.textSecondary),
+                  onPressed: () => Navigator.of(context).push(fadeThroughRoute(const ConnectionSettingsScreen())),
                 ),
               ),
             ),
-          ),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Form(
+                      key: _formKey,
+                      child: AutofillGroup(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Seal, office and system name — the web login's side panel, stacked
+                            Center(
+                              child: Container(
+                                width: 88,
+                                height: 88,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: c.border),
+                                ),
+                                child: ClipOval(
+                                  child: Image.asset('assets/images/images.png', fit: BoxFit.cover),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'SAN JOSE MUNICIPAL HALL',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.6,
+                                color: context.brandAccent,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'GSO Inventory Management System',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 22, height: 1.25, fontWeight: FontWeight.w800, color: c.heading),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Batangas · Republic of the Philippines',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 14, color: c.textTertiary),
+                            ),
+                            const SizedBox(height: 24),
+                            const Divider(),
+                            const SizedBox(height: 24),
+
+                            Text('Sign in', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: c.heading)),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Enter the username and password given to you by the system administrator.',
+                              style: TextStyle(fontSize: 15, height: 1.45, color: c.textSecondary),
+                            ),
+                            const SizedBox(height: 20),
+
+                            if (_error != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: context.isLight ? const Color(0xFFFEF2F2) : const Color(0x33EF4444),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: context.isLight ? const Color(0xFFFECACA) : const Color(0x66EF4444)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(Icons.error_rounded, size: 20, color: errorFg),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(_error!, style: TextStyle(fontSize: 15, height: 1.4, color: errorFg)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+
+                            const _FieldLabel('Username'),
+                            TextFormField(
+                              controller: _identifierCtrl,
+                              decoration: const InputDecoration(
+                                hintText: 'Enter your username',
+                                prefixIcon: Icon(Icons.person_rounded),
+                              ),
+                              style: const TextStyle(fontSize: 16),
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.username, AutofillHints.email],
+                              validator: (v) => v == null || v.trim().isEmpty ? 'Enter your username.' : null,
+                            ),
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                const Expanded(child: _FieldLabel('Password')),
+                                TextButton(
+                                  onPressed: () => context.push('/forgot-password'),
+                                  style: TextButton.styleFrom(
+                                    minimumSize: const Size(0, 36),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  ),
+                                  child: const Text('Forgot password?'),
+                                ),
+                              ],
+                            ),
+                            TextFormField(
+                              controller: _passwordCtrl,
+                              obscureText: _obscure,
+                              decoration: InputDecoration(
+                                hintText: 'Enter your password',
+                                prefixIcon: const Icon(Icons.lock_rounded),
+                                // a worded toggle, as on the web form — clearer than an eye icon
+                                suffixIcon: TextButton(
+                                  onPressed: () => setState(() => _obscure = !_obscure),
+                                  style: TextButton.styleFrom(foregroundColor: c.textSecondary),
+                                  child: Text(_obscure ? 'Show' : 'Hide'),
+                                ),
+                              ),
+                              style: const TextStyle(fontSize: 16),
+                              textInputAction: TextInputAction.done,
+                              autofillHints: const [AutofillHints.password],
+                              onFieldSubmitted: (_) => _submit(),
+                              validator: (v) => v == null || v.isEmpty ? 'Enter your password.' : null,
+                            ),
+                            const SizedBox(height: 24),
+                            ElevatedButton(
+                              onPressed: isLoading ? null : _submit,
+                              child: isLoading
+                                  ? const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text('Signing in…'),
+                                      ],
+                                    )
+                                  : const Text('Sign In'),
+                            ),
+                            const SizedBox(height: 24),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.lock_rounded, size: 18, color: c.textTertiary),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'For authorized San Jose Municipal Hall personnel only. Sign-ins and activity '
+                                    'in this system are recorded. For access issues, contact the ICT Administrator.',
+                                    style: TextStyle(fontSize: 14, height: 1.45, color: c.textTertiary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+/// A form label above its field, as on the web app (instead of a floating label inside it).
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: context.colors.textSecondary),
+        ),
+      );
 }

@@ -80,7 +80,7 @@ List<ReportDefinition> buildReportDefinitions() {
       title: 'Condition Report',
       subtitle: 'Asset breakdown by condition — serviceable, repairable, and unserviceable counts.',
       icon: Icons.pie_chart_outline_rounded,
-      color: AppTheme.statusAssigned,
+      color: AppTheme.info,
       load: () async {
         final assets = await assetService.getAll(size: _kAllRowsSize);
         final map = <String, _RunningSummary>{};

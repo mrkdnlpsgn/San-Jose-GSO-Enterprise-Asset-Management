@@ -6,8 +6,9 @@ import '../provider/maintenance_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
-import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/ui.dart';
+import '../../reports/utils/formatters.dart';
 import '../../../core/platform.dart';
 import '../widgets/maintenance_filter_sheet.dart';
 import '../../assets/widgets/asset_group_widgets.dart';
@@ -37,57 +38,24 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Maintenance'),
-            Text(
-              countAsync.when(
-                data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
-                loading: () => ' ',
-                error: (_, __) => ' ',
-              ),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: context.colors.textSecondary),
-            ),
-          ],
-        ),
+        title: TitleWithCount('Maintenance', subtitle: countLabel(countAsync.value)),
         actions: [
-          IconButton(
-            icon: AnimatedSwitcher(
-              duration: AppTheme.motionFast,
-              switchInCurve: AppTheme.motionCurve,
-              switchOutCurve: AppTheme.motionCurve,
-              transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-              child: Badge(
-                key: ValueKey(filtersActive),
-                isLabelVisible: filtersActive,
-                smallSize: 8,
-                child: const Icon(Icons.filter_list_rounded),
-              ),
-            ),
-            tooltip: 'Filter',
-            onPressed: () => showMaintenanceFilterSheet(context, ref),
-          ),
           if (isDesktopPlatform)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Refresh',
               onPressed: () {
                 ref.invalidate(maintenancePagedProvider(search));
                 ref.invalidate(maintenanceCountProvider(search));
               },
             ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: AppSearchField(
-              controller: _searchCtrl,
-              hintText: 'Search maintenance records...',
-              onChanged: (v) => ref.read(maintenanceSearchProvider.notifier).state = v,
-            ),
-          ),
+        bottom: ListToolbar(
+          controller: _searchCtrl,
+          hintText: 'Search maintenance records',
+          onSearch: (v) => ref.read(maintenanceSearchProvider.notifier).state = v,
+          onFilter: () => showMaintenanceFilterSheet(context, ref),
+          filtersActive: filtersActive,
         ),
       ),
       body: AutoRefreshTicker(
@@ -114,11 +82,11 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
                     m.status,
                     m.maintenanceDate,
                     m.assignedTo ?? '—',
-                    m.cost != null ? '₱${m.cost!.toStringAsFixed(2)}' : '—',
+                    fmtMoney(m.cost),
                   ],
                   summary: Text(
-                    'Total cost ₱${entry.members.fold<double>(0, (n, m) => n + (m.cost ?? 0)).toStringAsFixed(2)}',
-                    style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+                    'Total cost ${fmtMoney(entry.members.fold<double>(0, (n, m) => n + (m.cost ?? 0)))}',
+                    style: TextStyle(color: context.colors.textTertiary, fontSize: 14),
                   ),
                   onOpenRecord: (m) => context.push('/maintenance/${m.id}'),
                   onOpenDevice: (a) => context.push('/assets/${a.id}'),
@@ -141,57 +109,31 @@ class _MaintenanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return RecordCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CodeText(item.asset.propertyAndPar),
+          const SizedBox(height: 4),
+          CardTitle(item.asset.description, maxLines: 1),
+          const SizedBox(height: 6),
+          MetaLine(Icons.event_rounded, fmtDate(item.maintenanceDate)),
+          if (item.assignedTo != null) ...[
+            const SizedBox(height: 4),
+            MetaLine(Icons.person_rounded, item.assignedTo!),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
-              Row(
-                children: [
-                  StatusBadge.maintenanceType(item.maintenanceType, dense: true),
-                  if (StatusBadge.approval(item.approvalStatus) case final badge?) ...[
-                    const SizedBox(width: 6),
-                    badge,
-                  ],
-                  const Spacer(),
-                  StatusBadge.maintenanceStatus(item.status, dense: true),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                item.asset.description,
-                style: TextStyle(color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w500),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                item.asset.propertyAndPar,
-                style: const TextStyle(color: AppTheme.brand, fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today_outlined, size: 13, color: context.colors.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(item.maintenanceDate, style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-                  if (item.assignedTo != null) ...[
-                    const SizedBox(width: 12),
-                    Icon(Icons.person_outline_rounded, size: 13, color: context.colors.textSecondary),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(item.assignedTo!, style: TextStyle(color: context.colors.textTertiary, fontSize: 12), overflow: TextOverflow.ellipsis),
-                    ),
-                  ],
-                ],
-              ),
+              StatusBadge.maintenanceStatus(item.status),
+              StatusBadge.maintenanceType(item.maintenanceType),
+              if (StatusBadge.approval(item.approvalStatus) case final badge?) badge,
             ],
           ),
-        ),
+        ],
       ),
     );
   }

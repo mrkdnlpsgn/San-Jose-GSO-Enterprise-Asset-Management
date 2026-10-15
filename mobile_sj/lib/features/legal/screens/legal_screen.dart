@@ -197,19 +197,19 @@ class LegalScreen extends StatelessWidget {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.08),
+                color: AppTheme.statusMaintenance.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                border: Border.all(color: AppTheme.statusMaintenance.withValues(alpha: 0.4)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+                  Icon(Icons.warning_rounded, size: 22, color: context.isLight ? const Color(0xFFB45309) : const Color(0xFFFBBF24)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: RichText(
                       text: TextSpan(
-                        style: TextStyle(fontSize: 12, color: context.colors.textSecondary, height: 1.4),
+                        style: TextStyle(fontSize: 15, color: context.colors.textSecondary, height: 1.45),
                         children: const [
                           TextSpan(
                               text: 'This is a private, internal government system ',
@@ -264,7 +264,7 @@ class _SectionList extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('• ', style: TextStyle(color: AppTheme.brand, fontSize: 13)),
+                        Text('• ', style: TextStyle(color: context.brandAccent, fontSize: 13)),
                         Expanded(
                           child: Text(b, style: TextStyle(color: context.colors.textSecondary, fontSize: 13, height: 1.5)),
                         ),
@@ -277,7 +277,7 @@ class _SectionList extends StatelessWidget {
                     child: InkWell(
                       onTap: () => onOpenLink(l.$2),
                       child: Text('${l.$1} ↗',
-                          style: const TextStyle(color: AppTheme.brand, fontSize: 13, decoration: TextDecoration.underline)),
+                          style: TextStyle(color: context.brandAccent, fontSize: 13, decoration: TextDecoration.underline)),
                     ),
                   )),
           ],

@@ -155,21 +155,15 @@ class _IdleWarningDialogState extends State<_IdleWarningDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: context.colors.surface,
-      title: Text('Session Expiring Soon', style: TextStyle(color: context.colors.textPrimary)),
+      title: const Text('Are you still there?'),
       content: Text(
-        "You've been inactive for a while. You'll be signed out in ${widget.secondsLeft()}s unless you choose to stay.",
-        style: TextStyle(color: context.colors.textTertiary, fontSize: 13),
+        "You haven't used the app for a while. To keep the account safe you'll be signed out in "
+        '${widget.secondsLeft()} seconds unless you choose to stay.',
+        style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
       ),
       actions: [
-        TextButton(
-          onPressed: widget.onLogoutNow,
-          child: const Text('Log Out Now', style: TextStyle(color: Colors.red)),
-        ),
-        TextButton(
-          onPressed: widget.onStay,
-          child: const Text('Stay Logged In'),
-        ),
+        OutlinedButton(onPressed: widget.onLogoutNow, child: const Text('Sign out now')),
+        FilledButton(onPressed: widget.onStay, child: const Text('Stay signed in')),
       ],
     );
   }

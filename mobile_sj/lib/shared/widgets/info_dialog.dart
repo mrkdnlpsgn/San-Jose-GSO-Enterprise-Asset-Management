@@ -8,14 +8,14 @@ Future<void> showInfoDialog(BuildContext context, {required String title, requir
   return showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: ctx.colors.surface,
-      icon: const Icon(Icons.error_outline_rounded, color: Colors.amber, size: 32),
-      title: Text(title, style: TextStyle(color: ctx.colors.textPrimary), textAlign: TextAlign.center),
-      content: Text(message, style: TextStyle(color: ctx.colors.textTertiary, fontSize: 13), textAlign: TextAlign.center),
+      icon: const Icon(Icons.info_rounded, color: AppTheme.statusMaintenance, size: 36),
+      title: Text(title, textAlign: TextAlign.center),
+      content: Text(message,
+          style: TextStyle(color: ctx.colors.textSecondary, fontSize: 15, height: 1.45), textAlign: TextAlign.center),
       actions: [
         SizedBox(
           width: double.infinity,
-          child: TextButton(
+          child: FilledButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('OK'),
           ),

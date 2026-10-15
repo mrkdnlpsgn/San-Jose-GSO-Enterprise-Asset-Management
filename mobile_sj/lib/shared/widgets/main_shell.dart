@@ -1,79 +1,185 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 
-/// Material 3's default [NavigationBar] content height (excludes safe-area inset).
-const double kMainShellBarHeight = 80;
+/// Height of the bottom bar's content (excludes the safe-area inset).
+const double kMainShellBarHeight = 72;
 
 /// How far a shell tab's scrollable content needs to pad its bottom so the
-/// last item clears the translucent bottom bar instead of sitting behind it —
+/// last item clears the bottom bar instead of sitting behind it —
 /// [MainShell] uses `extendBody`, so each tab's own body is responsible for
 /// its own clearance under the bar.
 extension MainShellClearanceX on BuildContext {
   double get mainShellBottomInset => kMainShellBarHeight + MediaQuery.of(this).padding.bottom;
 }
 
-/// Bottom-nav shell for the app's four most-used destinations. Everything
-/// else (Maintenance, Disposal, Reports, Accounts, and their sub-screens)
-/// stays reachable via the Dashboard's module cards and pushes outside this
-/// shell, so it isn't squeezed into the bar.
+class _Tab {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  const _Tab(this.icon, this.selectedIcon, this.label);
+}
+
+// Branch order must match the StatefulShellRoute branches in app_router.dart.
+const _tabs = [
+  _Tab(Icons.home_outlined, Icons.home_rounded, 'Home'),
+  _Tab(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Assets'),
+  _Tab(Icons.qr_code_scanner_rounded, Icons.qr_code_scanner_rounded, 'Scan'),
+  _Tab(Icons.history_rounded, Icons.history_rounded, 'History'),
+  _Tab(Icons.person_outline_rounded, Icons.person_rounded, 'Account'),
+];
+const _scanIndex = 2;
+
+/// Bottom bar for the five most-used destinations, eGovPH-style: Scan — the main
+/// thing people do with the app in the field — is a raised round button in the middle,
+/// under the thumb. Plain white bar with a hairline on top; no blur or translucency.
 class MainShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   const MainShell({super.key, required this.navigationShell});
 
+  void _go(int index) => navigationShell.goBranch(
+        index,
+        initialLocation: index == navigationShell.currentIndex,
+      );
+
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final current = navigationShell.currentIndex;
     return Scaffold(
-      // Each tab's content scrolls fully behind the bar (see mainShellBottomInset
-      // above for how each tab clears it), so the blur below has real content
-      // moving underneath it — a flat strip with nothing behind it wouldn't
-      // read as a material at all.
+      // Tabs pad their own bottom with mainShellBottomInset, so the bar can sit over the body.
       extendBody: true,
       body: navigationShell,
-      bottomNavigationBar: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: context.colors.surface.withValues(alpha: 0.75),
-              border: Border(top: BorderSide(color: context.colors.border)),
-            ),
-            child: NavigationBar(
-              selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (index) => navigationShell.goBranch(
-                index,
-                initialLocation: index == navigationShell.currentIndex,
-              ),
-              backgroundColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              indicatorColor: AppTheme.brand.withValues(alpha: 0.15),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard_rounded),
-                  label: 'Dashboard',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  selectedIcon: Icon(Icons.inventory_2_rounded),
-                  label: 'Assets',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.qr_code_scanner_outlined),
-                  selectedIcon: Icon(Icons.qr_code_scanner_rounded),
-                  label: 'Scan',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings_rounded),
-                  label: 'Settings',
-                ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: c.surface,
+          border: Border(top: BorderSide(color: c.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: kMainShellBarHeight,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < _tabs.length; i++)
+                  Expanded(
+                    child: i == _scanIndex
+                        ? _ScanButton(selected: current == i, onTap: () => _go(i))
+                        : _TabButton(tab: _tabs[i], selected: current == i, onTap: () => _go(i)),
+                  ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  final _Tab tab;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TabButton({required this.tab, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? context.brandAccent : context.colors.textSecondary;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: tab.label,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: AppTheme.motionFast,
+              width: 56,
+              height: 30,
+              decoration: BoxDecoration(
+                color: selected
+                    ? (context.isLight ? AppTheme.brandTint : AppTheme.brand.withValues(alpha: 0.18))
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(selected ? tab.selectedIcon : tab.icon, size: 25, color: color),
+            ),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                tab.label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The raised centre button. Overflows the bar's top edge a little, like eGovPH's
+/// Digital ID button — a solid green circle with a white ring, no glow.
+class _ScanButton extends StatelessWidget {
+  final bool selected;
+  final VoidCallback onTap;
+  const _ScanButton({required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Scan QR code',
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        // the circle is positioned to stick out above the bar without changing its height
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.topCenter,
+          children: [
+            Positioned(
+              top: -18,
+              child: Container(
+                width: 62,
+                height: 62,
+                decoration: BoxDecoration(
+                  color: AppTheme.brandButton,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: c.surface, width: 4),
+                ),
+                child: const Icon(Icons.qr_code_scanner_rounded, size: 28, color: Colors.white),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 10,
+              child: Text(
+                'Scan',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  color: selected ? context.brandAccent : c.textPrimary,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -11,8 +12,16 @@ import '../model/asset_model.dart';
 /// three in sync if this ever changes.
 String qrPayloadFor(AssetModel asset) => 'asset:${asset.id}:${asset.propertyNumber}';
 
+/// Same seal the web sticker puts in the middle of the code (web public/logo-qr.png).
+const _kSealAsset = 'assets/images/logo_qr.png';
+
+/// The seal covers 24% of the QR's width (~6% of its area). With error-correction
+/// level H (≈30% recoverable) the code still scans — the same ratio as the web sticker.
+const _kSealRatio = 0.24;
+
 Future<void> showAssetQrSheet(BuildContext context, AssetModel asset) {
   return showModalBottomSheet(
+    useRootNavigator: true, // above the bottom bar, not behind it
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -33,39 +42,57 @@ class _AssetQrSheet extends StatefulWidget {
 class _AssetQrSheetState extends State<_AssetQrSheet> {
   bool _printing = false;
 
+  // Matches the web's printQrSticker: one 30 × 30 mm sticker — the QR (22.5 mm) with the
+  // municipal seal in the middle and the property number under it. The page size is the
+  // sticker itself, so a label printer puts one tag per label.
   Future<void> _print() async {
     setState(() => _printing = true);
     try {
       final asset = widget.asset;
+      final seal = pw.MemoryImage((await rootBundle.load(_kSealAsset)).buffer.asUint8List());
+      const qrSize = 22.5 * PdfPageFormat.mm;
       final doc = pw.Document();
       doc.addPage(
         pw.Page(
-          pageFormat: const PdfPageFormat(226.8, 340.2), // ~80x120mm label
-          margin: const pw.EdgeInsets.all(18),
+          pageFormat: const PdfPageFormat(30 * PdfPageFormat.mm, 30 * PdfPageFormat.mm, marginAll: 1.5 * PdfPageFormat.mm),
           build: (context) => pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.center,
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text('SAN JOSE GSO', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 2),
-              pw.Text('ICT Asset Tag', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
-              pw.SizedBox(height: 16),
-              pw.BarcodeWidget(
-                barcode: pw.Barcode.qrCode(),
-                data: qrPayloadFor(asset),
-                width: 140,
-                height: 140,
+              pw.SizedBox(
+                width: qrSize,
+                height: qrSize,
+                child: pw.Stack(
+                  alignment: pw.Alignment.center,
+                  children: [
+                    pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(errorCorrectLevel: pw.BarcodeQRCorrectionLevel.high),
+                      data: qrPayloadFor(asset),
+                      width: qrSize,
+                      height: qrSize,
+                      drawText: false,
+                    ),
+                    pw.Container(
+                      width: qrSize * _kSealRatio,
+                      height: qrSize * _kSealRatio,
+                      padding: const pw.EdgeInsets.all(0.35 * PdfPageFormat.mm),
+                      decoration: const pw.BoxDecoration(color: PdfColors.white, shape: pw.BoxShape.circle),
+                      child: pw.Image(seal),
+                    ),
+                  ],
+                ),
               ),
-              pw.SizedBox(height: 14),
-              pw.Text(asset.propertyNumber, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 4),
-              pw.Text(asset.description,
-                  textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+              pw.SizedBox(height: 0.6 * PdfPageFormat.mm),
+              pw.Text(asset.propertyNumber,
+                  maxLines: 1, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, letterSpacing: 0.15)),
             ],
           ),
         ),
       );
-      await Printing.layoutPdf(onLayout: (format) async => doc.save());
+      await Printing.layoutPdf(
+        name: 'QR Sticker – ${asset.propertyNumber}',
+        onLayout: (format) async => doc.save(),
+      );
     } finally {
       if (mounted) setState(() => _printing = false);
     }
@@ -74,49 +101,82 @@ class _AssetQrSheetState extends State<_AssetQrSheet> {
   @override
   Widget build(BuildContext context) {
     final asset = widget.asset;
+    final c = context.colors;
+    const qrSize = 220.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Asset QR Code',
-              style: TextStyle(color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+          Text('Asset QR Code', style: TextStyle(color: c.heading, fontSize: 19, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text('Scan with QR Asset Lookup to check this asset\'s status',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-          const SizedBox(height: 20),
+          Text(asset.propertyNumber,
+              style: TextStyle(color: c.textTertiary, fontSize: 15, fontWeight: FontWeight.w600, fontFamily: 'monospace')),
+          const SizedBox(height: 18),
+          // same look as the web modal: white tile, QR with the seal in the middle
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: context.colors.border),
+              border: Border.all(color: c.border),
             ),
-            child: QrImageView(
-              data: qrPayloadFor(asset),
-              size: 220,
-              backgroundColor: Colors.white,
+            child: SizedBox(
+              width: qrSize,
+              height: qrSize,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  QrImageView(
+                    data: qrPayloadFor(asset),
+                    size: qrSize,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: Colors.white,
+                    errorCorrectionLevel: QrErrorCorrectLevel.H,
+                  ),
+                  Container(
+                    width: qrSize * _kSealRatio,
+                    height: qrSize * _kSealRatio,
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    child: Image.asset(_kSealAsset),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          Text(asset.propertyNumber,
-              style: const TextStyle(color: AppTheme.brand, fontWeight: FontWeight.w700, fontSize: 15)),
-          const SizedBox(height: 2),
           Text(asset.description,
-              textAlign: TextAlign.center, style: TextStyle(color: context.colors.textSecondary, fontSize: 13)),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: c.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text('Scan with the Scan button to check this asset\'s status.',
+              textAlign: TextAlign.center, style: TextStyle(color: c.textTertiary, fontSize: 14)),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _printing ? null : _print,
-              icon: _printing
-                  ? const SizedBox(
-                      width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.print_outlined),
-              label: Text(_printing ? 'Preparing…' : 'Print Label'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _printing ? null : _print,
+                  icon: _printing
+                      ? const SizedBox(
+                          width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.print_rounded),
+                  label: Text(_printing ? 'Preparing…' : 'Print Label'),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 8),
+          Text('Prints one 30 × 30 mm sticker, the same as the web app.',
+              textAlign: TextAlign.center, style: TextStyle(color: c.textTertiary, fontSize: 13)),
         ],
       ),
     );

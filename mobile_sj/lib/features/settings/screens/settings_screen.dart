@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/logout_dialog.dart';
 import '../../auth/model/user_model.dart' show roleLabel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,10 +20,87 @@ class SettingsScreen extends ConsumerWidget {
     final user = ref.watch(authProvider).value;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('Account')),
       body: ListView(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
         children: [
+          _sectionLabel(context, 'SIGNED IN AS'),
+          const SizedBox(height: 12),
+          if (user != null)
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: context.colors.subtle,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: context.colors.border),
+                      ),
+                      child: Text(
+                        user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
+                        style: TextStyle(color: context.colors.heading, fontWeight: FontWeight.w700, fontSize: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(user.displayName,
+                              style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w700, fontSize: 17)),
+                          const SizedBox(height: 2),
+                          Text('@${user.username}', style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
+                          const SizedBox(height: 8),
+                          StatusBadge(
+                            label: roleLabel(user.role),
+                            color: user.isAdmin ? AppTheme.brand : AppTheme.info,
+                          ),
+                          if (!user.isAdmin) ...[
+                            const SizedBox(height: 8),
+                            Text(user.officeName ?? 'No office assigned yet',
+                                style: TextStyle(color: context.colors.textSecondary, fontSize: 15)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              minTileHeight: 56,
+              leading: Icon(Icons.lock_reset_rounded, color: context.brandAccent),
+              title: Text('Change Password',
+                  style: TextStyle(color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+              trailing: Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary),
+              onTap: () => context.push('/settings/change-password'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Sign out'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              foregroundColor: const Color(0xFFDC2626),
+              side: const BorderSide(color: Color(0xFFFCA5A5)),
+            ),
+            onPressed: () async {
+              final confirmed = await showLogoutDialog(context);
+              if (confirmed == true) ref.read(authProvider.notifier).logout();
+            },
+          ),
+          const SizedBox(height: 24),
           _sectionLabel(context, 'APPEARANCE'),
           const SizedBox(height: 12),
           Card(
@@ -65,65 +143,11 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          _sectionLabel(context, 'ACCOUNT'),
-          const SizedBox(height: 12),
-          if (user != null) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.brand.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.brand.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppTheme.brand.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      user.username.isNotEmpty ? user.username[0].toUpperCase() : '?',
-                      style: const TextStyle(color: AppTheme.brand, fontWeight: FontWeight.w700, fontSize: 18),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(user.username,
-                            style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
-                        const SizedBox(height: 4),
-                        StatusBadge(
-                          label: roleLabel(user.role),
-                          color: user.isAdmin ? AppTheme.brand : AppTheme.statusAssigned,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.lock_reset_rounded, color: AppTheme.brand),
-              title: Text('Change Password', style: TextStyle(color: context.colors.textPrimary)),
-              trailing: Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary),
-              onTap: () => context.push('/settings/change-password'),
-            ),
-          ),
-          const SizedBox(height: 24),
           _sectionLabel(context, 'ABOUT'),
           const SizedBox(height: 12),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined, color: AppTheme.brand),
+              leading: Icon(Icons.privacy_tip_outlined, color: context.brandAccent),
               title: Text('Privacy, Terms & Conditions', style: TextStyle(color: context.colors.textPrimary)),
               trailing: Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary),
               onTap: () => context.push('/legal'),
@@ -140,7 +164,7 @@ class SettingsScreen extends ConsumerWidget {
         label,
         style: TextStyle(
           color: context.colors.textTertiary,
-          fontSize: 12,
+          fontSize: 14,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.8,
         ),
@@ -167,7 +191,7 @@ class _AboutCard extends StatelessWidget {
                     color: AppTheme.brand.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.location_city_rounded, color: AppTheme.brand, size: 22),
+                  child: Icon(Icons.location_city_rounded, color: context.brandAccent, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Column(
@@ -176,7 +200,7 @@ class _AboutCard extends StatelessWidget {
                     Text('San Jose GSO',
                         style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
                     Text('Enterprise Asset Management',
-                        style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                        style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                   ],
                 ),
               ],
@@ -188,15 +212,15 @@ class _AboutCard extends StatelessWidget {
                 final version = snapshot.hasData
                     ? 'Version ${snapshot.data!.version} (${snapshot.data!.buildNumber})'
                     : 'Version —';
-                return Text(version, style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5));
+                return Text(version, style: TextStyle(color: context.colors.textTertiary, fontSize: 14));
               },
             ),
             const SizedBox(height: 4),
             Text('San Jose Municipal Hall · Batangas · Republic of the Philippines',
-                style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
+                style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
             const SizedBox(height: 4),
             Text('For access issues, contact the ICT Administrator.',
-                style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
+                style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
           ],
         ),
       ),

@@ -5,6 +5,7 @@ import '../data/maintenance_service.dart';
 import '../provider/maintenance_provider.dart';
 import '../../../features/assets/model/asset_model.dart';
 import '../../../shared/widgets/asset_picker.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/utils/idempotency.dart';
@@ -98,6 +99,17 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit Maintenance' : 'New Maintenance')),
+      // main button stays in reach at the bottom, however long the form
+      bottomNavigationBar: FormActionBar(child: SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_isEdit ? 'Save Changes' : 'Create Record'),
+            ),
+          )),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -115,17 +127,6 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
             _field(_actionsTaken, 'Actions Taken', required: true, maxLines: 3),
             _field(_assignedTo, 'Assigned To'),
             _field(_cost, 'Cost (₱)', keyboardType: TextInputType.number),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(_isEdit ? 'Save Changes' : 'Create Record'),
-              ),
-            ),
             const SizedBox(height: 24),
           ],
         ),
@@ -152,7 +153,7 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
         child: _selectedAsset != null
             ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_selectedAsset!.description, style: TextStyle(color: context.colors.textPrimary, fontSize: 14)),
-                Text(_selectedAsset!.propertyNumber, style: const TextStyle(color: AppTheme.brand, fontSize: 12)),
+                CodeText(_selectedAsset!.propertyNumber, size: 14),
               ])
             : Text('Tap to select asset', style: TextStyle(color: context.colors.textSecondary)),
       ),
@@ -180,7 +181,7 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
         initialValue: value,
         decoration: InputDecoration(labelText: label),
         dropdownColor: context.colors.surface,
-        items: options.map((e) => DropdownMenuItem(value: e, child: Text(e.replaceAll('_', ' ')))).toList(),
+        items: options.map((e) => DropdownMenuItem(value: e, child: Text(titleCaseCode(e)))).toList(),
         onChanged: onChanged,
       ),
     );
@@ -198,7 +199,7 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
             lastDate: DateTime.now().add(const Duration(days: 365)),
             builder: (ctx, child) => Theme(
               data: Theme.of(ctx).copyWith(
-                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brand),
+                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brandButton),
               ),
               child: child!,
             ),

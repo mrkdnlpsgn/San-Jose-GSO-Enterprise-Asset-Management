@@ -54,7 +54,7 @@ class PasswordRequirementsList extends StatelessWidget {
                         Text(
                           r.label,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 14,
                             color: met ? AppTheme.brand : context.colors.textTertiary,
                           ),
                         ),

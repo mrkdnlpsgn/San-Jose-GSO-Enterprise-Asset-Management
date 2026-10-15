@@ -33,7 +33,7 @@ class OfflineBanner extends ConsumerWidget {
                           Icon(Icons.wifi_off_rounded, size: 15, color: Colors.white),
                           SizedBox(width: 8),
                           Text("You're offline",
-                              style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),

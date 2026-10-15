@@ -5,6 +5,7 @@ import '../data/disposal_service.dart';
 import '../provider/disposal_provider.dart';
 import '../../../features/assets/model/asset_model.dart';
 import '../../../shared/widgets/asset_picker.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/utils/idempotency.dart';
@@ -104,6 +105,17 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit Disposal' : 'New Disposal')),
+      // main button stays in reach at the bottom, however long the form
+      bottomNavigationBar: FormActionBar(child: SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_isEdit ? 'Save Changes' : 'Create Record'),
+            ),
+          )),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -126,18 +138,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: Text('OR No. and Amount are typically filled in once the item has actually been sold.',
-                  style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(_isEdit ? 'Save Changes' : 'Create Record'),
-              ),
+                  style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
             ),
             const SizedBox(height: 24),
           ],
@@ -165,7 +166,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
         child: _selectedAsset != null
             ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_selectedAsset!.description, style: TextStyle(color: context.colors.textPrimary, fontSize: 14)),
-                Text(_selectedAsset!.propertyNumber, style: const TextStyle(color: AppTheme.brand, fontSize: 12)),
+                CodeText(_selectedAsset!.propertyNumber, size: 14),
               ])
             : Text('Tap to select asset', style: TextStyle(color: context.colors.textSecondary)),
       ),
@@ -198,8 +199,8 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-            Text(value, style: TextStyle(color: context.colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w500)),
+            Text(label, style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
+            Text(value, style: TextStyle(color: context.colors.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
           ],
         ),
       );
@@ -225,7 +226,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
         initialValue: value,
         decoration: InputDecoration(labelText: label),
         dropdownColor: context.colors.surface,
-        items: options.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+        items: options.map((e) => DropdownMenuItem(value: e, child: Text(titleCaseCode(e)))).toList(),
         onChanged: onChanged,
       ),
     );
@@ -243,7 +244,7 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
             lastDate: DateTime.now(),
             builder: (ctx, child) => Theme(
               data: Theme.of(ctx).copyWith(
-                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brand),
+                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brandButton),
               ),
               child: child!,
             ),

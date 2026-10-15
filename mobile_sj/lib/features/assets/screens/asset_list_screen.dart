@@ -16,6 +16,7 @@ import '../data/asset_service.dart';
 import '../utils/asset_excel.dart';
 import '../widgets/asset_filter_sheet.dart';
 import '../widgets/asset_group_widgets.dart';
+import '../../reports/utils/formatters.dart';
 import '../../auth/provider/auth_provider.dart';
 
 class AssetListScreen extends ConsumerStatefulWidget {
@@ -80,86 +81,99 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
                 loading: () => ' ',
                 error: (_, __) => ' ',
               ),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: context.colors.textSecondary),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.colors.textTertiary),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: AnimatedSwitcher(
-              duration: AppTheme.motionFast,
-              switchInCurve: AppTheme.motionCurve,
-              switchOutCurve: AppTheme.motionCurve,
-              transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-              child: Badge(
-                key: ValueKey(filtersActive),
-                isLabelVisible: filtersActive,
-                smallSize: 8,
-                child: const Icon(Icons.filter_list_rounded),
-              ),
-            ),
-            tooltip: 'Filter',
-            onPressed: () => showAssetFilterSheet(context, ref),
-          ),
           if (isDesktopPlatform)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Refresh',
               onPressed: () {
                 ref.invalidate(assetsPagedProvider(search));
                 ref.invalidate(assetCountProvider(search));
               },
             ),
-          PopupMenuButton<String>(
-            icon: _exporting
-                ? const SizedBox(width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
-                : const Icon(Icons.more_vert_rounded),
-            onSelected: (value) async {
-              if (value == 'export') {
-                await _export();
-              } else if (value == 'import') {
-                final result = await context.push<bool>('/assets/import');
-                if (result == true) {
-                  ref.invalidate(assetsPagedProvider(search));
-                  ref.invalidate(assetCountProvider(search));
-                }
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'export', child: Row(children: [
-                Icon(Icons.file_download_outlined, size: 18), SizedBox(width: 10), Text('Export'),
-              ])),
-              if (isAdmin)
-                const PopupMenuItem(value: 'import', child: Row(children: [
-                  Icon(Icons.file_upload_outlined, size: 18), SizedBox(width: 10), Text('Import'),
-                ])),
-            ],
-          ),
+          // "Add Asset" sits in the top bar like the web page's green button — no floating button
+          if (isAdmin)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: FilledButton.icon(
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text('Add Asset'),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
+                onPressed: () async {
+                  final result = await context.push<bool>('/assets/new');
+                  if (result == true) {
+                    ref.invalidate(assetsPagedProvider(search));
+                    ref.invalidate(assetCountProvider(search));
+                  }
+                },
+              ),
+            ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
+          preferredSize: const Size.fromHeight(124),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: AppSearchField(
-              controller: _searchCtrl,
-              hintText: 'Search by property number, description...',
-              onChanged: (v) => ref.read(assetSearchProvider.notifier).state = v,
+            child: Column(
+              children: [
+                AppSearchField(
+                  controller: _searchCtrl,
+                  hintText: 'Search property no. or description',
+                  onChanged: (v) => ref.read(assetSearchProvider.notifier).state = v,
+                ),
+                const SizedBox(height: 10),
+                // Worded buttons, as on the web page, instead of icons hidden in a ⋮ menu
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: Badge(
+                          isLabelVisible: filtersActive,
+                          smallSize: 8,
+                          backgroundColor: AppTheme.brand,
+                          child: const Icon(Icons.filter_list_rounded, size: 20),
+                        ),
+                        label: Text(filtersActive ? 'Filters on' : 'Filter'),
+                        style: _toolbarButton(context, active: filtersActive),
+                        onPressed: () => showAssetFilterSheet(context, ref),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: _exporting
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.file_download_outlined, size: 20),
+                        label: const Text('Export'),
+                        style: _toolbarButton(context),
+                        onPressed: _exporting ? null : _export,
+                      ),
+                    ),
+                    if (isAdmin) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.file_upload_outlined, size: 20),
+                          label: const Text('Import'),
+                          style: _toolbarButton(context),
+                          onPressed: () async {
+                            final result = await context.push<bool>('/assets/import');
+                            if (result == true) {
+                              ref.invalidate(assetsPagedProvider(search));
+                              ref.invalidate(assetCountProvider(search));
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ),
           ),
-        ),
-      ),
-      floatingActionButton: !isAdmin ? null : Padding(
-        padding: const EdgeInsets.only(bottom: kMainShellBarHeight),
-        child: FloatingActionButton(
-          backgroundColor: AppTheme.brand,
-          child: const Icon(Icons.add_rounded, color: Colors.white),
-          onPressed: () async {
-            final result = await context.push<bool>('/assets/new');
-            if (result == true) {
-              ref.invalidate(assetsPagedProvider(search));
-              ref.invalidate(assetCountProvider(search));
-            }
-          },
         ),
       ),
       body: AutoRefreshTicker(
@@ -184,6 +198,14 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
       ),
     );
   }
+
+  ButtonStyle _toolbarButton(BuildContext context, {bool active = false}) => OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        backgroundColor: active ? (context.isLight ? AppTheme.brandTint : AppTheme.brand.withValues(alpha: 0.15)) : context.colors.surface,
+        foregroundColor: active ? context.brandAccent : context.colors.textPrimary,
+        side: BorderSide(color: active ? AppTheme.brand : (context.isLight ? const Color(0xFFCBD5E1) : context.colors.border)),
+      );
 }
 
 // One row in the list: a single asset, or a group of same-model devices that were
@@ -247,7 +269,10 @@ class _AssetGroupCardState extends State<_AssetGroupCard> {
     final count = first.groupSize ?? members.length;
     final total = first.groupTotalValue ?? members.fold<double>(0, (n, m) => n + m.unitValue * m.quantity);
     final offices = members.map((m) => m.office.officeName).toSet();
+    final accent = context.brandAccent;
     return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           InkWell(
@@ -266,41 +291,33 @@ class _AssetGroupCardState extends State<_AssetGroupCard> {
                       children: [
                         Text(first.description,
                             style: TextStyle(
-                                color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w500),
+                                color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            Icon(Icons.business_outlined, size: 13, color: context.colors.textSecondary),
-                            const SizedBox(width: 4),
+                            Icon(Icons.apartment_rounded, size: 16, color: context.colors.textTertiary),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: Text(offices.length == 1 ? offices.first : 'Multiple locations',
-                                  style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
+                                  style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
                                   overflow: TextOverflow.ellipsis),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text('Total value ₱${total.toStringAsFixed(2)}',
-                            style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+                        Text('Total value ${fmtMoney(total)}',
+                            style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.brand.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text('$count devices',
-                        style: const TextStyle(color: AppTheme.brand, fontSize: 11.5, fontWeight: FontWeight.w600)),
-                  ),
+                  StatusBadge(label: '$count devices', color: AppTheme.gov),
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     tooltip: 'Group details & lifecycle',
-                    icon: const Icon(Icons.info_outline_rounded, color: AppTheme.brand),
+                    icon: Icon(Icons.info_outline_rounded, color: accent),
                     onPressed: () => showAssetGroupSheet(
                       context,
                       groupId: _groupId,
@@ -308,7 +325,7 @@ class _AssetGroupCardState extends State<_AssetGroupCard> {
                       onOpenDevice: widget.onOpen,
                     ),
                   ),
-                  Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppTheme.brand),
+                  Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: accent),
                 ],
               ),
             ),
@@ -326,7 +343,7 @@ class _AssetGroupCardState extends State<_AssetGroupCard> {
                           child: SizedBox(
                               width: 22,
                               height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))),
+                              child: CircularProgressIndicator(strokeWidth: 2))),
                     );
                   }
                   // If the fetch fails, fall back to whichever devices are already loaded.
@@ -352,50 +369,69 @@ class _AssetCard extends StatelessWidget {
     // An older record that counted several devices in one row (Qty > 1) but only stored
     // one set of numbers — flagged so it can be edited into separate devices.
     final legacyMulti = asset.groupId == null && asset.quantity >= 2;
+    final c = context.colors;
     return Card(
+      margin: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(asset.propertyAndPar,
-                        style: const TextStyle(color: AppTheme.brand, fontSize: 12, fontWeight: FontWeight.w600),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Property no. in the monospace style the web table uses
+                    Text(asset.propertyAndPar,
+                        style: TextStyle(
+                          color: c.textTertiary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                          letterSpacing: -0.2,
+                        ),
                         overflow: TextOverflow.ellipsis),
-                  ),
-                  StatusBadge.lifecycle(asset.lifecycleStatus),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(asset.description,
-                  style: TextStyle(color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w500),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.business_outlined, size: 13, color: context.colors.textSecondary),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(asset.office.officeName,
-                        style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                  const SizedBox(width: 8),
-                  StatusBadge.condition(asset.condition),
-                ],
-              ),
-              if (legacyMulti) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Counts ${asset.quantity} devices but only one is recorded — edit to add the others.',
-                  style: const TextStyle(color: Colors.amber, fontSize: 11.5, fontStyle: FontStyle.italic),
+                    const SizedBox(height: 4),
+                    Text(asset.description,
+                        style: TextStyle(color: c.textPrimary, fontSize: 16, fontWeight: FontWeight.w600, height: 1.3),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.apartment_rounded, size: 16, color: c.textTertiary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(asset.office.officeName,
+                              style: TextStyle(color: c.textSecondary, fontSize: 14), overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        StatusBadge.condition(asset.condition),
+                        StatusBadge.lifecycle(asset.lifecycleStatus),
+                      ],
+                    ),
+                    if (legacyMulti) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Counts ${asset.quantity} devices but only one is recorded — edit to add the others.',
+                        style: TextStyle(
+                          color: context.isLight ? const Color(0xFFB45309) : const Color(0xFFFBBF24),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, color: c.textTertiary),
             ],
           ),
         ),

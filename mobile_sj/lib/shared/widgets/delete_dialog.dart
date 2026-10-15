@@ -29,40 +29,42 @@ class _DeleteDialogState extends State<_DeleteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: context.colors.surface,
-      title: Text('Confirm Delete', style: TextStyle(color: context.colors.textPrimary)),
+      title: const Text('Delete this record?'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('This action cannot be undone.',
-              style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
+          // records that ask for a reason go to the Recycle Bin; reference data (offices, categories) doesn't
+          Text(
+              widget.requireReason
+                  ? 'It moves to the Recycle Bin, where an administrator can restore it.'
+                  : 'This cannot be undone.',
+              style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45)),
           if (widget.requireReason) ...[
             const SizedBox(height: 16),
             TextField(
               controller: _ctrl,
               maxLines: 2,
-              decoration: InputDecoration(
-                labelText: 'Reason for deletion',
-                hintText: 'Required',
-                hintStyle: TextStyle(color: context.colors.textTertiary),
+              style: const TextStyle(fontSize: 16),
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Reason for deletion (required)',
+                hintText: 'e.g. Entered twice by mistake',
               ),
             ),
           ],
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: TextStyle(color: context.colors.textTertiary)),
-        ),
-        TextButton(
-          onPressed: () {
-            if (widget.requireReason && _ctrl.text.trim().isEmpty) return;
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+          // disabled until a reason is typed, instead of silently ignoring the tap
+          onPressed: widget.requireReason && _ctrl.text.trim().isEmpty ? null : () {
             HapticFeedback.mediumImpact();
             Navigator.pop(context, widget.requireReason ? _ctrl.text.trim() : 'deleted');
           },
-          child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          child: const Text('Delete'),
         ),
       ],
     );

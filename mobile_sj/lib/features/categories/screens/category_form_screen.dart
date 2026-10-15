@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/data/reference_service.dart';
 import '../../../shared/utils/idempotency.dart';
@@ -66,6 +67,17 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit Category' : 'New Category')),
+      // main button stays in reach at the bottom, however long the form
+      bottomNavigationBar: FormActionBar(child: SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_isEdit ? 'Save Changes' : 'Add Category'),
+            ),
+          )),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -92,16 +104,6 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(_isEdit ? 'Save Changes' : 'Add Category'),
-              ),
-            ),
           ],
         ),
       ),

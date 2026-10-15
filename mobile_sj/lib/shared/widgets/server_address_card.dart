@@ -90,7 +90,7 @@ class _ServerAddressCardState extends ConsumerState<ServerAddressCard> {
                 style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
             const SizedBox(height: 4),
             Text('The backend host:port this app connects to — change this if the IP changes (e.g. a different Wi-Fi network).',
-                style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45)),
             const SizedBox(height: 14),
             TextField(
               controller: _ctrl,
@@ -105,12 +105,12 @@ class _ServerAddressCardState extends ConsumerState<ServerAddressCard> {
                 children: [
                   if (_testResult == _TestResult.testing)
                     const SizedBox(width: 14, height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
+                        child: CircularProgressIndicator(strokeWidth: 2))
                   else
                     Icon(
                       _testResult == _TestResult.success ? Icons.check_circle_rounded : Icons.error_rounded,
                       size: 16,
-                      color: _testResult == _TestResult.success ? AppTheme.brand : Colors.red,
+                      color: _testResult == _TestResult.success ? context.brandAccent : const Color(0xFFDC2626),
                     ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -121,8 +121,8 @@ class _ServerAddressCardState extends ConsumerState<ServerAddressCard> {
                               ? 'Connected successfully.'
                               : _testError ?? 'Could not connect.',
                       style: TextStyle(
-                        fontSize: 12.5,
-                        color: _testResult == _TestResult.failure ? Colors.red.shade300 : context.colors.textSecondary,
+                        fontSize: 14,
+                        color: _testResult == _TestResult.failure ? const Color(0xFFDC2626) : context.colors.textSecondary,
                       ),
                     ),
                   ),
@@ -150,7 +150,7 @@ class _ServerAddressCardState extends ConsumerState<ServerAddressCard> {
             TextButton(
               onPressed: _reset,
               child: Text('Reset to default (${ApiClient.defaultAddress})',
-                  style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
+                  style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
             ),
           ],
         ),

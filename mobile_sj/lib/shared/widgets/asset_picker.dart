@@ -7,6 +7,7 @@ import 'app_search_field.dart';
 
 Future<AssetModel?> showAssetPicker(BuildContext context, WidgetRef ref) {
   return showModalBottomSheet<AssetModel>(
+    useRootNavigator: true, // above the bottom bar, not behind it
     context: context,
     isScrollControlled: true,
     backgroundColor: context.colors.surface,
@@ -65,7 +66,7 @@ class _AssetPickerSheetState extends ConsumerState<_AssetPickerSheet> {
           ),
           Expanded(
             child: state.isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.brand))
+                ? const Center(child: CircularProgressIndicator())
                 : state.error != null && state.items.isEmpty
                     ? Center(child: Text(state.error.toString(), style: TextStyle(color: context.colors.textTertiary)))
                     : NotificationListener<ScrollNotification>(
@@ -86,7 +87,7 @@ class _AssetPickerSheetState extends ConsumerState<_AssetPickerSheet> {
                                   child: SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   ),
                                 ),
                               );
@@ -94,7 +95,7 @@ class _AssetPickerSheetState extends ConsumerState<_AssetPickerSheet> {
                             final asset = state.items[i];
                             return ListTile(
                               title: Text(asset.description, style: TextStyle(color: context.colors.textPrimary, fontSize: 14)),
-                              subtitle: Text(asset.propertyNumber, style: const TextStyle(color: AppTheme.brand, fontSize: 12)),
+                              subtitle: Text(asset.propertyNumber, style: TextStyle(color: context.brandAccent, fontSize: 14)),
                               onTap: () => Navigator.pop(context, asset),
                             );
                           },

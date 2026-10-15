@@ -8,6 +8,8 @@ import '../provider/ai_recommendation_provider.dart';
 import '../model/ai_recommendation_model.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/section_card.dart';
+import '../../reports/utils/formatters.dart';
 import '../../../shared/widgets/delete_dialog.dart';
 import '../../../shared/widgets/main_shell.dart';
 import '../../auth/provider/auth_provider.dart';
@@ -30,78 +32,63 @@ class AssetDetailScreen extends ConsumerWidget {
     final assetAsync = ref.watch(assetDetailProvider(assetId));
     final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
 
+    void refresh() {
+      ref.invalidate(assetDetailProvider(assetId));
+      ref.invalidate(assetHistoryProvider(assetId));
+      ref.invalidate(maintenanceByAssetProvider(assetId));
+      ref.invalidate(disposalByAssetProvider(assetId));
+    }
+
+    Future<void> delete() async {
+      final reason = await showDeleteDialog(context);
+      if (reason == null || !context.mounted) return;
+      try {
+        await AssetService().delete(assetId, reason: reason);
+        ref.invalidate(assetsPagedProvider(ref.read(assetSearchProvider)));
+        if (context.mounted) context.pop();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red.shade800,
+          ));
+        }
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Asset Detail'),
+        title: const Text('Asset Details'),
         actions: [
-          if (assetAsync.value != null)
-            IconButton(
-              icon: const Icon(Icons.qr_code_2_rounded),
-              tooltip: 'Show QR code',
-              onPressed: () => showAssetQrSheet(context, assetAsync.value!),
-            ),
-          if (assetAsync.value != null)
-            IconButton(
-              icon: const Icon(Icons.photo_camera_outlined),
-              tooltip: 'Evidence photos',
-              onPressed: () => showEvidenceSheet(
-                context,
-                path: '/assets/$assetId/evidence',
-                title: 'Asset Evidence',
-                subtitle: '${assetAsync.value!.propertyNumber} — ${assetAsync.value!.description}',
-              ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () {
-              ref.invalidate(assetDetailProvider(assetId));
-              ref.invalidate(assetHistoryProvider(assetId));
-              ref.invalidate(maintenanceByAssetProvider(assetId));
-              ref.invalidate(disposalByAssetProvider(assetId));
+          // QR, photos and edit are worded buttons on the page itself; the rarer actions live here.
+          PopupMenuButton<String>(
+            tooltip: 'More actions',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (v) {
+              if (v == 'refresh') refresh();
+              if (v == 'delete') delete();
             },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'refresh',
+                child: ListTile(leading: Icon(Icons.refresh_rounded), title: Text('Refresh'), contentPadding: EdgeInsets.zero),
+              ),
+              if (isAdmin && assetAsync.value != null)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+                    title: Text('Delete asset', style: TextStyle(color: Color(0xFFDC2626))),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+            ],
           ),
-          if (assetAsync.value != null)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () async {
-                final result = await context.push<bool>('/assets/$assetId/edit', extra: assetAsync.value);
-                if (result == true) ref.invalidate(assetDetailProvider(assetId));
-              },
-            ),
-          if (isAdmin && assetAsync.value != null) ...[
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-              onPressed: () async {
-                final reason = await showDeleteDialog(context);
-                if (reason == null || !context.mounted) return;
-                try {
-                  await AssetService().delete(assetId, reason: reason);
-                  ref.invalidate(assetsPagedProvider(ref.read(assetSearchProvider)));
-                  if (context.mounted) context.pop();
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(e.toString()),
-                      backgroundColor: Colors.red.shade800,
-                    ));
-                  }
-                }
-              },
-            ),
-          ],
         ],
       ),
       body: assetAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
-        error: (err, _) => ErrorState(
-          message: err.toString(),
-          onRetry: () {
-            ref.invalidate(assetDetailProvider(assetId));
-            ref.invalidate(assetHistoryProvider(assetId));
-            ref.invalidate(maintenanceByAssetProvider(assetId));
-            ref.invalidate(disposalByAssetProvider(assetId));
-          },
-        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => ErrorState(message: err.toString(), onRetry: refresh),
         data: (asset) => _AssetDetailBody(asset: asset),
       ),
     );
@@ -118,14 +105,25 @@ class _AssetDetailBody extends ConsumerWidget {
       length: 2,
       child: Column(
         children: [
-          TabBar(
-            indicatorColor: AppTheme.brand,
-            labelColor: AppTheme.brand,
-            unselectedLabelColor: context.colors.textSecondary,
-            tabs: const [
-              Tab(text: 'Details'),
-              Tab(text: 'Lifecycle'),
-            ],
+          Container(
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              border: Border(bottom: BorderSide(color: context.colors.border)),
+            ),
+            child: TabBar(
+              indicatorColor: context.brandAccent,
+              indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerHeight: 0,
+              labelColor: context.brandAccent,
+              unselectedLabelColor: context.colors.textSecondary,
+              labelStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 16, fontWeight: FontWeight.w700),
+              unselectedLabelStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 16, fontWeight: FontWeight.w500),
+              tabs: const [
+                Tab(text: 'Details', height: 52),
+                Tab(text: 'Lifecycle', height: 52),
+              ],
+            ),
           ),
           Expanded(
             child: TabBarView(
@@ -141,34 +139,100 @@ class _AssetDetailBody extends ConsumerWidget {
   }
 }
 
-class _DetailsTab extends StatelessWidget {
+class _DetailsTab extends ConsumerWidget {
   final AssetModel asset;
   const _DetailsTab({required this.asset});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + context.mainShellBottomInset),
       children: [
+        // Summary: property no., name, status, location — then the everyday actions as worded buttons
         Card(
+          margin: EdgeInsets.zero,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Text(asset.propertyNumber,
+                    style: TextStyle(
+                      color: c.textTertiary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                    )),
+                const SizedBox(height: 4),
+                Text(asset.description,
+                    style: TextStyle(color: c.heading, fontSize: 21, height: 1.25, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
-                    Text(asset.propertyNumber,
-                        style: const TextStyle(color: AppTheme.brand, fontSize: 13, fontWeight: FontWeight.w600)),
-                    const Spacer(),
+                    StatusBadge.condition(asset.condition),
                     StatusBadge.lifecycle(asset.lifecycleStatus),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.apartment_rounded, size: 18, color: c.textTertiary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(asset.office.officeName, style: TextStyle(fontSize: 15, color: c.textSecondary))),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.qr_code_2_rounded, size: 20),
+                        label: const Text('QR Code'),
+                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+                        onPressed: () => showAssetQrSheet(context, asset),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.photo_camera_outlined, size: 20),
+                        label: const Text('Photos'),
+                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+                        onPressed: () => showEvidenceSheet(
+                          context,
+                          path: '/assets/${asset.id}/evidence',
+                          title: 'Asset Evidence',
+                          subtitle: '${asset.propertyNumber} — ${asset.description}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.edit_rounded, size: 20),
+                        label: const Text('Edit'),
+                        style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+                        onPressed: () async {
+                          final result = await context.push<bool>('/assets/${asset.id}/edit', extra: asset);
+                          if (result == true) ref.invalidate(assetDetailProvider(asset.id));
+                        },
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
-                Text(asset.description,
-                    style: TextStyle(color: context.colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                StatusBadge.condition(asset.condition),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 20),
+                  label: const Text('Transfer to another office'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                  onPressed: () async {
+                    final moved = await context.push<bool>('/transfers/new', extra: asset);
+                    if (moved == true) ref.invalidate(assetDetailProvider(asset.id));
+                  },
+                ),
               ],
             ),
           ),
@@ -191,37 +255,21 @@ class _DetailsTab extends StatelessWidget {
         ]),
         const SizedBox(height: 12),
         _card(context, 'Financial', [
-          _row(context, 'Unit Value', '₱${asset.unitValue.toStringAsFixed(2)}'),
+          _row(context, 'Unit Value', fmtMoney(asset.unitValue)),
           _row(context, 'Acquisition Date', asset.acquisitionDate),
         ]),
         if (asset.specifications != null && asset.specifications!.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionTitle(context, 'Technical Specifications'),
-                  Text(asset.specifications!, style: TextStyle(color: context.colors.textSecondary, height: 1.5)),
-                ],
-              ),
-            ),
+          SectionCard(
+            title: 'Technical Specifications',
+            child: Text(asset.specifications!, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
           ),
         ],
         if (asset.remarks != null && asset.remarks!.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionTitle(context, 'Remarks'),
-                  Text(asset.remarks!, style: TextStyle(color: context.colors.textSecondary, height: 1.5)),
-                ],
-              ),
-            ),
+          SectionCard(
+            title: 'Remarks',
+            child: Text(asset.remarks!, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
           ),
         ],
         const SizedBox(height: 12),
@@ -229,40 +277,42 @@ class _DetailsTab extends StatelessWidget {
           _row(context, 'Created', _fmt(asset.createdAt)),
           _row(context, 'Last Updated', _fmt(asset.updatedAt)),
         ]),
-        const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _card(BuildContext context, String title, List<Widget> rows) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [_sectionTitle(context, title), ...rows],
-          ),
+  // A label/value list in a section card, each row divided by a hairline — easy to scan
+  Widget _card(BuildContext context, String title, List<Widget> rows) => SectionCard(
+        title: title,
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            for (var i = 0; i < rows.length; i++) ...[
+              if (i > 0) Divider(height: 1, indent: 16, color: context.colors.border),
+              rows[i],
+            ],
+          ],
         ),
       );
 
-  Widget _sectionTitle(BuildContext context, String t) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Text(t,
-            style: TextStyle(color: context.colors.textTertiary, fontSize: 12,
-                fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-      );
-
   Widget _row(BuildContext context, String label, String value, {Color? valueColor}) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 150, child: Text(label, style: TextStyle(color: context.colors.textSecondary, fontSize: 13))),
             Expanded(
+              flex: 5,
+              child: Text(label, style: TextStyle(color: context.colors.textTertiary, fontSize: 15)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 6,
               child: Text(value,
+                  textAlign: TextAlign.right,
                   style: TextStyle(
                       color: valueColor ?? context.colors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: valueColor != null ? FontWeight.w600 : FontWeight.normal)),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -273,7 +323,7 @@ class _DetailsTab extends StatelessWidget {
   List<Widget> _shortageOverageRows(BuildContext context, AssetModel asset) {
     final diff = asset.shortageOverageQty;
     final value = asset.shortageOverageValue;
-    final color = diff < 0 ? AppTheme.statusDisposed : diff > 0 ? AppTheme.brand : context.colors.textPrimary;
+    final color = diff < 0 ? AppTheme.statusDisposed : diff > 0 ? context.brandAccent : context.colors.textPrimary;
     final diffLabel = diff > 0 ? '+$diff' : '$diff';
     final sign = value > 0 ? '+' : value < 0 ? '-' : '';
     final valueLabel = '$sign₱${value.abs().toStringAsFixed(2)}';
@@ -304,7 +354,7 @@ class _HistoryTab extends ConsumerWidget {
     final disposalAsync = ref.watch(disposalByAssetProvider(assetId));
 
     if (historyAsync.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppTheme.brand));
+      return const Center(child: CircularProgressIndicator());
     }
     if (historyAsync.hasError) {
       return Center(
@@ -369,7 +419,7 @@ class _LifecycleEntry {
       id: 'h-${h.id}',
       date: date,
       sortDate: date,
-      title: h.eventType.replaceAll('_', ' '),
+      title: _titleCase(h.eventType),
       color: _historyColor(h.eventType),
       icon: _historyIcon(h.eventType),
       meta: 'by ${h.performedBy.fullName}',
@@ -386,7 +436,7 @@ class _LifecycleEntry {
       id: 'm-${m.id}',
       date: date,
       sortDate: sortDate,
-      title: 'Maintenance – ${m.maintenanceType.replaceAll('_', ' ')}',
+      title: 'Maintenance – ${_titleCase(m.maintenanceType)}',
       color: AppTheme.statusMaintenance,
       icon: Icons.build_outlined,
       meta: 'by ${m.recordedBy.fullName}',
@@ -403,7 +453,7 @@ class _LifecycleEntry {
       id: 'd-${d.id}',
       date: date,
       sortDate: sortDate,
-      title: 'Disposal – ${d.recommendedMethod}',
+      title: 'Disposal – ${_titleCase(d.recommendedMethod)}',
       color: AppTheme.statusDisposed,
       icon: Icons.delete_outline_rounded,
       meta: 'by ${d.recordedBy.fullName}',
@@ -414,13 +464,13 @@ class _LifecycleEntry {
   }
 
   static Color _historyColor(String eventType) => switch (eventType) {
-        'REGISTERED' => Colors.grey,
+        'REGISTERED' => AppTheme.statusRegistered,
         'ASSIGNED' => AppTheme.statusAssigned,
         'TRANSFERRED' => AppTheme.statusTransferred,
         'MAINTENANCE' => AppTheme.statusMaintenance,
         'DISPOSAL' => AppTheme.statusDisposed,
-        'ARCHIVED' => Colors.grey.shade600,
-        _ => Colors.grey,
+        'ARCHIVED' => AppTheme.statusArchived,
+        _ => AppTheme.statusArchived,
       };
 
   static IconData _historyIcon(String eventType) => switch (eventType) {
@@ -458,14 +508,14 @@ class _LifecycleTile extends StatelessWidget {
           Column(
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: entry.color.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                   border: Border.all(color: entry.color.withValues(alpha: 0.5)),
                 ),
-                child: Icon(entry.icon, size: 16, color: entry.color),
+                child: Icon(entry.icon, size: 18, color: entry.color),
               ),
               if (!isLast)
                 Expanded(
@@ -486,42 +536,43 @@ class _LifecycleTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(entry.title,
-                            style: TextStyle(color: entry.color, fontSize: 13, fontWeight: FontWeight.w600)),
+                            style: TextStyle(color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
                       ),
                       if (entry.badge != null) entry.badge!,
                     ],
                   ),
+                  const SizedBox(height: 2),
                   Text(_fmt(entry.date),
-                      style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+                      style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                   if (entry.fromOffice != null || entry.toOffice != null) ...[
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         if (entry.fromOffice != null)
-                          Text(entry.fromOffice!,
-                              style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                          Flexible(child: Text(entry.fromOffice!,
+                              style: TextStyle(color: context.colors.textTertiary, fontSize: 14))),
                         if (entry.fromOffice != null && entry.toOffice != null)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 6),
-                            child: Icon(Icons.arrow_forward_rounded, size: 12, color: context.colors.textSecondary),
+                            child: Icon(Icons.arrow_forward_rounded, size: 16, color: context.colors.textSecondary),
                           ),
                         if (entry.toOffice != null)
-                          Text(entry.toOffice!,
-                              style: TextStyle(color: context.colors.textPrimary, fontSize: 12)),
+                          Flexible(child: Text(entry.toOffice!,
+                              style: TextStyle(color: context.colors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600))),
                       ],
                     ),
                   ],
                   if (entry.subtitle != null) ...[
                     const SizedBox(height: 4),
-                    Text(entry.subtitle!, style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                    Text(entry.subtitle!, style: TextStyle(color: context.colors.textSecondary, fontSize: 14)),
                   ],
                   if (entry.note != null && entry.note!.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(entry.note!, style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                    Text(entry.note!, style: TextStyle(color: context.colors.textSecondary, fontSize: 14, height: 1.4)),
                   ],
                   if (entry.meta != null) ...[
                     const SizedBox(height: 2),
-                    Text(entry.meta!, style: TextStyle(color: context.colors.textSecondary, fontSize: 11)),
+                    Text(entry.meta!, style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
                   ],
                 ],
               ),
@@ -568,7 +619,7 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
   Color _color(String rec) => switch (rec) {
         'MAINTAIN' => AppTheme.brand,
         'REPAIR' => AppTheme.statusMaintenance,
-        'MONITOR' => AppTheme.statusAssigned,
+        'MONITOR' => AppTheme.info,
         'REVIEW_FOR_DISPOSAL' => AppTheme.statusDisposed,
         'BUDGET_PRIORITY' => Colors.deepOrange,
         _ => Colors.grey,
@@ -607,35 +658,17 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
       },
     );
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+    return SectionCard(
+      title: 'AI Recommendation',
+      trailing: _generating
+          ? const Padding(
+              padding: EdgeInsets.all(12),
+              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          : TextButton(onPressed: _generate, child: const Text('Generate')),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome_rounded, size: 16, color: AppTheme.brand),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('AI LIFECYCLE RECOMMENDATION',
-                      style: TextStyle(color: context.colors.textTertiary, fontSize: 12,
-                          fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-                ),
-                _generating
-                      ? const SizedBox(width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
-                      : IconButton(
-                          icon: Icon(Icons.refresh_rounded, size: 18, color: context.colors.textTertiary),
-                          tooltip: 'Generate recommendation',
-                          onPressed: _generate,
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-              ],
-            ),
-            const SizedBox(height: 12),
             AnimatedSwitcher(
               duration: AppTheme.motionMedium,
               switchInCurve: AppTheme.motionCurve,
@@ -648,12 +681,12 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
               loading: () => const Padding(
                 key: ValueKey('loading'),
                 padding: EdgeInsets.symmetric(vertical: 8),
-                child: Center(child: CircularProgressIndicator(color: AppTheme.brand)),
+                child: Center(child: CircularProgressIndicator()),
               ),
               error: (e, _) => Text(
                 key: const ValueKey('error'),
                 e.toString(),
-                style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
               ),
               data: (rec) {
                 if (rec == null) {
@@ -663,18 +696,18 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
                       children: [
                         const SizedBox(
                           width: 14, height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                         const SizedBox(width: 10),
                         Text('Generating recommendation…',
-                            style: TextStyle(color: context.colors.textSecondary, fontSize: 13)),
+                            style: TextStyle(color: context.colors.textSecondary, fontSize: 15)),
                       ],
                     );
                   }
                   return Text(
                     key: const ValueKey('empty'),
-                    'No recommendation yet. Tap refresh to generate one.',
-                    style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
+                    'No recommendation yet. Tap Generate to get one.',
+                    style: TextStyle(color: context.colors.textSecondary, fontSize: 15),
                   );
                 }
                 final color = _color(rec.recommendation);
@@ -682,21 +715,12 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
                   key: ValueKey('data-${rec.recommendation}-${rec.generatedAt}'),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: color.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(_label(rec.recommendation),
-                          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-                    ),
+                    StatusBadge(label: _label(rec.recommendation), color: color),
                     const SizedBox(height: 10),
-                    Text(rec.rationale, style: TextStyle(color: context.colors.textSecondary, fontSize: 13, height: 1.4)),
+                    Text(rec.rationale, style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.5)),
                     const SizedBox(height: 10),
                     Text('Generated ${_fmtDate(rec.generatedAt)} · advisory only, not a final decision',
-                        style: TextStyle(color: context.colors.textSecondary, fontSize: 11)),
+                        style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
                   ],
                 );
               },
@@ -704,7 +728,13 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
             ),
           ],
         ),
-      ),
     );
   }
 }
+
+/// "UNDER_MAINTENANCE" → "Under Maintenance"
+String _titleCase(String raw) => raw
+    .split('_')
+    .where((w) => w.isNotEmpty)
+    .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+    .join(' ');

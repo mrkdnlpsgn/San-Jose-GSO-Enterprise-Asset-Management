@@ -5,11 +5,13 @@ import '../model/disposal_model.dart';
 import '../provider/disposal_provider.dart';
 import '../provider/disposal_justification_provider.dart';
 import '../data/disposal_service.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/delete_dialog.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/approval_banner.dart';
 import '../../../shared/widgets/error_state.dart';
+import '../../../shared/widgets/ui.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../reports/utils/formatters.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../evidence/evidence_sheet.dart';
 
@@ -21,49 +23,43 @@ class DisposalDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(disposalDetailProvider(disposalId));
     final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+
+    Future<void> delete() async {
+      final reason = await showDeleteDialog(context);
+      if (reason == null || !context.mounted) return;
+      try {
+        await DisposalService().delete(disposalId, reason: reason);
+        ref.invalidate(disposalPagedProvider(ref.read(disposalSearchProvider)));
+        if (context.mounted) context.pop();
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red.shade800));
+        }
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Disposal Detail'),
+        title: const Text('Disposal Record'),
         actions: [
-          if (async.value != null)
-            IconButton(
-              icon: const Icon(Icons.photo_camera_outlined),
-              tooltip: 'Evidence photos',
-              onPressed: () => showEvidenceSheet(
-                context,
-                path: '/disposal/$disposalId/evidence',
-                title: 'Disposal Evidence',
-                subtitle: '${async.value!.asset.propertyNumber} — ${async.value!.asset.description}',
-              ),
-            ),
-          // Staff can edit a record only once an admin has approved it (web parity).
-          if (async.value != null && (isAdmin || async.value!.isApproved))
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () async {
-                final result = await context.push<bool>('/disposal/$disposalId/edit', extra: async.value);
-                if (result == true) ref.invalidate(disposalDetailProvider(disposalId));
+          if (isAdmin && async.value != null)
+            PopupMenuButton<String>(
+              tooltip: 'More actions',
+              onSelected: (v) {
+                if (v == 'delete') delete();
               },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+                    title: Text('Delete record', style: TextStyle(color: Color(0xFFDC2626))),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
-          if (isAdmin && async.value != null) ...[
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-              onPressed: () async {
-                final reason = await showDeleteDialog(context);
-                if (reason == null || !context.mounted) return;
-                try {
-                  await DisposalService().delete(disposalId, reason: reason);
-                  ref.invalidate(disposalPagedProvider(ref.read(disposalSearchProvider)));
-                  if (context.mounted) context.pop();
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(e.toString()), backgroundColor: Colors.red.shade800));
-                  }
-                }
-              },
-            ),
-          ],
         ],
       ),
       // Admin reviewing a staff request: approving applies it to the asset.
@@ -80,12 +76,20 @@ class DisposalDetailScreen extends ConsumerWidget {
             )
           : null,
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => ErrorState(
           message: err.toString(),
           onRetry: () => ref.invalidate(disposalDetailProvider(disposalId)),
         ),
-        data: (item) => _Body(item: item),
+        data: (item) => _Body(
+          item: item,
+          // Staff can edit a record only once an admin has approved it (web parity).
+          canEdit: isAdmin || item.isApproved,
+          onEdit: () async {
+            final result = await context.push<bool>('/disposal/$disposalId/edit', extra: item);
+            if (result == true) ref.invalidate(disposalDetailProvider(disposalId));
+          },
+        ),
       ),
     );
   }
@@ -94,21 +98,29 @@ class DisposalDetailScreen extends ConsumerWidget {
     ref.invalidate(disposalDetailProvider(disposalId));
     ref.invalidate(disposalPagedProvider(ref.read(disposalSearchProvider)));
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 }
 
+/// "DESTRUCTION" → "Destruction"
+String _titleCase(String raw) => raw
+    .split('_')
+    .where((w) => w.isNotEmpty)
+    .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+    .join(' ');
+
 class _Body extends StatelessWidget {
   final DisposalModel item;
-  const _Body({required this.item});
+  final bool canEdit;
+  final VoidCallback onEdit;
+  const _Body({required this.item, required this.canEdit, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
         ApprovalBanner(
           approvalStatus: item.approvalStatus,
@@ -116,78 +128,78 @@ class _Body extends StatelessWidget {
           reviewNote: item.reviewNote,
         ),
         Card(
+          margin: EdgeInsets.zero,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                CodeText(item.asset.propertyAndPar, size: 14),
+                const SizedBox(height: 4),
+                Text(item.asset.description,
+                    style: TextStyle(color: c.heading, fontSize: 21, height: 1.25, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  StatusBadge.disposalStatus(item.disposalStatus),
+                  StatusBadge.disposalMethod(item.recommendedMethod),
+                ]),
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    StatusBadge.disposalMethod(item.recommendedMethod),
-                    const SizedBox(width: 8),
-                    StatusBadge.disposalStatus(item.disposalStatus),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.photo_camera_outlined, size: 20),
+                        label: const Text('Photos'),
+                        onPressed: () => showEvidenceSheet(
+                          context,
+                          path: '/disposal/${item.id}/evidence',
+                          title: 'Disposal Evidence',
+                          subtitle: '${item.asset.propertyNumber} — ${item.asset.description}',
+                        ),
+                      ),
+                    ),
+                    if (canEdit) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          icon: const Icon(Icons.edit_rounded, size: 20),
+                          label: const Text('Edit'),
+                          onPressed: onEdit,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 10),
-                Text(item.asset.description,
-                    style: TextStyle(color: context.colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(item.asset.propertyAndPar, style: const TextStyle(color: AppTheme.brand, fontSize: 13)),
               ],
             ),
           ),
         ),
         const SizedBox(height: 12),
-        _card(context, 'Disposal Info', [
-          _row(context, 'Inspection Date', item.inspectionDate),
-          _row(context, 'Method', item.recommendedMethod),
-          _row(context, 'Status', item.disposalStatus),
-          if (item.approvedBy != null) _row(context, 'Approved By', item.approvedBy!),
-          if (item.appraisedValue != null) _row(context, 'Appraised Value', '₱${item.appraisedValue!.toStringAsFixed(2)}'),
-          if (item.orNumber != null) _row(context, 'OR No.', item.orNumber!),
-          if (item.amount != null) _row(context, 'Amount', '₱${item.amount!.toStringAsFixed(2)}'),
-          _row(context, 'Recorded By', item.recordedBy.fullName),
+        DetailSection(title: 'Disposal Info', items: [
+          DetailItem('Inspection Date', fmtDate(item.inspectionDate)),
+          DetailItem('Method', _titleCase(item.recommendedMethod)),
+          DetailItem('Status', _titleCase(item.disposalStatus)),
+          DetailItem('Approved By', item.approvedBy),
+          DetailItem('Appraised Value', item.appraisedValue != null ? fmtMoney(item.appraisedValue) : null),
+          DetailItem('OR No.', item.orNumber),
+          DetailItem('Amount', item.amount != null ? fmtMoney(item.amount) : null),
+          DetailItem('Recorded By', item.recordedBy.fullName),
         ]),
         const SizedBox(height: 12),
-        _card(context, 'Reason for Disposal', [], body: item.reason),
+        SectionCard(
+          title: 'Reason for Disposal',
+          child: Text(item.reason, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
+        ),
         const SizedBox(height: 12),
-        _card(context, 'Inspection Findings', [], body: item.inspectionFindings),
+        SectionCard(
+          title: 'Inspection Findings',
+          child: Text(item.inspectionFindings, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
+        ),
         const SizedBox(height: 12),
         _AiJustificationCard(disposalId: item.id),
-        const SizedBox(height: 24),
       ],
     );
   }
-
-  Widget _card(BuildContext context, String title, List<Widget> rows, {String? body}) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title,
-                  style: TextStyle(color: context.colors.textTertiary, fontSize: 12,
-                      fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-              const SizedBox(height: 12),
-              if (body != null)
-                Text(body, style: TextStyle(color: context.colors.textSecondary, height: 1.5))
-              else
-                ...rows,
-            ],
-          ),
-        ),
-      );
-
-  Widget _row(BuildContext context, String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 140, child: Text(label, style: TextStyle(color: context.colors.textSecondary, fontSize: 13))),
-            Expanded(child: Text(value, style: TextStyle(color: context.colors.textPrimary, fontSize: 13))),
-          ],
-        ),
-      );
 }
 
 class _AiJustificationCard extends ConsumerStatefulWidget {
@@ -218,78 +230,53 @@ class _AiJustificationCardState extends ConsumerState<_AiJustificationCard> {
     }
   }
 
-  String _fmtDate(String raw) {
-    try {
-      final dt = DateTime.parse(raw).toLocal();
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return raw;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
     final justAsync = ref.watch(disposalJustificationProvider(widget.disposalId));
+    final c = context.colors;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return SectionCard(
+      title: 'AI Disposal Justification',
+      trailing: !isAdmin
+          ? null
+          : _generating
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              : TextButton(onPressed: _generate, child: const Text('Generate')),
+      child: AnimatedSwitcher(
+        duration: AppTheme.motionMedium,
+        child: justAsync.when(
+          loading: () => const Padding(
+            key: ValueKey('loading'),
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) =>
+              Text(key: const ValueKey('error'), e.toString(), style: TextStyle(color: c.textSecondary, fontSize: 14)),
+          data: (just) {
+            if (just == null) {
+              return Text(
+                key: const ValueKey('empty'),
+                isAdmin
+                    ? 'No justification drafted yet. New records get one automatically — tap Generate to draft one now.'
+                    : 'No justification drafted yet.',
+                style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45),
+              );
+            }
+            return Column(
+              key: ValueKey('data-${just.generatedAt}'),
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.auto_awesome_rounded, size: 16, color: AppTheme.brand),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('AI DISPOSAL JUSTIFICATION',
-                      style: TextStyle(color: context.colors.textTertiary, fontSize: 12,
-                          fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-                ),
-                if (isAdmin)
-                  _generating
-                      ? const SizedBox(width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
-                      : IconButton(
-                          icon: Icon(Icons.refresh_rounded, size: 18, color: context.colors.textTertiary),
-                          tooltip: 'Generate justification',
-                          onPressed: _generate,
-                          visualDensity: VisualDensity.compact,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
+                Text(just.justification, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
+                const SizedBox(height: 10),
+                Text('Generated ${fmtDate(just.generatedAt)} · draft for review, not a final decision',
+                    style: TextStyle(color: c.textTertiary, fontSize: 13)),
               ],
-            ),
-            const SizedBox(height: 12),
-            justAsync.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Center(child: CircularProgressIndicator(color: AppTheme.brand)),
-              ),
-              error: (e, _) => Text(e.toString(), style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
-              data: (just) {
-                if (just == null) {
-                  return Text(
-                    isAdmin
-                        ? 'No justification drafted yet. New records get one automatically — tap refresh to draft one now.'
-                        : 'No justification drafted yet.',
-                    style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(just.justification,
-                        style: TextStyle(color: context.colors.textSecondary, fontSize: 13, height: 1.5)),
-                    const SizedBox(height: 10),
-                    Text('Generated ${_fmtDate(just.generatedAt)} · draft for review, not a final decision',
-                        style: TextStyle(color: context.colors.textSecondary, fontSize: 11)),
-                  ],
-                );
-              },
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

@@ -33,6 +33,8 @@ import '../../features/qr_scanner/screens/qr_scanner_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/settings/screens/change_password_screen.dart';
 import '../../features/legal/screens/legal_screen.dart';
+import '../../features/transfer/screens/transfer_list_screen.dart';
+import '../../features/transfer/screens/transfer_form_screen.dart';
 import '../../features/legal/screens/privacy_acknowledgment_screen.dart';
 import '../../shared/widgets/main_shell.dart';
 import 'page_transitions.dart';
@@ -46,10 +48,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', pageBuilder: (c, s) => fadeThroughPage(c, s, const LoginScreen())),
       GoRoute(path: '/forgot-password', pageBuilder: (c, s) => fadeThroughPage(c, s, const ForgotPasswordScreen())),
-      // The four most-used destinations live in a bottom-nav shell so switching
-      // between them preserves each tab's own navigation stack. Everything else
-      // (Maintenance, Disposal, Reports, Accounts) stays a plain push below,
-      // reachable from the Dashboard's module cards, and covers the bottom bar.
+      // The five bottom-bar destinations (Home, Assets, Scan, History, Account) live in a
+      // shell so switching between them preserves each tab's own navigation stack.
+      // Everything else (Maintenance, Disposal, Reports, admin modules) stays a plain
+      // push below, reachable from the Home shortcuts, and covers the bottom bar.
       StatefulShellRoute.indexedStack(
         builder: (_, __, navigationShell) => MainShell(navigationShell: navigationShell),
         branches: [
@@ -79,6 +81,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: '/qr-scanner', pageBuilder: (c, s) => fadeThroughPage(c, s, const QrScannerScreen())),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/asset-history',
+              // ?tab=requests opens on Staff Requests; the key rebuilds the screen when it changes
+              pageBuilder: (c, s) {
+                final tab = s.uri.queryParameters['tab'] == 'requests' ? 1 : 0;
+                return fadeThroughPage(c, s, AssetHistoryScreen(key: ValueKey(tab), initialTab: tab));
+              },
+            ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
@@ -132,7 +144,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/reports/:id',
         pageBuilder: (c, s) => fadeThroughPage(c, s, ReportPreviewScreen(reportId: s.pathParameters['id']!)),
       ),
-      GoRoute(path: '/asset-history', pageBuilder: (c, s) => fadeThroughPage(c, s, const AssetHistoryScreen())),
+      // Transfer Asset (web parity). /transfers/new takes the AssetModel being moved as `extra`.
+      GoRoute(path: '/transfers', pageBuilder: (c, s) => fadeThroughPage(c, s, const TransferListScreen())),
+      GoRoute(
+        path: '/transfers/new',
+        pageBuilder: (c, s) => fadeThroughPage(c, s, TransferFormScreen(asset: s.extra as AssetModel)),
+      ),
       GoRoute(path: '/recycle-bin', pageBuilder: (c, s) => fadeThroughPage(c, s, const RecycleBinScreen())),
       GoRoute(path: '/legal', pageBuilder: (c, s) => fadeThroughPage(c, s, const LegalScreen())),
       GoRoute(

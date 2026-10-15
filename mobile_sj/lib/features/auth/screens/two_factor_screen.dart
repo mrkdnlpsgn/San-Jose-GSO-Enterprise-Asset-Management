@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/theme/app_theme.dart';
@@ -87,7 +88,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                 children: [
                   Text.rich(
                     TextSpan(
-                      style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
+                      style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
                       children: [
                         const TextSpan(text: 'We emailed a 6-digit code to the address on file for '),
                         TextSpan(
@@ -102,15 +103,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
-                      ),
+                      child: Callout(_error!, tone: CalloutTone.error),
                     ),
                   TextFormField(
                     controller: _otpCtrl,
@@ -138,7 +131,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text("Code expires 10 minutes after it's sent.",
-                      style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                      style: TextStyle(color: context.colors.textTertiary, fontSize: 15)),
                   const SizedBox(height: 12),
                   CheckboxListTile(
                     value: _remember,
@@ -147,7 +140,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text("Don't ask for a code on this phone for 30 days"),
                     subtitle: Text("Only on a phone that only you use. You'll still need your password.",
-                        style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                        style: TextStyle(color: context.colors.textTertiary, fontSize: 15)),
                   ),
                   const SizedBox(height: 12),
                   ElevatedButton(

@@ -17,6 +17,7 @@ bool assetFiltersActive(WidgetRef ref) =>
 
 Future<void> showAssetFilterSheet(BuildContext context, WidgetRef ref) {
   return showModalBottomSheet(
+    useRootNavigator: true, // above the bottom bar, not behind it
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -136,7 +137,7 @@ class _AssetFilterSheet extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: TextStyle(color: context.colors.textTertiary, fontSize: 12, fontWeight: FontWeight.w600)),
+            style: TextStyle(color: context.colors.textTertiary, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         DropdownButtonFormField<T>(
           initialValue: value,

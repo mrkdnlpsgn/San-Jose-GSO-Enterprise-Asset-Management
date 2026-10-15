@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/widgets/password_requirements.dart';
 import '../../../shared/widgets/main_shell.dart';
@@ -67,15 +68,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_error != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
-                  ),
+                  Callout(_error!, tone: CalloutTone.error),
                   const SizedBox(height: 16),
                 ],
                 TextFormField(

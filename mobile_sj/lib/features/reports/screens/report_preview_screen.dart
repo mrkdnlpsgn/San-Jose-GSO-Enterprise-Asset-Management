@@ -57,12 +57,13 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh',
             onPressed: () => ref.invalidate(reportDataProvider(widget.reportId)),
           ),
         ],
       ),
       body: dataAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorState(
           message: 'Failed to load report: $e',
           onRetry: () => ref.invalidate(reportDataProvider(widget.reportId)),
@@ -70,7 +71,8 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
         data: (rows) {
           if (rows.isEmpty) {
             return Center(
-              child: Text('No data available for this report.', style: TextStyle(color: context.colors.textSecondary)),
+              child: Text('No data available for this report.',
+                  style: TextStyle(color: context.colors.textSecondary, fontSize: 15)),
             );
           }
 
@@ -89,7 +91,7 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                 child: Row(
                   children: [
                     Text('${rows.length} ${rows.length == 1 ? 'record' : 'records'}',
-                        style: TextStyle(color: context.colors.textSecondary, fontWeight: FontWeight.w600, fontSize: 14)),
+                        style: TextStyle(color: context.colors.textSecondary, fontWeight: FontWeight.w700, fontSize: 15)),
                   ],
                 ),
               ),
@@ -131,13 +133,13 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                                         style: TextStyle(
                                             color: context.colors.textTertiary,
                                             fontWeight: FontWeight.w600,
-                                            fontSize: 12))))
+                                            fontSize: 14))))
                                 .toList(),
                             rows: preview
                                 .map((row) => DataRow(
                                       cells: report.columns
                                           .map((c) => DataCell(Text(c.valueOf(row),
-                                              style: TextStyle(color: context.colors.textSecondary, fontSize: 12))))
+                                              style: TextStyle(color: context.colors.textSecondary, fontSize: 14))))
                                           .toList(),
                                     ))
                                 .toList(),
@@ -160,15 +162,15 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _exporting ? null : () => _export(() => exportExcel(report, rows)),
-                            icon: const Icon(Icons.grid_on_rounded, size: 18, color: Colors.greenAccent),
-                            label: const Text('Export Excel'),
+                            icon: const Icon(Icons.grid_on_rounded, size: 20),
+                            label: const Text('Excel'),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: FilledButton.icon(
                             onPressed: _exporting ? null : () => _export(() => exportPdf(report, rows)),
-                            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18, color: Colors.redAccent),
+                            icon: const Icon(Icons.print_rounded, size: 20),
                             label: const Text('Print / PDF'),
                           ),
                         ),
@@ -194,31 +196,39 @@ class _ReportRowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: columns
-              .map((c) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 120,
-                          child: Text(c.label,
-                              style: TextStyle(
-                                  color: context.colors.textTertiary, fontSize: 11, fontWeight: FontWeight.w600)),
-                        ),
-                        Expanded(
-                          child: Text(c.valueOf(row), style: TextStyle(color: context.colors.textPrimary, fontSize: 13)),
-                        ),
-                      ],
-                    ),
-                  ))
-              .toList(),
-        ),
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (var i = 0; i < columns.length; i++) ...[
+            if (i > 0) Divider(height: 1, indent: 14, color: c.border),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Text(columns[i].label, style: TextStyle(color: c.textTertiary, fontSize: 14)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 6,
+                    child: Text(columns[i].valueOf(row),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: c.textPrimary,
+                          fontSize: 15,
+                          fontWeight: i == 0 ? FontWeight.w700 : FontWeight.w500,
+                        )),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

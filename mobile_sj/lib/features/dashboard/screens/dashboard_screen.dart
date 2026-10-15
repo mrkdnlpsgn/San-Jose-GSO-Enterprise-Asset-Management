@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/staggered_entrance.dart';
 import '../../../shared/widgets/main_shell.dart';
@@ -13,6 +14,8 @@ import '../../../shared/widgets/logout_dialog.dart';
 import '../../assets/provider/ai_recommendation_provider.dart';
 import '../../audit_log/provider/audit_log_digest_provider.dart';
 import '../provider/dashboard_provider.dart';
+import '../widgets/home_header.dart';
+import '../widgets/attention_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -24,32 +27,48 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 16,
         title: Row(
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: AppTheme.brand.withValues(alpha: 0.3), width: 1.5),
+                border: Border.all(color: context.colors.border),
               ),
               child: const ClipOval(
                 child: Image(image: AssetImage('assets/images/images.png'), fit: BoxFit.cover),
               ),
             ),
             const SizedBox(width: 10),
-            const Text('Dashboard'),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('San Jose GSO', style: TextStyle(fontSize: 17, height: 1.15)),
+                  Text(
+                    'Inventory Management System',
+                    style: TextStyle(fontSize: 14, height: 1.2, fontWeight: FontWeight.w500, color: context.colors.textTertiary),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Logout',
+          // worded, not just an icon — clearer for staff who don't read icons
+          TextButton.icon(
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            label: const Text('Sign out'),
+            style: TextButton.styleFrom(foregroundColor: context.colors.textSecondary),
             onPressed: () async {
               final confirmed = await showLogoutDialog(context);
               if (confirmed == true) ref.read(authProvider.notifier).logout();
             },
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: AutoRefreshTicker(
@@ -58,205 +77,134 @@ class DashboardScreen extends ConsumerWidget {
           ref.invalidate(dashboardStatsProvider);
           ref.invalidate(aiRecommendationSummaryProvider);
           ref.invalidate(auditLogDigestProvider);
+          ref.invalidate(attentionProvider);
         },
         child: RefreshIndicator(
-        color: AppTheme.brand,
         onRefresh: () async {
           ref.invalidate(dashboardStatsProvider);
           ref.invalidate(aiRecommendationSummaryProvider);
           ref.invalidate(auditLogDigestProvider);
+          ref.invalidate(attentionProvider);
         },
         child: ListView(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + context.mainShellBottomInset),
         children: [
-          _sectionLabel(context, 'OVERVIEW'),
-          const SizedBox(height: 12),
-          const _DashboardStatsSection(),
-
-          const SizedBox(height: 24),
-
-          _sectionLabel(context, 'MODULES'),
-          const SizedBox(height: 12),
-
-          StaggeredEntrance(
-            index: 0,
-            child: _NavCard(
-              icon: Icons.build_outlined,
-              title: 'Maintenance',
-              subtitle: 'View maintenance ledger records',
-              color: AppTheme.statusMaintenance,
-              onTap: () => context.push('/maintenance'),
-            ),
-          ),
-          const SizedBox(height: 10),
-          StaggeredEntrance(
-            index: 1,
-            child: _NavCard(
-              icon: Icons.delete_outline_rounded,
-              title: 'Disposal',
-              subtitle: 'View disposal ledger records',
-              color: AppTheme.statusDisposed,
-              onTap: () => context.push('/disposal'),
-            ),
-          ),
-          const SizedBox(height: 10),
-          StaggeredEntrance(
-            index: 2,
-            child: _NavCard(
-              icon: Icons.summarize_outlined,
-              title: 'Reports',
-              subtitle: 'Generate and export inventory reports, including COA RPCPPE/IIRUP',
-              color: AppTheme.brandDark,
-              onTap: () => context.push('/reports'),
-            ),
-          ),
-          const SizedBox(height: 10),
-          StaggeredEntrance(
-            index: 3,
-            child: _NavCard(
-              icon: Icons.history_rounded,
-              title: 'Asset History',
-              subtitle: isAdmin
-                  ? 'Changes by any user, and staff maintenance/disposal requests'
-                  : 'Your changes and your maintenance/disposal requests',
-              color: AppTheme.statusAssigned,
-              onTap: () => context.push('/asset-history'),
-            ),
-          ),
-          // Reference data, account management and the recycle bin are ADMIN-only —
-          // staff work only with their office's assets, maintenance, disposal and reports.
-          if (isAdmin) ...[
-            const SizedBox(height: 10),
-            StaggeredEntrance(
-              index: 3,
-              child: _NavCard(
-                icon: Icons.category_outlined,
-                title: 'Categories',
-                subtitle: 'Manage asset categories',
-                color: AppTheme.brand,
-                onTap: () => context.push('/categories'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            StaggeredEntrance(
-              index: 4,
-              child: _NavCard(
-                icon: Icons.apartment_outlined,
-                title: 'Offices',
-                subtitle: 'Manage offices and their head users',
-                color: AppTheme.brand,
-                onTap: () => context.push('/offices'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            StaggeredEntrance(
-              index: 5,
-              child: _NavCard(
-                icon: Icons.manage_accounts_outlined,
-                title: 'Manage Accounts',
-                subtitle: 'Create and manage user accounts',
-                color: AppTheme.statusAssigned,
-                onTap: () => context.push('/accounts'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            StaggeredEntrance(
-              index: 6,
-              child: _NavCard(
-                icon: Icons.restore_from_trash_outlined,
-                title: 'Recycle Bin',
-                subtitle: 'View and restore deleted assets, maintenance, and disposal records',
-                color: AppTheme.statusRegistered,
-                onTap: () => context.push('/recycle-bin'),
-              ),
-            ),
-          ],
+          // who is signed in + date/time, then anything waiting on them, then the shortcuts
+          const HomeHeader(),
+          const AttentionCard(),
+          const SizedBox(height: 20),
+          _DashboardStatsSection(modules: _ModuleList(isAdmin: isAdmin)),
         ],
         ),
       ),
       ),
     );
   }
-
-  Widget _sectionLabel(BuildContext context, String label) => Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: context.colors.textSecondary,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1,
-            ),
-      );
 }
 
-class _NavCard extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _NavCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  State<_NavCard> createState() => _NavCardState();
-}
-
-class _NavCardState extends State<_NavCard> {
-  bool _pressed = false;
-
-  void _setPressed(bool v) => setState(() => _pressed = v);
+/// Every other module, as a grid of round shortcuts (eGovPH home-screen style).
+class _ModuleList extends StatelessWidget {
+  final bool isAdmin;
+  const _ModuleList({required this.isAdmin});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      scale: _pressed ? 0.98 : 1.0,
-      duration: AppTheme.motionFast,
-      curve: AppTheme.motionCurve,
-      child: Card(
-        child: InkWell(
-          onTap: widget.onTap,
-          onTapDown: (_) => _setPressed(true),
-          onTapUp: (_) => _setPressed(false),
-          onTapCancel: () => _setPressed(false),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: widget.color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(widget.icon, color: widget.color, size: 24),
+    final items = <_ModuleItem>[
+      const _ModuleItem(Icons.build_rounded, 'Maintenance', 'Repairs and maintenance records', '/maintenance'),
+      const _ModuleItem(Icons.delete_rounded, 'Disposal', 'Disposal records', '/disposal'),
+      const _ModuleItem(Icons.swap_horiz_rounded, 'Transfer', 'Move an asset to another office, and transfer requests', '/transfers'),
+      const _ModuleItem(Icons.bar_chart_rounded, 'Reports', 'Inventory reports, RPCPPE, IIRUP and more', '/reports'),
+      // Asset History is a bottom-bar tab (History), so it isn't repeated here.
+      // Reference data, account management and the recycle bin are ADMIN-only —
+      // staff work only with their office's assets, maintenance, disposal and reports.
+      if (isAdmin) ...const [
+        _ModuleItem(Icons.apartment_rounded, 'Offices', 'Offices and their head users', '/offices'),
+        _ModuleItem(Icons.category_rounded, 'Categories', 'Asset categories', '/categories'),
+        _ModuleItem(Icons.people_rounded, 'Accounts', 'Create and manage user accounts', '/accounts'),
+        _ModuleItem(Icons.restore_from_trash_rounded, 'Recycle Bin', 'Restore deleted records', '/recycle-bin'),
+      ],
+    ];
+    // eGovPH-style shortcuts: a round tinted tile with the icon, the name underneath.
+    // A wrapping grid (4 per row on phones) rather than eGovPH's sideways-scrolling row,
+    // so every module is visible at once — a half-hidden last icon is easy to miss.
+    return LayoutBuilder(builder: (context, box) {
+      final perRow = box.maxWidth >= 560 ? 6 : 4;
+      final cellWidth = box.maxWidth / perRow;
+      return Wrap(
+        runSpacing: 14,
+        children: [
+          for (final item in items)
+            SizedBox(width: cellWidth, child: _ModuleShortcut(item: item)),
+        ],
+      );
+    });
+  }
+}
+
+class _ModuleShortcut extends StatelessWidget {
+  final _ModuleItem item;
+  const _ModuleShortcut({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final light = context.isLight;
+    return Semantics(
+      button: true,
+      label: '${item.title}. ${item.subtitle}',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: () => context.push(item.route),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Column(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  // pale navy circle (web gov-50), like eGovPH's pale blue tiles
+                  color: light ? const Color(0xFFEEF2F8) : const Color(0xFF1E2533),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: light ? const Color(0xFFD7E1F0) : c.border),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(widget.title,
-                          style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
-                      const SizedBox(height: 2),
-                      Text(widget.subtitle, style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
-                    ],
+                child: Icon(item.icon, size: 30, color: light ? AppTheme.gov : const Color(0xFFB0C4E3)),
+              ),
+              const SizedBox(height: 8),
+              // two-word names wrap onto two lines; a single long word ("Maintenance") shrinks a
+              // little to fit instead of being split mid-word at the Large text size
+              if (item.title.contains(' '))
+                Text(
+                  item.title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 14, height: 1.2, fontWeight: FontWeight.w600, color: c.textPrimary),
+                )
+              else
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    item.title,
+                    maxLines: 1,
+                    style: TextStyle(fontSize: 14, height: 1.2, fontWeight: FontWeight.w600, color: c.textPrimary),
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary),
-              ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class _ModuleItem {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String route;
+  const _ModuleItem(this.icon, this.title, this.subtitle, this.route);
 }
 
 String _fmtMoney(double v) {
@@ -307,7 +255,7 @@ String _lifecycleDashboardLabel(String key) => switch (key) {
 Color _recColor(String rec) => switch (rec) {
       'MAINTAIN' => AppTheme.brand,
       'REPAIR' => AppTheme.statusMaintenance,
-      'MONITOR' => AppTheme.statusAssigned,
+      'MONITOR' => AppTheme.info,
       'REVIEW_FOR_DISPOSAL' => AppTheme.statusDisposed,
       'BUDGET_PRIORITY' => Colors.deepOrange,
       _ => Colors.grey,
@@ -323,7 +271,8 @@ String _recLabel(String rec) => switch (rec) {
     };
 
 class _DashboardStatsSection extends ConsumerStatefulWidget {
-  const _DashboardStatsSection();
+  final Widget modules;
+  const _DashboardStatsSection({required this.modules});
 
   @override
   ConsumerState<_DashboardStatsSection> createState() => _DashboardStatsSectionState();
@@ -346,28 +295,51 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
     // already looking at.
     final stats = _lastStats;
 
+    // The module list doesn't depend on the stats — show it straight away, even while loading.
+    Widget withModules(Widget overview, Widget charts) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // shortcuts first, as on eGovPH's home screen — getting around comes before the numbers
+            widget.modules,
+            const SizedBox(height: 24),
+            const SectionLabel('Overview'),
+            overview,
+            const SizedBox(height: 24),
+            const SectionLabel('Summary'),
+            charts,
+          ],
+        );
+
     if (stats == null) {
       return statsAsync.when(
-        loading: () => Shimmer(
-          child: Column(
-            children: [
-              const _OverviewPanelSkeleton(),
-              const SizedBox(height: 10),
-              const _RingCardSkeleton(),
-              const SizedBox(height: 10),
-              const _DistributionCardSkeleton(rows: 3),
-              const SizedBox(height: 10),
-              const _DistributionCardSkeleton(rows: 2),
-              if (isAdmin) ...[
-                const SizedBox(height: 10),
-                const _DigestCardSkeleton(),
+        loading: () => withModules(
+          const Shimmer(child: _OverviewPanelSkeleton()),
+          Shimmer(
+            child: Column(
+              children: [
+                const _RingCardSkeleton(),
+                const SizedBox(height: 12),
+                const _DistributionCardSkeleton(rows: 3),
+                const SizedBox(height: 12),
+                const _DistributionCardSkeleton(rows: 2),
+                if (isAdmin) ...[
+                  const SizedBox(height: 12),
+                  const _DigestCardSkeleton(),
+                ],
               ],
-            ],
+            ),
           ),
         ),
-        error: (e, _) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Text('Failed to load stats: $e', style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
+        error: (e, _) => withModules(
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Could not load the totals. Pull down to try again.\n$e',
+                  style: TextStyle(color: context.colors.textSecondary, fontSize: 14)),
+            ),
+          ),
+          const SizedBox.shrink(),
         ),
         data: (_) => const SizedBox.shrink(), // unreachable: _lastStats would already be set
       );
@@ -378,18 +350,18 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
     Widget maybeStagger(int index, Widget child) =>
         animate ? StaggeredEntrance(index: index, child: child) : child;
 
-    return Column(
-      children: [
-        maybeStagger(
-          0,
-          _OverviewPanel(
-            totalAssets: stats.totalAssets,
-            totalValue: stats.totalValue,
-            underMaintenance: stats.underMaintenance,
-            disposed: stats.disposed,
-          ),
+    return withModules(
+      maybeStagger(
+        0,
+        _OverviewPanel(
+          totalAssets: stats.totalAssets,
+          totalValue: stats.totalValue,
+          underMaintenance: stats.underMaintenance,
+          disposed: stats.disposed,
         ),
-        const SizedBox(height: 10),
+      ),
+      Column(
+      children: [
         maybeStagger(
           1,
           _LifecycleRingCard(
@@ -401,7 +373,7 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
             labelOf: _lifecycleDashboardLabel,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         maybeStagger(
           2,
           _DistributionCard(
@@ -413,13 +385,14 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
             labelOf: (v) => StatusBadge.condition(v).label,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         maybeStagger(3, const _AiRecommendationSummaryCard()),
         if (isAdmin) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           maybeStagger(4, const _AuditLogDigestCard()),
         ],
       ],
+      ),
     );
   }
 }
@@ -437,7 +410,7 @@ class _AiRecommendationSummaryCard extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Text('Failed to load AI recommendations: $e',
-              style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+              style: TextStyle(color: context.colors.textSecondary, fontSize: 14)),
         ),
       ),
       data: (dist) => _DistributionCard(
@@ -448,6 +421,7 @@ class _AiRecommendationSummaryCard extends ConsumerWidget {
         colorOf: _recColor,
         labelOf: _recLabel,
         emptyMessage: 'No AI recommendations generated yet.',
+        totalNoun: 'assets reviewed',
       ),
     );
   }
@@ -493,76 +467,56 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
   @override
   Widget build(BuildContext context) {
     final digestAsync = ref.watch(auditLogDigestProvider);
+    final c = context.colors;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome_rounded, size: 16, color: AppTheme.brand),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('AI ACTIVITY DIGEST',
-                      style: TextStyle(color: context.colors.textTertiary, fontSize: 12,
-                          fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-                ),
-                _generating
-                    ? const SizedBox(width: 16, height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
-                    : IconButton(
-                        icon: Icon(Icons.refresh_rounded, size: 18, color: context.colors.textTertiary),
-                        tooltip: 'Generate digest',
-                        onPressed: _generate,
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                      ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            digestAsync.when(
-              loading: () => const Shimmer(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Bone(width: double.infinity, height: 13),
-                    SizedBox(height: 8),
-                    Bone(width: double.infinity, height: 13),
-                    SizedBox(height: 8),
-                    Bone(width: 160, height: 13),
-                    SizedBox(height: 12),
-                    Bone(width: 140, height: 11),
-                  ],
-                ),
-              ),
-              error: (e, _) => Text(e.toString(), style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
-              data: (digest) {
-                if (digest == null) {
-                  return Text('No digest yet. Tap refresh to generate one.',
-                      style: TextStyle(color: context.colors.textSecondary, fontSize: 13));
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(digest.digest, style: TextStyle(color: context.colors.textSecondary, fontSize: 13, height: 1.5)),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Covers ${digest.coveredEntries} recent entries · generated ${_fmtDateTime(digest.generatedAt)}',
-                      style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+    return SectionCard(
+      title: 'AI Activity Digest',
+      // a worded button, like the web dashboard's "Generate summary"
+      trailing: _generating
+          ? const Padding(
+              padding: EdgeInsets.all(12),
+              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          : TextButton(onPressed: _generate, child: const Text('Generate')),
+      child: digestAsync.when(
+        loading: () => const Shimmer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Bone(width: double.infinity, height: 14),
+              SizedBox(height: 8),
+              Bone(width: double.infinity, height: 14),
+              SizedBox(height: 8),
+              Bone(width: 160, height: 14),
+              SizedBox(height: 12),
+              Bone(width: 140, height: 12),
+            ],
+          ),
         ),
+        error: (e, _) => Text(e.toString(), style: TextStyle(color: c.textSecondary, fontSize: 14)),
+        data: (digest) {
+          if (digest == null) {
+            return Text('No digest yet. Tap Generate to write a plain-language summary of recent activity.',
+                style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45));
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(digest.digest, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
+              const SizedBox(height: 10),
+              Text(
+                'Covers ${digest.coveredEntries} recent entries · generated ${_fmtDateTime(digest.generatedAt)}',
+                style: TextStyle(color: c.textTertiary, fontSize: 13),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
+/// The web dashboard's stat cards — label, big number, one-line description — as a 2 × 2 grid.
 class _OverviewPanel extends StatelessWidget {
   final int totalAssets;
   final double totalValue;
@@ -578,127 +532,59 @@ class _OverviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final isMediumOrLarger = width >= 600;
-    final heroFontSize = isMediumOrLarger ? 52.0 : 40.0;
-    final secondaryFontSize = isMediumOrLarger ? 30.0 : 24.0;
+    final c = context.colors;
+    Widget cell(String label, Widget value, String hint) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: c.textTertiary)),
+              const SizedBox(height: 4),
+              value,
+              const SizedBox(height: 2),
+              Text(hint, style: TextStyle(fontSize: 13, color: c.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        );
+    Widget number(double end, String Function(double) fmt) => TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: end),
+          duration: AppTheme.motionSlow,
+          curve: AppTheme.motionCurve,
+          builder: (context, v, _) => FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(fmt(v),
+                style: TextStyle(fontSize: 26, height: 1.15, fontWeight: FontWeight.w800, color: c.textPrimary)),
+          ),
+        );
+    String whole(double v) => v.round().toString();
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.brandButton,
-        borderRadius: BorderRadius.circular(20),
-      ),
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text('ASSET OVERVIEW',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1)),
-              const Spacer(),
-              Icon(Icons.inventory_2_rounded, color: Colors.white.withValues(alpha: 0.5), size: 18),
-            ],
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cell('ASSETS', number(totalAssets.toDouble(), whole), 'Total registered')),
+                VerticalDivider(width: 1, color: c.border),
+                Expanded(child: cell('ASSET VALUE', number(totalValue, _fmtMoney), 'Acquisition value')),
+              ],
+            ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: totalAssets.toDouble()),
-                    duration: AppTheme.motionSlow,
-                    curve: AppTheme.motionCurve,
-                    builder: (context, value, _) => Text(value.round().toString(),
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w800, fontSize: heroFontSize, height: 1)),
-                  ),
-                  const SizedBox(height: 4),
-                  Text('Total Assets', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
-                ],
-              ),
-              const SizedBox(width: 20),
-              Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.2)),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: totalValue),
-                      duration: AppTheme.motionSlow,
-                      curve: AppTheme.motionCurve,
-                      builder: (context, value, _) => Text(_fmtMoney(value),
-                          style: TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.w700, fontSize: secondaryFontSize, height: 1),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Asset Value', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniStat(icon: Icons.build_rounded, label: 'Under Maintenance', value: underMaintenance),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MiniStat(icon: Icons.delete_rounded, label: 'Disposed', value: disposed),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int value;
-
-  const _MiniStat({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white.withValues(alpha: 0.85), size: 16),
-          const SizedBox(width: 8),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: value.toDouble()),
-            duration: AppTheme.motionSlow,
-            curve: AppTheme.motionCurve,
-            builder: (context, v, _) => Text(v.round().toString(),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(label,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
+          Divider(height: 1, color: c.border),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cell('MAINTENANCE', number(underMaintenance.toDouble(), whole), 'Under maintenance')),
+                VerticalDivider(width: 1, color: c.border),
+                Expanded(child: cell('DISPOSED', number(disposed.toDouble(), whole), 'Disposed assets')),
+              ],
+            ),
           ),
         ],
       ),
@@ -711,34 +597,26 @@ class _OverviewPanelSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Bone(width: 110, height: 12),
-            SizedBox(height: 18),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Bone(width: 70, height: 40),
-                SizedBox(width: 20),
-                Bone(width: 90, height: 26),
-              ],
-            ),
-            SizedBox(height: 18),
-            Bone(width: double.infinity, height: 1),
-            SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: Bone(width: double.infinity, height: 36, borderRadius: BorderRadius.all(Radius.circular(10)))),
-                SizedBox(width: 10),
-                Expanded(child: Bone(width: double.infinity, height: 36, borderRadius: BorderRadius.all(Radius.circular(10)))),
-              ],
-            ),
-          ],
-        ),
+    Widget cell() => const Padding(
+          padding: EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Bone(width: 70, height: 11),
+              SizedBox(height: 8),
+              Bone(width: 80, height: 26),
+              SizedBox(height: 6),
+              Bone(width: 100, height: 11),
+            ],
+          ),
+        );
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Row(children: [Expanded(child: cell()), Expanded(child: cell())]),
+          Row(children: [Expanded(child: cell()), Expanded(child: cell())]),
+        ],
       ),
     );
   }
@@ -804,6 +682,35 @@ class _DigestCardSkeleton extends StatelessWidget {
   }
 }
 
+/// One legend line: dot, label, count, percent — the web dashboard's legend rows.
+class _LegendRow extends StatelessWidget {
+  final Color color;
+  final String label;
+  final int count;
+  final int pct;
+  const _LegendRow({required this.color, required this.label, required this.count, required this.pct});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: TextStyle(color: c.textSecondary, fontSize: 15))),
+          Text('$count', style: TextStyle(color: c.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
+          SizedBox(
+            width: 48,
+            child: Text('$pct%', textAlign: TextAlign.right, style: TextStyle(color: c.textTertiary, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DistributionCard extends StatelessWidget {
   final String title;
   final int total;
@@ -812,6 +719,7 @@ class _DistributionCard extends StatelessWidget {
   final Color Function(String) colorOf;
   final String Function(String) labelOf;
   final String emptyMessage;
+  final String totalNoun;
 
   const _DistributionCard({
     required this.title,
@@ -821,79 +729,54 @@ class _DistributionCard extends StatelessWidget {
     required this.colorOf,
     required this.labelOf,
     this.emptyMessage = 'No assets registered yet.',
+    this.totalNoun = 'assets',
   });
 
   @override
   Widget build(BuildContext context) {
     final present = order.where((k) => (dist[k] ?? 0) > 0).toList();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 12),
-            if (total == 0)
-              Text(emptyMessage, style: TextStyle(color: context.colors.textSecondary, fontSize: 12))
-            else ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: SizedBox(
-                  height: 8,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: 1),
-                    duration: AppTheme.motionSlow,
-                    curve: AppTheme.motionCurve,
-                    builder: (context, progress, child) => FractionallySizedBox(
-                      widthFactor: progress,
-                      alignment: Alignment.centerLeft,
-                      child: child,
-                    ),
-                    child: Row(
-                      children: present.map((k) {
-                        final count = dist[k] ?? 0;
-                        return Expanded(
-                          flex: count,
-                          child: Container(color: colorOf(k)),
-                        );
-                      }).toList(),
+    return SectionCard(
+      title: title,
+      trailingText: total == 0 ? null : '$total $totalNoun',
+      child: total == 0
+          ? Text(emptyMessage, style: TextStyle(color: context.colors.textSecondary, fontSize: 15))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: SizedBox(
+                    height: 10,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: AppTheme.motionSlow,
+                      curve: AppTheme.motionCurve,
+                      builder: (context, progress, child) => FractionallySizedBox(
+                        widthFactor: progress,
+                        alignment: Alignment.centerLeft,
+                        child: child,
+                      ),
+                      child: Row(
+                        children: present
+                            .map((k) => Expanded(flex: dist[k] ?? 0, child: Container(color: colorOf(k))))
+                            .toList(),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              ...present.map((k) {
-                final count = dist[k] ?? 0;
-                final pct = total == 0 ? 0 : (count * 100 / total).round();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        decoration: BoxDecoration(color: colorOf(k), shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(labelOf(k), style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-                      ),
-                      Text('$count', style: TextStyle(color: context.colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(width: 6),
-                      SizedBox(
-                        width: 32,
-                        child: Text('$pct%', textAlign: TextAlign.right,
-                            style: TextStyle(color: context.colors.textSecondary, fontSize: 11)),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
-          ],
-        ),
-      ),
+                const SizedBox(height: 10),
+                ...present.map((k) {
+                  final count = dist[k] ?? 0;
+                  return _LegendRow(
+                    color: colorOf(k),
+                    label: labelOf(k),
+                    count: count,
+                    pct: (count * 100 / total).round(),
+                  );
+                }),
+              ],
+            ),
     );
   }
 }
@@ -918,83 +801,60 @@ class _LifecycleRingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final present = order.where((k) => (dist[k] ?? 0) > 0).toList();
+    final c = context.colors;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-            if (total == 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Text('No assets registered yet.', style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
-              )
-            else ...[
-              const SizedBox(height: 16),
-              Center(
-                child: SizedBox(
-                  width: 176,
-                  height: 176,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: 1),
-                    duration: const Duration(milliseconds: 1100),
-                    curve: AppTheme.motionCurve,
-                    builder: (context, progress, child) => CustomPaint(
-                      painter: _LifecycleRingPainter(
-                        segments: present.map((k) => _RingSegment(count: dist[k] ?? 0, color: colorOf(k))).toList(),
-                        total: total,
-                        trackColor: context.colors.border,
-                        progress: progress,
+    return SectionCard(
+      title: title,
+      trailingText: total == 0 ? null : '$total total',
+      child: total == 0
+          ? Text('No assets registered yet.', style: TextStyle(color: c.textSecondary, fontSize: 15))
+          : Column(
+              children: [
+                Center(
+                  child: SizedBox(
+                    width: 168,
+                    height: 168,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 1100),
+                      curve: AppTheme.motionCurve,
+                      builder: (context, progress, child) => CustomPaint(
+                        painter: _LifecycleRingPainter(
+                          segments: present.map((k) => _RingSegment(count: dist[k] ?? 0, color: colorOf(k))).toList(),
+                          total: total,
+                          trackColor: c.border,
+                          progress: progress,
+                        ),
+                        child: child,
                       ),
-                      child: child,
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('$total',
-                              style: TextStyle(
-                                  color: context.colors.textPrimary, fontWeight: FontWeight.w800, fontSize: 28, height: 1)),
-                          const SizedBox(height: 2),
-                          Text('ASSETS',
-                              style: TextStyle(
-                                  color: context.colors.textTertiary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1)),
-                        ],
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('$total',
+                                style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.w800, fontSize: 30, height: 1)),
+                            const SizedBox(height: 4),
+                            Text('ASSETS',
+                                style: TextStyle(
+                                    color: c.textTertiary, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 14,
-                runSpacing: 8,
-                children: present.map((k) {
+                const SizedBox(height: 14),
+                ...present.map((k) {
                   final count = dist[k] ?? 0;
-                  final pct = total == 0 ? 0 : (count * 100 / total).round();
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        decoration: BoxDecoration(color: colorOf(k), shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 6),
-                      Text('${labelOf(k)} · $count ($pct%)',
-                          style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-                    ],
+                  return _LegendRow(
+                    color: colorOf(k),
+                    label: labelOf(k),
+                    count: count,
+                    pct: (count * 100 / total).round(),
                   );
-                }).toList(),
-              ),
-            ],
-          ],
-        ),
-      ),
+                }),
+              ],
+            ),
     );
   }
 }

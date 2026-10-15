@@ -61,15 +61,16 @@ class _AppSearchFieldState extends State<AppSearchField> {
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: widget.hintText,
-        hintStyle: TextStyle(color: context.colors.textSecondary, fontSize: 14),
-        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        hintStyle: TextStyle(color: context.colors.textTertiary, fontSize: 15),
+        prefixIcon: Icon(Icons.search_rounded, size: 22, color: context.colors.textTertiary),
         suffixIcon: widget.controller.text.isNotEmpty
             ? IconButton(
-                icon: const Icon(Icons.clear_rounded, size: 18),
+                icon: const Icon(Icons.clear_rounded, size: 20),
+                tooltip: 'Clear search',
                 onPressed: _clear,
               )
             : null,
-        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
       ),
       onChanged: _handleChanged,
       onSubmitted: _submit,

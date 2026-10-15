@@ -10,6 +10,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/main_shell.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
+import '../../../shared/widgets/ui.dart';
 import '../data/recycle_bin_service.dart';
 import '../model/deleted_asset_model.dart';
 import '../model/deleted_maintenance_model.dart';
@@ -27,9 +28,14 @@ class RecycleBinScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('Recycle Bin'),
           bottom: TabBar(
-            indicatorColor: AppTheme.brand,
-            labelColor: AppTheme.brand,
+            indicatorColor: context.brandAccent,
+            indicatorWeight: 3,
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerHeight: 0,
+            labelColor: context.brandAccent,
             unselectedLabelColor: context.colors.textSecondary,
+            labelStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 15, fontWeight: FontWeight.w700),
+            unselectedLabelStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 15, fontWeight: FontWeight.w500),
             tabs: const [
               Tab(text: 'Assets'),
               Tab(text: 'Maintenance'),
@@ -130,14 +136,13 @@ class _RecycleBinTabState<T> extends ConsumerState<_RecycleBinTab<T>> {
               ? Center(
                   child: Text(
                     items.isEmpty ? widget.emptyMessage : 'No records match your search.',
-                    style: TextStyle(color: context.colors.textTertiary),
+                    style: TextStyle(color: context.colors.textTertiary, fontSize: 15),
                   ),
                 )
               : RefreshIndicator(
-                  color: AppTheme.brand,
                   onRefresh: () async => ref.invalidate(widget.provider),
                   child: ListView.separated(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + context.mainShellBottomInset),
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 24 + context.mainShellBottomInset),
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, i) => widget.itemBuilder(context, ref, filtered[i]),
@@ -155,21 +160,14 @@ Future<bool> _confirmRestore(BuildContext context, String label) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: ctx.colors.surface,
-      title: Text('Restore this $label?', style: TextStyle(color: ctx.colors.textPrimary)),
+      title: Text('Restore this $label?'),
       content: Text(
         'It will reappear in its original list, exactly as it was before deletion.',
-        style: TextStyle(color: ctx.colors.textTertiary, fontSize: 13),
+        style: TextStyle(color: ctx.colors.textSecondary, fontSize: 15, height: 1.45),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: Text('Cancel', style: TextStyle(color: ctx.colors.textTertiary)),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Restore', style: TextStyle(color: AppTheme.brand)),
-        ),
+        OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restore')),
       ],
     ),
   );
@@ -190,7 +188,7 @@ Future<void> _handleRestore(
     ref.invalidate(provider);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$label restored.'), backgroundColor: Colors.green.shade800),
+        SnackBar(content: Text('$label restored.')),
       );
     }
   } catch (e) {
@@ -279,9 +277,7 @@ class _PermanentDeleteDialogState extends State<_PermanentDeleteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: context.colors.surface,
-      title: Text('Permanently delete this ${widget.label.toLowerCase()}?',
-          style: TextStyle(color: context.colors.textPrimary)),
+      title: Text('Permanently delete this ${widget.label.toLowerCase()}?'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,7 +285,7 @@ class _PermanentDeleteDialogState extends State<_PermanentDeleteDialog> {
           Text(
             'This cannot be undone — the record will be completely removed, not just moved out of the '
             'Recycle Bin.${_sending ? ' Sending a verification code to your email…' : _sent ? ' Enter the verification code we emailed you to confirm.' : ''}',
-            style: TextStyle(color: context.colors.textTertiary, fontSize: 13),
+            style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
           ),
           if (_sent) ...[
             const SizedBox(height: 14),
@@ -299,7 +295,7 @@ class _PermanentDeleteDialogState extends State<_PermanentDeleteDialog> {
               maxLength: 6,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
-              style: const TextStyle(letterSpacing: 8, fontSize: 18),
+              style: const TextStyle(letterSpacing: 8, fontSize: 22, fontWeight: FontWeight.w600),
               decoration: const InputDecoration(counterText: '', hintText: '••••••'),
               onChanged: (_) => setState(() => _error = null),
             ),
@@ -313,18 +309,16 @@ class _PermanentDeleteDialogState extends State<_PermanentDeleteDialog> {
           ],
           if (_error != null) ...[
             const SizedBox(height: 4),
-            Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+            Callout(_error!, tone: CalloutTone.error),
           ],
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text('Cancel', style: TextStyle(color: context.colors.textTertiary)),
-        ),
-        TextButton(
+        OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(
           onPressed: (!_sent || _deleting || _otpCtrl.text.trim().length != 6) ? null : _confirm,
-          child: Text(_deleting ? 'Deleting…' : 'Permanently Delete', style: const TextStyle(color: Colors.red)),
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+          child: Text(_deleting ? 'Deleting…' : 'Delete forever'),
         ),
       ],
     );
@@ -375,47 +369,49 @@ class _RecycleBinCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(propertyNumber,
-                style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: context.colors.textSecondary)),
-            if (parNumber != null && parNumber!.isNotEmpty)
-              Text('PAR: $parNumber',
-                  style: TextStyle(fontFamily: 'monospace', fontSize: 11.5, color: context.colors.textTertiary)),
-            const SizedBox(height: 2),
-            Text(description,
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: context.colors.textPrimary)),
+            CodeText(parNumber != null && parNumber!.isNotEmpty ? '$propertyNumber · PAR $parNumber' : propertyNumber),
+            const SizedBox(height: 4),
+            CardTitle(description),
             if (badges.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 8, children: badges),
+              const SizedBox(height: 10),
+              Wrap(spacing: 6, runSpacing: 6, children: badges),
             ],
             const SizedBox(height: 10),
-            Text('Deleted by $deletedByUsername · ${_fmt(deletedAt)}',
-                style: TextStyle(fontSize: 11.5, color: context.colors.textTertiary)),
+            MetaLine(Icons.delete_outline_rounded, 'Deleted by $deletedByUsername · ${_fmt(deletedAt)}'),
             if (deleteReason != null && deleteReason!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(deleteReason!,
-                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: context.colors.textTertiary)),
+              const SizedBox(height: 6),
+              Text('Reason: $deleteReason', style: TextStyle(fontSize: 14, color: c.textSecondary)),
             ],
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton.icon(
-                  onPressed: onPermanentDelete,
-                  icon: const Icon(Icons.delete_forever_rounded, size: 16),
-                  label: const Text('Delete'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onPermanentDelete,
+                    icon: const Icon(Icons.delete_forever_rounded, size: 20),
+                    label: const Text('Delete forever'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: const BorderSide(color: Color(0xFFFCA5A5)),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                    ),
+                  ),
                 ),
-                TextButton.icon(
-                  onPressed: onRestore,
-                  icon: const Icon(Icons.restore_rounded, size: 16),
-                  label: const Text('Restore'),
-                  style: TextButton.styleFrom(foregroundColor: AppTheme.brand),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onRestore,
+                    icon: const Icon(Icons.restore_rounded, size: 20),
+                    label: const Text('Restore'),
+                  ),
                 ),
               ],
             ),
@@ -441,7 +437,7 @@ class _AssetsTab extends StatelessWidget {
     return _RecycleBinTab<DeletedAssetModel>(
       provider: deletedAssetsProvider,
       emptyMessage: 'No deleted assets.',
-      searchHint: 'Search by device name or property number...',
+      searchHint: 'Search name or property no.',
       matches: (a, q) =>
           a.description.toLowerCase().contains(q) ||
           a.propertyNumber.toLowerCase().contains(q) ||
@@ -482,7 +478,7 @@ class _MaintenanceTab extends StatelessWidget {
     return _RecycleBinTab<DeletedMaintenanceModel>(
       provider: deletedMaintenanceProvider,
       emptyMessage: 'No deleted maintenance records.',
-      searchHint: 'Search by device name or property number...',
+      searchHint: 'Search name or property no.',
       matches: (m, q) =>
           m.assetDescription.toLowerCase().contains(q) ||
           m.propertyNumber.toLowerCase().contains(q) ||
@@ -492,8 +488,8 @@ class _MaintenanceTab extends StatelessWidget {
         parNumber: m.parNumber,
         description: m.assetDescription,
         badges: [
-          StatusBadge.maintenanceType(m.maintenanceType, dense: true),
-          StatusBadge.maintenanceStatus(m.status, dense: true),
+          StatusBadge.maintenanceType(m.maintenanceType),
+          StatusBadge.maintenanceStatus(m.status),
         ],
         deletedByUsername: m.deletedByUsername,
         deletedAt: m.deletedAt,
@@ -521,7 +517,7 @@ class _DisposalTab extends StatelessWidget {
     return _RecycleBinTab<DeletedDisposalModel>(
       provider: deletedDisposalProvider,
       emptyMessage: 'No deleted disposal records.',
-      searchHint: 'Search by device name or property number...',
+      searchHint: 'Search name or property no.',
       matches: (d, q) =>
           d.assetDescription.toLowerCase().contains(q) ||
           d.propertyNumber.toLowerCase().contains(q) ||
@@ -531,8 +527,8 @@ class _DisposalTab extends StatelessWidget {
         parNumber: d.parNumber,
         description: d.assetDescription,
         badges: [
-          StatusBadge.disposalMethod(d.recommendedMethod, dense: true),
-          StatusBadge.disposalStatus(d.disposalStatus, dense: true),
+          StatusBadge.disposalMethod(d.recommendedMethod),
+          StatusBadge.disposalStatus(d.disposalStatus),
         ],
         deletedByUsername: d.deletedByUsername,
         deletedAt: d.deletedAt,
@@ -557,14 +553,5 @@ class _InfoChip extends StatelessWidget {
   const _InfoChip(this.label);
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: context.colors.border.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(label, style: TextStyle(fontSize: 11, color: context.colors.textSecondary)),
-    );
-  }
+  Widget build(BuildContext context) => StatusBadge(label: label, color: AppTheme.statusArchived);
 }

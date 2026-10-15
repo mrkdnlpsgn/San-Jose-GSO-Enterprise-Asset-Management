@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/theme/app_theme.dart';
@@ -83,21 +84,13 @@ class _ForceChangePasswordScreenState extends ConsumerState<ForceChangePasswordS
                 children: [
                   Text(
                     'This account is using a temporary password. Choose a new one to continue.',
-                    style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
+                    style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
                   ),
                   const SizedBox(height: 24),
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
-                      ),
+                      child: Callout(_error!, tone: CalloutTone.error),
                     ),
                   TextFormField(
                     controller: _newPasswordCtrl,

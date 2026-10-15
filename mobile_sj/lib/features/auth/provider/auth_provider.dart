@@ -62,7 +62,10 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(UserModel(
+      id: current.id,
       username: current.username,
+      fullName: current.fullName,
+      officeName: current.officeName,
       role: current.role,
       privacyAcknowledgedAt: ackAt,
     ));

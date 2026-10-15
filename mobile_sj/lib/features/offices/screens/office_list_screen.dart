@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/data/reference_service.dart';
 import '../../../shared/provider/reference_provider.dart';
-import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/delete_dialog.dart';
 import '../../../shared/widgets/info_dialog.dart';
 import '../../assets/model/asset_model.dart';
@@ -56,29 +56,29 @@ class _OfficeListScreenState extends ConsumerState<OfficeListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Offices'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: AppSearchField(
-              controller: _searchCtrl,
-              hintText: 'Search offices...',
-              onChanged: (v) => setState(() => _search = v),
+        title: TitleWithCount('Offices', subtitle: countLabel(officesAsync.value?.length, singular: 'office', plural: 'offices')),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton.icon(
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('Add Office'),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
+              onPressed: () async {
+                final result = await context.push<bool>('/offices/new');
+                if (result == true) ref.invalidate(officesProvider);
+              },
             ),
           ),
+        ],
+        bottom: ListToolbar(
+          controller: _searchCtrl,
+          hintText: 'Search offices',
+          onSearch: (v) => setState(() => _search = v),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppTheme.brand,
-        child: const Icon(Icons.add_rounded, color: Colors.white),
-        onPressed: () async {
-          final result = await context.push<bool>('/offices/new');
-          if (result == true) ref.invalidate(officesProvider);
-        },
-      ),
       body: officesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load offices: $e')),
         data: (offices) {
           final filtered = _search.trim().isEmpty
@@ -89,52 +89,40 @@ class _OfficeListScreenState extends ConsumerState<OfficeListScreen> {
             return Center(
               child: Text(
                 offices.isEmpty ? 'No offices yet.' : 'No offices match your search.',
-                style: TextStyle(color: context.colors.textTertiary),
+                style: TextStyle(color: context.colors.textTertiary, fontSize: 15),
               ),
             );
           }
 
           return RefreshIndicator(
-            color: AppTheme.brand,
             onRefresh: () async => ref.invalidate(officesProvider),
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               itemCount: filtered.length,
               itemBuilder: (context, i) {
                 final office = filtered[i];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(office.officeName,
-                                  style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
-                              const SizedBox(height: 2),
-                              Text(office.headUserName ?? 'No head assigned',
-                                  style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.edit_outlined, color: context.colors.textSecondary, size: 20),
-                          tooltip: 'Edit',
-                          onPressed: () async {
-                            final result = await context.push<bool>('/offices/${office.id}/edit', extra: office);
-                            if (result == true) ref.invalidate(officesProvider);
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
-                          tooltip: 'Delete',
-                          onPressed: () => _delete(office),
-                        ),
-                      ],
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: RecordCard(
+                    onTap: () async {
+                      final result = await context.push<bool>('/offices/${office.id}/edit', extra: office);
+                      if (result == true) ref.invalidate(officesProvider);
+                    },
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+                      tooltip: 'Delete',
+                      onPressed: () => _delete(office),
                     ),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CardTitle(office.officeName),
+                          const SizedBox(height: 4),
+                          MetaLine(Icons.person_rounded, office.headUserName ?? 'No head assigned'),
+                          const SizedBox(height: 6),
+                          Text('Tap to edit', style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
                   ),
                 );
               },

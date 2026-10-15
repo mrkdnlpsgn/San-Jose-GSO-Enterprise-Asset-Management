@@ -12,6 +12,7 @@ bool disposalFiltersActive(WidgetRef ref) =>
 
 Future<void> showDisposalFilterSheet(BuildContext context, WidgetRef ref) {
   return showModalBottomSheet(
+    useRootNavigator: true, // above the bottom bar, not behind it
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -50,7 +51,7 @@ class _DisposalFilterSheet extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text('Method', style: TextStyle(color: context.colors.textTertiary, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('Method', style: TextStyle(color: context.colors.textTertiary, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             initialValue: method,
@@ -63,7 +64,7 @@ class _DisposalFilterSheet extends ConsumerWidget {
             onChanged: (v) => ref.read(disposalMethodFilterProvider.notifier).state = v,
           ),
           const SizedBox(height: 14),
-          Text('Status', style: TextStyle(color: context.colors.textTertiary, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('Status', style: TextStyle(color: context.colors.textTertiary, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             initialValue: status,

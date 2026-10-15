@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../assets/model/asset_model.dart';
 import '../../reports/utils/formatters.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/main_shell.dart';
 import '../provider/qr_lookup_provider.dart';
 
@@ -98,118 +99,153 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     ref.watch(qrLookupAssetsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('QR Asset Lookup')),
+      appBar: AppBar(title: const Text('Scan QR Code')),
       body: ListView(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + context.mainShellBottomInset),
         children: [
-          if (_cameraScanSupported) _buildCameraPanel(),
-          if (_cameraScanSupported) const SizedBox(height: 16),
+          // The answer goes first once there is one, so it isn't hidden below the camera
+          if (_result != null) ...[
+            _ResultCard(asset: _result!, onClear: _clear),
+            const SizedBox(height: 16),
+          ] else if (_notFound) ...[
+            _NotFoundCard(onClear: _clear),
+            const SizedBox(height: 16),
+          ],
+          if (_cameraScanSupported) ...[
+            _buildCameraPanel(),
+            const SizedBox(height: 16),
+          ],
           _buildManualEntryPanel(),
-          const SizedBox(height: 16),
-          if (_result != null) _ResultCard(asset: _result!, onClear: _clear)
-          else if (_notFound) _NotFoundCard(onClear: _clear)
-          else if (!_cameraScanSupported)
+          if (!_cameraScanSupported && _result == null && !_notFound) ...[
+            const SizedBox(height: 16),
             const _InfoCard(
-              text: 'Camera scanning isn\'t available on this platform — '
-                  'enter a Property Number or PAR Number above to look up an asset\'s status.',
+              text: 'Camera scanning isn\'t available on this device. '
+                  'Type a Property Number or PAR Number above to look up an asset.',
             ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildCameraPanel() {
-    return Card(
+    final c = context.colors;
+    return SectionCard(
+      title: 'Scan an asset sticker',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-            child: Text('Camera Scanner',
-                style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+          Text(
+            'Point the camera at the QR code on the asset\'s property sticker.',
+            style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45),
           ),
+          const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: SizedBox(
               height: 280,
-              width: double.infinity,
               child: _scanning
-                  ? MobileScanner(
-                      controller: _controller,
-                      errorBuilder: (context, error) => Container(
-                        color: Colors.black,
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'Camera error: ${error.errorCode.name}. '
-                          'Grant camera permission in system settings and try again.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        MobileScanner(
+                          controller: _controller,
+                          errorBuilder: (context, error) => Container(
+                            color: Colors.black,
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              'The camera could not start (${error.errorCode.name}). '
+                              'Allow camera access for this app in your phone\'s Settings, then try again.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
+                            ),
+                          ),
+                          onDetect: (capture) {
+                            final code = capture.barcodes.firstOrNull?.rawValue;
+                            if (code == null) return;
+                            _stopScanning();
+                            _lookup(code);
+                          },
                         ),
-                      ),
-                      onDetect: (capture) {
-                        final code = capture.barcodes.firstOrNull?.rawValue;
-                        if (code == null) return;
-                        _stopScanning();
-                        _lookup(code);
-                      },
+                        // square guide, like the web scanner's
+                        Center(
+                          child: Container(
+                            width: 190,
+                            height: 190,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.white, width: 3),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ],
                     )
                   : Container(
-                      color: context.colors.bg,
+                      decoration: BoxDecoration(
+                        color: c.subtle,
+                        border: Border.all(color: c.border),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       alignment: Alignment.center,
-                      child: Icon(Icons.qr_code_scanner_rounded, size: 56, color: context.colors.textTertiary),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.qr_code_scanner_rounded, size: 64, color: c.textTertiary),
+                          const SizedBox(height: 8),
+                          Text('Camera is off', style: TextStyle(color: c.textTertiary, fontSize: 15)),
+                        ],
+                      ),
                     ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: SizedBox(
-              width: double.infinity,
-              child: _scanning
-                  ? OutlinedButton(onPressed: _stopScanning, child: const Text('Stop'))
-                  : ElevatedButton.icon(
-                      onPressed: _startScanning,
-                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-                      label: const Text('Start Scanner'),
-                    ),
-            ),
-          ),
+          const SizedBox(height: 12),
+          _scanning
+              ? OutlinedButton.icon(
+                  onPressed: _stopScanning,
+                  icon: const Icon(Icons.stop_rounded),
+                  label: const Text('Stop camera'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                )
+              : ElevatedButton.icon(
+                  onPressed: _startScanning,
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 22),
+                  label: const Text('Start scanning'),
+                ),
         ],
       ),
     );
   }
 
   Widget _buildManualEntryPanel() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Manual Code Entry',
-                style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 4),
-            Text('Enter a Property Number or PAR Number to search directly.',
-                style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _manualCtrl,
-                    decoration: const InputDecoration(hintText: 'e.g. COA-2026-001'),
-                    onSubmitted: _lookup,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: () => _lookup(_manualCtrl.text),
-                  child: const Text('Search'),
-                ),
-              ],
+    final c = context.colors;
+    return SectionCard(
+      title: 'Or type the number',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('If the sticker won\'t scan, type its Property Number or PAR Number.',
+              style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _manualCtrl,
+            style: const TextStyle(fontSize: 16),
+            textInputAction: TextInputAction.search,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              hintText: 'e.g. COA-2026-001',
+              prefixIcon: Icon(Icons.tag_rounded),
             ),
-          ],
-        ),
+            onSubmitted: _lookup,
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => _lookup(_manualCtrl.text),
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Look up asset'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+          ),
+        ],
       ),
     );
   }
@@ -222,13 +258,15 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline_rounded, color: context.colors.textSecondary, size: 20),
+            Icon(Icons.info_outline_rounded, color: context.colors.textSecondary, size: 22),
             const SizedBox(width: 12),
-            Expanded(child: Text(text, style: TextStyle(color: context.colors.textTertiary, fontSize: 13))),
+            Expanded(child: Text(text, style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45))),
           ],
         ),
       ),
@@ -242,22 +280,31 @@ class _NotFoundCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Icon(Icons.error_outline_rounded, color: AppTheme.statusDisposed, size: 36),
-            const SizedBox(height: 10),
-            const Text('Asset Not Found',
-                style: TextStyle(color: AppTheme.statusDisposed, fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 4),
-            Text('No asset matches this code. Verify the property number and try again.',
-                textAlign: TextAlign.center, style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
-            const SizedBox(height: 14),
-            OutlinedButton(onPressed: onClear, child: const Text('Clear')),
-          ],
-        ),
+    final light = context.isLight;
+    final fg = light ? const Color(0xFFB91C1C) : const Color(0xFFFCA5A5);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: light ? const Color(0xFFFEF2F2) : const Color(0x33EF4444),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: light ? const Color(0xFFFECACA) : const Color(0x66EF4444)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.error_rounded, color: fg, size: 24),
+              const SizedBox(width: 10),
+              Text('Asset not found', style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 17)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('No asset matches this code. Check the property number and try again.',
+              style: TextStyle(color: fg, fontSize: 15, height: 1.45)),
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: onClear, child: const Text('Try again')),
+        ],
       ),
     );
   }
@@ -270,10 +317,9 @@ class _ResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     final fields = <String, String?>{
-      'Property Number': asset.propertyNumber,
       'PAR Number': asset.parNumber,
-      'Description': asset.description,
       'Category': asset.category.categoryName,
       'Office': asset.office.officeName,
       'Location': asset.location,
@@ -281,61 +327,101 @@ class _ResultCard extends StatelessWidget {
       'Current User': asset.currentUser?.fullName,
       'Unit Value': fmtMoney(asset.unitValue),
       'Quantity': asset.quantity.toString(),
-      'Acquisition Date': fmtDate(asset.acquisitionDate),
+      'Acquired': fmtDate(asset.acquisitionDate),
       if (asset.remarks != null && asset.remarks!.isNotEmpty) 'Remarks': asset.remarks,
-    };
+    }.entries.where((e) => e.value != null && e.value!.isNotEmpty).toList();
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppTheme.brand, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: context.isLight ? AppTheme.brandTint : AppTheme.brand.withValues(alpha: 0.15),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
               children: [
-                Container(
-                  width: 8, height: 8,
-                  decoration: const BoxDecoration(color: AppTheme.brand, shape: BoxShape.circle),
-                ),
+                Icon(Icons.check_circle_rounded, color: context.brandAccent, size: 22),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Asset Found',
-                      style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-                ),
-                TextButton(
-                  onPressed: () => context.push('/assets/${asset.id}'),
-                  child: const Text('View'),
-                ),
-                TextButton(onPressed: onClear, child: const Text('Clear')),
+                Text('Asset found', style: TextStyle(color: context.brandAccent, fontWeight: FontWeight.w700, fontSize: 16)),
               ],
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                StatusBadge.condition(asset.condition),
-                StatusBadge.lifecycle(asset.lifecycleStatus),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...fields.entries.where((e) => e.value != null && e.value!.isNotEmpty).map(
-              (e) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Text(asset.propertyNumber,
+                    style: TextStyle(color: c.textTertiary, fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'monospace')),
+                const SizedBox(height: 4),
+                Text(asset.description,
+                    style: TextStyle(color: c.heading, fontSize: 20, height: 1.25, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
-                    Text(e.key.toUpperCase(),
-                        style: TextStyle(
-                            color: context.colors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-                    const SizedBox(height: 2),
-                    Text(e.value!, style: TextStyle(color: context.colors.textSecondary, fontSize: 13.5)),
+                    StatusBadge.condition(asset.condition),
+                    StatusBadge.lifecycle(asset.lifecycleStatus),
                   ],
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final e in fields) ...[
+            Divider(height: 1, indent: 16, color: c.border),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 4, child: Text(e.key, style: TextStyle(color: c.textTertiary, fontSize: 15))),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 6,
+                    child: Text(e.value!,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(color: c.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
+          Divider(height: 1, color: c.border),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(onPressed: onClear, child: const Text('Scan another')),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => context.push('/assets/${asset.id}'),
+                    child: const Text('Open asset'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.swap_horiz_rounded, size: 20),
+              label: const Text('Transfer this asset'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              onPressed: () => context.push('/transfers/new', extra: asset),
+            ),
+          ),
+        ],
       ),
     );
   }

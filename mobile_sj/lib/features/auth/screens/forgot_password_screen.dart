@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/widgets/password_requirements.dart';
@@ -102,15 +103,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (_error == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-        ),
-        child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
-      ),
+      child: Callout(_error!, tone: CalloutTone.error),
     );
   }
 
@@ -122,7 +115,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         children: [
           Text(
             "Enter your username and we'll email you a verification code.",
-            style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
+            style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
           ),
           const SizedBox(height: 24),
           _errorBanner(context),
@@ -140,7 +133,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           Text(
             'You can only request a new code once every 15 minutes per account.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
+            style: TextStyle(color: context.colors.textTertiary, fontSize: 15),
           ),
           const SizedBox(height: 20),
           ElevatedButton(
@@ -165,7 +158,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         Text(
           'Enter the code sent to the email on file for "${_usernameCtrl.text.trim()}".',
-          style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
+          style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
         ),
         const SizedBox(height: 24),
         _errorBanner(context),
@@ -256,16 +249,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Container(
           width: 64, height: 64,
           decoration: BoxDecoration(color: AppTheme.brand.withValues(alpha: 0.15), shape: BoxShape.circle),
-          child: const Icon(Icons.check_rounded, color: AppTheme.brand, size: 32),
+          child: Icon(Icons.check_rounded, color: context.brandAccent, size: 32),
         ),
         const SizedBox(height: 20),
         Text('Password Reset',
-            style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 16)),
+            style: TextStyle(color: context.colors.heading, fontWeight: FontWeight.w700, fontSize: 20)),
         const SizedBox(height: 8),
         Text(
           'Your password has been updated. You can now sign in with your new password.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: context.colors.textTertiary, fontSize: 13),
+          style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
         ),
         const SizedBox(height: 24),
         SizedBox(

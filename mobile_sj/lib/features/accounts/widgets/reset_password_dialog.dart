@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/ui.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/password_requirements.dart';
@@ -47,19 +48,18 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: context.colors.surface,
-      title: Text('Reset Password', style: TextStyle(color: context.colors.textPrimary)),
+      title: const Text('Reset password'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Set a new password for ${widget.username}.',
-                style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 15)),
             const SizedBox(height: 16),
             if (_error != null) ...[
-              Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-              const SizedBox(height: 8),
+              Callout(_error!, tone: CalloutTone.error),
+              const SizedBox(height: 12),
             ],
             TextField(
               controller: _passwordCtrl,
@@ -77,20 +77,14 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
             const SizedBox(height: 12),
             Text(
               'This also clears any failed login attempts and unlocks the account if it was locked.',
-              style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
+              style: TextStyle(color: context.colors.textTertiary, fontSize: 14),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: TextStyle(color: context.colors.textTertiary)),
-        ),
-        TextButton(
-          onPressed: _submit,
-          child: const Text('Reset Password', style: TextStyle(color: AppTheme.brand)),
-        ),
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: _submit, child: const Text('Reset password')),
       ],
     );
   }

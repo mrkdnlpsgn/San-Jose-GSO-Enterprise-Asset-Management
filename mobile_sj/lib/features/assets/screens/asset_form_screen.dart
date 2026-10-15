@@ -11,9 +11,9 @@ import '../provider/asset_provider.dart';
 import '../widgets/asset_qr_sheet.dart';
 import '../../../shared/data/reference_service.dart';
 import '../../../shared/provider/reference_provider.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
-import '../../../shared/widgets/main_shell.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../maintenance/data/maintenance_service.dart';
 import '../../disposal/data/disposal_service.dart';
@@ -134,10 +134,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     super.dispose();
   }
 
-  Future<void> _scanLabel() async {
-    final source = _cameraCaptureSupported ? await _pickImageSource() : ImageSource.gallery;
-    if (source == null) return;
-
+  Future<void> _scanLabel(ImageSource source) async {
     final picked = await ImagePicker().pickImage(source: source, imageQuality: 85);
     if (picked == null) return;
 
@@ -153,40 +150,12 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       if (result.specifications != null && result.specifications!.isNotEmpty) {
         _specifications.text = result.specifications!;
       }
-      _wasScanned = true;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Scanned — review the details below.'), behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) setState(() => _wasScanned = true);
     } on ApiException catch (e) {
       if (mounted) _showError(e.message);
     } finally {
       if (mounted) setState(() => _scanning = false);
     }
-  }
-
-  Future<ImageSource?> _pickImageSource() {
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take Photo'),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from Gallery'),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _onDescriptionChanged() {
@@ -309,14 +278,25 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit Asset' : 'New Asset')),
+      // main button stays in reach at the bottom, however long the form
+      bottomNavigationBar: FormActionBar(child: SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_isEdit ? 'Save Changes' : 'Create Asset'),
+            ),
+          )),
       body: categoriesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text(e.toString())),
         data: (categories) => officesAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
+          loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text(e.toString())),
           data: (offices) => personnelAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.brand)),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text(e.toString())),
             data: (personnel) {
               // Accountable Person narrows to the asset's office once one is picked (the
@@ -330,20 +310,13 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
               return Form(
                 key: _formKey,
                 child: ListView(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
                   children: [
                     if (!_isEdit) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: OutlinedButton.icon(
-                          onPressed: _scanning ? null : _scanLabel,
-                          icon: _scanning
-                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Icon(Icons.document_scanner_outlined),
-                          label: Text(_scanning ? 'Scanning…' : 'Scan Label/Document — auto-fill from a photo'),
-                        ),
-                      ),
+                      _autofillPanel(context),
+                      const SizedBox(height: 20),
                     ],
+                    const SectionLabel('Identification'),
                     _field(_serialNumber, 'Serial Number (optional)'),
                     _field(_description, 'Description', required: true),
                     _dropdown<CategoryModel>(
@@ -362,12 +335,16 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       alignment: Alignment.topCenter,
                       child: _suggestedCategory != null ? _categorySuggestionChip() : const SizedBox.shrink(),
                     ),
+                    const SizedBox(height: 10),
+                    const SectionLabel('Quantity and value'),
                     _fixedField('Qty (Property Card)', '1', helperText: 'Always 1 — each asset is its own Property Number.'),
                     _fixedField('Qty (Physical Count)', '1', helperText: 'Always 1.'),
                     _datePicker(),
                     _field(_unitValue, 'Unit Value (₱)', keyboardType: TextInputType.number, required: true),
                     _field(_shortageOverageQty, 'Shortage/Overage Qty (optional)', keyboardType: TextInputType.number),
                     _field(_shortageOverageValue, 'Shortage/Overage Value (₱, optional)', keyboardType: TextInputType.number),
+                    const SizedBox(height: 10),
+                    const SectionLabel('Property records'),
                     _field(_propertyNumber, 'Property Number (optional)'),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 14),
@@ -382,6 +359,8 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         validator: _validateParSerial,
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    const SectionLabel('Location and people'),
                     if (_staffMode) ...[
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
@@ -416,7 +395,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         padding: const EdgeInsets.only(bottom: 14),
                         child: Text(
                           'No personnel are assigned to this office yet — assign one from the web app\'s Personnel page.',
-                          style: TextStyle(fontSize: 12, color: context.colors.textTertiary),
+                          style: TextStyle(fontSize: 14, color: context.colors.textTertiary),
                         ),
                       ),
                     _dropdown<PersonnelModel>(
@@ -427,6 +406,8 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       onChanged: (p) => setState(() => _currentUserId = p?.id),
                       required: false,
                     ),
+                    const SizedBox(height: 10),
+                    const SectionLabel('Status'),
                     _enumDropdown('Condition', _condition,
                       ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
                       (v) => setState(() => _condition = v!)),
@@ -444,19 +425,10 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       if (_staffRequest != null && _lifecycleStatus != widget.asset!.lifecycleStatus)
                         _requestNotice(),
                     ],
+                    const SizedBox(height: 10),
+                    const SectionLabel('Notes'),
                     _field(_specifications, 'Technical Specifications', maxLines: 6),
                     _field(_remarks, 'Remarks', maxLines: 3),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _loading ? null : _submit,
-                        child: _loading
-                            ? const SizedBox(width: 20, height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Text(_isEdit ? 'Save Changes' : 'Create Asset'),
-                      ),
-                    ),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -464,6 +436,93 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
             },
           ),
         ),
+      ),
+    );
+  }
+
+  // Same as the web Add Asset form (commit deb07aa): a labelled green panel so staff notice
+  // they can fill the form from a photo instead of typing — explanation first, then solid
+  // buttons, then a confirmation once fields have been filled in.
+  Widget _autofillPanel(BuildContext context) {
+    final c = context.colors;
+    final light = context.isLight;
+    final accent = context.brandAccent;
+    final busy = _scanning;
+    Widget spinner(Color color) =>
+        SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: color));
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: light ? AppTheme.brandTint : AppTheme.brand.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.brand.withValues(alpha: 0.6), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(color: AppTheme.brandButton, shape: BoxShape.circle),
+                child: const Icon(Icons.document_scanner_rounded, size: 21, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Auto-fill from a photo — no typing needed',
+                        style: TextStyle(color: c.textPrimary, fontSize: 16, height: 1.3, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Take a photo of the device label/sticker or the PAR document. The system reads the '
+                      'description, serial number, and specifications and fills them in for you to review.',
+                      style: TextStyle(color: c.textSecondary, fontSize: 14, height: 1.45),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_cameraCaptureSupported) ...[
+            ElevatedButton.icon(
+              onPressed: busy ? null : () => _scanLabel(ImageSource.camera),
+              icon: busy ? spinner(Colors.white) : const Icon(Icons.photo_camera_rounded),
+              label: Text(busy ? 'Reading photo…' : 'Take Photo'),
+            ),
+            const SizedBox(height: 8),
+          ],
+          OutlinedButton.icon(
+            onPressed: busy ? null : () => _scanLabel(ImageSource.gallery),
+            icon: busy && !_cameraCaptureSupported ? spinner(accent) : const Icon(Icons.upload_rounded),
+            label: Text(busy && !_cameraCaptureSupported ? 'Reading photo…' : 'Upload Image'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              foregroundColor: accent,
+              backgroundColor: c.surface,
+              side: const BorderSide(color: AppTheme.brandButton, width: 2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_wasScanned && !busy)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.check_rounded, size: 20, color: accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('Fields filled in from your photo — please check them below before saving.',
+                      style: TextStyle(color: accent, fontSize: 14, height: 1.4, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            )
+          else
+            Text('Or skip this and type the details below.', style: TextStyle(color: c.textTertiary, fontSize: 14)),
+        ],
       ),
     );
   }
@@ -523,11 +582,11 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.auto_awesome_rounded, size: 14, color: AppTheme.brand),
+              Icon(Icons.auto_awesome_rounded, size: 14, color: context.brandAccent),
               const SizedBox(width: 6),
               Flexible(
                 child: Text('Suggested: ${suggestion.categoryName} · tap to apply',
-                    style: const TextStyle(color: AppTheme.brand, fontSize: 12, fontWeight: FontWeight.w500),
+                    style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis),
               ),
             ],
@@ -567,7 +626,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
         child: Text(
           'Saving sends a $_staffRequest request to an administrator — the asset keeps its '
           "current condition and status until it's approved.",
-          style: const TextStyle(color: AppTheme.statusMaintenance, fontSize: 12.5),
+          style: const TextStyle(color: AppTheme.statusMaintenance, fontSize: 14),
         ),
       );
 
@@ -578,7 +637,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
         initialValue: value,
         decoration: InputDecoration(labelText: label),
         dropdownColor: context.colors.surface,
-        items: options.map((e) => DropdownMenuItem(value: e, child: Text(e.replaceAll('_', ' ')))).toList(),
+        items: options.map((e) => DropdownMenuItem(value: e, child: Text(titleCaseCode(e)))).toList(),
         onChanged: onChanged,
       ),
     );
@@ -610,7 +669,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
             lastDate: DateTime.now(),
             builder: (ctx, child) => Theme(
               data: Theme.of(ctx).copyWith(
-                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brand),
+                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brandButton),
               ),
               child: child!,
             ),

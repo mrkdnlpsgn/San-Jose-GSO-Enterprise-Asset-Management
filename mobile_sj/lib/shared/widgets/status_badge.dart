@@ -18,10 +18,10 @@ class StatusBadge extends StatelessWidget {
 
   static StatusBadge condition(String value) {
     final color = switch (value) {
-      'SERVICEABLE' => AppTheme.brand,
+      'SERVICEABLE' => AppTheme.statusAssigned,   // web: emerald
       'REPAIRABLE' => AppTheme.statusMaintenance,
       'UNSERVICEABLE' => AppTheme.statusDisposed,
-      _ => Colors.grey,
+      _ => AppTheme.statusArchived,
     };
     final display = switch (value) {
       'SERVICEABLE' => 'Serviceable',
@@ -39,8 +39,8 @@ class StatusBadge extends StatelessWidget {
       'TRANSFERRED' => AppTheme.statusTransferred,
       'UNDER_MAINTENANCE' => AppTheme.statusMaintenance,
       'DISPOSED' => AppTheme.statusDisposed,
-      'ARCHIVED' => Colors.grey.shade600,
-      _ => Colors.grey,
+      'ARCHIVED' => AppTheme.statusArchived,
+      _ => AppTheme.statusArchived,
     };
     final display = switch (value) {
       'REGISTERED' => 'Registered',
@@ -56,59 +56,88 @@ class StatusBadge extends StatelessWidget {
 
   static StatusBadge maintenanceStatus(String value, {bool dense = false}) {
     final color = switch (value) {
-      'COMPLETED' => AppTheme.brand,
+      'COMPLETED' => AppTheme.statusAssigned,
       'ONGOING' => AppTheme.statusMaintenance,
-      _ => AppTheme.statusAssigned,
+      _ => AppTheme.info,
     };
-    return StatusBadge(label: value.replaceAll('_', ' '), color: color, dense: dense);
+    return StatusBadge(label: _titleCase(value), color: color, dense: dense);
   }
 
   static StatusBadge maintenanceType(String value, {bool dense = false}) {
     final color = switch (value) {
-      'PREVENTIVE' => AppTheme.statusAssigned,
-      'CORRECTIVE' => AppTheme.statusMaintenance,
-      _ => Colors.purple,
+      'PREVENTIVE' => AppTheme.info,
+      'CORRECTIVE' => AppTheme.statusTransferred,   // web: orange
+      'REPAIR' => AppTheme.statusDisposed,          // web: red
+      _ => AppTheme.statusArchived,
     };
-    return StatusBadge(label: value.replaceAll('_', ' '), color: color, dense: dense);
+    return StatusBadge(label: _titleCase(value), color: color, dense: dense);
   }
 
   static StatusBadge disposalStatus(String value, {bool dense = false}) {
     final color = switch (value) {
-      'COMPLETED' => AppTheme.brand,
-      'APPROVED' => AppTheme.statusAssigned,
+      'COMPLETED' => AppTheme.statusAssigned,
+      'APPROVED' => AppTheme.info,
       _ => AppTheme.statusMaintenance,
     };
-    return StatusBadge(label: value.replaceAll('_', ' '), color: color, dense: dense);
+    return StatusBadge(label: _titleCase(value), color: color, dense: dense);
   }
 
   static StatusBadge disposalMethod(String value, {bool dense = false}) {
     final color = switch (value) {
-      'SALE' => AppTheme.statusMaintenance,
+      'SALE' => AppTheme.info,
+      'TRANSFER' => AppTheme.statusTransferred,
       'DESTRUCTION' => AppTheme.statusDisposed,
-      'OTHERS' => AppTheme.brand,
-      _ => AppTheme.statusAssigned,
+      'OTHERS' => AppTheme.statusAssigned,
+      _ => AppTheme.statusArchived,
     };
-    return StatusBadge(label: value.replaceAll('_', ' '), color: color, dense: dense);
+    return StatusBadge(label: _titleCase(value), color: color, dense: dense);
   }
 
+  // Same look as the web app's Badge: a pill with a faint tint, a hairline ring and a
+  // leading dot. On white the label uses a darker shade of the hue so it stays readable.
   @override
   Widget build(BuildContext context) {
+    final light = Theme.of(context).brightness == Brightness.light;
+    final hsl = HSLColor.fromColor(color);
+    final textColor = light
+        ? hsl.withLightness((hsl.lightness * 0.62).clamp(0.0, 1.0)).toColor()
+        : hsl.withLightness((hsl.lightness + 0.12).clamp(0.0, 1.0)).toColor();
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: dense ? 8 : 10, vertical: dense ? 3 : 4),
+      padding: EdgeInsets.symmetric(horizontal: dense ? 8 : 10, vertical: dense ? 2 : 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(dense ? 5 : 6),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        color: color.withValues(alpha: light ? 0.10 : 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: light ? 0.30 : 0.35)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: dense ? 11 : 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.2,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          SizedBox(width: dense ? 5 : 6),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: textColor,
+                fontSize: dense ? 12 : 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+/// "UNDER_MAINTENANCE" → "Under Maintenance"
+String _titleCase(String raw) => raw
+    .split('_')
+    .where((w) => w.isNotEmpty)
+    .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+    .join(' ');

@@ -125,7 +125,7 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
             const SizedBox(height: 6),
             Text('Category and Office must match existing names exactly (case-insensitive). PAR Number is required — for more than one device, list one PAR Number per device separated by ";" (Qty must match); each becomes its own asset, grouped together, with Property Numbers auto-generated.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -154,7 +154,7 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                 ),
-                child: Text(_error!, style: TextStyle(color: Colors.red.shade300, fontSize: 12.5)),
+                child: Text(_error!, style: TextStyle(color: Colors.red.shade300, fontSize: 14)),
               ),
             ],
           ],
@@ -182,7 +182,7 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
                       children: [
                         Text(_fileName ?? '', style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
                         Text('${_rows.length} record${_rows.length != 1 ? 's' : ''} ready to import',
-                            style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
+                            style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                       ],
                     ),
                   ),
@@ -199,13 +199,13 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.08),
+                color: AppTheme.statusMaintenance.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                border: Border.all(color: AppTheme.statusMaintenance.withValues(alpha: 0.4)),
               ),
               child: Text(
                 '${invalid.length} row${invalid.length != 1 ? 's' : ''} missing a required field and will fail: rows ${invalid.take(10).join(', ')}${invalid.length > 10 ? '…' : ''}',
-                style: const TextStyle(color: Colors.amber, fontSize: 12.5),
+                style: TextStyle(color: context.isLight ? const Color(0xFF92400E) : const Color(0xFFFBBF24), fontSize: 15, height: 1.4),
               ),
             ),
           ),
@@ -223,12 +223,12 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
                   leading: CircleAvatar(
                     radius: 14,
                     backgroundColor: rowInvalid ? Colors.red.withValues(alpha: 0.15) : AppTheme.brand.withValues(alpha: 0.15),
-                    child: Text('${i + 1}', style: TextStyle(fontSize: 11, color: rowInvalid ? Colors.red : AppTheme.brand)),
+                    child: Text('${i + 1}', style: TextStyle(fontSize: 13, color: rowInvalid ? Colors.red : AppTheme.brand)),
                   ),
                   title: Text(r['description']?.isNotEmpty == true ? r['description']! : '(no description)',
                       style: TextStyle(color: context.colors.textPrimary, fontSize: 13.5)),
                   subtitle: Text('${r['categoryName'] ?? ''} · ${r['officeName'] ?? ''}',
-                      style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                      style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                 ),
               );
             },
@@ -254,7 +254,7 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(color: AppTheme.brand),
+          const CircularProgressIndicator(),
           const SizedBox(height: 16),
           Text('Importing ${_rows.length} records…', style: TextStyle(color: context.colors.textSecondary)),
         ],
@@ -277,7 +277,7 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: AppTheme.brand),
+                Icon(Icons.check_circle_rounded, color: context.brandAccent),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -305,7 +305,7 @@ class _AssetImportScreenState extends State<AssetImportScreen> {
                       Text(f.row['description']?.toString().isNotEmpty == true ? f.row['description'].toString() : '(no description)',
                           style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
                       const SizedBox(height: 2),
-                      Text(f.reason, style: const TextStyle(color: Colors.red, fontSize: 12.5)),
+                      Text(f.reason, style: const TextStyle(color: Colors.red, fontSize: 14)),
                     ],
                   ),
                 ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/provider/paginated_list_notifier.dart';
@@ -54,11 +55,11 @@ class _GroupDevicesTableState extends State<GroupDevicesTable> {
         ].any((v) => v != null && v.toLowerCase().contains(q));
     final members = widget.members;
     final shown = q.isEmpty ? members : members.where(matches).toList();
-    final small = TextStyle(color: context.colors.textTertiary, fontSize: 11);
-    const mono = TextStyle(fontFamily: 'monospace', fontSize: 12);
+    final small = TextStyle(color: context.colors.textTertiary, fontSize: 13);
+    const mono = TextStyle(fontFamily: 'monospace', fontSize: 14);
 
     DataColumn col(String label, {bool numeric = false}) => DataColumn(
-          label: Text(label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+          label: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           numeric: numeric,
         );
 
@@ -187,6 +188,7 @@ Future<void> showAssetGroupSheet(
   required void Function(AssetModel) onOpenDevice,
 }) {
   return showModalBottomSheet<void>(
+    useRootNavigator: true, // above the bottom bar, not behind it
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -346,7 +348,7 @@ class _GroupSheetState extends State<_GroupSheet> {
   Color _recColor(String rec) => switch (rec) {
         'MAINTAIN' => AppTheme.brand,
         'REPAIR' => AppTheme.statusMaintenance,
-        'MONITOR' => AppTheme.statusAssigned,
+        'MONITOR' => AppTheme.info,
         'REVIEW_FOR_DISPOSAL' => AppTheme.statusDisposed,
         'BUDGET_PRIORITY' => Colors.deepOrange,
         _ => Colors.grey,
@@ -367,21 +369,29 @@ class _GroupSheetState extends State<_GroupSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(members == null ? 'Group' : '${members.length} devices · same model',
-                      style: const TextStyle(color: AppTheme.brand, fontSize: 12, fontWeight: FontWeight.w600)),
+                      style: TextStyle(color: context.colors.textTertiary, fontSize: 14, fontWeight: FontWeight.w600)),
                   Text(widget.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: context.colors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                      style: TextStyle(color: context.colors.heading, fontSize: 20, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
           ),
-          const TabBar(tabs: [Tab(text: 'Details'), Tab(text: 'Lifecycle'), Tab(text: 'AI Insight')]),
+          TabBar(
+            indicatorColor: context.brandAccent,
+            indicatorWeight: 3,
+            indicatorSize: TabBarIndicatorSize.tab,
+            labelColor: context.brandAccent,
+            unselectedLabelColor: context.colors.textSecondary,
+            labelStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 15, fontWeight: FontWeight.w700),
+            tabs: const [Tab(text: 'Details'), Tab(text: 'Lifecycle'), Tab(text: 'AI Insight')],
+          ),
           Expanded(
             child: _error != null
                 ? Center(child: Text('Couldn\'t load this group.', style: TextStyle(color: context.colors.textTertiary)))
                 : members == null
-                    ? const Center(child: CircularProgressIndicator(color: AppTheme.brand))
+                    ? const Center(child: CircularProgressIndicator())
                     : TabBarView(children: [_details(context, members), _lifecycle(context, members), _aiInsight(context, members)]),
           ),
         ],
@@ -404,8 +414,10 @@ class _GroupSheetState extends State<_GroupSheet> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 110, child: Text(label, style: TextStyle(color: context.colors.textSecondary, fontSize: 13))),
-              Expanded(child: Text(value, style: TextStyle(color: context.colors.textPrimary, fontSize: 13))),
+              SizedBox(width: 120, child: Text(label, style: TextStyle(color: context.colors.textTertiary, fontSize: 15))),
+              Expanded(
+                  child: Text(value,
+                      style: TextStyle(color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w600))),
             ],
           ),
         );
@@ -442,7 +454,7 @@ class _GroupSheetState extends State<_GroupSheet> {
         ),
         const SizedBox(height: 8),
         Text('Every device with its own Property No., PAR No., people, price and condition — searchable.',
-            textAlign: TextAlign.center, style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+            textAlign: TextAlign.center, style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
       ],
     );
   }
@@ -485,13 +497,13 @@ class _GroupSheetState extends State<_GroupSheet> {
                       children: [
                         Expanded(
                           child: Text(_deviceName(i),
-                              style: const TextStyle(color: AppTheme.brand, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                              style: TextStyle(color: context.brandAccent, fontSize: 13, fontWeight: FontWeight.w600)),
                         ),
                         _generating.contains(members[i].id)
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand))
+                                  child: CircularProgressIndicator(strokeWidth: 2))
                               : TextButton(
                                   onPressed: () => _generate(members[i].id),
                                   child: Text(_recs[members[i].id] == null ? 'Generate' : 'Regenerate'),
@@ -499,7 +511,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                       ],
                     ),
                     if (!_recs.containsKey(members[i].id))
-                      Text('Loading…', style: TextStyle(color: context.colors.textTertiary, fontSize: 12))
+                      Text('Loading…', style: TextStyle(color: context.colors.textTertiary, fontSize: 14))
                     else if (_recs[members[i].id] == null)
                       Text('No recommendation yet. Tap Generate.',
                           style: TextStyle(color: context.colors.textSecondary, fontSize: 13))
@@ -510,16 +522,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: color.withValues(alpha: 0.4)),
-                              ),
-                              child: Text(rec.recommendation.replaceAll('_', ' '),
-                                  style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-                            ),
+                            StatusBadge(label: titleCaseCode(rec.recommendation), color: color),
                             const SizedBox(height: 8),
                             Text(rec.rationale,
                                 style: TextStyle(color: context.colors.textSecondary, fontSize: 13, height: 1.4)),
@@ -527,7 +530,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                             Text(
                                 'Age ${rec.assetAgeYears} yrs · repairs ${rec.repairFrequency} · cost ${_money(rec.totalRepairCost)} · '
                                 'score ${rec.conditionScore} · ${rec.generatedAt.length >= 10 ? rec.generatedAt.substring(0, 10) : rec.generatedAt}',
-                                style: TextStyle(color: context.colors.textTertiary, fontSize: 11)),
+                                style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
                           ],
                         );
                       }),
@@ -537,14 +540,14 @@ class _GroupSheetState extends State<_GroupSheet> {
               ),
             ),
         Text('Advisory only — not a final decision.',
-            textAlign: TextAlign.center, style: TextStyle(color: context.colors.textTertiary, fontSize: 11.5)),
+            textAlign: TextAlign.center, style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
       ],
     );
   }
 
   Widget _lifecycle(BuildContext context, List<AssetModel> members) {
     final events = _events;
-    if (events == null) return const Center(child: CircularProgressIndicator(color: AppTheme.brand));
+    if (events == null) return const Center(child: CircularProgressIndicator());
 
     final kinds = events.map((e) => e.kind).toSet().toList()..sort();
     final visible = events
@@ -583,7 +586,7 @@ class _GroupSheetState extends State<_GroupSheet> {
         Text(
           '${visible.length} event${visible.length == 1 ? '' : 's'}'
           '${_deviceFilter != null || _typeFilter != null ? ' of ${events.length}' : ''}',
-          style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
+          style: TextStyle(color: context.colors.textTertiary, fontSize: 14),
         ),
         const SizedBox(height: 8),
         if (visible.isEmpty)
@@ -601,7 +604,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(_deviceName(e.device),
-                        style: const TextStyle(color: AppTheme.brand, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                        style: TextStyle(color: context.brandAccent, fontSize: 13, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
                     Row(
                       children: [
@@ -611,20 +614,20 @@ class _GroupSheetState extends State<_GroupSheet> {
                                   color: context.colors.textPrimary, fontSize: 13.5, fontWeight: FontWeight.w600)),
                         ),
                         if (e.status != null)
-                          Text(e.status!, style: TextStyle(color: context.colors.textSecondary, fontSize: 11.5)),
+                          Text(e.status!, style: TextStyle(color: context.colors.textSecondary, fontSize: 13)),
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(e.date.length >= 10 ? e.date.substring(0, 10) : e.date,
-                        style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                        style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                     if (e.meta != null)
-                      Text(e.meta!, style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+                      Text(e.meta!, style: TextStyle(color: context.colors.textSecondary, fontSize: 14)),
                     if ((e.note ?? '').isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(e.note!,
                             style: TextStyle(
-                                color: context.colors.textSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
+                                color: context.colors.textSecondary, fontSize: 14, fontStyle: FontStyle.italic)),
                       ),
                   ],
                 ),
@@ -737,13 +740,14 @@ class _RecordGroupCardState<T> extends State<RecordGroupCard<T>> {
     final devices = members.map((m) => widget.assetOf(m)?.id).toSet().length;
     final q = _query.trim().toLowerCase();
     final shown = q.isEmpty ? members : members.where((m) => _matches(m, q)).toList();
-    final small = TextStyle(color: context.colors.textTertiary, fontSize: 11);
+    final small = TextStyle(color: context.colors.textTertiary, fontSize: 13);
 
     return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           InkWell(
-            borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -755,31 +759,23 @@ class _RecordGroupCardState<T> extends State<RecordGroupCard<T>> {
                       children: [
                         Text(firstAsset?.description ?? 'Group',
                             style: TextStyle(
-                                color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w500),
+                                color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 4),
                         Text('$devices device${devices == 1 ? '' : 's'} · same model',
-                            style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                            style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                         if (widget.summary != null) ...[const SizedBox(height: 4), widget.summary!],
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.brand.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text('${members.length} ${widget.noun}',
-                        style: const TextStyle(color: AppTheme.brand, fontSize: 11.5, fontWeight: FontWeight.w600)),
-                  ),
+                  StatusBadge(label: '${members.length} ${widget.noun}', color: AppTheme.gov),
                   if (groupId != null)
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       tooltip: 'Group details & lifecycle',
-                      icon: const Icon(Icons.info_outline_rounded, color: AppTheme.brand),
+                      icon: Icon(Icons.info_outline_rounded, color: context.brandAccent),
                       onPressed: () => showAssetGroupSheet(
                         context,
                         groupId: groupId,
@@ -787,7 +783,7 @@ class _RecordGroupCardState<T> extends State<RecordGroupCard<T>> {
                         onOpenDevice: widget.onOpenDevice,
                       ),
                     ),
-                  Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppTheme.brand),
+                  Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: context.brandAccent),
                 ],
               ),
             ),
@@ -825,7 +821,7 @@ class _RecordGroupCardState<T> extends State<RecordGroupCard<T>> {
                         dataRowMaxHeight: 110,
                         columns: [
                           for (final c in widget.columns)
-                            DataColumn(label: Text(c, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600))),
+                            DataColumn(label: Text(c, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
                         ],
                         rows: [
                           for (final r in shown)
@@ -835,7 +831,7 @@ class _RecordGroupCardState<T> extends State<RecordGroupCard<T>> {
                                 for (final v in widget.values(r))
                                   DataCell(ConstrainedBox(
                                     constraints: const BoxConstraints(maxWidth: 220),
-                                    child: Text(v, maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                                    child: Text(v, maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
                                   )),
                               ],
                             ),

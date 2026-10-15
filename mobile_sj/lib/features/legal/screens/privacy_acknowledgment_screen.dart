@@ -130,20 +130,20 @@ class _PrivacyAcknowledgmentScreenState extends ConsumerState<PrivacyAcknowledgm
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.08),
+                color: AppTheme.statusMaintenance.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                border: Border.all(color: AppTheme.statusMaintenance.withValues(alpha: 0.4)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+                  Icon(Icons.warning_rounded, size: 22, color: context.isLight ? const Color(0xFFB45309) : const Color(0xFFFBBF24)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'This is a private, internal government system for authorized GSO/ICT staff only. '
                       'Please review before continuing.',
-                      style: TextStyle(fontSize: 12, color: context.colors.textSecondary, height: 1.4),
+                      style: TextStyle(fontSize: 15, color: context.colors.textSecondary, height: 1.45),
                     ),
                   ),
                 ],
@@ -167,7 +167,7 @@ class _PrivacyAcknowledgmentScreenState extends ConsumerState<PrivacyAcknowledgm
                                 shape: BoxShape.circle,
                               ),
                               child: Text('${_summaryPoints.indexOf(p) + 1}',
-                                  style: const TextStyle(color: AppTheme.brand, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.bold)),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -187,8 +187,8 @@ class _PrivacyAcknowledgmentScreenState extends ConsumerState<PrivacyAcknowledgm
                     padding: const EdgeInsets.only(left: 36),
                     child: InkWell(
                       onTap: () => context.push('/legal'),
-                      child: const Text('Read the full Privacy, Terms & Conditions →',
-                          style: TextStyle(color: AppTheme.brand, fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text('Read the full Privacy, Terms & Conditions →',
+                          style: TextStyle(color: context.brandAccent, fontSize: 13, fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],
@@ -202,7 +202,7 @@ class _PrivacyAcknowledgmentScreenState extends ConsumerState<PrivacyAcknowledgm
                   if (!_reachedBottom)
                     Expanded(
                       child: Text('Scroll down to continue ↓',
-                          style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
+                          style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                     )
                   else
                     const Spacer(),

@@ -79,7 +79,6 @@ class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
     _seenCount = math.max(_seenCount, s.items.length);
 
     return RefreshIndicator(
-      color: AppTheme.brand,
       onRefresh: widget.onRefresh,
       child: ListView.separated(
         controller: _scrollCtrl,
@@ -102,7 +101,7 @@ class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
                         onPressed: widget.onLoadMore,
                         icon: const Icon(Icons.refresh_rounded, size: 16),
                         label: const Text('Retry'),
-                        style: TextButton.styleFrom(foregroundColor: AppTheme.brand),
+                        style: TextButton.styleFrom(foregroundColor: context.brandAccent),
                       ),
                     ],
                   ),
@@ -115,7 +114,7 @@ class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
                 child: SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brand),
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
             );

@@ -20,6 +20,7 @@ Future<void> showEvidenceSheet(
   String? subtitle,
 }) {
   return showModalBottomSheet<void>(
+    useRootNavigator: true, // above the bottom bar, not behind it
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -105,10 +106,11 @@ class _EvidenceSheetState extends State<_EvidenceSheet> {
         title: const Text('Delete this photo?'),
         content: const Text('This evidence photo will be permanently removed.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
+          OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -153,7 +155,7 @@ class _EvidenceSheetState extends State<_EvidenceSheet> {
                 left: 0,
                 right: 0,
                 child: Text(photo.originalFilename!,
-                    textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 14)),
               ),
           ],
         ),
@@ -178,7 +180,7 @@ class _EvidenceSheetState extends State<_EvidenceSheet> {
                 Text(widget.subtitle!,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: context.colors.textTertiary, fontSize: 12.5)),
+                    style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
             ],
           ),
         ),
@@ -210,13 +212,13 @@ class _EvidenceSheetState extends State<_EvidenceSheet> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
           child: Text('JPEG, PNG, WEBP, or HEIC — up to 10 MB each',
-              style: TextStyle(color: context.colors.textTertiary, fontSize: 11.5)),
+              style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
         ),
         Expanded(
           child: _error != null
               ? Center(child: Text("Couldn't load evidence photos.", style: TextStyle(color: context.colors.textTertiary)))
               : photos == null
-                  ? const Center(child: CircularProgressIndicator(color: AppTheme.brand))
+                  ? const Center(child: CircularProgressIndicator())
                   : photos.isEmpty
                       ? Center(
                           child: Column(

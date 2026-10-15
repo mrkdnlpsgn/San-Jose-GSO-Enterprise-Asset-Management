@@ -5,6 +5,7 @@ import '../model/account_model.dart';
 import '../data/account_service.dart';
 import '../../../shared/widgets/delete_dialog.dart';
 import '../widgets/reset_password_dialog.dart';
+import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../auth/provider/auth_provider.dart';
@@ -112,23 +113,18 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: ctx.colors.surface,
-        title: Text(activating ? 'Reactivate this account?' : 'Deactivate this account?',
-            style: TextStyle(color: ctx.colors.textPrimary)),
+        title: Text(activating ? 'Reactivate this account?' : 'Deactivate this account?'),
         content: Text(
             activating
                 ? '${widget.account!.fullName} will be able to log in again.'
                 : '${widget.account!.fullName} will no longer be able to log in.',
-            style: TextStyle(color: ctx.colors.textTertiary, fontSize: 13)),
+            style: TextStyle(color: ctx.colors.textSecondary, fontSize: 15, height: 1.45)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel', style: TextStyle(color: ctx.colors.textTertiary)),
-          ),
-          TextButton(
+          OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(activating ? 'Reactivate' : 'Deactivate',
-                style: TextStyle(color: activating ? AppTheme.brand : Colors.orange)),
+            style: activating ? null : FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            child: Text(activating ? 'Reactivate' : 'Deactivate'),
           ),
         ],
       ),
@@ -198,44 +194,63 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
         title: Text(_isEdit ? 'Edit Account' : 'New Account'),
         actions: [
           if (_isEdit && !isSelf) ...[
-            IconButton(
-              icon: const Icon(Icons.key_rounded),
-              tooltip: 'Reset Password',
-              onPressed: _loading ? null : _resetPassword,
-            ),
-            IconButton(
-              icon: Icon(_isActive ? Icons.block_rounded : Icons.check_circle_outline_rounded,
-                  color: _isActive ? Colors.orange : AppTheme.brand),
-              tooltip: _isActive ? 'Deactivate' : 'Reactivate',
-              onPressed: _loading ? null : _toggleActive,
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-              tooltip: 'Delete',
-              onPressed: _loading ? null : _delete,
+            PopupMenuButton<String>(
+              tooltip: 'More actions',
+              enabled: !_loading,
+              onSelected: (v) => switch (v) {
+                'reset' => _resetPassword(),
+                'toggle' => _toggleActive(),
+                _ => _delete(),
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'reset',
+                  child: ListTile(leading: Icon(Icons.key_rounded), title: Text('Reset password'), contentPadding: EdgeInsets.zero),
+                ),
+                PopupMenuItem(
+                  value: 'toggle',
+                  child: ListTile(
+                    leading: Icon(_isActive ? Icons.block_rounded : Icons.check_circle_outline_rounded),
+                    title: Text(_isActive ? 'Deactivate account' : 'Reactivate account'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+                    title: Text('Delete account', style: TextStyle(color: Color(0xFFDC2626))),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
             ),
           ],
         ],
       ),
+      // main button stays in reach at the bottom, however long the form
+      bottomNavigationBar: FormActionBar(child: SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_isEdit ? 'Save Changes' : 'Create Account'),
+            ),
+          )),
       body: Form(
         key: _formKey,
         child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               if (isSelf)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.statusMaintenance.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.statusMaintenance.withValues(alpha: 0.3)),
-                    ),
-                    child: const Text(
-                      "This is your own account — deactivate and delete are disabled here to prevent locking yourself out.",
-                      style: TextStyle(color: AppTheme.statusMaintenance, fontSize: 12),
-                    ),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 14),
+                  child: Callout(
+                    'Deactivate and delete are turned off here so you can\'t lock yourself out.',
+                    title: 'This is your own account',
+                    tone: CalloutTone.warning,
                   ),
                 ),
               _field(_username, 'Username', required: true, enabled: !_isEdit),
@@ -276,7 +291,7 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
                     _emailValid
                         ? 'A temporary password will be generated and emailed to ${_email.text.trim()}. The user should change it after logging in.'
                         : 'Enter a valid email above to auto-generate and send a password.',
-                    style: TextStyle(color: context.colors.textSecondary, fontSize: 12.5),
+                    style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
                   ),
                 )
               else
@@ -305,17 +320,6 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
               // No Active/Inactive control here — that's handled by the dedicated
               // Deactivate/Reactivate button in the AppBar (edit mode only). New
               // accounts are always created active.
-              const SizedBox(height: 24),
-              SizedBox(
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _submit,
-                  child: _loading
-                      ? const SizedBox(width: 20, height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text(_isEdit ? 'Save Changes' : 'Create Account'),
-                ),
-              ),
               const SizedBox(height: 24),
             ],
           ),

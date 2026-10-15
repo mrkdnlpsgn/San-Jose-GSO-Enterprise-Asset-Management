@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import 'ui.dart';
 
 // Maintenance / disposal records a STAFF account adds are requests: they wait for an
 // admin to approve (then staff can edit them) or reject them with a reason — mirrors
@@ -15,39 +16,17 @@ class ApprovalBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final pending = approvalStatus == 'PENDING_APPROVAL';
     if (!pending && approvalStatus != 'REJECTED') return const SizedBox.shrink();
-    final color = pending ? AppTheme.statusMaintenance : AppTheme.statusDisposed;
-    final title = pending ? 'Awaiting admin approval' : 'Request rejected';
     final detail = pending
         ? '${requestedByName != null ? 'Requested by $requestedByName. ' : ''}'
             'It can be edited once an administrator approves it.'
-        : (reviewNote != null && reviewNote!.isNotEmpty ? 'Reason: $reviewNote' : null);
+        : (reviewNote != null && reviewNote!.isNotEmpty ? 'Reason: $reviewNote' : 'No reason was given.');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(pending ? Icons.hourglass_top_rounded : Icons.block_rounded, size: 18, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w600)),
-                if (detail != null) ...[
-                  const SizedBox(height: 2),
-                  Text(detail, style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
-                ],
-              ],
-            ),
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Callout(
+        detail,
+        title: pending ? 'Awaiting admin approval' : 'Request rejected',
+        tone: pending ? CalloutTone.warning : CalloutTone.error,
       ),
     );
   }
@@ -75,7 +54,7 @@ class _ApprovalActionsBarState extends State<ApprovalActionsBar> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red.shade800, behavior: SnackBarBehavior.floating),
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red.shade800),
         );
       }
     } finally {
@@ -90,32 +69,33 @@ class _ApprovalActionsBarState extends State<ApprovalActionsBar> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _busy ? null : _reject,
-                style: OutlinedButton.styleFrom(foregroundColor: AppTheme.statusDisposed),
-                icon: const Icon(Icons.close_rounded, size: 18),
-                label: const Text('Reject'),
+    return FormActionBar(
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : _reject,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFFCA5A5)),
+                minimumSize: const Size.fromHeight(50),
               ),
+              icon: const Icon(Icons.close_rounded, size: 20),
+              label: const Text('Reject'),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _busy ? null : () => _run(widget.onApprove),
-                icon: _busy
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.check_rounded, size: 18),
-                label: const Text('Approve'),
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _busy ? null : () => _run(widget.onApprove),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.check_rounded, size: 20),
+              label: const Text('Approve'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -141,25 +121,32 @@ class _RejectReasonDialogState extends State<_RejectReasonDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: context.colors.surface,
-      title: Text('Reject request?', style: TextStyle(color: context.colors.textPrimary)),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        maxLines: 3,
-        maxLength: 255,
-        decoration: InputDecoration(
-          labelText: 'Reason',
-          hintText: 'e.g. Duplicate of an existing record',
-          errorText: _error,
-        ),
+      title: const Text('Reject request?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('The person who sent it will see your reason.',
+              style: TextStyle(color: context.colors.textSecondary, fontSize: 15)),
+          const SizedBox(height: 14),
+          const FieldLabel('Reason', required: true),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            maxLines: 3,
+            maxLength: 255,
+            style: const TextStyle(fontSize: 16),
+            decoration: InputDecoration(
+              hintText: 'e.g. Duplicate of an existing record',
+              errorText: _error,
+            ),
+          ),
+        ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: TextStyle(color: context.colors.textTertiary)),
-        ),
-        TextButton(
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
           onPressed: () {
             final note = _ctrl.text.trim();
             if (note.isEmpty) {
@@ -168,7 +155,7 @@ class _RejectReasonDialogState extends State<_RejectReasonDialog> {
             }
             Navigator.pop(context, note);
           },
-          child: const Text('Reject Request', style: TextStyle(color: AppTheme.statusDisposed)),
+          child: const Text('Reject'),
         ),
       ],
     );

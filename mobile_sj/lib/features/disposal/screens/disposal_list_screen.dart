@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../model/disposal_model.dart';
 import '../provider/disposal_provider.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
-import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/ui.dart';
+import '../../reports/utils/formatters.dart';
 import '../../../core/platform.dart';
 import '../widgets/disposal_filter_sheet.dart';
 import '../../assets/widgets/asset_group_widgets.dart';
@@ -37,57 +37,24 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Disposal'),
-            Text(
-              countAsync.when(
-                data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
-                loading: () => ' ',
-                error: (_, __) => ' ',
-              ),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: context.colors.textSecondary),
-            ),
-          ],
-        ),
+        title: TitleWithCount('Disposal', subtitle: countLabel(countAsync.value)),
         actions: [
-          IconButton(
-            icon: AnimatedSwitcher(
-              duration: AppTheme.motionFast,
-              switchInCurve: AppTheme.motionCurve,
-              switchOutCurve: AppTheme.motionCurve,
-              transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-              child: Badge(
-                key: ValueKey(filtersActive),
-                isLabelVisible: filtersActive,
-                smallSize: 8,
-                child: const Icon(Icons.filter_list_rounded),
-              ),
-            ),
-            tooltip: 'Filter',
-            onPressed: () => showDisposalFilterSheet(context, ref),
-          ),
           if (isDesktopPlatform)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Refresh',
               onPressed: () {
                 ref.invalidate(disposalPagedProvider(search));
                 ref.invalidate(disposalCountProvider(search));
               },
             ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: AppSearchField(
-              controller: _searchCtrl,
-              hintText: 'Search disposal records...',
-              onChanged: (v) => ref.read(disposalSearchProvider.notifier).state = v,
-            ),
-          ),
+        bottom: ListToolbar(
+          controller: _searchCtrl,
+          hintText: 'Search disposal records',
+          onSearch: (v) => ref.read(disposalSearchProvider.notifier).state = v,
+          onFilter: () => showDisposalFilterSheet(context, ref),
+          filtersActive: filtersActive,
         ),
       ),
       body: AutoRefreshTicker(
@@ -136,53 +103,31 @@ class _DisposalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return RecordCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CodeText(item.asset.propertyAndPar),
+          const SizedBox(height: 4),
+          CardTitle(item.asset.description, maxLines: 1),
+          const SizedBox(height: 6),
+          MetaLine(Icons.event_rounded, 'Inspected ${fmtDate(item.inspectionDate)}'),
+          if (item.approvedBy != null) ...[
+            const SizedBox(height: 4),
+            MetaLine(Icons.verified_rounded, 'Approved by ${item.approvedBy!}'),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
-              Row(
-                children: [
-                  StatusBadge.disposalMethod(item.recommendedMethod, dense: true),
-                  if (StatusBadge.approval(item.approvalStatus) case final badge?) ...[
-                    const SizedBox(width: 6),
-                    badge,
-                  ],
-                  const Spacer(),
-                  StatusBadge.disposalStatus(item.disposalStatus, dense: true),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(item.asset.description,
-                  style: TextStyle(color: context.colors.textPrimary, fontSize: 15, fontWeight: FontWeight.w500),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              Text(item.asset.propertyAndPar, style: const TextStyle(color: AppTheme.brand, fontSize: 12)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today_outlined, size: 13, color: context.colors.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(item.inspectionDate, style: TextStyle(color: context.colors.textTertiary, fontSize: 12)),
-                  if (item.approvedBy != null) ...[
-                    const SizedBox(width: 12),
-                    Icon(Icons.verified_outlined, size: 13, color: context.colors.textSecondary),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(item.approvedBy!,
-                          style: TextStyle(color: context.colors.textTertiary, fontSize: 12),
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                  ],
-                ],
-              ),
+              StatusBadge.disposalStatus(item.disposalStatus),
+              StatusBadge.disposalMethod(item.recommendedMethod),
+              if (StatusBadge.approval(item.approvalStatus) case final badge?) badge,
             ],
           ),
-        ),
+        ],
       ),
     );
   }

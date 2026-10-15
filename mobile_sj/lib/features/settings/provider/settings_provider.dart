@@ -50,7 +50,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
     final themeModeName = _prefs.getString(_kThemeModeKey);
     final themeMode = ThemeMode.values.firstWhere(
       (m) => m.name == themeModeName,
-      orElse: () => ThemeMode.system,
+      orElse: () => ThemeMode.light,   // light first, like the web app
     );
 
     final textSizeName = _prefs.getString(_kTextSizeKey);
