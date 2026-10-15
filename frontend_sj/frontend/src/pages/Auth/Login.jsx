@@ -36,7 +36,8 @@ function describeLoginError(err) {
     }
     return { message: `The username or password is incorrect. Please check and try again. After ${MAX_ATTEMPTS} incorrect tries, the account is locked for ${LOCKOUT_MINUTES} minutes.` }
   }
-  if (/deactivated/i.test(msg)) return { message: 'This account has been deactivated. Please contact the GSO system administrator.' }
+  // only the login check's own "Account is deactivated" — not other messages that mention it
+  if (/^account is deactivated/i.test(msg)) return { message: 'This account has been deactivated. Please contact the GSO system administrator.' }
   return { message: msg }
 }
 
