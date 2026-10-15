@@ -3,9 +3,9 @@ import { useSelector, useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Html5Qrcode } from 'html5-qrcode'
 import { QRCodeSVG } from 'qrcode.react'
-import { readQrFromPhoto } from '../../utils/qrFromPhoto'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
+import QrScannerOverlay from '../../components/common/QrScannerOverlay'
 import { useToast } from '../../context/ToastContext'
 import { getAssets, updateAssetStatus } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
@@ -126,7 +126,7 @@ function TransferAsset() {
   // ── Finding the asset ──────────────────────────────────────────────────────
   const [scanning, setScanning]       = useState(false)
   const [starting, setStarting]       = useState(false)
-  const [reading, setReading]         = useState(false)
+  const [phoneScan, setPhoneScan]     = useState(false)
   const [cameraError, setCameraError] = useState('')
   const [result, setResult]           = useState(null)
   const [notFound, setNotFound]       = useState(false)
@@ -134,7 +134,6 @@ function TransferAsset() {
 
   const liveScannerRef = useRef(null)
   const isRunning      = useRef(false)
-  const photoInputRef  = useRef(null)
   const resultRef      = useRef(null)
 
   const stopScanner = useCallback(async () => {
@@ -178,31 +177,21 @@ function TransferAsset() {
     }
   }, [assetItems])
 
-  // Phones/tablets: open the device's own camera app (full-screen, familiar shutter
-  // button), then read the QR code out of the photo. Desktops: live webcam scanner.
+  // Phones/tablets: full-screen live scanner with a guide square. Desktops: the inline
+  // webcam scanner.
   const startScan = () => {
     setCameraError('')
     setResult(null)
     setNotFound(false)
-    if (isTouchDevice()) photoInputRef.current?.click()
+    if (isTouchDevice()) setPhoneScan(true)
     else startLiveScanner()
   }
 
-  const handlePhoto = async (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setReading(true)
-    try {
-      const text = await readQrFromPhoto(file)
-      if (!text) throw new Error('no QR code')
-      processCode(text)
-    } catch {
-      setCameraError("Couldn't find a QR code in that photo. Hold the phone a little closer so the QR code fills most of the picture, then try again.")
-    } finally {
-      setReading(false)
-    }
-  }
+  const handlePhoneScan = useCallback((text) => {
+    setPhoneScan(false)
+    processCode(text)
+  }, [processCode])
+  const closePhoneScan = useCallback(() => setPhoneScan(false), [])
 
   const startLiveScanner = async () => {
     setStarting(true)
@@ -392,11 +381,11 @@ function TransferAsset() {
   }
 
   const qrValue = result ? `asset:${result.id}:${result.propertyNumber}` : ''
-  const busy = scanning || starting || reading
+  const busy = scanning || starting
 
   return (
     <MainLayout>
-      <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
+      {phoneScan && <QrScannerOverlay onDetected={handlePhoneScan} onClose={closePhoneScan} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
@@ -404,7 +393,7 @@ function TransferAsset() {
         <div className="lg:col-start-1 lg:row-start-1">
           <section className={`${CARD} overflow-hidden`} aria-label="Find an asset">
             <div className="p-5 space-y-4">
-              {/* Live webcam viewport (desktops). Phones use the camera app instead. */}
+              {/* Live webcam viewport (desktops). Phones use the full-screen scanner. */}
               <div className={scanning || starting ? 'rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-950' : 'hidden'}>
                 <div id={LIVE_READER_ID} className="w-full" />
               </div>
@@ -424,10 +413,10 @@ function TransferAsset() {
                   disabled={busy}
                   className="w-full flex items-center justify-center gap-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-4 py-4 text-base font-semibold shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900 transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${reading ? 'animate-pulse' : ''}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fillRule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V5h1v1H5zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zm2 2v-1h1v1H5zM13 3a1 1 0 00-1 1v3a1 1 0 001 1h3a1 1 0 001-1V4a1 1 0 00-1-1h-3zm1 2v1h1V5h-1zM11 7a1 1 0 112 0v1h1a1 1 0 110 2h-2a1 1 0 01-1-1V7zM7 11a1 1 0 100 2h1v1a1 1 0 102 0v-2a1 1 0 00-1-1H7zM13 11a1 1 0 100 2h.01a1 1 0 100-2H13zM15 13a1 1 0 100 2h.01a1 1 0 100-2H15zM13 15a1 1 0 100 2h.01a1 1 0 100-2H13z" clipRule="evenodd" />
                   </svg>
-                  {reading ? 'Reading QR code…' : 'Scan QR Code'}
+                  Scan QR Code
                 </button>
               )}
 
