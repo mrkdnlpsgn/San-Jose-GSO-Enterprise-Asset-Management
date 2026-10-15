@@ -24,8 +24,9 @@ public class DataInitializer implements CommandLineRunner {
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     // Resets admin/ict_staff to their fixture passwords on every boot — dev only.
-    // Set SEED_DEFAULT_ACCOUNTS=false on any public deployment.
-    @Value("${app.seed-default-accounts:true}")
+    // Set SEED_DEFAULT_ACCOUNTS=false on any public deployment. The env var is read here
+    // directly: application.properties is gitignored, so a mapping there never reaches Render.
+    @Value("${app.seed-default-accounts:${SEED_DEFAULT_ACCOUNTS:true}}")
     private boolean seedDefaultAccounts;
 
     private static final List<String> DEFAULT_OFFICES = List.of(
