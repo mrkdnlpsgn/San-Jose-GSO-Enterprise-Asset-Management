@@ -65,7 +65,7 @@ const isTouchDevice = () => window.matchMedia?.('(pointer: coarse)').matches
 function printAssetQR(asset) {
   const svgEl = document.getElementById('qr-result-svg')
   if (!svgEl) return
-  printQrSticker({ qrHtml: svgEl.outerHTML, propertyNumber: asset.propertyNumber, description: asset.description })
+  printQrSticker({ qrHtml: svgEl.outerHTML, propertyNumber: asset.propertyNumber })
 }
 
 function TransferAsset() {

@@ -31,7 +31,10 @@ function AssetQrModal({ asset, onClose }) {
           {error ? (
             <p className="text-sm text-red-500 text-center px-2">{error}</p>
           ) : imgUrl ? (
-            <img src={imgUrl} alt={`QR code for ${asset.propertyNumber}`} width={200} height={200} />
+            <div className="relative h-[200px] w-[200px]">
+              <img src={imgUrl} alt={`QR code for ${asset.propertyNumber}`} width={200} height={200} />
+              <img src="/logo-qr.png" alt="" className="absolute top-1/2 left-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white p-0.5" />
+            </div>
           ) : (
             <div className="animate-pulse h-[200px] w-[200px] rounded-lg bg-slate-100" />
           )}
@@ -44,7 +47,7 @@ function AssetQrModal({ asset, onClose }) {
 
         <div className="flex gap-2 w-full pt-1 border-t border-slate-100 dark:border-zinc-800">
           <Button variant="secondary" size="md" onClick={onClose} className="flex-1">Close</Button>
-          <Button size="md" onClick={() => printQrSticker({ qrHtml: `<img src="${imgUrl}" alt="QR code" />`, propertyNumber: asset.propertyNumber, description: asset.description })} disabled={!imgUrl} className="flex-1">
+          <Button size="md" onClick={() => printQrSticker({ qrHtml: `<img src="${imgUrl}" alt="QR code" />`, propertyNumber: asset.propertyNumber })} disabled={!imgUrl} className="flex-1">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
             </svg>
