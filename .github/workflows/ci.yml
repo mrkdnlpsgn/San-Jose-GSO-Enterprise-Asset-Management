@@ -70,6 +70,12 @@ jobs:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/sj_gso_inventory?connectionCollation=utf8mb4_general_ci
           SPRING_DATASOURCE_USERNAME: root
           SPRING_DATASOURCE_PASSWORD: root
+          # application.properties is gitignored, so the boot test needs the two settings
+          # JwtUtil has no default for, plus a mail host for the mail sender bean. Test-only
+          # values; the real ones live in the deployment's environment.
+          JWT_SECRET: ci-only-test-secret-not-used-anywhere-real-0123456789abcdef
+          JWT_EXPIRATION: '28800000'
+          SPRING_MAIL_HOST: smtp.gmail.com
         run: ./mvnw -B clean verify
 
   frontend:
