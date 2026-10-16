@@ -20,6 +20,19 @@ import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices
 
 const LIVE_READER_ID = 'qr-reader-viewport'
 
+// Desktop webcam choice. Virtual cameras (OBS and the like) are listed like real ones, often
+// first, and show nothing unless their app is running — so by default the first real camera is
+// used, and the person can switch. Their pick is remembered in this browser.
+const CAMERA_KEY = 'transfer.cameraId'
+const VIRTUAL_CAMERA = /obs|virtual|snap camera|manycam|xsplit|splitcam|nvidia broadcast/i
+const readSavedCamera = () => { try { return localStorage.getItem(CAMERA_KEY) } catch { return null } }
+const saveCamera = (id) => { try { localStorage.setItem(CAMERA_KEY, id) } catch { /* not remembered */ } }
+const pickCamera = (devices, savedId) =>
+  devices.find((d) => d.id === savedId)
+  || devices.find((d) => !VIRTUAL_CAMERA.test(d.label) && /back|rear|environment/i.test(d.label))
+  || devices.find((d) => !VIRTUAL_CAMERA.test(d.label))
+  || devices[0]
+
 // Staff can't set TRANSFERRED here (that's what the transfer form is for), and putting an
 // asset under maintenance or disposing of it is sent to an admin as a request on save.
 const REQUEST_FOR_STATUS = { UNDER_MAINTENANCE: 'maintenance', DISPOSED: 'disposal' }
@@ -117,6 +130,8 @@ function TransferAsset() {
   const [notFound, setNotFound]       = useState(false)
   const [manualCode, setManualCode]   = useState('')
   const [qrCheck, setQrCheck]         = useState(null) // a QR_CHECK key, only for scanned asset codes
+  const [cameras, setCameras]         = useState([])   // desktop webcams, once the browser lists them
+  const [cameraId, setCameraId]       = useState('')
 
   const liveScannerRef = useRef(null)
   const isRunning      = useRef(false)
@@ -186,15 +201,19 @@ function TransferAsset() {
   }, [processCode])
   const closePhoneScan = useCallback(() => setPhoneScan(false), [])
 
-  const startLiveScanner = async () => {
+  // requestedId: a camera picked from the Camera list; otherwise the remembered or first real one.
+  const startLiveScanner = async (requestedId) => {
     setStarting(true)
+    setCameraError('')
     try {
       const devices = await Html5Qrcode.getCameras()
       if (!devices || devices.length === 0) {
         setCameraError('No camera detected on this device. Type the Property Number below instead.')
         return
       }
-      const camera = devices.find((d) => /back|rear|environment/i.test(d.label)) || devices[0]
+      setCameras(devices)
+      const camera = devices.find((d) => d.id === requestedId) || pickCamera(devices, readSavedCamera())
+      setCameraId(camera.id)
       if (!liveScannerRef.current) liveScannerRef.current = new Html5Qrcode(LIVE_READER_ID)
       await liveScannerRef.current.start(
         camera.id,
@@ -218,6 +237,12 @@ function TransferAsset() {
     } finally {
       setStarting(false)
     }
+  }
+
+  const switchCamera = async (id) => {
+    saveCamera(id)
+    await stopScanner()
+    startLiveScanner(id)
   }
 
   const handleManualSearch = (e) => {
@@ -390,7 +415,7 @@ function TransferAsset() {
             <div className="p-5 space-y-4">
               {/* Live webcam viewport (desktops). Phones use the full-screen scanner. */}
               <div className={scanning || starting ? 'rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-950' : 'hidden'}>
-                <div id={LIVE_READER_ID} className="w-full" />
+                <div id={LIVE_READER_ID} className="w-full [&_video]:![transform:none]" />
               </div>
 
               {scanning ? (
@@ -413,6 +438,25 @@ function TransferAsset() {
                   </svg>
                   Scan QR Code
                 </button>
+              )}
+
+              {cameras.length > 1 && (scanning || starting || cameraError) && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="camera-select" className="text-xs font-semibold text-slate-500 dark:text-zinc-400 shrink-0">Camera</label>
+                  <select
+                    id="camera-select"
+                    value={cameraId}
+                    onChange={(e) => switchCamera(e.target.value)}
+                    disabled={starting}
+                    className={INPUT}
+                  >
+                    {cameras.map((c, i) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label || `Camera ${i + 1}`}{VIRTUAL_CAMERA.test(c.label) ? ' (virtual)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
 
               {cameraError && (
