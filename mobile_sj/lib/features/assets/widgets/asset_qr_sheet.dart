@@ -7,10 +7,10 @@ import 'package:printing/printing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../model/asset_model.dart';
 
-/// The QR payload format shared with the web app's QR generator and this
-/// app's QR Asset Lookup scanner (`asset:{id}:{propertyNumber}`) — keep all
-/// three in sync if this ever changes.
-String qrPayloadFor(AssetModel asset) => 'asset:${asset.id}:${asset.propertyNumber}';
+/// The signed sticker text from the server (`asset:{id}:{propertyNumber}:{tag}`, see the
+/// backend's AssetQrService) — the same text the web prints, so stickers from either match.
+/// Falls back to the old unsigned form only when talking to a server older than QR signing.
+String qrPayloadFor(AssetModel asset) => asset.qrPayload ?? 'asset:${asset.id}:${asset.propertyNumber}';
 
 /// Same seal the web sticker puts in the middle of the code (web public/logo-qr.png).
 const _kSealAsset = 'assets/images/logo_qr.png';

@@ -1,12 +1,39 @@
 import { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
-import { getAssetQrCode } from '../../services/assetService'
+import ConfirmDialog from '../../components/common/ConfirmDialog'
+import { useToast } from '../../context/ToastContext'
+import { getAssetQrCode, reissueAssetQr } from '../../services/assetService'
+import { updateAsset } from '../../store/slices/assetSlice'
 import { printQrSticker } from '../../utils/printQrSticker'
 
 function AssetQrModal({ asset, onClose }) {
+  const dispatch = useDispatch()
+  const { show } = useToast()
+  const isAdmin  = useSelector((s) => s.auth.user?.role === 'ADMIN')
   const [imgUrl, setImgUrl] = useState(null)
   const [error, setError] = useState('')
+  // Bumped after a reissue so the image is fetched again with the new signature.
+  const [qrVersion, setQrVersion] = useState(0)
+  const [confirmReissue, setConfirmReissue] = useState(false)
+  const [reissuing, setReissuing] = useState(false)
+
+  const handleReissue = async () => {
+    setConfirmReissue(false)
+    setReissuing(true)
+    try {
+      const { data } = await reissueAssetQr(asset.id)
+      dispatch(updateAsset(data))
+      setImgUrl(null)
+      setQrVersion((v) => v + 1)
+      show('New QR code issued. Print it and replace the old sticker — the old one no longer verifies.', 'success')
+    } catch (err) {
+      show(err.response?.data?.message || 'Failed to reissue the QR code.', 'error')
+    } finally {
+      setReissuing(false)
+    }
+  }
 
   useEffect(() => {
     let objectUrl
@@ -22,7 +49,7 @@ function AssetQrModal({ asset, onClose }) {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [asset.id])
+  }, [asset.id, qrVersion])
 
   return (
     <Modal title="Asset QR Code" subtitle={asset.propertyNumber} onClose={onClose} size="md">
@@ -43,6 +70,16 @@ function AssetQrModal({ asset, onClose }) {
         <div className="space-y-1 text-center">
           <p className="text-base font-semibold text-slate-900 dark:text-white">{asset.description}</p>
           <p className="text-xs text-slate-500 dark:text-zinc-500">Scan with the mobile app to check this asset's status</p>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setConfirmReissue(true)}
+              disabled={reissuing}
+              className="text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-60 transition-colors"
+            >
+              {reissuing ? 'Reissuing…' : 'Sticker lost or stolen? Reissue QR'}
+            </button>
+          )}
         </div>
 
         <div className="flex gap-2 w-full pt-1 border-t border-slate-100 dark:border-zinc-800">
@@ -55,6 +92,15 @@ function AssetQrModal({ asset, onClose }) {
           </Button>
         </div>
       </div>
+      {confirmReissue && (
+        <ConfirmDialog
+          title="Reissue this QR code?"
+          message={`Every sticker already printed for ${asset.propertyNumber} will fail verification when scanned. Print the new sticker and put it on the asset.`}
+          confirmLabel="Reissue"
+          onConfirm={handleReissue}
+          onCancel={() => setConfirmReissue(false)}
+        />
+      )}
     </Modal>
   )
 }

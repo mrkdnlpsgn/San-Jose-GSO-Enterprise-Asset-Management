@@ -86,6 +86,9 @@ class AssetModel {
   // Only on a staff edit's response: MAINTENANCE / DISPOSAL when a request for this
   // asset is waiting for an admin (the lifecycle status stays as-is until approved).
   final String? pendingRequest;
+  // The signed text the server says goes into this asset's QR sticker:
+  // asset:{id}:{propertyNumber}:{tag}. Null from a server older than QR signing.
+  final String? qrPayload;
 
   const AssetModel({
     required this.id,
@@ -114,6 +117,7 @@ class AssetModel {
     required this.createdAt,
     required this.updatedAt,
     this.pendingRequest,
+    this.qrPayload,
   });
 
   // Compact "property no. · PAR no." label for list rows and headers.
@@ -160,5 +164,6 @@ class AssetModel {
         createdAt: json['createdAt'] as String? ?? '',
         updatedAt: json['updatedAt'] as String? ?? '',
         pendingRequest: json['pendingRequest'] as String?,
+        qrPayload: json['qrPayload'] as String?,
       );
 }

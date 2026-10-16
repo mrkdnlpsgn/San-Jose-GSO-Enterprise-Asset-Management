@@ -8,6 +8,10 @@ export const getAssets       = (search = '') => api.get('/assets', {
 });
 export const getAssetById    = (id)        => api.get(`/assets/${id}`);
 export const getAssetQrCode  = (id, size = 400) => api.get(`/assets/${id}/qr`, { params: { size }, responseType: 'blob' });
+// Checks a scanned sticker's signature → { status: VERIFIED | UNSIGNED | INVALID | NOT_FOUND, assetId }.
+export const verifyAssetQr   = (code)      => api.get('/assets/verify-qr', { params: { code } });
+// Admin: retire the asset's current sticker (lost/stolen) — returns the asset with its new qrPayload.
+export const reissueAssetQr  = (id)        => api.post(`/assets/${id}/qr/reissue`);
 export const createAsset     = (data, idempotencyKey)      => api.post('/assets', data, idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined);
 export const updateAsset     = (id, data)  => api.put(`/assets/${id}`, data);
 export const updateAssetStatus = (id, condition, lifecycleStatus) =>

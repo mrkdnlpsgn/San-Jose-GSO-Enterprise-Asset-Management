@@ -93,6 +93,10 @@ public class Asset {
     @Transient
     private String pendingRequest;
 
+    // The text printed into this asset's QR sticker, signed with sha256Hash (see AssetQrService).
+    @Transient
+    private String qrPayload;
+
     @Column(name = "physical_count")
     private Integer physicalCount;
 

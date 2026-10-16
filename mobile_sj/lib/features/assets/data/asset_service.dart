@@ -79,6 +79,17 @@ class AssetService {
     }
   }
 
+  /// Checks a scanned sticker's signature on the server:
+  /// VERIFIED, UNSIGNED, INVALID or NOT_FOUND.
+  Future<String> verifyQr(String code) async {
+    try {
+      final res = await _dio.get('/assets/verify-qr', queryParameters: {'code': code});
+      return (res.data as Map<String, dynamic>)['status'] as String;
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
   Future<AssetModel> create(Map<String, dynamic> data, {String? idempotencyKey}) async {
     try {
       final res = await _dio.post('/assets', data: data,

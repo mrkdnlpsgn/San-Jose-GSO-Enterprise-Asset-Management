@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,6 +43,7 @@ public class AssetService {
     private final AccessService accessService;
     private final MaintenanceLedgerService maintenanceLedgerService;
     private final DisposalLedgerService disposalLedgerService;
+    private final AssetQrService assetQrService;
 
     private static final RowMapper<Asset> ASSET_MAPPER = (rs, rn) -> {
         Asset a = new Asset();
@@ -67,6 +69,7 @@ public class AssetService {
         a.setLifecycleStatus(lc != null ? Asset.LifecycleStatus.valueOf(lc) : null);
         a.setQrCodePath(rs.getString("qrCodePath"));
         a.setSha256Hash(rs.getString("sha256Hash"));
+        a.setQrPayload(AssetQrService.payload(a.getId(), a.getPropertyNumber(), a.getSha256Hash()));
         a.setRemarks(rs.getString("remarks"));
         a.setSpecifications(rs.getString("specifications"));
         Timestamp createdTs = rs.getTimestamp("createdAt");
@@ -151,12 +154,14 @@ public class AssetService {
             req.getAcquisitionDate(), req.getUnitValue(), req.getOfficeId(),
             req.getPersonnelId(), 1, req.getLocation(),
             req.getCondition(), "ASSIGNED",
-            req.getQrCodePath(), req.getSha256Hash(), req.getRemarks(), req.getSpecifications(),
+            req.getQrCodePath(), null, req.getRemarks(), req.getSpecifications(),
             req.getCurrentUserId(), groupId,
             req.getShortageOverageQty() != null ? req.getShortageOverageQty() : 0,
             req.getShortageOverageValue() != null ? req.getShortageOverageValue() : BigDecimal.ZERO);
 
         Asset saved = findById(newId);
+        // The QR signature needs the new id, so it is issued right after the insert.
+        assetQrService.reissue(newId, saved.getPropertyNumber());
         handleConditionLedger(saved);
 
         Long recorderId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
@@ -358,7 +363,6 @@ public class AssetService {
         d.setShortageOverageQty(shared.getShortageOverageQty());
         d.setShortageOverageValue(shared.getShortageOverageValue());
         d.setQrCodePath(shared.getQrCodePath());
-        d.setSha256Hash(shared.getSha256Hash());
         d.setLifecycleStatus(shared.getLifecycleStatus());
 
         d.setSerialNumber(u.getSerialNumber() != null && !u.getSerialNumber().isBlank() ? u.getSerialNumber().trim() : shared.getSerialNumber());
@@ -479,6 +483,11 @@ public class AssetService {
     private Asset updateOne(Long id, Asset before, AssetRequest req, String groupId) {
         Asset.AssetCondition oldCondition = before.getCondition();
         Long oldOfficeId = before.getOffice() != null ? before.getOffice().getId() : null;
+        // A new property number needs a new sticker, so it gets a new QR signature; otherwise the
+        // current one is kept. Whatever the client sent is ignored.
+        String sha256Hash = before.getSha256Hash() != null && Objects.equals(before.getPropertyNumber(), req.getPropertyNumber())
+            ? before.getSha256Hash()
+            : assetQrService.issueHash(id, req.getPropertyNumber());
 
         jdbcTemplate.update("CALL sp_assets_update(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id,
@@ -487,7 +496,7 @@ public class AssetService {
             req.getAcquisitionDate(), req.getUnitValue(), req.getOfficeId(),
             req.getPersonnelId(), 1, req.getLocation(),
             req.getCondition(), req.getLifecycleStatus(),
-            req.getQrCodePath(), req.getSha256Hash(), req.getRemarks(), req.getSpecifications(),
+            req.getQrCodePath(), sha256Hash, req.getRemarks(), req.getSpecifications(),
             req.getCurrentUserId(), groupId,
             req.getShortageOverageQty() != null ? req.getShortageOverageQty() : 0,
             req.getShortageOverageValue() != null ? req.getShortageOverageValue() : BigDecimal.ZERO);
@@ -508,6 +517,18 @@ public class AssetService {
         auditLogService.log("ASSET_UPDATED", "Assets", id, "asset",
             "Updated asset: " + saved.getPropertyNumber());
         Asset result = findById(id); // re-fetch after potential lifecycle update
+        sseEmitterService.emitAsset("UPDATED", result.getId(), result);
+        return result;
+    }
+
+    // A lost or stolen sticker: a new QR signature makes every sticker printed before it fail
+    // verification. The asset must then be given a freshly printed sticker.
+    public Asset reissueQr(Long id) {
+        Asset asset = findById(id);
+        assetQrService.reissue(id, asset.getPropertyNumber());
+        auditLogService.log("ASSET_QR_REISSUED", "Assets", id, "asset",
+            "Reissued QR code for asset: " + asset.getPropertyNumber() + " (older stickers no longer verify)");
+        Asset result = findById(id);
         sseEmitterService.emitAsset("UPDATED", result.getId(), result);
         return result;
     }

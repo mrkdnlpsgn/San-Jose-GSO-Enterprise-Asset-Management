@@ -8,7 +8,7 @@ import Button from '../../components/common/Button'
 import QrScannerOverlay from '../../components/common/QrScannerOverlay'
 import { printQrSticker } from '../../utils/printQrSticker'
 import { useToast } from '../../context/ToastContext'
-import { getAssets, updateAssetStatus } from '../../services/assetService'
+import { getAssets, updateAssetStatus, verifyAssetQr } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
 import { getPersonnel } from '../../services/personnelService'
 import { getTransfers, submitTransfer, approveTransfer, rejectTransfer } from '../../services/transferService'
@@ -24,6 +24,20 @@ const LIVE_READER_ID = 'qr-reader-viewport'
 // asset under maintenance or disposing of it is sent to an admin as a request on save.
 const REQUEST_FOR_STATUS = { UNDER_MAINTENANCE: 'maintenance', DISPOSED: 'disposal' }
 const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
+
+// What the server said about a scanned sticker's SHA-256 signature (see verifyAssetQr).
+const QR_CHECK = {
+  VERIFIED:  { tone: 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300',
+               title: 'Genuine sticker', text: 'The QR signature matches this asset.' },
+  UNSIGNED:  { tone: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-300',
+               title: 'Old sticker', text: 'This sticker was printed before QR signing. Print a new one to replace it.' },
+  INVALID:   { tone: 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-800 dark:text-red-300',
+               title: 'Sticker failed verification', text: 'It may be fake, altered, or replaced by a newer sticker. Report it to the GSO.' },
+  NOT_FOUND: { tone: 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-800 dark:text-red-300',
+               title: 'Sticker failed verification', text: 'No asset has the id on this sticker. Report it to the GSO.' },
+  ERROR:     { tone: 'bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400',
+               title: 'Could not check the sticker', text: 'The signature check did not respond. Try scanning again.' },
+}
 
 const CONDITION_BADGE = {
   SERVICEABLE:   'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/20',
@@ -102,10 +116,12 @@ function TransferAsset() {
   const [result, setResult]           = useState(null)
   const [notFound, setNotFound]       = useState(false)
   const [manualCode, setManualCode]   = useState('')
+  const [qrCheck, setQrCheck]         = useState(null) // a QR_CHECK key, only for scanned asset codes
 
   const liveScannerRef = useRef(null)
   const isRunning      = useRef(false)
   const resultRef      = useRef(null)
+  const lastCodeRef    = useRef('')
 
   const stopScanner = useCallback(async () => {
     if (liveScannerRef.current && isRunning.current) {
@@ -120,6 +136,8 @@ function TransferAsset() {
   const processCode = useCallback((raw) => {
     const code = raw.trim()
     if (!code) return
+    lastCodeRef.current = code
+    setQrCheck(null)
 
     // Accepts the app's QR payload format `asset:{id}:{propertyNumber}`, a bare
     // numeric id, a bare property number, or a PAR Number like `2026-07:H78JD80`
@@ -132,6 +150,10 @@ function TransferAsset() {
       id = parts[1] || ''
       propertyNumber = parts[2] || ''
       parNumber = null
+      // The server checks the sticker's signature; a slower answer for an older scan is dropped.
+      verifyAssetQr(code)
+        .then(({ data }) => { if (lastCodeRef.current === code) setQrCheck(data.status) })
+        .catch(() => { if (lastCodeRef.current === code) setQrCheck('ERROR') })
     }
 
     const asset = assetItems.find(
@@ -205,6 +227,8 @@ function TransferAsset() {
   }
 
   const handleClear = () => {
+    lastCodeRef.current = ''
+    setQrCheck(null)
     setResult(null)
     setNotFound(false)
     setManualCode('')
@@ -351,7 +375,7 @@ function TransferAsset() {
     }
   }
 
-  const qrValue = result ? `asset:${result.id}:${result.propertyNumber}` : ''
+  const qrValue = result ? (result.qrPayload || `asset:${result.id}:${result.propertyNumber}`) : ''
   const busy = scanning || starting
 
   return (
@@ -466,6 +490,12 @@ function TransferAsset() {
                 </div>
 
                 <div className="p-5 space-y-4">
+                  {qrCheck && QR_CHECK[qrCheck] && (
+                    <div className={`rounded-lg border px-3.5 py-2.5 ${QR_CHECK[qrCheck].tone}`} role={qrCheck === 'VERIFIED' ? 'status' : 'alert'}>
+                      <p className="text-sm font-semibold">{QR_CHECK[qrCheck].title}</p>
+                      <p className="text-xs mt-0.5">{QR_CHECK[qrCheck].text}</p>
+                    </div>
+                  )}
                   <div className="flex items-start gap-4">
                     <div className="bg-white p-2 rounded-lg ring-1 ring-slate-200 dark:ring-zinc-700 shrink-0">
                       <QRCodeSVG id="qr-result-svg" value={qrValue} size={84} bgColor="#ffffff" fgColor="#111827" level="H" />

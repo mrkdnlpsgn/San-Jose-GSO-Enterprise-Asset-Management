@@ -9,6 +9,9 @@ import com.sanjose.inventory.service.AssetOcrService;
 import com.sanjose.inventory.service.AccessService;
 import com.sanjose.inventory.service.AssetService;
 import com.sanjose.inventory.exception.ForbiddenException;
+import com.sanjose.inventory.exception.ResourceNotFoundException;
+import com.sanjose.inventory.service.AssetQrService;
+import com.sanjose.inventory.service.AuditLogService;
 import com.sanjose.inventory.service.EvidenceService;
 import com.sanjose.inventory.service.QrCodeService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +35,8 @@ public class AssetController {
     private final AssetOcrService assetOcrService;
     private final EvidenceService evidenceService;
     private final AccessService accessService;
+    private final AssetQrService assetQrService;
+    private final AuditLogService auditLogService;
 
     @GetMapping
     public List<Asset> getAll(@RequestParam(required = false) String search,
@@ -73,20 +79,52 @@ public class AssetController {
             .toList();
     }
 
-    // Payload format (`asset:{id}:{propertyNumber}`) matches the one the mobile app
-    // already generates client-side, so codes printed from either source scan the same.
+    // Signed payload `asset:{id}:{propertyNumber}:{tag}` (see AssetQrService) — the same text the
+    // web and mobile apps print from the asset's qrPayload, so stickers from any source match.
     @GetMapping(value = "/{id}/qr", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getQrCode(@PathVariable Long id,
                                             @RequestParam(defaultValue = "300") int size) {
         accessService.requireAssetAccess(id);
         Asset asset = assetService.findById(id);
-        String payload = "asset:" + asset.getId() + ":" + asset.getPropertyNumber();
         int clampedSize = Math.min(Math.max(size, 64), 1000);
-        byte[] png = qrCodeService.generatePng(payload, clampedSize);
+        byte[] png = qrCodeService.generatePng(asset.getQrPayload(), clampedSize);
         return ResponseEntity.ok()
             .cacheControl(CacheControl.noStore())
             .contentType(MediaType.IMAGE_PNG)
             .body(png);
+    }
+
+    // Checks a scanned sticker: VERIFIED (printed by this system, current), UNSIGNED (an older
+    // sticker from before signing), INVALID (made up, edited, or replaced by a reissued one), or
+    // NOT_FOUND. Answers only the status and id, so it reveals nothing about assets outside the
+    // scanner's office; the asset itself is looked up as usual. Failed checks go to the audit log.
+    @GetMapping("/verify-qr")
+    public Map<String, Object> verifyQr(@RequestParam String code) {
+        AssetQrService.ParsedCode parsed = assetQrService.parse(code);
+        if (parsed == null) throw new IllegalArgumentException("This is not an asset QR code.");
+        AssetQrService.Status status;
+        try {
+            Asset asset = assetService.findById(parsed.assetId());
+            status = assetQrService.check(parsed, asset.getPropertyNumber(), asset.getSha256Hash());
+        } catch (ResourceNotFoundException e) {
+            status = AssetQrService.Status.NOT_FOUND;
+        }
+        if (status == AssetQrService.Status.INVALID) {
+            auditLogService.log("ASSET_QR_INVALID", "Assets", parsed.assetId(), "asset",
+                "Scanned a QR code that failed verification for asset #" + parsed.assetId()
+                    + " (property no. on sticker: " + parsed.propertyNumber() + ")");
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", status.name());
+        result.put("assetId", parsed.assetId());
+        return result;
+    }
+
+    // Retires the asset's current sticker (lost or stolen): older stickers stop verifying.
+    @PostMapping("/{id}/qr/reissue")
+    public Asset reissueQr(@PathVariable Long id) {
+        accessService.requireAdmin("reissue QR codes");
+        return assetService.reissueQr(id);
     }
 
     @PostMapping
