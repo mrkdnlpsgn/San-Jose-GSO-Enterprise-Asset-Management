@@ -11,7 +11,6 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../reports/utils/formatters.dart';
 import '../../../shared/widgets/delete_dialog.dart';
-import '../../../shared/widgets/main_shell.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../asset_history/model/asset_history_model.dart';
 import '../../asset_history/provider/asset_history_provider.dart';
@@ -147,7 +146,8 @@ class _DetailsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     return ListView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + context.mainShellBottomInset),
+      // outside the tab-bar shell (opened from History, Maintenance, Reports…): clear only the phone's own inset
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
       children: [
         // Summary: property no., name, status, location — then the everyday actions as worded buttons
         Card(
@@ -371,7 +371,7 @@ class _HistoryTab extends ConsumerWidget {
     return entries.isEmpty
         ? Center(child: Text('No lifecycle events recorded.', style: TextStyle(color: context.colors.textTertiary)))
         : ListView.builder(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
             itemCount: entries.length,
             itemBuilder: (context, i) => _LifecycleTile(entry: entries[i], isLast: i == entries.length - 1),
           );

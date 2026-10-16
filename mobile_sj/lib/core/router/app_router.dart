@@ -66,19 +66,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               path: '/assets',
               pageBuilder: (c, s) => fadeThroughPage(c, s, const AssetListScreen()),
               routes: [
-                // Static "new"/"import" must be declared before the ":id" wildcard below
-                // them, or go_router (which matches routes in list order) would treat
-                // them as an :id value instead of resolving these literal routes.
                 GoRoute(path: 'new', pageBuilder: (c, s) => fadeThroughPage(c, s, const AssetFormScreen())),
                 GoRoute(path: 'import', pageBuilder: (c, s) => fadeThroughPage(c, s, const AssetImportScreen())),
-                GoRoute(
-                  path: ':id',
-                  pageBuilder: (c, s) => fadeThroughPage(c, s, AssetDetailScreen(assetId: int.parse(s.pathParameters['id']!))),
-                ),
-                GoRoute(
-                  path: ':id/edit',
-                  pageBuilder: (c, s) => fadeThroughPage(c, s, AssetFormScreen(asset: s.extra as AssetModel?)),
-                ),
               ],
             ),
           ]),
@@ -102,6 +91,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ]),
         ],
+      ),
+      // Asset detail/edit live outside the shell (unlike /assets/new and /assets/import
+      // above) because they're also pushed from screens that sit above the shell —
+      // Asset History, Maintenance, Disposal, Reports. Pushing a shell sub-route from
+      // there stacks a second copy of the shell page with the same key onto the root
+      // navigator (go_router asserts "!keyReservation.contains(key)"; release builds
+      // render a black page under the nav bar). Declared after the shell so the literal
+      // /assets/new and /assets/import still match first.
+      GoRoute(
+        path: '/assets/:id',
+        pageBuilder: (c, s) => fadeThroughPage(c, s, AssetDetailScreen(assetId: int.parse(s.pathParameters['id']!))),
+      ),
+      GoRoute(
+        path: '/assets/:id/edit',
+        pageBuilder: (c, s) => fadeThroughPage(c, s, AssetFormScreen(asset: s.extra as AssetModel?)),
       ),
       GoRoute(path: '/maintenance', pageBuilder: (c, s) => fadeThroughPage(c, s, const MaintenanceListScreen())),
       GoRoute(
