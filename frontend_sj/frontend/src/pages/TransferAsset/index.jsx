@@ -101,6 +101,7 @@ function TransferAsset() {
   const navigate   = useNavigate()
   const { show }   = useToast()
   const isAdmin    = useSelector((s) => s.auth.user?.role === 'ADMIN')
+  const myOfficeId = useSelector((s) => s.auth.user?.officeId)
 
   const [offices, setOffices]       = useState([])
   const [personnel, setPersonnel]   = useState([])
@@ -277,10 +278,22 @@ function TransferAsset() {
     setTransferErrors({})
   }, [result?.id])
 
+  // Staff: their own office (which, for an asset they can see, is also the asset's office). Moving
+  // the asset within it keeps the current accountable person by default; moving it anywhere else
+  // needs the person who takes it over there.
+  const isOwnOffice = (officeId) => !!officeId
+    && (String(officeId) === String(myOfficeId) || String(officeId) === String(result?.office?.id))
+  const defaultPersonFor = (officeId) => {
+    const current = result?.accountablePerson?.id
+    if (isAdmin || !current || !isOwnOffice(officeId)) return ''
+    return personnel.some((p) => p.id === current && String(p.office?.id) === String(officeId)) ? String(current) : ''
+  }
+  const personRequired = !isAdmin && !!transfer.toOfficeId && !isOwnOffice(transfer.toOfficeId)
+
   const setT = (key) => (e) => {
     const value = e.target.value
-    setTransfer((p) => ({ ...p, [key]: value, ...(key === 'toOfficeId' ? { toPersonnelId: '' } : {}) }))
-    setTransferErrors((p) => { const n = { ...p }; delete n[key]; return n })
+    setTransfer((p) => ({ ...p, [key]: value, ...(key === 'toOfficeId' ? { toPersonnelId: defaultPersonFor(value) } : {}) }))
+    setTransferErrors((p) => { const n = { ...p }; delete n[key]; if (key === 'toOfficeId') delete n.toPersonnelId; return n })
   }
 
   const officePersonnel = personnel.filter((p) => String(p.office?.id) === String(transfer.toOfficeId))
@@ -290,6 +303,7 @@ function TransferAsset() {
     const errs = {}
     if (!transfer.toOfficeId) errs.toOfficeId = 'Choose the office the asset is moving to.'
     if (!transfer.toLocation.trim()) errs.toLocation = 'Enter where the asset will be kept.'
+    if (personRequired && !transfer.toPersonnelId) errs.toPersonnelId = 'Choose who will be accountable for it in the new office.'
     setTransferErrors(errs)
     if (Object.keys(errs).length) return
 
@@ -604,11 +618,17 @@ function TransferAsset() {
                     </div>
 
                     <div>
-                      <label htmlFor="to-person" className={LABEL}>New accountable person <span className="text-slate-400 font-normal">(optional)</span></label>
-                      <select id="to-person" value={transfer.toPersonnelId} onChange={setT('toPersonnelId')} disabled={!transfer.toOfficeId} className={`${INPUT} disabled:opacity-60`}>
-                        <option value="">{transfer.toOfficeId ? '— None —' : '— Choose the office first —'}</option>
-                        {officePersonnel.map((p) => <option key={p.id} value={p.id}>{p.fullName}</option>)}
+                      <label htmlFor="to-person" className={LABEL}>
+                        New accountable person
+                        {personRequired
+                          ? <span className="text-red-500 ml-0.5">*</span>
+                          : <span className="text-slate-400 font-normal"> (optional)</span>}
+                      </label>
+                      <select id="to-person" value={transfer.toPersonnelId} onChange={setT('toPersonnelId')} disabled={!transfer.toOfficeId} aria-required={personRequired} className={`${INPUT} disabled:opacity-60`}>
+                        <option value="">{!transfer.toOfficeId ? '— Choose the office first —' : personRequired ? '— Select person —' : '— None —'}</option>
+                        {officePersonnel.map((p) => <option key={p.id} value={p.id}>{p.fullName}{p.id === result.accountablePerson?.id ? ' (current)' : ''}</option>)}
                       </select>
+                      {transferErrors.toPersonnelId && <p className="text-xs text-red-500 mt-1">{transferErrors.toPersonnelId}</p>}
                       {transfer.toOfficeId && officePersonnel.length === 0 && (
                         <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">No staff are assigned to this office yet.</p>
                       )}

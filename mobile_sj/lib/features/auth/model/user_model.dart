@@ -6,6 +6,8 @@ class UserModel {
   final String username;
   final String? fullName;
   final String? officeName;
+  /// The office an admin assigned this account on the Personnel page (null = none yet).
+  final int? officeId;
   final String role; // ADMIN | STAFF
   final String? privacyAcknowledgedAt;
   /// Root-relative, e.g. /uploads/avatars/3-<uuid>.jpg — null when no picture is set.
@@ -16,6 +18,7 @@ class UserModel {
     required this.username,
     this.fullName,
     this.officeName,
+    this.officeId,
     required this.role,
     this.privacyAcknowledgedAt,
     this.avatarUrl,
@@ -26,6 +29,7 @@ class UserModel {
         username: username,
         fullName: fullName,
         officeName: officeName,
+        officeId: officeId,
         role: role,
         privacyAcknowledgedAt: privacyAcknowledgedAt ?? this.privacyAcknowledgedAt,
         avatarUrl: avatarUrl != null ? avatarUrl() : this.avatarUrl,
@@ -50,6 +54,7 @@ class UserModel {
       username: json['username'] as String,
       fullName: json['fullName'] as String?,
       officeName: json['officeName'] as String?,
+      officeId: (json['officeId'] as num?)?.toInt(),
       role: rawRole.replaceFirst('ROLE_', ''),
       privacyAcknowledgedAt: json['privacyAcknowledgedAt'] as String?,
       avatarUrl: json['avatarUrl'] as String?,

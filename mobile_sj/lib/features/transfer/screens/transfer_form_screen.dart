@@ -40,6 +40,23 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
     super.dispose();
   }
 
+  // Staff: their own office (for an asset they can see, also the asset's office). Moving the asset
+  // within it keeps the current accountable person by default; moving it anywhere else needs the
+  // person who takes it over there (the transfer sets exactly this, so none = nobody). Same as web.
+  bool _isOwnOffice(int? officeId) {
+    if (officeId == null) return false;
+    final me = ref.read(authProvider).valueOrNull;
+    return officeId == me?.officeId || officeId == widget.asset.office.id;
+  }
+
+  bool _personRequired(bool isAdmin) => !isAdmin && _toOfficeId != null && !_isOwnOffice(_toOfficeId);
+
+  int? _defaultPersonFor(int? officeId, bool isAdmin, List<PersonnelModel> people) {
+    final current = widget.asset.accountablePerson?.id;
+    if (isAdmin || current == null || !_isOwnOffice(officeId)) return null;
+    return people.any((p) => p.id == current && p.officeId == officeId) ? current : null;
+  }
+
   Future<void> _submit() async {
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
@@ -152,7 +169,9 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
                 ],
                 onChanged: (v) => setState(() {
                   _toOfficeId = v;
-                  _toPersonnelId = null; // the accountable person must belong to the new office
+                  // the accountable person must belong to the new office; in their own office, staff
+                  // keep the current one unless they pick someone else
+                  _toPersonnelId = _defaultPersonFor(v, isAdmin, personnelAsync.valueOrNull ?? const []);
                 }),
                 validator: (v) => v == null ? 'Choose the office to transfer to.' : null,
               ),
@@ -174,12 +193,13 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
               error: (_, __) => const SizedBox.shrink(),
               data: (people) {
                 final inOffice = _toOfficeId == null ? <PersonnelModel>[] : people.where((p) => p.officeId == _toOfficeId).toList();
+                final required = _personRequired(isAdmin);
                 return IosSelectFormField<int?>(
                   key: ValueKey(_toOfficeId), // reset when the office changes
                   initialValue: _toPersonnelId,
                   isExpanded: true,
                   decoration: InputDecoration(
-                    labelText: 'New accountable person (optional)',
+                    labelText: required ? 'New accountable person (required)' : 'New accountable person (optional)',
                     helperText: _toOfficeId == null
                         ? 'Choose an office first.'
                         : inOffice.isEmpty
@@ -188,14 +208,17 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
                   ),
                   items: [
                     // the backend sets exactly this — null clears the accountable person (web: "— None —")
-                    const DropdownMenuItem<int?>(value: null, child: Text('None')),
+                    DropdownMenuItem<int?>(value: null, child: Text(required ? 'Select person' : 'None')),
                     for (final p in inOffice)
                       DropdownMenuItem<int?>(
                         value: p.id,
-                        child: Text(p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
+                        child: Text(
+                            '${p.position != null ? '${p.fullName} — ${p.position}' : p.fullName}'
+                            '${p.id == asset.accountablePerson?.id ? ' (current)' : ''}',
                             overflow: TextOverflow.ellipsis),
                       ),
                   ],
+                  validator: (v) => required && v == null ? 'Choose who will be accountable for it in the new office.' : null,
                   onChanged: _toOfficeId == null ? null : (v) => setState(() => _toPersonnelId = v),
                 );
               },

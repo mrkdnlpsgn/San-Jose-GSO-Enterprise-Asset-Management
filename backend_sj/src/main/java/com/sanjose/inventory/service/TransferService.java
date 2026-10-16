@@ -80,14 +80,20 @@ public class TransferService {
         requireOffice(req.toOfficeId());
         if (req.toPersonnelId() != null) requirePersonnelInOffice(req.toPersonnelId(), req.toOfficeId());
 
+        AccessService.CurrentUser me = accessService.current();
         Long fromOfficeId = asset.getOffice() != null ? asset.getOffice().getId() : null;
+        // Staff sending an asset out of their office must name who takes it over there: the
+        // transfer sets the accountable person to exactly this, so none would leave it with nobody.
+        boolean leavesOffice = !Objects.equals(req.toOfficeId(), me.officeId()) && !Objects.equals(req.toOfficeId(), fromOfficeId);
+        if (!me.admin() && leavesOffice && req.toPersonnelId() == null) {
+            throw new IllegalArgumentException("Choose the new accountable person — the asset is leaving your office.");
+        }
         Long fromPersonnelId = asset.getAccountablePerson() != null ? asset.getAccountablePerson().getId() : null;
         if (Objects.equals(fromOfficeId, req.toOfficeId()) && Objects.equals(fromPersonnelId, req.toPersonnelId())
                 && location.equalsIgnoreCase(asset.getLocation() == null ? "" : asset.getLocation().trim())) {
             throw new IllegalArgumentException("Nothing to transfer — the office, accountable person and location are unchanged.");
         }
 
-        AccessService.CurrentUser me = accessService.current();
         if (!me.admin()) {
             Integer pending = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM asset_transfer_requests WHERE asset_id = ? AND status = 'PENDING_APPROVAL'",
