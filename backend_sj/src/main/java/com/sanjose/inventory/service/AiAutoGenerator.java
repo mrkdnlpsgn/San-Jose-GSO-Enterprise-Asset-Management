@@ -89,21 +89,19 @@ public class AiAutoGenerator {
 
     public boolean requestMaintenanceSummary(Long maintenanceId) {
         return submit("maint:" + maintenanceId, "summary", maintenanceId,
-            () -> firstLong("SELECT a.office_id FROM maintenance_ledger m JOIN assets a ON a.asset_id = m.asset_id WHERE m.maintenance_id = ?",
-                maintenanceId),
+            () -> firstLong("SELECT asset_id FROM maintenance_ledger WHERE maintenance_id = ?", maintenanceId),
             () -> { pace(); maintenanceSummaryService.generate(maintenanceId); return true; });
     }
 
     public boolean requestDisposalJustification(Long disposalId) {
         return submit("disp:" + disposalId, "justification", disposalId,
-            () -> firstLong("SELECT a.office_id FROM disposal_ledger d JOIN assets a ON a.asset_id = d.asset_id WHERE d.disposal_id = ?",
-                disposalId),
+            () -> firstLong("SELECT asset_id FROM disposal_ledger WHERE disposal_id = ?", disposalId),
             () -> { pace(); disposalJustificationService.generate(disposalId); return true; });
     }
 
     // job returns true when it produced something new (false = nothing needed doing). Either way
     // the screens waiting on it hear back: READY, or FAILED with a message to show instead.
-    private boolean submit(String key, String kind, Long id, Supplier<Long> officeOf, BooleanSupplier job) {
+    private boolean submit(String key, String kind, Long id, Supplier<Long> assetOf, BooleanSupplier job) {
         if (!geminiConfig.isAvailable()) return false;
         if (queued.contains(key)) return true;
         if (queued.size() >= MAX_QUEUED) {
@@ -114,12 +112,12 @@ public class AiAutoGenerator {
         worker.execute(() -> {
             queued.remove(key);   // a change arriving while this runs queues a fresh job
             try {
-                if (job.getAsBoolean()) sseEmitterService.emitAiReady(kind, id, officeOf.get());
+                if (job.getAsBoolean()) sseEmitterService.emitAiReady(kind, id, assetOf.get());
             } catch (Exception ex) {
                 log.warn("Background AI job {} failed: {}", key, ex.getMessage());
                 String reason = geminiConfig.unavailableMessage();
                 try {
-                    sseEmitterService.emitAiFailed(kind, id, officeOf.get(),
+                    sseEmitterService.emitAiFailed(kind, id, assetOf.get(),
                         reason != null ? reason : "The AI couldn't prepare this right now. You can try Generate again.");
                 } catch (Exception ignored) { /* nobody left to tell */ }
             }

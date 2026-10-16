@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/maintenance")
@@ -31,14 +32,28 @@ public class MaintenanceLedgerController {
                                            @RequestParam(defaultValue = "20") int size,
                                            @RequestParam(required = false) String maintenanceType,
                                            @RequestParam(required = false) String status) {
-        return maintenanceLedgerService.findAll(search, page, size, maintenanceType, status, accessService.scopeOfficeId());
+        Set<Long> visible = accessService.visibleAssetIds();
+        if (visible == null) return maintenanceLedgerService.findAll(search, page, size, maintenanceType, status, null);
+        List<MaintenanceLedger> own = ownRecords(search, maintenanceType, status, visible);
+        int from = (int) Math.min((long) page * size, own.size());
+        return own.subList(from, (int) Math.min((long) from + size, own.size()));
     }
 
     @GetMapping("/count")
     public long count(@RequestParam(required = false) String search,
                        @RequestParam(required = false) String maintenanceType,
                        @RequestParam(required = false) String status) {
-        return maintenanceLedgerService.count(search, maintenanceType, status, accessService.scopeOfficeId());
+        Set<Long> visible = accessService.visibleAssetIds();
+        if (visible == null) return maintenanceLedgerService.count(search, maintenanceType, status, null);
+        return ownRecords(search, maintenanceType, status, visible).size();
+    }
+
+    // A staff account's records: those of the assets it may see (see AccessService). The office
+    // query narrows them down; the page is cut from what is left, so it agrees with the count.
+    private List<MaintenanceLedger> ownRecords(String search, String maintenanceType, String status, Set<Long> visible) {
+        if (visible.isEmpty()) return List.of();
+        return maintenanceLedgerService.findAll(search, 0, Integer.MAX_VALUE, maintenanceType, status, accessService.scopeOfficeId())
+            .stream().filter(r -> r.getAsset() != null && visible.contains(r.getAsset().getId())).toList();
     }
 
     @GetMapping("/{id}")

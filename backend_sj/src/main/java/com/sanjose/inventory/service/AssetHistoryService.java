@@ -117,31 +117,16 @@ public class AssetHistoryService {
     private static final String SEARCH_FILTER = """
          AND (h.event_type LIKE ? OR a.property_number LIKE ? OR a.par_number LIKE ?
               OR a.`description` LIKE ? OR u.full_name LIKE ? OR h.notes LIKE ?)""";
-    private static final String OFFICE_FILTER = "a.office_id = ? OR h.from_office_id = ? OR h.to_office_id = ?";
 
     // officeId null = every office (admin).
-    public List<AssetHistory> findAll(String search, Long officeId) {
+    // scope null = every asset (admin); otherwise only the staff account's own assets.
+    public List<AssetHistory> findAll(String search, AccessService.StaffScope scope) {
         StringBuilder sql = new StringBuilder(HISTORY_SELECT);
         List<Object> args = new ArrayList<>();
-        if (officeId != null) {
-            sql.append(" AND (").append(OFFICE_FILTER).append(")");
-            args.addAll(List.of(officeId, officeId, officeId));
+        if (scope != null) {
+            sql.append(" AND ").append(scope.sql("a"));
+            args.addAll(List.of(scope.args()));
         }
-        return query(sql, args, search);
-    }
-
-    // A staff account's history: every event (by anyone) on the assets it is the accountable
-    // person for (through the personnel record(s) linked to the account) or that are in its
-    // office, plus events that moved an asset into or out of its office.
-    public List<AssetHistory> findForAccountable(String search, Long userId, Long officeId) {
-        StringBuilder sql = new StringBuilder(HISTORY_SELECT)
-            .append(" AND (a.personnel_id IN (SELECT personnel_id FROM personnel WHERE user_id = ?)");
-        List<Object> args = new ArrayList<>(List.of(userId));
-        if (officeId != null) {
-            sql.append(" OR ").append(OFFICE_FILTER);
-            args.addAll(List.of(officeId, officeId, officeId));
-        }
-        sql.append(")");
         return query(sql, args, search);
     }
 

@@ -85,10 +85,21 @@ public class AiRecommendationService {
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
-    // officeId null = every office (admin)
-    public List<AiRecommendationSummaryItem> getSummary(Long officeId) {
-        String sql = officeId == null ? "CALL sp_ai_recommendations_summary()" : "CALL sp_ai_recommendations_summary_by_office(?)";
-        Object[] args = officeId == null ? new Object[0] : new Object[]{ officeId };
+    // scope null = every asset (admin). Staff: the same count as sp_ai_recommendations_summary,
+    // over only their own assets (see AccessService).
+    public List<AiRecommendationSummaryItem> getSummary(AccessService.StaffScope scope) {
+        String sql = scope == null ? "CALL sp_ai_recommendations_summary()" : """
+            SELECT r.recommendation, COUNT(*) AS cnt
+            FROM ai_recommendations r
+            INNER JOIN (
+                SELECT asset_id, MAX(recommendation_id) AS latest_id
+                FROM ai_recommendations
+                GROUP BY asset_id
+            ) latest ON r.recommendation_id = latest.latest_id
+            INNER JOIN assets a ON a.asset_id = r.asset_id
+                AND a.is_deleted = FALSE AND a.lifecycle_status <> 'DISPOSED'
+            """ + " WHERE " + scope.sql("a") + " GROUP BY r.recommendation";
+        Object[] args = scope == null ? new Object[0] : scope.args();
         return jdbcTemplate.query(sql, (rs, rn) ->
             new AiRecommendationSummaryItem(
                 AiRecommendation.Recommendation.valueOf(rs.getString("recommendation")),

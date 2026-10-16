@@ -20,6 +20,6 @@ public class AiRecommendationSummaryController {
 
     @GetMapping("/summary")
     public List<AiRecommendationSummaryItem> getSummary() {
-        return aiRecommendationService.getSummary(accessService.scopeOfficeId());
+        return aiRecommendationService.getSummary(accessService.staffScope());
     }
 }

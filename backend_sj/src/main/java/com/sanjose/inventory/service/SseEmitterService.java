@@ -63,33 +63,32 @@ public class SseEmitterService {
 
     public void emitAsset(String action, Long id, Object data) {
         eventPublisher.publishEvent(new RecordChangedEvent("asset", action, id));
-        broadcastScoped("asset", new SseEvent(action, id, data, currentUsername()),
-            officeOf("SELECT office_id FROM assets WHERE asset_id = ?", id));
+        broadcastScoped("asset", new SseEvent(action, id, data, currentUsername()), id);
     }
 
     public void emitMaintenance(String action, Long id, Object data) {
         eventPublisher.publishEvent(new RecordChangedEvent("maintenance", action, id));
         // "CHANGED" (condition cascade) carries the asset id rather than a record id
         broadcastScoped("maintenance", new SseEvent(action, id, data, currentUsername()), "CHANGED".equals(action)
-            ? officeOf("SELECT office_id FROM assets WHERE asset_id = ?", id)
-            : officeOf("SELECT a.office_id FROM maintenance_ledger m JOIN assets a ON a.asset_id = m.asset_id WHERE m.maintenance_id = ?", id));
+            ? id
+            : assetOf("SELECT asset_id FROM maintenance_ledger WHERE maintenance_id = ?", id));
     }
 
     public void emitDisposal(String action, Long id, Object data) {
         eventPublisher.publishEvent(new RecordChangedEvent("disposal", action, id));
         broadcastScoped("disposal", new SseEvent(action, id, data, currentUsername()), "CHANGED".equals(action)
-            ? officeOf("SELECT office_id FROM assets WHERE asset_id = ?", id)
-            : officeOf("SELECT a.office_id FROM disposal_ledger d JOIN assets a ON a.asset_id = d.asset_id WHERE d.disposal_id = ?", id));
+            ? id
+            : assetOf("SELECT asset_id FROM disposal_ledger WHERE disposal_id = ?", id));
     }
 
-    // A background AI result is ready. officeId null = admins only (the audit digest).
-    public void emitAiReady(String kind, Long id, Long officeId) {
-        broadcastScoped("ai", new SseEvent("READY", id, Map.of("kind", kind), null), officeId);
+    // A background AI result is ready, about this asset. assetId null = admins only (the audit digest).
+    public void emitAiReady(String kind, Long id, Long assetId) {
+        broadcastScoped("ai", new SseEvent("READY", id, Map.of("kind", kind), null), assetId);
     }
 
     // A background AI job failed (e.g. the daily quota is used up) — screens stop waiting.
-    public void emitAiFailed(String kind, Long id, Long officeId, String message) {
-        broadcastScoped("ai", new SseEvent("FAILED", id, Map.of("kind", kind, "message", message), null), officeId);
+    public void emitAiFailed(String kind, Long id, Long assetId, String message) {
+        broadcastScoped("ai", new SseEvent("FAILED", id, Map.of("kind", kind, "message", message), null), assetId);
     }
 
     private void broadcastPresence() {
@@ -97,16 +96,17 @@ public class SseEmitterService {
         broadcast("presence", new SseEvent("SNAPSHOT", null, online, null));
     }
 
-    private Long officeOf(String sql, Long id) {
+    private Long assetOf(String sql, Long id) {
         if (id == null) return null;
         List<Long> rows = jdbcTemplate.query(sql, (rs, rn) -> rs.getObject(1, Long.class), id);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    private void broadcastScoped(String eventName, SseEvent event, Long officeId) {
+    // Only to those who may see the asset: admins, and the staff account it belongs to.
+    private void broadcastScoped(String eventName, SseEvent event, Long assetId) {
         Map<String, Boolean> allowed = new java.util.HashMap<>();
         for (Map.Entry<SseEmitter, String> e : emitters.entrySet()) {
-            boolean ok = allowed.computeIfAbsent(e.getValue(), u -> accessService.canSeeOffice(u, officeId));
+            boolean ok = allowed.computeIfAbsent(e.getValue(), u -> accessService.canSeeAsset(u, assetId));
             if (!ok) continue;
             try {
                 e.getKey().send(SseEmitter.event().name(eventName).data(event));

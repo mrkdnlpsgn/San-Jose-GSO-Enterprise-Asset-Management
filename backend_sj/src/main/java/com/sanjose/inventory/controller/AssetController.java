@@ -25,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/assets")
@@ -48,7 +49,11 @@ public class AssetController {
                                @RequestParam(required = false) Long officeId,
                                @RequestParam(required = false) String condition,
                                @RequestParam(required = false) String lifecycleStatus) {
-        return assetService.findAll(search, page, size, categoryId, scoped(officeId), condition, lifecycleStatus);
+        Set<Long> visible = accessService.visibleAssetIds();
+        if (visible == null) return assetService.findAll(search, page, size, categoryId, officeId, condition, lifecycleStatus);
+        List<Asset> own = ownAssets(search, categoryId, condition, lifecycleStatus, visible);
+        int from = (int) Math.min((long) page * size, own.size());
+        return own.subList(from, (int) Math.min((long) from + size, own.size()));
     }
 
     @GetMapping("/count")
@@ -57,13 +62,18 @@ public class AssetController {
                        @RequestParam(required = false) Long officeId,
                        @RequestParam(required = false) String condition,
                        @RequestParam(required = false) String lifecycleStatus) {
-        return assetService.count(search, categoryId, scoped(officeId), condition, lifecycleStatus);
+        Set<Long> visible = accessService.visibleAssetIds();
+        if (visible == null) return assetService.count(search, categoryId, officeId, condition, lifecycleStatus);
+        return ownAssets(search, categoryId, condition, lifecycleStatus, visible).size();
     }
 
-    // Staff only ever see their own office's assets, whatever office filter they ask for.
-    private Long scoped(Long requestedOfficeId) {
-        Long scope = accessService.scopeOfficeId();
-        return scope != null ? scope : requestedOfficeId;
+    // A staff account's assets (see AccessService): the office query narrows the list down, then
+    // only the ones it is the accountable person for are kept. The page is cut from these, so a
+    // page and the count always agree. An office filter from staff is ignored.
+    private List<Asset> ownAssets(String search, Long categoryId, String condition, String lifecycleStatus, Set<Long> visible) {
+        if (visible.isEmpty()) return List.of();
+        return assetService.findAll(search, 0, Integer.MAX_VALUE, categoryId, accessService.scopeOfficeId(), condition, lifecycleStatus)
+            .stream().filter(a -> visible.contains(a.getId())).toList();
     }
 
     @GetMapping("/{id}")
@@ -75,9 +85,9 @@ public class AssetController {
     // All devices of one group (same-model assets added together).
     @GetMapping("/group/{groupId}")
     public List<Asset> getGroup(@PathVariable String groupId) {
-        Long scope = accessService.scopeOfficeId();
+        Set<Long> visible = accessService.visibleAssetIds();
         return assetService.findByGroup(groupId).stream()
-            .filter(a -> scope == null || (a.getOffice() != null && scope.equals(a.getOffice().getId())))
+            .filter(a -> visible == null || visible.contains(a.getId()))
             .toList();
     }
 
@@ -255,6 +265,12 @@ public class AssetController {
             || (req.getUnits() != null && req.getUnits().stream()
                     .anyMatch(u -> u.getOfficeId() != null && !u.getOfficeId().equals(office)));
         if (moves) throw new ForbiddenException("Only an administrator can move an asset to another office.");
+        // the accountable person decides who can see the asset, so only an admin reassigns it
+        Long accountable = before.getAccountablePerson() != null ? before.getAccountablePerson().getId() : null;
+        boolean reassigns = (req.getPersonnelId() != null && !req.getPersonnelId().equals(accountable))
+            || (req.getUnits() != null && req.getUnits().stream()
+                    .anyMatch(u -> u.getPersonnelId() != null && !u.getPersonnelId().equals(accountable)));
+        if (reassigns) throw new ForbiddenException("Only an administrator can change an asset's accountable person.");
         int qty = req.getQuantity() != null ? req.getQuantity() : 1;
         if (qty > 1 || (req.getUnits() != null && req.getUnits().size() > 1)) {
             throw new ForbiddenException("Only an administrator can add devices to an asset.");

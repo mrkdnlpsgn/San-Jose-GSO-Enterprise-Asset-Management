@@ -51,7 +51,8 @@ public class LifecycleInsightService {
         }
     }
 
-    public Map<String, Object> stats(Range range, Long officeId) {
+    // scope null = every asset (admin); otherwise only the staff account's own assets.
+    public Map<String, Object> stats(Range range, AccessService.StaffScope scope) {
         LocalDate end = AppTime.today();                       // inclusive
         LocalDate start = end.minusDays(range.days - 1L);
         LocalDate prevEnd = start.minusDays(1);
@@ -62,9 +63,9 @@ public class LifecycleInsightService {
         out.put("label", range.label);
         out.put("from", start.toString());
         out.put("to", end.toString());
-        out.put("scope", officeId == null ? "ALL_OFFICES" : officeName(officeId));
-        out.put("maintenance", ledger(Ledger.MAINTENANCE, start, end, prevStart, prevEnd, officeId, range));
-        out.put("disposal", ledger(Ledger.DISPOSAL, start, end, prevStart, prevEnd, officeId, range));
+        out.put("scope", scope == null ? "ALL_OFFICES" : "Assets this staff member is accountable for in " + officeName(scope.officeId()));
+        out.put("maintenance", ledger(Ledger.MAINTENANCE, start, end, prevStart, prevEnd, scope, range));
+        out.put("disposal", ledger(Ledger.DISPOSAL, start, end, prevStart, prevEnd, scope, range));
         return out;
     }
 
@@ -76,20 +77,20 @@ public class LifecycleInsightService {
     // The numbers, plus the last AI summary when it was written from exactly these numbers — so
     // the dashboard shows it on load without asking Gemini (free-plan quota); new numbers mean
     // someone presses Generate.
-    public Map<String, Object> statsWithCachedSummary(Range range, Long officeId) {
-        Map<String, Object> stats = stats(range, officeId);
-        CachedSummary cached = summaryCache.get(range.name() + ":" + officeId);
+    public Map<String, Object> statsWithCachedSummary(Range range, AccessService.StaffScope scope) {
+        Map<String, Object> stats = stats(range, scope);
+        CachedSummary cached = summaryCache.get(cacheKey(range, scope));
         if (cached == null || !cached.statsJson().equals(toJson(stats))) return stats;
         Map<String, Object> out = new LinkedHashMap<>(stats);
         out.put("summary", cached.summary());
         return out;
     }
 
-    public Map<String, Object> summarize(Range range, Long officeId, boolean refresh) {
+    public Map<String, Object> summarize(Range range, AccessService.StaffScope scope, boolean refresh) {
         geminiConfig.requireConfigured();
-        Map<String, Object> stats = stats(range, officeId);
+        Map<String, Object> stats = stats(range, scope);
         String statsJson = toJson(stats);
-        String key = range.name() + ":" + officeId;
+        String key = cacheKey(range, scope);
         CachedSummary cached = summaryCache.get(key);
         String summary;
         if (!refresh && cached != null && cached.statsJson().equals(statsJson)) {
@@ -101,6 +102,11 @@ public class LifecycleInsightService {
         Map<String, Object> out = new LinkedHashMap<>(stats);
         out.put("summary", summary);
         return out;
+    }
+
+    // one summary per range for admins, and per range per staff account (their numbers differ)
+    private static String cacheKey(Range range, AccessService.StaffScope scope) {
+        return range.name() + ":" + (scope == null ? "all" : "user" + scope.userId() + "@" + scope.officeId());
     }
 
     // ---- aggregation ---------------------------------------------------------------
@@ -115,15 +121,15 @@ public class LifecycleInsightService {
     }
 
     private Map<String, Object> ledger(Ledger l, LocalDate start, LocalDate end, LocalDate prevStart, LocalDate prevEnd,
-                                       Long officeId, Range range) {
+                                       AccessService.StaffScope scope, Range range) {
         String from = " FROM " + l.table + " x JOIN assets a ON a.asset_id = x.asset_id"
             + " LEFT JOIN categories c ON c.category_id = a.category_id"
             + " LEFT JOIN offices o ON o.office_id = a.office_id"
             + " WHERE x.is_deleted = FALSE AND x.approval_status = 'APPROVED'"
             + " AND x." + l.date + " BETWEEN ? AND ?"
-            + (officeId != null ? " AND a.office_id = ?" : "");
-        Object[] cur = officeId != null ? new Object[]{ start, end, officeId } : new Object[]{ start, end };
-        Object[] prev = officeId != null ? new Object[]{ prevStart, prevEnd, officeId } : new Object[]{ prevStart, prevEnd };
+            + (scope != null ? " AND " + scope.sql("a") : "");
+        Object[] cur = withScope(scope, start, end);
+        Object[] prev = withScope(scope, prevStart, prevEnd);
 
         Map<String, Object> m = new LinkedHashMap<>();
         Map<String, Object> totals = jdbcTemplate.queryForMap(
@@ -138,16 +144,20 @@ public class LifecycleInsightService {
         m.put(l == Ledger.MAINTENANCE ? "byType" : "byMethod", countBy("x." + l.kind, from, cur, 10));
         m.put("byStatus", countBy("x." + l.status, from, cur, 10));
         m.put("topCategories", countBy("COALESCE(c.category_name, 'Uncategorized')", from, cur, 5));
-        if (officeId == null) m.put("topOffices", countBy("COALESCE(o.office_name, 'Unassigned')", from, cur, 5));
+        if (scope == null) m.put("topOffices", countBy("COALESCE(o.office_name, 'Unassigned')", from, cur, 5));
         m.put("series", series(l, from, cur, start, end, range));
 
         String pendingSql = "SELECT COUNT(*) FROM " + l.table + " x JOIN assets a ON a.asset_id = x.asset_id"
             + " WHERE x.is_deleted = FALSE AND x.approval_status = 'PENDING_APPROVAL'"
-            + (officeId != null ? " AND a.office_id = ?" : "");
-        m.put("pendingRequests", officeId != null
-            ? jdbcTemplate.queryForObject(pendingSql, Long.class, officeId)
+            + (scope != null ? " AND " + scope.sql("a") : "");
+        m.put("pendingRequests", scope != null
+            ? jdbcTemplate.queryForObject(pendingSql, Long.class, scope.args())
             : jdbcTemplate.queryForObject(pendingSql, Long.class));
         return m;
+    }
+
+    private static Object[] withScope(AccessService.StaffScope scope, LocalDate from, LocalDate to) {
+        return scope == null ? new Object[]{ from, to } : new Object[]{ from, to, scope.args()[0], scope.args()[1] };
     }
 
     private List<Map<String, Object>> countBy(String expr, String from, Object[] args, int limit) {

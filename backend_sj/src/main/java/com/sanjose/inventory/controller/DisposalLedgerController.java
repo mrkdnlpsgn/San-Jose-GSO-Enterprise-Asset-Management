@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/disposal")
@@ -31,14 +32,28 @@ public class DisposalLedgerController {
                                         @RequestParam(defaultValue = "20") int size,
                                         @RequestParam(required = false) String recommendedMethod,
                                         @RequestParam(required = false) String disposalStatus) {
-        return disposalLedgerService.findAll(search, page, size, recommendedMethod, disposalStatus, accessService.scopeOfficeId());
+        Set<Long> visible = accessService.visibleAssetIds();
+        if (visible == null) return disposalLedgerService.findAll(search, page, size, recommendedMethod, disposalStatus, null);
+        List<DisposalLedger> own = ownRecords(search, recommendedMethod, disposalStatus, visible);
+        int from = (int) Math.min((long) page * size, own.size());
+        return own.subList(from, (int) Math.min((long) from + size, own.size()));
     }
 
     @GetMapping("/count")
     public long count(@RequestParam(required = false) String search,
                        @RequestParam(required = false) String recommendedMethod,
                        @RequestParam(required = false) String disposalStatus) {
-        return disposalLedgerService.count(search, recommendedMethod, disposalStatus, accessService.scopeOfficeId());
+        Set<Long> visible = accessService.visibleAssetIds();
+        if (visible == null) return disposalLedgerService.count(search, recommendedMethod, disposalStatus, null);
+        return ownRecords(search, recommendedMethod, disposalStatus, visible).size();
+    }
+
+    // A staff account's records: those of the assets it may see (see AccessService). The office
+    // query narrows them down; the page is cut from what is left, so it agrees with the count.
+    private List<DisposalLedger> ownRecords(String search, String recommendedMethod, String disposalStatus, Set<Long> visible) {
+        if (visible.isEmpty()) return List.of();
+        return disposalLedgerService.findAll(search, 0, Integer.MAX_VALUE, recommendedMethod, disposalStatus, accessService.scopeOfficeId())
+            .stream().filter(r -> r.getAsset() != null && visible.contains(r.getAsset().getId())).toList();
     }
 
     // Evidence photos for a disposal record (same behavior as a maintenance record's evidence).

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 // Maintenance / disposal activity over a period, with an optional AI-written summary.
-// Staff only see their own office (AccessService.scopeOfficeId).
+// Staff only see their own assets (AccessService.staffScope).
 @RestController
 @RequestMapping("/api/ai-insights/lifecycle")
 @RequiredArgsConstructor
@@ -20,12 +20,12 @@ public class LifecycleInsightController {
 
     @GetMapping
     public Map<String, Object> stats(@RequestParam(defaultValue = "month") String range) {
-        return lifecycleInsightService.statsWithCachedSummary(Range.parse(range), accessService.scopeOfficeId());
+        return lifecycleInsightService.statsWithCachedSummary(Range.parse(range), accessService.staffScope());
     }
 
     @PostMapping("/summary")
     public Map<String, Object> summarize(@RequestParam(defaultValue = "month") String range,
                                          @RequestParam(defaultValue = "false") boolean refresh) {
-        return lifecycleInsightService.summarize(Range.parse(range), accessService.scopeOfficeId(), refresh);
+        return lifecycleInsightService.summarize(Range.parse(range), accessService.staffScope(), refresh);
     }
 }
