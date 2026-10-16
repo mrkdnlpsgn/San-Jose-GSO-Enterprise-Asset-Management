@@ -41,6 +41,11 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   // full-screen and familiar — far easier for older staff than an in-page webcam preview.
   // Desktops have no camera app, so they keep CameraCaptureModal.
   const cameraInputRef = useRef(null)
+  // The form is long: a problem can sit far above or below the button, so after a failed save
+  // the first one is scrolled into view (and the button repeats it), or the click looks dead.
+  const formRef = useRef(null)
+  const showFirstError = () => requestAnimationFrame(() =>
+    formRef.current?.querySelector('[data-form-error], p.text-red-400')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
   const [scanning, setScanning] = useState(false)
   const [wasScanned, setWasScanned] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
@@ -196,7 +201,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const handleSubmit = async (e) => {
     e.preventDefault()
     const errs = validate()
-    if (Object.keys(errs).length) { setErrors(errs); return }
+    if (Object.keys(errs).length) { setErrors(errs); showFirstError(); return }
     setSaving(true)
     try {
       // Resolve category ID — predefined-only entries need to be created first
@@ -210,6 +215,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
       if (staffRequest === 'disposal' && !DISPOSABLE_CONDITIONS.includes(form.condition)) {
         setErrors({ _global: 'Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.' })
+        showFirstError()
         return
       }
       const selectedOfficeName = offices.find((o) => String(o.id) === String(form.officeId))?.officeName || ''
@@ -239,6 +245,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
       onClose()
     } catch (err) {
       setErrors({ _global: err.response?.data?.message || 'Failed to save asset.' })
+      showFirstError()
     } finally {
       setSaving(false)
     }
@@ -267,10 +274,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
       <CameraCaptureModal onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />
     )}
     <Modal title={isEditing ? 'Edit Asset' : 'Add Asset'} size="lg" onClose={onClose}>
-      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-4">
         <DraftNotice draft={draft} />
         {errors._global && (
-          <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
+          <div data-form-error role="alert" className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
 
         {!isEditing && (
@@ -611,7 +618,14 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           <textarea className={INPUT_CLASS + ' resize-none'} rows={2} placeholder="Additional notes…" value={form.remarks} onChange={set('remarks')} />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
+        <div className="flex justify-end items-center gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
+          {Object.keys(errors).length > 0 && (
+            <p className="mr-auto text-xs text-red-500 dark:text-red-400" role="alert">
+              {errors._global || (Object.keys(errors).length === 1
+                ? 'Fix the highlighted field above.'
+                : `Fix the ${Object.keys(errors).length} highlighted fields above.`)}
+            </p>
+          )}
           <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>
           <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Asset'}</Button>
         </div>
