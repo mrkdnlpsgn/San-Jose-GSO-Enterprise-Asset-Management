@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -51,6 +53,11 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // Not signed in (no cookie, or it was just cleared as expired) → 401, so clients send
+            // the user to sign in. Spring's default here is 403, which read as "no permission"
+            // and left the mobile app stuck on error screens after the 1-hour token expired.
+            // A signed-in user lacking a role still gets 403.
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .headers(headers -> headers
                 // Clickjacking protection
                 .frameOptions(frame -> frame.deny())
@@ -89,6 +96,9 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                // Spring's error page: an exception anywhere is forwarded here, and if it were
+                // protected every 400/404/500 would reach the client disguised as a 401/403.
+                .requestMatchers("/error").permitAll()
                 // Container healthcheck (Docker HEALTHCHECK hits this with no auth)
                 .requestMatchers("/actuator/health").permitAll()
                 // Uploaded evidence photos: served as plain static files, not sensitive
