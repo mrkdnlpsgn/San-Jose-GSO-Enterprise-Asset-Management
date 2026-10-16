@@ -23,7 +23,6 @@ class TransferService {
     required int assetId,
     required int toOfficeId,
     int? toPersonnelId,
-    required String toLocation,
     String? reason,
   }) async {
     try {
@@ -31,7 +30,7 @@ class TransferService {
         'assetId': assetId,
         'toOfficeId': toOfficeId,
         'toPersonnelId': toPersonnelId,
-        'toLocation': toLocation,
+        // no toLocation: the server sets the asset's location to the new office's name
         'reason': (reason == null || reason.trim().isEmpty) ? null : reason.trim(),
       });
       return (res.data as Map<String, dynamic>)['status'] as String? ?? 'APPLIED';

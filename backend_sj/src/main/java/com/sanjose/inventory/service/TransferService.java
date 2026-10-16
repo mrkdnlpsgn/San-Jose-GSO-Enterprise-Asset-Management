@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-// Moving an asset to another office / accountable person / location (Transfer Asset page).
+// Moving an asset to another office / accountable person (Transfer Asset page); its location
+// follows the office.
 // An admin's transfer applies immediately; a staff member's becomes a request that an admin
 // approves or rejects, like staff maintenance/disposal requests. Every transfer — direct or
 // requested — is kept as a row in asset_transfer_requests, so the page can list them.
@@ -69,15 +70,17 @@ public class TransferService {
     public Map<String, Object> submit(TransferRequest req) {
         if (req.assetId() == null) throw new IllegalArgumentException("Choose an asset to transfer.");
         if (req.toOfficeId() == null) throw new IllegalArgumentException("Choose the office to transfer to.");
-        String location = req.toLocation() == null ? "" : req.toLocation().trim();
-        if (location.isEmpty()) throw new IllegalArgumentException("Enter the new location.");
-        if (location.length() > 150) throw new IllegalArgumentException("Location is too long (150 characters max).");
+        String typedLocation = req.toLocation() == null ? "" : req.toLocation().trim();
+        if (typedLocation.length() > 150) throw new IllegalArgumentException("Location is too long (150 characters max).");
         String reason = req.reason() == null ? null : req.reason().trim();
         if (reason != null && reason.length() > 500) throw new IllegalArgumentException("Reason is too long (500 characters max).");
 
         accessService.requireAssetAccess(req.assetId());
         Asset asset = assetService.findById(req.assetId());
         requireOffice(req.toOfficeId());
+        // The transfer forms no longer ask for a location: like a newly registered asset, its
+        // location becomes its office's name. (Older app versions may still send one.)
+        String location = typedLocation.isEmpty() ? officeName(req.toOfficeId()) : typedLocation;
         if (req.toPersonnelId() != null) requirePersonnelInOffice(req.toPersonnelId(), req.toOfficeId());
 
         AccessService.CurrentUser me = accessService.current();
@@ -90,8 +93,8 @@ public class TransferService {
         }
         Long fromPersonnelId = asset.getAccountablePerson() != null ? asset.getAccountablePerson().getId() : null;
         if (Objects.equals(fromOfficeId, req.toOfficeId()) && Objects.equals(fromPersonnelId, req.toPersonnelId())
-                && location.equalsIgnoreCase(asset.getLocation() == null ? "" : asset.getLocation().trim())) {
-            throw new IllegalArgumentException("Nothing to transfer — the office, accountable person and location are unchanged.");
+                && (typedLocation.isEmpty() || location.equalsIgnoreCase(asset.getLocation() == null ? "" : asset.getLocation().trim()))) {
+            throw new IllegalArgumentException("Nothing to transfer — the office and accountable person are unchanged.");
         }
 
         if (!me.admin()) {

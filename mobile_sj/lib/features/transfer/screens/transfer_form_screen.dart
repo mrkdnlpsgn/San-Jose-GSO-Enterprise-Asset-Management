@@ -13,8 +13,8 @@ import '../data/transfer_service.dart';
 import '../provider/transfer_provider.dart';
 import '../../../shared/widgets/ios_pickers.dart';
 
-/// "Transfer this asset" — the web Transfer Asset page's form: move to office and new
-/// location (required), new accountable person and reason (optional). An admin's transfer
+/// "Transfer this asset" — the web Transfer Asset page's form: move to office (required), new
+/// accountable person and reason. The asset's location follows the office. An admin's transfer
 /// is applied at once; a staff member's becomes a request an admin approves.
 class TransferFormScreen extends ConsumerStatefulWidget {
   final AssetModel asset;
@@ -26,7 +26,6 @@ class TransferFormScreen extends ConsumerStatefulWidget {
 
 class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _location = TextEditingController();
   final _reason = TextEditingController();
   int? _toOfficeId;
   int? _toPersonnelId;
@@ -35,7 +34,6 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
 
   @override
   void dispose() {
-    _location.dispose();
     _reason.dispose();
     super.dispose();
   }
@@ -66,7 +64,6 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
         assetId: widget.asset.id,
         toOfficeId: _toOfficeId!,
         toPersonnelId: _toPersonnelId,
-        toLocation: _location.text.trim(),
         reason: _reason.text,
       );
       ref.invalidate(transfersProvider);
@@ -177,17 +174,6 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _location,
-              maxLength: 150,
-              style: const TextStyle(fontSize: 16),
-              decoration: const InputDecoration(
-                labelText: 'New location (required)',
-                hintText: 'e.g. Room 204, 2nd Floor',
-              ),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter the new location.' : null,
-            ),
-            const SizedBox(height: 8),
             personnelAsync.when(
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),

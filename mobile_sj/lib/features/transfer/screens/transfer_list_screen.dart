@@ -187,7 +187,9 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
               const SizedBox(height: 4),
               _Move(
                 label: 'To',
-                value: [t.toOfficeName, t.toLocation].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+                // the location is usually just the office name now; older requests may differ
+                value: [t.toOfficeName, if (t.toLocation != t.toOfficeName) t.toLocation]
+                    .whereType<String>().where((s) => s.isNotEmpty).join(' · '),
                 strong: true,
               ),
               if (t.toPersonnelName != null) ...[

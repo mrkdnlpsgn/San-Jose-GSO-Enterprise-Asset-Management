@@ -15,7 +15,7 @@ import { getTransfers, submitTransfer, approveTransfer, rejectTransfer } from '.
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
 
 // Find an asset by its QR code (or Property/PAR Number), then transfer it to another
-// office / accountable person / location. An admin's transfer applies at once; a staff
+// office / accountable person (its location follows the office). An admin's transfer applies at once; a staff
 // member's goes to an admin for approval. Update Status and Print QR stay available.
 
 const LIVE_READER_ID = 'qr-reader-viewport'
@@ -268,13 +268,13 @@ function TransferAsset() {
   }
 
   // ── Transfer form ──────────────────────────────────────────────────────────
-  const [transfer, setTransfer]         = useState({ toOfficeId: '', toPersonnelId: '', toLocation: '', reason: '' })
+  const [transfer, setTransfer]         = useState({ toOfficeId: '', toPersonnelId: '', reason: '' })
   const [transferErrors, setTransferErrors] = useState({})
   const [submitting, setSubmitting]     = useState(false)
   const pendingForResult = result && requests.find((r) => r.assetId === result.id && r.status === 'PENDING_APPROVAL')
 
   useEffect(() => {
-    setTransfer({ toOfficeId: '', toPersonnelId: '', toLocation: '', reason: '' })
+    setTransfer({ toOfficeId: '', toPersonnelId: '', reason: '' })
     setTransferErrors({})
   }, [result?.id])
 
@@ -302,7 +302,6 @@ function TransferAsset() {
     e.preventDefault()
     const errs = {}
     if (!transfer.toOfficeId) errs.toOfficeId = 'Choose the office the asset is moving to.'
-    if (!transfer.toLocation.trim()) errs.toLocation = 'Enter where the asset will be kept.'
     if (personRequired && !transfer.toPersonnelId) errs.toPersonnelId = 'Choose who will be accountable for it in the new office.'
     setTransferErrors(errs)
     if (Object.keys(errs).length) return
@@ -313,7 +312,6 @@ function TransferAsset() {
         assetId: result.id,
         toOfficeId: Number(transfer.toOfficeId),
         toPersonnelId: transfer.toPersonnelId ? Number(transfer.toPersonnelId) : null,
-        toLocation: transfer.toLocation.trim(),
         reason: transfer.reason.trim() || null,
       })
       if (data.status === 'APPLIED') {
@@ -322,7 +320,7 @@ function TransferAsset() {
       } else {
         show('Transfer request sent — an administrator needs to approve it.', 'success')
       }
-      setTransfer({ toOfficeId: '', toPersonnelId: '', toLocation: '', reason: '' })
+      setTransfer({ toOfficeId: '', toPersonnelId: '', reason: '' })
       loadRequests()
     } catch (err) {
       show(err.response?.data?.message || 'Failed to transfer the asset.', 'error')
@@ -612,12 +610,6 @@ function TransferAsset() {
                     </div>
 
                     <div>
-                      <label htmlFor="to-location" className={LABEL}>New location<span className="text-red-500 ml-0.5">*</span></label>
-                      <input id="to-location" value={transfer.toLocation} onChange={setT('toLocation')} placeholder="e.g. Room 204, 2nd Floor" maxLength={150} className={INPUT} />
-                      {transferErrors.toLocation && <p className="text-xs text-red-500 mt-1">{transferErrors.toLocation}</p>}
-                    </div>
-
-                    <div>
                       <label htmlFor="to-person" className={LABEL}>
                         New accountable person
                         {personRequired
@@ -742,7 +734,7 @@ function TransferAsset() {
                           <span className="font-mono">{r.propertyNumber}</span> — {r.assetDescription}
                         </p>
                         <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5">
-                          {r.fromOfficeName || 'Unassigned'} <span aria-hidden="true">→</span><span className="sr-only">to</span> <strong>{r.toOfficeName}</strong> · {r.toLocation}
+                          {r.fromOfficeName || 'Unassigned'} <span aria-hidden="true">→</span><span className="sr-only">to</span> <strong>{r.toOfficeName}</strong>{r.toLocation && r.toLocation !== r.toOfficeName ? ` · ${r.toLocation}` : ''}
                           {r.toPersonnelName ? ` · ${r.toPersonnelName}` : ''}
                         </p>
                         {r.reason && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">Reason: {r.reason}</p>}
