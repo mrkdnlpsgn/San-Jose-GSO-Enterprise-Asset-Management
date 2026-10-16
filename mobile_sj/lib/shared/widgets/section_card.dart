@@ -54,15 +54,17 @@ class SectionLabel extends StatelessWidget {
   final String text;
   const SectionLabel(this.text, {super.key});
 
+  // iOS grouped-form section header: small grey capitals, normal weight, inset to line up
+  // with the text inside the fields below.
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(left: 2, bottom: 10),
+        padding: const EdgeInsets.only(left: 14, bottom: 8, top: 6),
         child: Text(
           text.toUpperCase(),
           style: TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.3,
             color: context.colors.textTertiary,
           ),
         ),

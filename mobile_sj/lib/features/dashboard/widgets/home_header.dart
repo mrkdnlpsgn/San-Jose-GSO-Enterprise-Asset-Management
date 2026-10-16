@@ -52,7 +52,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authProvider).value;
+    final user = ref.watch(authProvider).valueOrNull;
     final c = context.colors;
     final h = _now.hour % 12 == 0 ? 12 : _now.hour % 12;
     final time = '$h:${_now.minute.toString().padLeft(2, '0')} ${_now.hour < 12 ? 'AM' : 'PM'}';
@@ -65,19 +65,27 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
             ? (user.displayName.toLowerCase() == 'administrator' ? null : 'Administrator')
             : (user.officeName ?? 'No office assigned');
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          user == null ? _greeting : '$_greeting, ${user.displayName}',
-          style: TextStyle(fontSize: 20, height: 1.25, fontWeight: FontWeight.w700, color: c.heading),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          [if (where != null) where, date, time].join(' · '),
-          style: TextStyle(fontSize: 15, height: 1.35, color: c.textSecondary),
-        ),
-      ],
+    // Sits under the large "Home" title, Apple Today-style: small grey date line, then the greeting.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            [date, time].join(' · ').toUpperCase(),
+            style: TextStyle(fontSize: 13, height: 1.3, fontWeight: FontWeight.w600, letterSpacing: 0.3, color: c.textTertiary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            user == null ? _greeting : '$_greeting, ${user.displayName}',
+            style: TextStyle(fontSize: 19, height: 1.25, fontWeight: FontWeight.w600, letterSpacing: -0.3, color: c.textPrimary),
+          ),
+          if (where != null) ...[
+            const SizedBox(height: 2),
+            Text(where, style: TextStyle(fontSize: 15, height: 1.3, color: c.textSecondary)),
+          ],
+        ],
+      ),
     );
   }
 }

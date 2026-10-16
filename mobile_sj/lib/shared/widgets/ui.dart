@@ -1,7 +1,9 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import 'app_search_field.dart';
 import 'section_card.dart';
+import 'ios_touch.dart';
 
 export 'section_card.dart';
 
@@ -95,16 +97,15 @@ class ListToolbar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// Outlined toolbar button; [active] tints it green (e.g. filters applied).
+/// iOS grey toolbar button; [active] switches it to the tinted style (e.g. filters applied).
 ButtonStyle toolbarButtonStyle(BuildContext context, {bool active = false}) => OutlinedButton.styleFrom(
       minimumSize: const Size(0, 44),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       backgroundColor: active
-          ? (context.isLight ? AppTheme.brandTint : AppTheme.brand.withValues(alpha: 0.15))
-          : context.colors.surface,
+          ? context.brandAccent.withValues(alpha: context.isLight ? 0.12 : 0.2)
+          : (context.isLight ? const Color(0xFFE9E9EE) : const Color(0xFF2C2C2E)),
       foregroundColor: active ? context.brandAccent : context.colors.textPrimary,
-      side: BorderSide(
-          color: active ? AppTheme.brand : (context.isLight ? const Color(0xFFCBD5E1) : context.colors.border)),
+      side: BorderSide.none,
     );
 
 /// A tappable white card in a list, with a chevron on the right when [onTap] is set.
@@ -116,7 +117,7 @@ class RecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final card = Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -128,14 +129,16 @@ class RecordCard extends StatelessWidget {
               Expanded(child: child),
               if (trailing != null) trailing!,
               if (onTap != null && trailing == null) ...[
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right_rounded, color: context.colors.textTertiary),
+                const SizedBox(width: 8),
+                const DisclosureChevron(),
               ],
             ],
           ),
         ),
       ),
     );
+    // tappable cards shrink a touch on press, like an iOS list row
+    return onTap == null ? card : PressScale(scale: 0.98, child: card);
   }
 }
 
@@ -369,14 +372,21 @@ class FormActionBar extends StatelessWidget {
   final Widget child;
   const FormActionBar({super.key, required this.child});
 
+  // iOS toolbar material: translucent and frosted, with a hairline top edge — the form
+  // scrolls under it and blurs through, like the tab bar.
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          color: context.colors.surface,
-          border: Border(top: BorderSide(color: context.colors.border)),
+  Widget build(BuildContext context) => ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: context.isLight ? const Color(0xF0F9F9F9) : const Color(0xE6161618),
+              border: Border(top: BorderSide(color: context.colors.border, width: 0.5)),
+            ),
+            padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
+            child: child,
+          ),
         ),
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
-        child: child,
       );
 }
 

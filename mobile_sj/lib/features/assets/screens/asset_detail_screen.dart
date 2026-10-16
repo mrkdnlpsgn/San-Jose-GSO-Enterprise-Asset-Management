@@ -30,7 +30,7 @@ class AssetDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final assetAsync = ref.watch(assetDetailProvider(assetId));
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
 
     void refresh() {
       ref.invalidate(assetDetailProvider(assetId));
@@ -73,7 +73,7 @@ class AssetDetailScreen extends ConsumerWidget {
                 value: 'refresh',
                 child: ListTile(leading: Icon(Icons.refresh_rounded), title: Text('Refresh'), contentPadding: EdgeInsets.zero),
               ),
-              if (isAdmin && assetAsync.value != null)
+              if (isAdmin && assetAsync.valueOrNull != null)
                 const PopupMenuItem(
                   value: 'delete',
                   child: ListTile(
@@ -363,9 +363,9 @@ class _HistoryTab extends ConsumerWidget {
     }
 
     final entries = <_LifecycleEntry>[
-      ...(historyAsync.value ?? []).map(_LifecycleEntry.fromHistory),
-      ...(maintenanceAsync.value ?? []).map(_LifecycleEntry.fromMaintenance),
-      ...(disposalAsync.value ?? []).map(_LifecycleEntry.fromDisposal),
+      ...(historyAsync.valueOrNull ?? []).map(_LifecycleEntry.fromHistory),
+      ...(maintenanceAsync.valueOrNull ?? []).map(_LifecycleEntry.fromMaintenance),
+      ...(disposalAsync.valueOrNull ?? []).map(_LifecycleEntry.fromDisposal),
     ]..sort((a, b) => b.sortDate.compareTo(a.sortDate));
 
     return entries.isEmpty

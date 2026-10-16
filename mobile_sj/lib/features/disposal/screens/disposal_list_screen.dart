@@ -37,7 +37,7 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TitleWithCount('Disposal', subtitle: countLabel(countAsync.value)),
+        title: TitleWithCount('Disposal', subtitle: countLabel(countAsync.valueOrNull)),
         actions: [
           if (isDesktopPlatform)
             IconButton(

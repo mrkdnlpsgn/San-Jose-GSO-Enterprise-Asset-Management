@@ -1,50 +1,25 @@
+import 'package:flutter/cupertino.dart' show CupertinoPage, CupertinoPageRoute;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 
-/// Subtle fade + slight upward slide, used in place of go_router's default
-/// platform slide transition for every route — a restrained, consistent
-/// motion language across the app rather than per-platform defaults.
-CustomTransitionPage<void> fadeThroughPage(BuildContext context, GoRouterState state, Widget child) {
-  final reduceMotion = context.prefersReducedMotion;
-  return CustomTransitionPage<void>(
-    key: state.pageKey,
-    child: child,
-    transitionDuration: AppTheme.motionMedium,
-    reverseTransitionDuration: AppTheme.motionFast,
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(parent: animation, curve: AppTheme.motionCurve);
-      if (reduceMotion) {
-        return FadeTransition(opacity: curved, child: child);
-      }
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.02), end: Offset.zero).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
+/// Every route's page. iOS push — slides in from the right over a parallax-shifted
+/// previous page, and can be dismissed by swiping from the left edge, following the finger
+/// 1:1. With the phone's Reduce Motion on, a plain cross-fade instead (no sliding).
+/// (Named for the fade it used to be; callers didn't need to change.)
+Page<void> fadeThroughPage(BuildContext context, GoRouterState state, Widget child) {
+  if (context.prefersReducedMotion) {
+    return CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: AppTheme.motionFast,
+      reverseTransitionDuration: AppTheme.motionFast,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(opacity: animation, child: child),
+    );
+  }
+  return CupertinoPage<void>(key: state.pageKey, child: child);
 }
 
-/// Same motion as [fadeThroughPage], packaged for a plain `Navigator.push`
-/// (e.g. a one-off screen mid-flow that isn't a deep-linkable go_router route)
-/// so it doesn't fall back to the platform-default push transition.
-PageRouteBuilder<void> fadeThroughRoute(Widget child) {
-  return PageRouteBuilder<void>(
-    transitionDuration: AppTheme.motionMedium,
-    reverseTransitionDuration: AppTheme.motionFast,
-    pageBuilder: (context, animation, secondaryAnimation) => child,
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(parent: animation, curve: AppTheme.motionCurve);
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.02), end: Offset.zero).animate(curved),
-          child: child,
-        ),
-      );
-    },
-  );
-}
+/// Same, for a plain `Navigator.push` (a one-off screen mid-flow that isn't a go_router route).
+PageRoute<void> fadeThroughRoute(Widget child) => CupertinoPageRoute<void>(builder: (_) => child);

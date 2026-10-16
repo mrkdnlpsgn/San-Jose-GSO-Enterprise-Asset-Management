@@ -56,7 +56,7 @@ class _OfficeListScreenState extends ConsumerState<OfficeListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TitleWithCount('Offices', subtitle: countLabel(officesAsync.value?.length, singular: 'office', plural: 'offices')),
+        title: TitleWithCount('Offices', subtitle: countLabel(officesAsync.valueOrNull?.length, singular: 'office', plural: 'offices')),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'ios_style.dart';
 import '../../accounts/data/account_service.dart';
 import '../../asset_history/data/asset_history_service.dart';
 import '../../asset_history/model/edit_request_model.dart';
@@ -19,7 +20,7 @@ class AttentionItem {
 }
 
 final attentionProvider = FutureProvider.autoDispose<List<AttentionItem>>((ref) async {
-  final user = ref.watch(authProvider).value;
+  final user = ref.watch(authProvider).valueOrNull;
   if (user == null) return const [];
   final items = <AttentionItem>[];
 
@@ -51,7 +52,7 @@ final attentionProvider = FutureProvider.autoDispose<List<AttentionItem>>((ref) 
           Icons.apartment_rounded,
           '${noOffice.length} staff ${noOffice.length == 1 ? 'account has' : 'accounts have'} no office assigned',
           '$names${noOffice.length > 2 ? ' and others' : ''} can\'t see any assets until an office is assigned.',
-          '/accounts',
+          '/personnel?filter=no-office',
         ));
       }
     } catch (_) {
@@ -92,72 +93,67 @@ class AttentionCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = ref.watch(attentionProvider).value ?? const [];
+    final items = ref.watch(attentionProvider).valueOrNull ?? const [];
     if (items.isEmpty) return const SizedBox.shrink();
     final c = context.colors;
-    final light = context.isLight;
 
+    // iOS grouped section: Settings-style rows — a solid system-colour icon tile, the text,
+    // and a thin grey chevron; hairline separators inset to the text.
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Card(
-        margin: EdgeInsets.zero,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: AppTheme.statusMaintenance.withValues(alpha: light ? 0.5 : 0.45)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              color: AppTheme.statusMaintenance.withValues(alpha: light ? 0.10 : 0.16),
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              child: Text(
-                'Needs your attention',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: light ? const Color(0xFF92400E) : const Color(0xFFFBBF24),
-                ),
-              ),
-            ),
-            for (var i = 0; i < items.length; i++) ...[
-              if (i > 0) Divider(height: 1, indent: 16, color: c.border),
-              InkWell(
-                // History is a bottom-bar tab (switch to it); Accounts is a pushed screen
-                onTap: () => items[i].route.startsWith('/asset-history') ? context.go(items[i].route) : context.push(items[i].route),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        items[i].icon,
-                        size: 24,
-                        color: items[i].warning
-                            ? (light ? const Color(0xFFB45309) : const Color(0xFFFBBF24))
-                            : const Color(0xFFDC2626),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(top: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const IosSectionHeader('Needs your attention'),
+          Card(
+            margin: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, indent: 60),
+                  PressScale(
+                    scale: 0.98,
+                    child: InkWell(
+                      // History is a bottom-bar tab (switch to it); Personnel is a pushed screen
+                      onTap: () =>
+                          items[i].route.startsWith('/asset-history') ? context.go(items[i].route) : context.push(items[i].route),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 13, 14, 13),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Text(items[i].title,
-                                style: TextStyle(fontSize: 16, height: 1.3, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                            const SizedBox(height: 2),
-                            Text(items[i].detail, style: TextStyle(fontSize: 14, height: 1.35, color: c.textSecondary)),
+                            IosIconTile(icon: items[i].icon, color: items[i].warning ? Ios.orange : Ios.red),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(items[i].title,
+                                      style: TextStyle(
+                                          fontSize: 16.5,
+                                          height: 1.3,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: -0.2,
+                                          color: c.textPrimary)),
+                                  const SizedBox(height: 2),
+                                  Text(items[i].detail, style: TextStyle(fontSize: 14.5, height: 1.35, color: c.textSecondary)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const IosChevron(),
                           ],
                         ),
                       ),
-                      Icon(Icons.chevron_right_rounded, color: c.textTertiary),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ],
-          ],
-        ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

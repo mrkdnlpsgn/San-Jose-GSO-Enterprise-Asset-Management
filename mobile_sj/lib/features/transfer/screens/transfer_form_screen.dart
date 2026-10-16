@@ -11,6 +11,7 @@ import '../../assets/provider/asset_provider.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../data/transfer_service.dart';
 import '../provider/transfer_provider.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 /// "Transfer this asset" — the web Transfer Asset page's form: move to office and new
 /// location (required), new accountable person and reason (optional). An admin's transfer
@@ -71,7 +72,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
   @override
   Widget build(BuildContext context) {
     final asset = widget.asset;
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
     final officesAsync = ref.watch(officesProvider);
     final personnelAsync = ref.watch(personnelProvider);
     final c = context.colors;
@@ -141,7 +142,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
             officesAsync.when(
               loading: () => const LinearProgressIndicator(),
               error: (e, _) => Callout('Could not load offices: $e', tone: CalloutTone.error),
-              data: (offices) => DropdownButtonFormField<int>(
+              data: (offices) => IosSelectFormField<int>(
                 initialValue: _toOfficeId,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Office (required)'),
@@ -173,7 +174,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
               error: (_, __) => const SizedBox.shrink(),
               data: (people) {
                 final inOffice = _toOfficeId == null ? <PersonnelModel>[] : people.where((p) => p.officeId == _toOfficeId).toList();
-                return DropdownButtonFormField<int?>(
+                return IosSelectFormField<int?>(
                   key: ValueKey(_toOfficeId), // reset when the office changes
                   initialValue: _toPersonnelId,
                   isExpanded: true,

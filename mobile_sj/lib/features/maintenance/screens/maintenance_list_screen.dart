@@ -38,7 +38,7 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TitleWithCount('Maintenance', subtitle: countLabel(countAsync.value)),
+        title: TitleWithCount('Maintenance', subtitle: countLabel(countAsync.valueOrNull)),
         actions: [
           if (isDesktopPlatform)
             IconButton(

@@ -102,34 +102,24 @@ class StatusBadge extends StatelessWidget {
     final textColor = light
         ? hsl.withLightness((hsl.lightness * 0.62).clamp(0.0, 1.0)).toColor()
         : hsl.withLightness((hsl.lightness + 0.12).clamp(0.0, 1.0)).toColor();
+    // iOS tag: a soft tinted capsule — no outline, no dot. The colour (and so the meaning)
+    // matches the web's badges; the darkened text keeps it readable on the tint.
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: dense ? 8 : 10, vertical: dense ? 2 : 4),
+      padding: EdgeInsets.symmetric(horizontal: dense ? 8 : 10, vertical: dense ? 3 : 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: light ? 0.10 : 0.16),
+        color: color.withValues(alpha: light ? 0.14 : 0.22),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: light ? 0.30 : 0.35)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          SizedBox(width: dense ? 5 : 6),
-          Flexible(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: textColor,
-                fontSize: dense ? 12 : 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: textColor,
+          fontSize: dense ? 12.5 : 13.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.1,
+        ),
       ),
     );
   }

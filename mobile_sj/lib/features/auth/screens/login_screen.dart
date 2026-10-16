@@ -31,6 +31,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void initState() {
     super.initState();
     _wake();
+    // Sent here because the session ended mid-use — say so once, rather than a blank sign-in.
+    if (ref.read(sessionExpiredNoticeProvider)) {
+      _error = 'Your session has expired. Please sign in again.';
+      Future.microtask(() => ref.read(sessionExpiredNoticeProvider.notifier).state = false);
+    }
   }
 
   Future<bool> _wake() {

@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 import '../model/asset_model.dart';
 import '../provider/asset_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/ui.dart' show toolbarButtonStyle;
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
 import '../../../shared/provider/paginated_list_notifier.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/main_shell.dart';
+import '../../../shared/widgets/large_title_scaffold.dart';
 import '../../../core/platform.dart';
 import '../../../core/api/api_exception.dart';
 import '../data/asset_service.dart';
@@ -18,6 +20,7 @@ import '../widgets/asset_filter_sheet.dart';
 import '../widgets/asset_group_widgets.dart';
 import '../../reports/utils/formatters.dart';
 import '../../auth/provider/auth_provider.dart';
+import '../../../shared/widgets/ios_touch.dart';
 
 class AssetListScreen extends ConsumerStatefulWidget {
   const AssetListScreen({super.key});
@@ -62,30 +65,25 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
   @override
   Widget build(BuildContext context) {
     // Adding and importing assets is ADMIN-only (web parity); staff edit their office's.
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
     final search = ref.watch(assetSearchProvider);
     final state = ref.watch(assetsPagedProvider(search));
     final countAsync = ref.watch(assetCountProvider(search));
     final filtersActive = assetFiltersActive(ref);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Assets'),
-            Text(
-              countAsync.when(
-                data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
-                loading: () => ' ',
-                error: (_, __) => ' ',
-              ),
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.colors.textTertiary),
-            ),
-          ],
-        ),
-        actions: [
+    Future<void> addAsset() async {
+      final result = await context.push<bool>('/assets/new');
+      if (result == true) {
+        ref.invalidate(assetsPagedProvider(search));
+        ref.invalidate(assetCountProvider(search));
+      }
+    }
+
+    return LargeTitleScaffold(
+      title: 'Assets',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           if (isDesktopPlatform)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
@@ -95,30 +93,40 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
                 ref.invalidate(assetCountProvider(search));
               },
             ),
-          // "Add Asset" sits in the top bar like the web page's green button — no floating button
+          // Adding is ADMIN-only; worded (not just "+") so it's obvious to older staff
           if (isAdmin)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: FilledButton.icon(
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Add Asset'),
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
-                onPressed: () async {
-                  final result = await context.push<bool>('/assets/new');
-                  if (result == true) {
-                    ref.invalidate(assetsPagedProvider(search));
-                    ref.invalidate(assetCountProvider(search));
-                  }
-                },
+            TextButton.icon(
+              icon: const Icon(Icons.add_rounded, size: 22),
+              label: const Text('Add'),
+              style: TextButton.styleFrom(
+                foregroundColor: context.brandAccent,
+                textStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 17, fontWeight: FontWeight.w600),
               ),
+              onPressed: addAsset,
             ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(124),
+      ),
+      bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(146),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Column(
               children: [
+                // record count under the large title
+                SizedBox(
+                  height: 22,
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: Text(
+                      countAsync.when(
+                        data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
+                        loading: () => ' ',
+                        error: (_, __) => ' ',
+                      ),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.colors.textTertiary),
+                    ),
+                  ),
+                ),
                 AppSearchField(
                   controller: _searchCtrl,
                   hintText: 'Search property no. or description',
@@ -175,7 +183,6 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
             ),
           ),
         ),
-      ),
       body: AutoRefreshTicker(
         interval: const Duration(seconds: 30),
         onTick: () => ref.read(assetsPagedProvider(search).notifier).silentRefresh(),
@@ -199,13 +206,8 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
     );
   }
 
-  ButtonStyle _toolbarButton(BuildContext context, {bool active = false}) => OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        backgroundColor: active ? (context.isLight ? AppTheme.brandTint : AppTheme.brand.withValues(alpha: 0.15)) : context.colors.surface,
-        foregroundColor: active ? context.brandAccent : context.colors.textPrimary,
-        side: BorderSide(color: active ? AppTheme.brand : (context.isLight ? const Color(0xFFCBD5E1) : context.colors.border)),
-      );
+  ButtonStyle _toolbarButton(BuildContext context, {bool active = false}) =>
+      toolbarButtonStyle(context, active: active);
 }
 
 // One row in the list: a single asset, or a group of same-model devices that were
@@ -325,13 +327,14 @@ class _AssetGroupCardState extends State<_AssetGroupCard> {
                       onOpenDevice: widget.onOpen,
                     ),
                   ),
-                  Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: accent),
+                  DisclosureArrow(expanded: _expanded, color: accent),
                 ],
               ),
             ),
           ),
-          if (_expanded)
-            Padding(
+          ExpandReveal(
+              expanded: _expanded,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
               child: FutureBuilder<List<AssetModel>>(
                 future: _all,
@@ -352,6 +355,7 @@ class _AssetGroupCardState extends State<_AssetGroupCard> {
                 },
               ),
             ),
+            ),
         ],
       ),
     );
@@ -370,7 +374,10 @@ class _AssetCard extends StatelessWidget {
     // one set of numbers — flagged so it can be edited into separate devices.
     final legacyMulti = asset.groupId == null && asset.quantity >= 2;
     final c = context.colors;
-    return Card(
+    // shrinks a touch on press, like an iOS list row
+    return PressScale(
+      scale: 0.98,
+      child: Card(
       margin: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
@@ -430,12 +437,13 @@ class _AssetCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 4),
-              Icon(Icons.chevron_right_rounded, color: c.textTertiary),
+              const SizedBox(width: 8),
+              const DisclosureChevron(),
             ],
           ),
         ),
       ),
+    ),
     );
   }
 }

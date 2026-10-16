@@ -34,7 +34,7 @@ class _IdleTimeoutGuardState extends ConsumerState<IdleTimeoutGuard> {
     super.dispose();
   }
 
-  bool get _isAuthenticated => ref.read(authProvider).value != null;
+  bool get _isAuthenticated => ref.read(authProvider).valueOrNull != null;
 
   void _onActivity() {
     if (_dialogShowing) return; // let the dialog's own buttons handle it

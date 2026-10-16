@@ -35,7 +35,7 @@ class _TransferListScreenState extends ConsumerState<TransferListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
     final async = ref.watch(transfersProvider);
     final c = context.colors;
 

@@ -14,7 +14,21 @@ class Shimmer extends StatefulWidget {
 
 class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
   late final AnimationController _controller =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+  late final Animation<double> _opacity = Tween<double>(begin: 0.4, end: 1.0).animate(_controller);
+
+  // Reduce Motion: no endless pulse (a slow looping oscillation) — hold a still, dimmed
+  // placeholder instead. Re-checked when the setting changes.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (context.prefersReducedMotion) {
+      _controller.stop();
+      _controller.value = 0.5;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
 
   @override
   void dispose() {
@@ -23,12 +37,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween<double>(begin: 0.4, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.linear)),
-      child: widget.child,
-    );
-  }
+  Widget build(BuildContext context) => FadeTransition(opacity: _opacity, child: widget.child);
 }
 
 /// A single skeleton "bone" — a tinted rounded rect standing in for text,

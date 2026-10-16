@@ -31,7 +31,7 @@ class _AccountListScreenState extends ConsumerState<AccountListScreen> {
   Widget build(BuildContext context) {
     final search = ref.watch(accountSearchProvider);
     final state = ref.watch(accountsPagedProvider(search));
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
 
     return Scaffold(
       appBar: AppBar(

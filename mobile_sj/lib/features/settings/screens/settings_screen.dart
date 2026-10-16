@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../../shared/widgets/logout_dialog.dart';
-import '../../auth/model/user_model.dart' show roleLabel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/main_shell.dart';
-import '../../auth/provider/auth_provider.dart';
+import '../../../shared/widgets/large_title_scaffold.dart';
 import '../provider/settings_provider.dart';
+import '../../../shared/widgets/ios_touch.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -17,90 +15,12 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
-    final user = ref.watch(authProvider).value;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Account')),
+    return LargeTitleScaffold(
+      title: 'Settings',
       body: ListView(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + context.mainShellBottomInset),
         children: [
-          _sectionLabel(context, 'SIGNED IN AS'),
-          const SizedBox(height: 12),
-          if (user != null)
-            Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: context.colors.subtle,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: context.colors.border),
-                      ),
-                      child: Text(
-                        user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
-                        style: TextStyle(color: context.colors.heading, fontWeight: FontWeight.w700, fontSize: 20),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(user.displayName,
-                              style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.w700, fontSize: 17)),
-                          const SizedBox(height: 2),
-                          Text('@${user.username}', style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
-                          const SizedBox(height: 8),
-                          StatusBadge(
-                            label: roleLabel(user.role),
-                            color: user.isAdmin ? AppTheme.brand : AppTheme.info,
-                          ),
-                          if (!user.isAdmin) ...[
-                            const SizedBox(height: 8),
-                            Text(user.officeName ?? 'No office assigned yet',
-                                style: TextStyle(color: context.colors.textSecondary, fontSize: 15)),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          const SizedBox(height: 12),
-          Card(
-            margin: EdgeInsets.zero,
-            child: ListTile(
-              minTileHeight: 56,
-              leading: Icon(Icons.lock_reset_rounded, color: context.brandAccent),
-              title: Text('Change Password',
-                  style: TextStyle(color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
-              trailing: Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary),
-              onTap: () => context.push('/settings/change-password'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Sign out'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(50),
-              foregroundColor: const Color(0xFFDC2626),
-              side: const BorderSide(color: Color(0xFFFCA5A5)),
-            ),
-            onPressed: () async {
-              final confirmed = await showLogoutDialog(context);
-              if (confirmed == true) ref.read(authProvider.notifier).logout();
-            },
-          ),
-          const SizedBox(height: 24),
           _sectionLabel(context, 'APPEARANCE'),
           const SizedBox(height: 12),
           Card(
@@ -149,7 +69,7 @@ class SettingsScreen extends ConsumerWidget {
             child: ListTile(
               leading: Icon(Icons.privacy_tip_outlined, color: context.brandAccent),
               title: Text('Privacy, Terms & Conditions', style: TextStyle(color: context.colors.textPrimary)),
-              trailing: Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary),
+              trailing: const DisclosureChevron(),
               onTap: () => context.push('/legal'),
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/api/api_client.dart';
 import '../data/auth_service.dart';
 import '../model/user_model.dart';
 
@@ -6,14 +7,26 @@ final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 final authProvider = AsyncNotifierProvider<AuthNotifier, UserModel?>(AuthNotifier.new);
 
+/// Set when the server ended the session; the login screen shows "your session expired" once.
+final sessionExpiredNoticeProvider = StateProvider<bool>((ref) => false);
+
 class AuthNotifier extends AsyncNotifier<UserModel?> {
   late AuthService _service;
 
   @override
   Future<UserModel?> build() async {
     _service = ref.read(authServiceProvider);
+    ApiClient.instance.onSessionExpired = _onSessionExpired;
     // On app start, check if a valid session cookie already exists
     return _service.fetchCurrentUser();
+  }
+
+  // Any request found the session gone: drop it and let the router send the user to sign-in.
+  void _onSessionExpired() {
+    if (state.valueOrNull == null) return; // already signed out — several requests can fail at once
+    ApiClient.instance.clearCookies();
+    ref.read(sessionExpiredNoticeProvider.notifier).state = true;
+    state = const AsyncData(null);
   }
 
   Future<void> login(String identifier, String password) async {
@@ -61,13 +74,13 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     final ackAt = await _service.acknowledgePrivacy();
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(UserModel(
-      id: current.id,
-      username: current.username,
-      fullName: current.fullName,
-      officeName: current.officeName,
-      role: current.role,
-      privacyAcknowledgedAt: ackAt,
-    ));
+    state = AsyncData(current.copyWith(privacyAcknowledgedAt: ackAt));
+  }
+
+  // After uploading or removing the profile picture on My Account.
+  void setAvatarUrl(String? url) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(current.copyWith(avatarUrl: () => url));
   }
 }

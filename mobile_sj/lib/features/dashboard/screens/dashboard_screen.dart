@@ -1,19 +1,23 @@
 import 'dart:math' as math;
+import 'package:flutter/cupertino.dart'
+    show CupertinoButton, CupertinoSliverNavigationBar, CupertinoSliverRefreshControl, CupertinoTextThemeData, CupertinoTheme, CupertinoThemeData;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
+import '../widgets/ios_style.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
-import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/staggered_entrance.dart';
 import '../../../shared/widgets/main_shell.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
-import '../../../shared/widgets/logout_dialog.dart';
+import '../../../shared/widgets/user_avatar.dart';
 import '../../assets/provider/ai_recommendation_provider.dart';
 import '../../audit_log/provider/audit_log_digest_provider.dart';
 import '../provider/dashboard_provider.dart';
+import '../../reports/utils/formatters.dart' show fmtMoney;
 import '../widgets/home_header.dart';
 import '../widgets/attention_card.dart';
 
@@ -22,82 +26,90 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authProvider).value;
+    final user = ref.watch(authProvider).valueOrNull;
     final isAdmin = user?.isAdmin ?? false;
 
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: context.colors.border),
-              ),
-              child: const ClipOval(
-                child: Image(image: AssetImage('assets/images/images.png'), fit: BoxFit.cover),
-              ),
+    void refreshAll() {
+      ref.invalidate(dashboardStatsProvider);
+      ref.invalidate(aiRecommendationSummaryProvider);
+      ref.invalidate(auditLogDigestProvider);
+      ref.invalidate(attentionProvider);
+    }
+
+    // iOS look on Home: grouped grey background, borderless rounded sections, a large
+    // title that collapses into a frosted bar, and iOS pull-to-refresh with rubber-banding.
+    return Theme(
+      data: Ios.theme(context),
+      child: Builder(builder: (context) {
+        final c = context.colors;
+        final titleFont = TextStyle(fontFamily: AppTheme.fontFamily, color: c.textPrimary, inherit: false);
+        return CupertinoTheme(
+          data: CupertinoThemeData(
+            brightness: context.isLight ? Brightness.light : Brightness.dark,
+            primaryColor: Ios.blue,
+            textTheme: CupertinoTextThemeData(
+              navLargeTitleTextStyle: titleFont.copyWith(fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: -0.9),
+              navTitleTextStyle: titleFont.copyWith(fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: -0.3),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('San Jose GSO', style: TextStyle(fontSize: 17, height: 1.15)),
-                  Text(
-                    'Inventory Management System',
-                    style: TextStyle(fontSize: 14, height: 1.2, fontWeight: FontWeight.w500, color: context.colors.textTertiary),
+          ),
+          child: Scaffold(
+            body: AutoRefreshTicker(
+              interval: const Duration(seconds: 30),
+              onTick: refreshAll,
+              child: CustomScrollView(
+                // elastic edges, like iOS — and always scrollable so pull-to-refresh works on short pages
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                slivers: [
+                  CupertinoSliverNavigationBar(
+                    largeTitle: const Text('Home'),
+                    transitionBetweenRoutes: false, // the app's own page transitions handle this
+                    // translucent → the bar frosts (blurs) the content scrolling under it
+                    backgroundColor: Ios.groupedBg(context).withValues(alpha: 0.82),
+                    border: Border(bottom: BorderSide(color: Ios.separator(context), width: 0.5)),
+                    leading: Align(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: 1,
+                      child: Semantics(
+                        label: 'San Jose GSO',
+                        child: const ClipOval(
+                          child: Image(image: AssetImage('assets/images/images.png'), width: 30, height: 30, fit: BoxFit.cover),
+                        ),
+                      ),
+                    ),
+                    trailing: Semantics(
+                      button: true,
+                      label: 'My Account',
+                      excludeSemantics: true,
+                      child: PressScale(
+                        scale: 0.9,
+                        child: CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(36, 36),
+                          onPressed: () => context.push('/account'),
+                          child: UserAvatar(user: user, size: 32),
+                        ),
+                      ),
+                    ),
+                  ),
+                  CupertinoSliverRefreshControl(onRefresh: () async => refreshAll()),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 28 + context.mainShellBottomInset),
+                    sliver: SliverList.list(
+                      children: [
+                        // who is signed in + date/time, then anything waiting on them, then the shortcuts
+                        const HomeHeader(),
+                        const AttentionCard(),
+                        const SizedBox(height: 26),
+                        _DashboardStatsSection(modules: _ModuleList(isAdmin: isAdmin)),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          // worded, not just an icon — clearer for staff who don't read icons
-          TextButton.icon(
-            icon: const Icon(Icons.logout_rounded, size: 20),
-            label: const Text('Sign out'),
-            style: TextButton.styleFrom(foregroundColor: context.colors.textSecondary),
-            onPressed: () async {
-              final confirmed = await showLogoutDialog(context);
-              if (confirmed == true) ref.read(authProvider.notifier).logout();
-            },
           ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: AutoRefreshTicker(
-        interval: const Duration(seconds: 30),
-        onTick: () {
-          ref.invalidate(dashboardStatsProvider);
-          ref.invalidate(aiRecommendationSummaryProvider);
-          ref.invalidate(auditLogDigestProvider);
-          ref.invalidate(attentionProvider);
-        },
-        child: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(dashboardStatsProvider);
-          ref.invalidate(aiRecommendationSummaryProvider);
-          ref.invalidate(auditLogDigestProvider);
-          ref.invalidate(attentionProvider);
-        },
-        child: ListView(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + context.mainShellBottomInset),
-        children: [
-          // who is signed in + date/time, then anything waiting on them, then the shortcuts
-          const HomeHeader(),
-          const AttentionCard(),
-          const SizedBox(height: 20),
-          _DashboardStatsSection(modules: _ModuleList(isAdmin: isAdmin)),
-        ],
-        ),
-      ),
-      ),
+        );
+      }),
     );
   }
 }
@@ -110,32 +122,47 @@ class _ModuleList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <_ModuleItem>[
-      const _ModuleItem(Icons.build_rounded, 'Maintenance', 'Repairs and maintenance records', '/maintenance'),
-      const _ModuleItem(Icons.delete_rounded, 'Disposal', 'Disposal records', '/disposal'),
-      const _ModuleItem(Icons.swap_horiz_rounded, 'Transfer', 'Move an asset to another office, and transfer requests', '/transfers'),
-      const _ModuleItem(Icons.bar_chart_rounded, 'Reports', 'Inventory reports, RPCPPE, IIRUP and more', '/reports'),
+      const _ModuleItem(Icons.build_rounded, 'Maintenance', 'Repairs and maintenance records', '/maintenance', Ios.orange),
+      const _ModuleItem(Icons.delete_rounded, 'Disposal', 'Disposal records', '/disposal', Ios.red),
+      const _ModuleItem(Icons.swap_horiz_rounded, 'Transfer', 'Move an asset to another office, and transfer requests', '/transfers', Ios.indigo),
+      const _ModuleItem(Icons.bar_chart_rounded, 'Reports', 'Inventory reports, RPCPPE, IIRUP and more', '/reports', Ios.green),
       // Asset History is a bottom-bar tab (History), so it isn't repeated here.
       // Reference data, account management and the recycle bin are ADMIN-only —
       // staff work only with their office's assets, maintenance, disposal and reports.
       if (isAdmin) ...const [
-        _ModuleItem(Icons.apartment_rounded, 'Offices', 'Offices and their head users', '/offices'),
-        _ModuleItem(Icons.category_rounded, 'Categories', 'Asset categories', '/categories'),
-        _ModuleItem(Icons.people_rounded, 'Accounts', 'Create and manage user accounts', '/accounts'),
-        _ModuleItem(Icons.restore_from_trash_rounded, 'Recycle Bin', 'Restore deleted records', '/recycle-bin'),
+        _ModuleItem(Icons.apartment_rounded, 'Offices', 'Offices and their head users', '/offices', Ios.blue),
+        _ModuleItem(Icons.category_rounded, 'Categories', 'Asset categories', '/categories', Ios.purple),
+        _ModuleItem(Icons.badge_rounded, 'Personnel', 'Assign each account its office', '/personnel', Ios.teal),
+        _ModuleItem(Icons.people_rounded, 'Accounts', 'Create and manage user accounts', '/accounts', Ios.gray),
+        _ModuleItem(Icons.restore_from_trash_rounded, 'Recycle Bin', 'Restore deleted records', '/recycle-bin', Ios.pink),
       ],
     ];
-    // eGovPH-style shortcuts: a round tinted tile with the icon, the name underneath.
-    // A wrapping grid (4 per row on phones) rather than eGovPH's sideways-scrolling row,
-    // so every module is visible at once — a half-hidden last icon is easy to miss.
+    // iOS home-screen style: colourful rounded-square "app icons" with the name underneath, in
+    // one sideways-scrolling row. Sized so ~4½ fit on a phone: the half-cut tile at the edge is
+    // the cue that there's more to swipe to. The row runs to the screen edges (past Home's
+    // 16px padding) so tiles scroll off-screen instead of being clipped mid-page.
+    const gutter = 16.0;
     return LayoutBuilder(builder: (context, box) {
-      final perRow = box.maxWidth >= 560 ? 6 : 4;
-      final cellWidth = box.maxWidth / perRow;
-      return Wrap(
-        runSpacing: 14,
-        children: [
-          for (final item in items)
-            SizedBox(width: cellWidth, child: _ModuleShortcut(item: item)),
-        ],
+      final fullWidth = box.maxWidth + gutter * 2;
+      final visible = box.maxWidth >= 560 ? 6.5 : 4.5;
+      final cellWidth = (box.maxWidth / visible).clamp(76.0, 110.0);
+      return OverflowBox(
+        minWidth: fullWidth,
+        maxWidth: fullWidth,
+        // inside Home's vertical list the height is unbounded — take it from the row
+        fit: OverflowBoxFit.deferToChild,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: gutter - 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final item in items)
+                SizedBox(width: cellWidth, child: _ModuleShortcut(item: item)),
+            ],
+          ),
+        ),
       );
     });
   }
@@ -148,50 +175,46 @@ class _ModuleShortcut extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final light = context.isLight;
+    final label = TextStyle(fontSize: 13.5, height: 1.2, fontWeight: FontWeight.w500, letterSpacing: -0.1, color: c.textPrimary);
     return Semantics(
       button: true,
       label: '${item.title}. ${item.subtitle}',
       excludeSemantics: true,
-      child: InkWell(
-        onTap: () => context.push(item.route),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-          child: Column(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  // pale navy circle (web gov-50), like eGovPH's pale blue tiles
-                  color: light ? const Color(0xFFEEF2F8) : const Color(0xFF1E2533),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: light ? const Color(0xFFD7E1F0) : c.border),
-                ),
-                child: Icon(item.icon, size: 30, color: light ? AppTheme.gov : const Color(0xFFB0C4E3)),
-              ),
-              const SizedBox(height: 8),
-              // two-word names wrap onto two lines; a single long word ("Maintenance") shrinks a
-              // little to fit instead of being split mid-word at the Large text size
-              if (item.title.contains(' '))
-                Text(
-                  item.title,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14, height: 1.2, fontWeight: FontWeight.w600, color: c.textPrimary),
-                )
-              else
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    item.title,
-                    maxLines: 1,
-                    style: TextStyle(fontSize: 14, height: 1.2, fontWeight: FontWeight.w600, color: c.textPrimary),
+      child: PressScale(
+        scale: 0.9,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => context.push(item.route),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            child: Column(
+              children: [
+                // iOS app icon: vertical system-colour gradient on a continuous-corner square
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: ShapeDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color.lerp(item.color, Colors.white, 0.18)!, item.color],
+                    ),
+                    shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    shadows: [
+                      BoxShadow(color: item.color.withValues(alpha: 0.28), blurRadius: 10, offset: const Offset(0, 4)),
+                    ],
                   ),
+                  child: Icon(item.icon, size: 30, color: Colors.white),
                 ),
-            ],
+                const SizedBox(height: 8),
+                // two-word names wrap onto two lines; a single long word ("Maintenance") shrinks a
+                // little to fit instead of being split mid-word at the Large text size
+                if (item.title.contains(' '))
+                  Text(item.title, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: label)
+                else
+                  FittedBox(fit: BoxFit.scaleDown, child: Text(item.title, maxLines: 1, style: label)),
+              ],
+            ),
           ),
         ),
       ),
@@ -204,13 +227,8 @@ class _ModuleItem {
   final String title;
   final String subtitle;
   final String route;
-  const _ModuleItem(this.icon, this.title, this.subtitle, this.route);
-}
-
-String _fmtMoney(double v) {
-  if (v >= 1000000) return '₱${(v / 1000000).toStringAsFixed(1)}M';
-  if (v >= 1000) return '₱${(v / 1000).toStringAsFixed(0)}K';
-  return '₱${v.toStringAsFixed(0)}';
+  final Color color;
+  const _ModuleItem(this.icon, this.title, this.subtitle, this.route, this.color);
 }
 
 const _conditionOrder = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
@@ -285,7 +303,7 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(dashboardStatsProvider);
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
 
     if (statsAsync.hasValue) _lastStats = statsAsync.value;
     // Keep rendering the last snapshot while a refresh is in flight instead
@@ -301,11 +319,11 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
           children: [
             // shortcuts first, as on eGovPH's home screen — getting around comes before the numbers
             widget.modules,
-            const SizedBox(height: 24),
-            const SectionLabel('Overview'),
+            const SizedBox(height: 28),
+            const IosSectionHeader('Overview'),
             overview,
-            const SizedBox(height: 24),
-            const SectionLabel('Summary'),
+            const SizedBox(height: 28),
+            const IosSectionHeader('Summary'),
             charts,
           ],
         );
@@ -377,6 +395,8 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
         maybeStagger(
           2,
           _DistributionCard(
+            icon: Icons.verified_rounded,
+            accent: Ios.green,
             title: 'Asset Condition',
             total: stats.totalAssets,
             dist: stats.conditionDist,
@@ -414,6 +434,8 @@ class _AiRecommendationSummaryCard extends ConsumerWidget {
         ),
       ),
       data: (dist) => _DistributionCard(
+        icon: Icons.lightbulb_rounded,
+        accent: Ios.purple,
         title: 'AI Recommendations',
         total: dist.values.fold(0, (a, b) => a + b),
         dist: dist,
@@ -469,7 +491,9 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
     final digestAsync = ref.watch(auditLogDigestProvider);
     final c = context.colors;
 
-    return SectionCard(
+    return _SummaryCard(
+      icon: Icons.auto_awesome_rounded,
+      accent: Ios.indigo,
       title: 'AI Activity Digest',
       // a worded button, like the web dashboard's "Generate summary"
       trailing: _generating
@@ -502,7 +526,7 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(digest.digest, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
+              Text(digest.digest, style: TextStyle(color: c.textPrimary, fontSize: 16, height: 1.5, letterSpacing: -0.2)),
               const SizedBox(height: 10),
               Text(
                 'Covers ${digest.coveredEntries} recent entries · generated ${_fmtDateTime(digest.generatedAt)}',
@@ -533,60 +557,144 @@ class _OverviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    Widget cell(String label, Widget value, String hint) => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: c.textTertiary)),
-              const SizedBox(height: 4),
-              value,
-              const SizedBox(height: 2),
-              Text(hint, style: TextStyle(fontSize: 13, color: c.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ],
-          ),
-        );
-    Widget number(double end, String Function(double) fmt) => TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: end),
-          duration: AppTheme.motionSlow,
+    // Counts up once on first load; plain numbers, no icons — an official summary, not a promo.
+    // Reduce Motion: the final figure straight away (a rolling peso amount is hard to read).
+    final still = context.prefersReducedMotion;
+    Widget counter(double end, String Function(double) fmt, TextStyle style) => TweenAnimationBuilder<double>(
+          tween: Tween(begin: still ? end : 0, end: end),
+          duration: still ? Duration.zero : AppTheme.motionSlow,
           curve: AppTheme.motionCurve,
           builder: (context, v, _) => FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(fmt(v),
-                style: TextStyle(fontSize: 26, height: 1.15, fontWeight: FontWeight.w800, color: c.textPrimary)),
+            child: Text(fmt(v), maxLines: 1, style: style),
           ),
         );
-    String whole(double v) => v.round().toString();
 
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          // Headline: the full peso amount (not "₱12.3M") — officials read and quote the exact figure.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: cell('ASSETS', number(totalAssets.toDouble(), whole), 'Total registered')),
-                VerticalDivider(width: 1, color: c.border),
-                Expanded(child: cell('ASSET VALUE', number(totalValue, _fmtMoney), 'Acquisition value')),
+                Text('Total Asset Value',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: c.textSecondary)),
+                const SizedBox(height: 2),
+                // large numerals get negative tracking, as iOS sets big text
+                counter(totalValue, (v) => fmtMoney(v),
+                    TextStyle(fontSize: 32, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -1, color: c.textPrimary)),
+                const SizedBox(height: 4),
+                Text(
+                  'Acquisition cost of all registered assets',
+                  style: TextStyle(fontSize: 15, color: c.textSecondary),
+                ),
               ],
             ),
           ),
-          Divider(height: 1, color: c.border),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: cell('MAINTENANCE', number(underMaintenance.toDouble(), whole), 'Under maintenance')),
-                VerticalDivider(width: 1, color: c.border),
-                Expanded(child: cell('DISPOSED', number(disposed.toDouble(), whole), 'Disposed assets')),
-              ],
-            ),
+          // One full-width row per count, so labels never wrap — not three squeezed columns.
+          const Divider(height: 1),
+          _StatRow(
+            label: 'Registered assets',
+            value: counter(totalAssets.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
+            icon: Icons.inventory_2_rounded,
+            dot: Ios.green,
+            semantics: '${_fmtCount(totalAssets)} registered assets. Open Assets.',
+            onTap: () => context.go('/assets'), // bottom-bar tab
+          ),
+          const Divider(height: 1, indent: 60),
+          _StatRow(
+            label: 'In maintenance',
+            value: counter(underMaintenance.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
+            icon: Icons.build_rounded,
+            dot: Ios.orange,
+            semantics: '${_fmtCount(underMaintenance)} in maintenance. Open Maintenance.',
+            onTap: () => context.push('/maintenance'),
+          ),
+          const Divider(height: 1, indent: 60),
+          _StatRow(
+            label: 'Disposed',
+            value: counter(disposed.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
+            icon: Icons.delete_rounded,
+            dot: Ios.red,
+            semantics: '${_fmtCount(disposed)} disposed. Open Disposal.',
+            onTap: () => context.push('/disposal'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 2024 -> "2,024"
+String _fmtCount(int n) {
+  final s = n.abs().toString();
+  final buf = StringBuffer(n < 0 ? '-' : '');
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return buf.toString();
+}
+
+/// One tappable count under the headline: a coloured dot (the same colour as that status's
+/// badges elsewhere) and the label on the left, the number on the right, then a chevron.
+class _StatRow extends StatelessWidget {
+  final String label;
+  final Widget value;
+  final IconData icon;
+  final Color dot;
+  final String semantics;
+  final VoidCallback onTap;
+
+  const _StatRow({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.dot,
+    required this.semantics,
+    required this.onTap,
+  });
+
+  static TextStyle numberStyle(AppColors c) =>
+      TextStyle(fontSize: 17, height: 1.2, fontWeight: FontWeight.w500, letterSpacing: -0.2, color: c.textSecondary);
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      label: semantics,
+      excludeSemantics: true,
+      // iOS Settings row: system-colour icon tile, label, value in grey, thin chevron
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 54),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 14, 10),
+            child: Row(
+              children: [
+                IosIconTile(icon: icon, color: dot),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(label,
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w400, letterSpacing: -0.3, color: c.textPrimary)),
+                ),
+                const SizedBox(width: 12),
+                // the counter's FittedBox needs a bounded width to scale into
+                ConstrainedBox(constraints: const BoxConstraints(maxWidth: 120), child: value),
+                const SizedBox(width: 8),
+                const IosChevron(),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -597,25 +705,39 @@ class _OverviewPanelSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget cell() => const Padding(
-          padding: EdgeInsets.fromLTRB(16, 14, 12, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    Widget row() => const Padding(
+          padding: EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Row(
             children: [
-              Bone(width: 70, height: 11),
-              SizedBox(height: 8),
-              Bone(width: 80, height: 26),
-              SizedBox(height: 6),
-              Bone(width: 100, height: 11),
+              Bone(width: 10, height: 10),
+              SizedBox(width: 12),
+              Bone(width: 130, height: 14),
+              Spacer(),
+              Bone(width: 48, height: 18),
             ],
           ),
         );
     return Card(
       margin: EdgeInsets.zero,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [Expanded(child: cell()), Expanded(child: cell())]),
-          Row(children: [Expanded(child: cell()), Expanded(child: cell())]),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Bone(width: 130, height: 12),
+                SizedBox(height: 8),
+                Bone(width: 210, height: 32),
+                SizedBox(height: 8),
+                Bone(width: 230, height: 13),
+              ],
+            ),
+          ),
+          row(),
+          row(),
+          row(),
         ],
       ),
     );
@@ -682,36 +804,135 @@ class _DigestCardSkeleton extends StatelessWidget {
   }
 }
 
-/// One legend line: dot, label, count, percent — the web dashboard's legend rows.
-class _LegendRow extends StatelessWidget {
-  final Color color;
-  final String label;
-  final int count;
-  final int pct;
-  const _LegendRow({required this.color, required this.label, required this.count, required this.pct});
+/// Health-app style summary card: a small tinted icon + title at the top (no divider under
+/// it), an optional trailing action, an optional big headline number, then the content.
+class _SummaryCard extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final Widget? trailing;
+  final String? headline;
+  final String? headlineUnit;
+  final Widget child;
+
+  const _SummaryCard({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.headline,
+    this.headlineUnit,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        children: [
-          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: TextStyle(color: c.textSecondary, fontSize: 15))),
-          Text('$count', style: TextStyle(color: c.textPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
-          SizedBox(
-            width: 48,
-            child: Text('$pct%', textAlign: TextAlign.right, style: TextStyle(color: c.textTertiary, fontSize: 13)),
-          ),
-        ],
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, trailing != null ? 6 : 14, trailing != null ? 6 : 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 18, color: accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(title,
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: accent)),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+            Padding(
+              padding: EdgeInsets.only(right: trailing != null ? 10 : 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (headline != null) ...[
+                    const SizedBox(height: 6),
+                    Text.rich(TextSpan(children: [
+                      TextSpan(
+                        text: headline,
+                        style: TextStyle(
+                            fontSize: 30, height: 1.1, fontWeight: FontWeight.w700, letterSpacing: -0.9, color: c.textPrimary),
+                      ),
+                      if (headlineUnit != null)
+                        TextSpan(
+                          text: ' $headlineUnit',
+                          style:
+                              TextStyle(fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: -0.3, color: c.textTertiary),
+                        ),
+                    ])),
+                  ],
+                  const SizedBox(height: 12),
+                  child,
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
+/// The legend as an inset iOS list: dot, label, then the count and its share in grey, with
+/// hairlines that start at the label (not the card edge).
+class _LegendList extends StatelessWidget {
+  final List<String> keys;
+  final Map<String, int> dist;
+  final int total;
+  final Color Function(String) colorOf;
+  final String Function(String) labelOf;
+
+  const _LegendList({
+    required this.keys,
+    required this.dist,
+    required this.total,
+    required this.colorOf,
+    required this.labelOf,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Column(
+      children: [
+        for (var i = 0; i < keys.length; i++) ...[
+          if (i > 0) const Divider(height: 1, indent: 22),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            child: Row(
+              children: [
+                Container(
+                    width: 10, height: 10, decoration: BoxDecoration(color: colorOf(keys[i]), shape: BoxShape.circle)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(labelOf(keys[i]), style: TextStyle(fontSize: 16, letterSpacing: -0.3, color: c.textPrimary)),
+                ),
+                Text(_fmtCount(dist[keys[i]] ?? 0),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: c.textPrimary)),
+                SizedBox(
+                  width: 50,
+                  child: Text('${((dist[keys[i]] ?? 0) * 100 / total).round()}%',
+                      textAlign: TextAlign.right, style: TextStyle(fontSize: 15, color: c.textTertiary)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _DistributionCard extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
   final String title;
   final int total;
   final Map<String, int> dist;
@@ -722,6 +943,8 @@ class _DistributionCard extends StatelessWidget {
   final String totalNoun;
 
   const _DistributionCard({
+    required this.icon,
+    required this.accent,
     required this.title,
     required this.total,
     required this.dist,
@@ -735,22 +958,28 @@ class _DistributionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final present = order.where((k) => (dist[k] ?? 0) > 0).toList();
+    final c = context.colors;
 
-    return SectionCard(
+    return _SummaryCard(
+      icon: icon,
+      accent: accent,
       title: title,
-      trailingText: total == 0 ? null : '$total $totalNoun',
+      headline: total == 0 ? null : _fmtCount(total),
+      headlineUnit: total == 0 ? null : totalNoun,
       child: total == 0
-          ? Text(emptyMessage, style: TextStyle(color: context.colors.textSecondary, fontSize: 15))
+          ? Text(emptyMessage, style: TextStyle(color: c.textSecondary, fontSize: 15))
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // capsule bar: fully rounded ends, hairline gaps between the parts
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
+                  borderRadius: BorderRadius.circular(6),
                   child: SizedBox(
-                    height: 10,
+                    height: 12,
                     child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: AppTheme.motionSlow,
+                      // Reduce Motion: drawn at full width, no grow
+                      tween: Tween(begin: context.prefersReducedMotion ? 1 : 0, end: 1),
+                      duration: context.prefersReducedMotion ? Duration.zero : AppTheme.motionSlow,
                       curve: AppTheme.motionCurve,
                       builder: (context, progress, child) => FractionallySizedBox(
                         widthFactor: progress,
@@ -758,23 +987,18 @@ class _DistributionCard extends StatelessWidget {
                         child: child,
                       ),
                       child: Row(
-                        children: present
-                            .map((k) => Expanded(flex: dist[k] ?? 0, child: Container(color: colorOf(k))))
-                            .toList(),
+                        children: [
+                          for (var i = 0; i < present.length; i++) ...[
+                            if (i > 0) Container(width: 2, color: c.surface),
+                            Expanded(flex: dist[present[i]] ?? 0, child: Container(color: colorOf(present[i]))),
+                          ],
+                        ],
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                ...present.map((k) {
-                  final count = dist[k] ?? 0;
-                  return _LegendRow(
-                    color: colorOf(k),
-                    label: labelOf(k),
-                    count: count,
-                    pct: (count * 100 / total).round(),
-                  );
-                }),
+                const SizedBox(height: 6),
+                _LegendList(keys: present, dist: dist, total: total, colorOf: colorOf, labelOf: labelOf),
               ],
             ),
     );
@@ -803,20 +1027,23 @@ class _LifecycleRingCard extends StatelessWidget {
     final present = order.where((k) => (dist[k] ?? 0) > 0).toList();
     final c = context.colors;
 
-    return SectionCard(
+    return _SummaryCard(
+      icon: Icons.donut_large_rounded,
+      accent: Ios.blue,
       title: title,
-      trailingText: total == 0 ? null : '$total total',
       child: total == 0
           ? Text('No assets registered yet.', style: TextStyle(color: c.textSecondary, fontSize: 15))
           : Column(
               children: [
+                const SizedBox(height: 4),
                 Center(
                   child: SizedBox(
-                    width: 168,
-                    height: 168,
+                    width: 176,
+                    height: 176,
                     child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 1100),
+                      // fills once in 600ms (was 1.1s); Reduce Motion: drawn complete, no sweep
+                      tween: Tween(begin: context.prefersReducedMotion ? 1 : 0, end: 1),
+                      duration: context.prefersReducedMotion ? Duration.zero : const Duration(milliseconds: 600),
                       curve: AppTheme.motionCurve,
                       builder: (context, progress, child) => CustomPaint(
                         painter: _LifecycleRingPainter(
@@ -831,12 +1058,15 @@ class _LifecycleRingCard extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('$total',
-                                style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.w800, fontSize: 30, height: 1)),
-                            const SizedBox(height: 4),
-                            Text('ASSETS',
+                            Text(_fmtCount(total),
                                 style: TextStyle(
-                                    color: c.textTertiary, fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                                    color: c.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 30,
+                                    height: 1,
+                                    letterSpacing: -0.9)),
+                            const SizedBox(height: 4),
+                            Text('assets', style: TextStyle(color: c.textTertiary, fontSize: 15, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -844,15 +1074,7 @@ class _LifecycleRingCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                ...present.map((k) {
-                  final count = dist[k] ?? 0;
-                  return _LegendRow(
-                    color: colorOf(k),
-                    label: labelOf(k),
-                    count: count,
-                    pct: (count * 100 / total).round(),
-                  );
-                }),
+                _LegendList(keys: present, dist: dist, total: total, colorOf: colorOf, labelOf: labelOf),
               ],
             ),
     );

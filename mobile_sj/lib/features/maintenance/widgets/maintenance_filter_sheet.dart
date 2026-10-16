@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../provider/maintenance_provider.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 const _types = ['PREVENTIVE', 'CORRECTIVE', 'REPAIR'];
 const _statuses = ['COMPLETED', 'ONGOING', 'SCHEDULED'];
@@ -53,7 +54,7 @@ class _MaintenanceFilterSheet extends ConsumerWidget {
           const SizedBox(height: 8),
           Text('Type', style: TextStyle(color: context.colors.textTertiary, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          DropdownButtonFormField<String?>(
+          IosSelectFormField<String?>(
             initialValue: type,
             isExpanded: true,
             decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
@@ -66,7 +67,7 @@ class _MaintenanceFilterSheet extends ConsumerWidget {
           const SizedBox(height: 14),
           Text('Status', style: TextStyle(color: context.colors.textTertiary, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          DropdownButtonFormField<String?>(
+          IosSelectFormField<String?>(
             initialValue: status,
             isExpanded: true,
             decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),

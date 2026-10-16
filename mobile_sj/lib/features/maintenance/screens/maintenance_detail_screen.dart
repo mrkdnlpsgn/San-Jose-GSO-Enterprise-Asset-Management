@@ -22,7 +22,7 @@ class MaintenanceDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(maintenanceDetailProvider(maintenanceId));
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
 
     Future<void> delete() async {
       final reason = await showDeleteDialog(context);
@@ -43,7 +43,7 @@ class MaintenanceDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Maintenance Record'),
         actions: [
-          if (isAdmin && async.value != null)
+          if (isAdmin && async.valueOrNull != null)
             PopupMenuButton<String>(
               tooltip: 'More actions',
               onSelected: (v) {
@@ -63,7 +63,7 @@ class MaintenanceDetailScreen extends ConsumerWidget {
         ],
       ),
       // Admin reviewing a staff request: approving applies it to the asset.
-      bottomNavigationBar: isAdmin && async.value?.approvalStatus == 'PENDING_APPROVAL'
+      bottomNavigationBar: isAdmin && async.valueOrNull?.approvalStatus == 'PENDING_APPROVAL'
           ? ApprovalActionsBar(
               onApprove: () async {
                 await MaintenanceService().approve(maintenanceId);
@@ -221,7 +221,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = ref.watch(authProvider).value?.isAdmin ?? false;
+    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
     final summaryAsync = ref.watch(maintenanceSummaryProvider(widget.maintenanceId));
     final c = context.colors;
 

@@ -4,6 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/provider/reference_provider.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../provider/asset_provider.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 const _conditions = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
 const _lifecycleStatuses = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED'];
@@ -139,7 +140,7 @@ class _AssetFilterSheet extends ConsumerWidget {
         Text(label,
             style: TextStyle(color: context.colors.textTertiary, fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        DropdownButtonFormField<T>(
+        IosSelectFormField<T>(
           initialValue: value,
           items: items,
           onChanged: onChanged,

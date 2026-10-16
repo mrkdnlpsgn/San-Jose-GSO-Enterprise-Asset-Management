@@ -85,6 +85,31 @@ class ApiClient {
 
     // Automatically stores the jwt HttpOnly cookie and sends it with every request
     dio.interceptors.add(CookieManager(_cookieJar));
+
+    // Session over (the 1-hour token expired, password changed, account deactivated):
+    // send the user back to sign-in instead of leaving every screen on an error.
+    dio.interceptors.add(InterceptorsWrapper(onError: (e, handler) async {
+      if (await _isSessionGone(e)) onSessionExpired?.call();
+      handler.next(e);
+    }));
+  }
+
+  /// Called when a request shows the sign-in session has ended. Set by the auth provider.
+  void Function()? onSessionExpired;
+
+  Future<bool> _isSessionGone(DioException e) async {
+    final status = e.response?.statusCode;
+    final path = e.requestOptions.path;
+    if (path.contains('/auth/')) return false; // sign-in screens handle their own errors
+    if (status == 401) return true;
+    // Older backends answer a missing sign-in with 403. The server deletes the jwt cookie
+    // when it rejects an expired token, so a 403 with no jwt cookie left = signed out
+    // (a real "no permission" 403 still has the cookie and is left to the screen).
+    if (status == 403) {
+      final cookies = await _cookieJar.loadForRequest(e.requestOptions.uri);
+      return !cookies.any((c) => c.name == 'jwt');
+    }
+    return false;
   }
 
   // Applies immediately (no app restart needed) — pass null/empty to clear the

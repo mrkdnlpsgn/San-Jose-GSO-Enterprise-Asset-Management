@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../assets/model/asset_model.dart';
 import '../../reports/utils/formatters.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/main_shell.dart';
+import '../../../shared/widgets/large_title_scaffold.dart';
 import '../provider/qr_lookup_provider.dart';
+import '../widgets/qr_scanner_overlay.dart';
 
 // mobile_scanner only ships Android/iOS/macOS/web implementations — desktop platforms
 // like Windows and Linux fall back to manual property-number entry (still fully usable,
@@ -27,30 +28,19 @@ class QrScannerScreen extends ConsumerStatefulWidget {
 }
 
 class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
-  MobileScannerController? _controller;
-  bool _scanning = false;
   bool _notFound = false;
   AssetModel? _result;
   final _manualCtrl = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    if (_cameraScanSupported) {
-      _controller = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
-    }
-  }
-
-  @override
   void dispose() {
-    _controller?.dispose();
     _manualCtrl.dispose();
     super.dispose();
   }
 
   void _lookup(String rawCode) {
     final assetsAsync = ref.read(qrLookupAssetsProvider);
-    final assets = assetsAsync.value;
+    final assets = assetsAsync.valueOrNull;
     if (assets == null) return;
 
     final match = findAssetForCode(assets, rawCode);
@@ -68,21 +58,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     });
   }
 
-  // The MobileScanner widget starts/stops the controller itself on
-  // mount/unmount (MobileScannerController.autoStart defaults to true) —
-  // calling controller.start() here too, before setState's rebuild has
-  // actually mounted the widget, raced the platform channel and crashed
-  // the native analyzer with a null reference on every frame.
-  void _startScanning() {
+  // Full-screen camera, like the web's scanner; comes back with the code (or null on Cancel).
+  Future<void> _scan() async {
     setState(() {
-      _scanning = true;
       _result = null;
       _notFound = false;
     });
-  }
-
-  void _stopScanning() {
-    setState(() => _scanning = false);
+    final code = await showQrScanner(context);
+    if (code != null && mounted) _lookup(code);
   }
 
   void _clear() {
@@ -98,19 +81,44 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     // Keep the asset list warm so lookups after a scan/manual entry are instant.
     ref.watch(qrLookupAssetsProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Scan QR Code')),
+    return LargeTitleScaffold(
+      title: 'Scan',
       body: ListView(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + context.mainShellBottomInset),
         children: [
-          // The answer goes first once there is one, so it isn't hidden below the camera
-          if (_result != null) ...[
-            _ResultCard(asset: _result!, onClear: _clear),
-            const SizedBox(height: 16),
-          ] else if (_notFound) ...[
-            _NotFoundCard(onClear: _clear),
-            const SizedBox(height: 16),
-          ],
+          // The answer goes first once there is one, so it isn't hidden below the camera. It
+          // eases in (fade + small rise, same moment as the scan's vibration) while the panels
+          // below slide down to make room, instead of everything jumping. Reduce Motion: instant.
+          AnimatedSize(
+            duration: context.prefersReducedMotion ? Duration.zero : const Duration(milliseconds: 220),
+            curve: AppTheme.motionCurve,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: context.prefersReducedMotion ? Duration.zero : const Duration(milliseconds: 220),
+              switchInCurve: AppTheme.motionCurve,
+              switchOutCurve: Curves.easeOut,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(anim),
+                  child: child,
+                ),
+              ),
+              child: _result != null
+                  ? Padding(
+                      key: ValueKey('found-${_result!.id}'),
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _ResultCard(asset: _result!, onClear: _clear),
+                    )
+                  : _notFound
+                      ? Padding(
+                          key: const ValueKey('not-found'),
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _NotFoundCard(onClear: _clear),
+                        )
+                      : const SizedBox(key: ValueKey('none'), width: double.infinity),
+            ),
+          ),
           if (_cameraScanSupported) ...[
             _buildCameraPanel(),
             const SizedBox(height: 16),
@@ -139,79 +147,16 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             'Point the camera at the QR code on the asset\'s property sticker.',
             style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45),
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              height: 280,
-              child: _scanning
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        MobileScanner(
-                          controller: _controller,
-                          errorBuilder: (context, error) => Container(
-                            color: Colors.black,
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              'The camera could not start (${error.errorCode.name}). '
-                              'Allow camera access for this app in your phone\'s Settings, then try again.',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
-                            ),
-                          ),
-                          onDetect: (capture) {
-                            final code = capture.barcodes.firstOrNull?.rawValue;
-                            if (code == null) return;
-                            _stopScanning();
-                            _lookup(code);
-                          },
-                        ),
-                        // square guide, like the web scanner's
-                        Center(
-                          child: Container(
-                            width: 190,
-                            height: 190,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white, width: 3),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Container(
-                      decoration: BoxDecoration(
-                        color: c.subtle,
-                        border: Border.all(color: c.border),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      alignment: Alignment.center,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.qr_code_scanner_rounded, size: 64, color: c.textTertiary),
-                          const SizedBox(height: 8),
-                          Text('Camera is off', style: TextStyle(color: c.textTertiary, fontSize: 15)),
-                        ],
-                      ),
-                    ),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(
+            onPressed: _scan,
+            icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
+            label: Text(_result != null || _notFound ? 'Scan another' : 'Scan QR code'),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
           ),
-          const SizedBox(height: 12),
-          _scanning
-              ? OutlinedButton.icon(
-                  onPressed: _stopScanning,
-                  icon: const Icon(Icons.stop_rounded),
-                  label: const Text('Stop camera'),
-                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-                )
-              : ElevatedButton.icon(
-                  onPressed: _startScanning,
-                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 22),
-                  label: const Text('Start scanning'),
-                ),
         ],
       ),
     );
@@ -425,8 +370,4 @@ class _ResultCard extends StatelessWidget {
       ),
     );
   }
-}
-
-extension _FirstOrNull<T> on List<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

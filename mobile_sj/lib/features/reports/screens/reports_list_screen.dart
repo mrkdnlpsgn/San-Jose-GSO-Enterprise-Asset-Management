@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../model/report_definition.dart';
 import '../provider/reports_provider.dart';
+import '../../../shared/widgets/ios_touch.dart';
 
 class ReportsListScreen extends ConsumerWidget {
   const ReportsListScreen({super.key});
@@ -80,7 +81,7 @@ class _ReportRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: c.textTertiary),
+              const DisclosureChevron(),
             ],
           ),
         ),

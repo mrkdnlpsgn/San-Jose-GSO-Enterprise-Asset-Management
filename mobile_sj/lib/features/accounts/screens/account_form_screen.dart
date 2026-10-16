@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../../shared/utils/idempotency.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 class AccountFormScreen extends ConsumerStatefulWidget {
   final AccountModel? account; // null = create, non-null = edit
@@ -187,7 +188,7 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isSelf = _isEdit && widget.account!.username == ref.watch(authProvider).value?.username;
+    final isSelf = _isEdit && widget.account!.username == ref.watch(authProvider).valueOrNull?.username;
 
     return Scaffold(
       appBar: AppBar(
@@ -364,7 +365,7 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: DropdownButtonFormField<T>(
+      child: IosSelectFormField<T>(
         initialValue: value,
         isExpanded: true,
         decoration: InputDecoration(labelText: label),

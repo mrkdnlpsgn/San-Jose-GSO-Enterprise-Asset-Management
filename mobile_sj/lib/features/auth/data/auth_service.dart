@@ -91,7 +91,14 @@ class AuthService {
       final res = await _dio.get('/auth/me');
       return UserModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
-      if (e.response?.statusCode == 401) return null;
+      // A stale or revoked session cookie (password changed, "forget devices", account
+      // updated) comes back 401 — or 403, since Spring Security answers unauthenticated
+      // requests with 403 by default. Either way: not signed in. Drop the dead cookie.
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) {
+        await ApiClient.instance.clearCookies();
+        return null;
+      }
       throw ApiException.from(e);
     }
   }

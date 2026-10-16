@@ -32,31 +32,19 @@ class PaginatedListView<T> extends StatefulWidget {
 }
 
 class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
-  final _scrollCtrl = ScrollController();
-
   // How many rows have already appeared once. A pull-to-refresh or a new
   // search reuses this same State (only `widget.state` changes), so rows
   // below this mark skip the entrance stagger — only a true first load, or
   // rows newly revealed by pagination/a wider result set, animate in.
   int _seenCount = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _scrollCtrl.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200) {
+  // Load the next page near the bottom. Watches scroll notifications rather than owning a
+  // ScrollController, so the list can ride a parent NestedScrollView's (large-title pages).
+  bool _onScroll(ScrollNotification n) {
+    if (n.depth == 0 && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 200) {
       widget.onLoadMore();
     }
-  }
-
-  @override
-  void dispose() {
-    _scrollCtrl.removeListener(_onScroll);
-    _scrollCtrl.dispose();
-    super.dispose();
+    return false;
   }
 
   @override
@@ -80,8 +68,9 @@ class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
-      child: ListView.separated(
-        controller: _scrollCtrl,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: ListView.separated(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 80 + widget.extraBottomPadding),
         itemCount: s.items.length + (s.hasMore ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -122,6 +111,7 @@ class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
           final item = widget.itemBuilder(context, s.items[i], i);
           return i < seenCount ? item : StaggeredEntrance(index: i, child: item);
         },
+        ),
       ),
     );
   }

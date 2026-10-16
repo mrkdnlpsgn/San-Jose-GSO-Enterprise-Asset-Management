@@ -56,7 +56,7 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TitleWithCount('Categories', subtitle: countLabel(categoriesAsync.value?.length, singular: 'category', plural: 'categories')),
+        title: TitleWithCount('Categories', subtitle: countLabel(categoriesAsync.valueOrNull?.length, singular: 'category', plural: 'categories')),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),

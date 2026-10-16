@@ -7,6 +7,7 @@ import '../../../shared/utils/idempotency.dart';
 import '../../accounts/data/account_service.dart';
 import '../../accounts/model/account_model.dart';
 import '../../assets/model/asset_model.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 class OfficeFormScreen extends StatefulWidget {
   final OfficeModel? office; // null = create, non-null = edit
@@ -106,7 +107,7 @@ class _OfficeFormScreenState extends State<OfficeFormScreen> {
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 14),
-              child: DropdownButtonFormField<int?>(
+              child: IosSelectFormField<int?>(
                 initialValue: _headUserId,
                 isExpanded: true,
                 decoration: InputDecoration(

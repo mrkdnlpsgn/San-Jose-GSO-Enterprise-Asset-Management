@@ -9,6 +9,7 @@ import '../../../shared/widgets/ui.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/utils/idempotency.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 class MaintenanceFormScreen extends ConsumerStatefulWidget {
   final MaintenanceModel? maintenance;
@@ -177,7 +178,7 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
   Widget _enumDropdown(String label, String value, List<String> options, void Function(String?) onChanged) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: DropdownButtonFormField<String>(
+      child: IosSelectFormField<String>(
         initialValue: value,
         decoration: InputDecoration(labelText: label),
         dropdownColor: context.colors.surface,
@@ -197,12 +198,6 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
             initialDate: _maintenanceDate ?? DateTime.now(),
             firstDate: DateTime(2000),
             lastDate: DateTime.now().add(const Duration(days: 365)),
-            builder: (ctx, child) => Theme(
-              data: Theme.of(ctx).copyWith(
-                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brandButton),
-              ),
-              child: child!,
-            ),
           );
           if (picked != null) setState(() => _maintenanceDate = picked);
         },

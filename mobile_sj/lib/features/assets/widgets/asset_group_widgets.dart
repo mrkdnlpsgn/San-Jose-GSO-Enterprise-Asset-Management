@@ -10,6 +10,8 @@ import '../data/ai_recommendation_service.dart';
 import '../data/asset_service.dart';
 import '../model/ai_recommendation_model.dart';
 import '../model/asset_model.dart';
+import '../../../shared/widgets/ios_pickers.dart';
+import '../../../shared/widgets/ios_touch.dart';
 
 // Widgets for a group of same-model devices (assets added together that share a groupId).
 // Every device is still its own complete asset; these are the roll-up views:
@@ -465,7 +467,7 @@ class _GroupSheetState extends State<_GroupSheet> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        DropdownButtonFormField<int?>(
+        IosSelectFormField<int?>(
           initialValue: _aiDevice,
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'Device'),
@@ -558,7 +560,7 @@ class _GroupSheetState extends State<_GroupSheet> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        DropdownButtonFormField<int?>(
+        IosSelectFormField<int?>(
           initialValue: _deviceFilter,
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'Device'),
@@ -571,7 +573,7 @@ class _GroupSheetState extends State<_GroupSheet> {
           onChanged: (v) => setState(() => _deviceFilter = v),
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String?>(
+        IosSelectFormField<String?>(
           initialValue: _typeFilter,
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'Lifecycle event'),
@@ -783,13 +785,14 @@ class _RecordGroupCardState<T> extends State<RecordGroupCard<T>> {
                         onOpenDevice: widget.onOpenDevice,
                       ),
                     ),
-                  Icon(_expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: context.brandAccent),
+                  DisclosureArrow(expanded: _expanded, color: context.brandAccent),
                 ],
               ),
             ),
           ),
-          if (_expanded)
-            Padding(
+          ExpandReveal(
+              expanded: _expanded,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -840,6 +843,7 @@ class _RecordGroupCardState<T> extends State<RecordGroupCard<T>> {
                     ),
                 ],
               ),
+            ),
             ),
         ],
       ),

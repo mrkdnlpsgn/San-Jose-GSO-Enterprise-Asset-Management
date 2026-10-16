@@ -8,12 +8,14 @@ import '../../../shared/widgets/error_state.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../../shared/widgets/main_shell.dart';
+import '../../../shared/widgets/large_title_scaffold.dart';
 import '../../accounts/data/account_service.dart';
 import '../../accounts/model/account_model.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../data/asset_history_service.dart';
 import '../model/asset_history_model.dart';
 import '../model/edit_request_model.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 // Inventory changes ("History") and staff maintenance/disposal requests ("Requests"),
 // mirrors web's Asset History page. An admin sees everything and can narrow it to one
@@ -39,7 +41,7 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
   int? _performerId; // admin only — null = everyone
   String? _requestStatus; // null = all
 
-  bool get _isAdmin => ref.read(authProvider).value?.isAdmin ?? false;
+  bool get _isAdmin => ref.read(authProvider).valueOrNull?.isAdmin ?? false;
 
   @override
   void initState() {
@@ -96,10 +98,9 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
     return DefaultTabController(
       length: 2,
       initialIndex: widget.initialTab,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Asset History'),
-          bottom: TabBar(
+      child: LargeTitleScaffold(
+        title: 'History',
+        bottom: TabBar(
             indicatorColor: context.brandAccent,
             indicatorWeight: 3,
             indicatorSize: TabBarIndicatorSize.tab,
@@ -113,7 +114,6 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
               Tab(text: isAdmin ? 'Staff Requests' : 'My Requests'),
             ],
           ),
-        ),
         body: Column(
           children: [
             _performerFilter(isAdmin),
@@ -135,7 +135,7 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
   }
 
   Widget _performerFilter(bool isAdmin) {
-    final me = ref.read(authProvider).value;
+    final me = ref.read(authProvider).valueOrNull;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
       child: isAdmin
@@ -143,7 +143,7 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const FieldLabel('Done or requested by'),
-                DropdownButtonFormField<int?>(
+                IosSelectFormField<int?>(
               initialValue: _performerId,
               isExpanded: true,
               style: TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 16, color: context.colors.textPrimary),

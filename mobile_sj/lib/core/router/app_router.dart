@@ -31,7 +31,10 @@ import '../../features/reports/screens/report_preview_screen.dart';
 import '../../features/recycle_bin/screens/recycle_bin_screen.dart';
 import '../../features/qr_scanner/screens/qr_scanner_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
-import '../../features/settings/screens/change_password_screen.dart';
+import '../../features/settings/screens/account_screen.dart';
+import '../../features/personnel/data/personnel_service.dart';
+import '../../features/personnel/screens/personnel_list_screen.dart';
+import '../../features/personnel/screens/personnel_form_screen.dart';
 import '../../features/legal/screens/legal_screen.dart';
 import '../../features/transfer/screens/transfer_list_screen.dart';
 import '../../features/transfer/screens/transfer_form_screen.dart';
@@ -96,9 +99,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             GoRoute(
               path: '/settings',
               pageBuilder: (c, s) => fadeThroughPage(c, s, const SettingsScreen()),
-              routes: [
-                GoRoute(path: 'change-password', pageBuilder: (c, s) => fadeThroughPage(c, s, const ChangePasswordScreen())),
-              ],
             ),
           ]),
         ],
@@ -133,6 +133,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/categories/:id/edit',
         pageBuilder: (c, s) => fadeThroughPage(c, s, CategoryFormScreen(category: s.extra as CategoryModel?)),
       ),
+      GoRoute(
+        path: '/personnel',
+        pageBuilder: (c, s) => fadeThroughPage(
+            c, s, PersonnelListScreen(needsOfficeOnly: s.uri.queryParameters['filter'] == 'no-office')),
+      ),
+      GoRoute(
+        path: '/personnel/:id/edit',
+        pageBuilder: (c, s) => fadeThroughPage(c, s, PersonnelFormScreen(person: s.extra as PersonnelRecord)),
+      ),
       GoRoute(path: '/offices', pageBuilder: (c, s) => fadeThroughPage(c, s, const OfficeListScreen())),
       GoRoute(path: '/offices/new', pageBuilder: (c, s) => fadeThroughPage(c, s, const OfficeFormScreen())),
       GoRoute(
@@ -151,6 +160,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (c, s) => fadeThroughPage(c, s, TransferFormScreen(asset: s.extra as AssetModel)),
       ),
       GoRoute(path: '/recycle-bin', pageBuilder: (c, s) => fadeThroughPage(c, s, const RecycleBinScreen())),
+      GoRoute(path: '/account', pageBuilder: (c, s) => fadeThroughPage(c, s, const AccountScreen())),
       GoRoute(path: '/legal', pageBuilder: (c, s) => fadeThroughPage(c, s, const LegalScreen())),
       GoRoute(
         path: '/acknowledge-privacy',
@@ -170,7 +180,9 @@ class _RouterNotifier extends ChangeNotifier {
   String? redirect(BuildContext context, GoRouterState state) {
     final authAsync = _ref.read(authProvider);
     if (authAsync.isLoading) return null;
-    final user = authAsync.value;
+    // valueOrNull, not value: on a failed session check `value` rethrows the error, which
+    // crashed every screen red — any auth error should simply mean "go to sign-in".
+    final user = authAsync.valueOrNull;
     final isLoggedIn = user != null;
     final onLogin = state.matchedLocation == '/login';
     final onForgotPassword = state.matchedLocation == '/forgot-password';
@@ -194,7 +206,7 @@ class _RouterNotifier extends ChangeNotifier {
   }
 
   // Reference data, account management, the recycle bin, and adding/importing assets.
-  static const _adminOnlyPrefixes = ['/accounts', '/categories', '/offices', '/recycle-bin'];
+  static const _adminOnlyPrefixes = ['/accounts', '/categories', '/offices', '/personnel', '/recycle-bin'];
   static const _adminOnlyPaths = {'/assets/new', '/assets/import'};
 
   static bool _isAdminOnly(String location) =>

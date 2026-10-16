@@ -18,6 +18,7 @@ import '../../auth/provider/auth_provider.dart';
 import '../../maintenance/data/maintenance_service.dart';
 import '../../disposal/data/disposal_service.dart';
 import '../../../shared/utils/idempotency.dart';
+import '../../../shared/widgets/ios_pickers.dart';
 
 // image_picker has no live-camera implementation on Windows/Linux (only a
 // file/gallery picker) — mirrors the same gate qr_scanner_screen.dart already
@@ -71,7 +72,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   // A staff account can edit an asset of its own office, but can't move it to another
   // office — mirrors the web app's AddAssetModal staffMode. Only an administrator can
   // relocate an asset.
-  bool get _staffMode => !(ref.read(authProvider).value?.isAdmin ?? false);
+  bool get _staffMode => !(ref.read(authProvider).valueOrNull?.isAdmin ?? false);
 
   // 'maintenance' / 'disposal' when staff picked a status — or marked the asset
   // REPAIRABLE / UNSERVICEABLE — which has to be approved by an admin first.
@@ -189,7 +190,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     }
     setState(() => _loading = true);
     try {
-      final offices = ref.read(officesProvider).value ?? [];
+      final offices = ref.read(officesProvider).valueOrNull ?? [];
       final officeName = offices.where((o) => o.id == _officeId).firstOrNull?.officeName ?? '';
       final data = {
         'propertyNumber': _propertyNumber.text.trim().isEmpty ? null : _propertyNumber.text.trim(),
@@ -606,7 +607,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: DropdownButtonFormField<T>(
+      child: IosSelectFormField<T>(
         initialValue: value,
         isExpanded: true,
         decoration: InputDecoration(labelText: label),
@@ -633,7 +634,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   Widget _enumDropdown(String label, String value, List<String> options, void Function(String?) onChanged) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: DropdownButtonFormField<String>(
+      child: IosSelectFormField<String>(
         initialValue: value,
         decoration: InputDecoration(labelText: label),
         dropdownColor: context.colors.surface,
@@ -667,12 +668,6 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
             initialDate: _acquisitionDate ?? DateTime.now(),
             firstDate: DateTime(1990),
             lastDate: DateTime.now(),
-            builder: (ctx, child) => Theme(
-              data: Theme.of(ctx).copyWith(
-                colorScheme: Theme.of(ctx).colorScheme.copyWith(primary: AppTheme.brandButton),
-              ),
-              child: child!,
-            ),
           );
           if (picked != null) setState(() => _acquisitionDate = picked);
         },

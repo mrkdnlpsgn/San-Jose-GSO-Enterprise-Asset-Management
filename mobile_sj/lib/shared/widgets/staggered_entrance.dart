@@ -26,7 +26,9 @@ class _StaggeredEntranceState extends State<StaggeredEntrance> {
     if (_scheduled) return;
     _scheduled = true;
     final reduceMotion = MediaQuery.of(context).disableAnimations;
-    final delay = reduceMotion ? Duration.zero : Duration(milliseconds: 40 * widget.index.clamp(0, 10));
+    // 30ms apart, capped at the 6th item: lists open tens of times a day, so the cascade stays
+    // a quick settle (last row in ~440ms) rather than making results feel slow to arrive.
+    final delay = reduceMotion ? Duration.zero : Duration(milliseconds: 30 * widget.index.clamp(0, 6));
     Future.delayed(delay, () {
       if (mounted) setState(() => _visible = true);
     });

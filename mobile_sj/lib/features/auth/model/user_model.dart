@@ -8,6 +8,8 @@ class UserModel {
   final String? officeName;
   final String role; // ADMIN | STAFF
   final String? privacyAcknowledgedAt;
+  /// Root-relative, e.g. /uploads/avatars/3-<uuid>.jpg — null when no picture is set.
+  final String? avatarUrl;
 
   const UserModel({
     this.id,
@@ -16,7 +18,18 @@ class UserModel {
     this.officeName,
     required this.role,
     this.privacyAcknowledgedAt,
+    this.avatarUrl,
   });
+
+  UserModel copyWith({String? privacyAcknowledgedAt, String? Function()? avatarUrl}) => UserModel(
+        id: id,
+        username: username,
+        fullName: fullName,
+        officeName: officeName,
+        role: role,
+        privacyAcknowledgedAt: privacyAcknowledgedAt ?? this.privacyAcknowledgedAt,
+        avatarUrl: avatarUrl != null ? avatarUrl() : this.avatarUrl,
+      );
 
   // /api/auth/login, /api/auth/me, and /api/auth/force-change-password all
   // return the same shape: { id, username, fullName, officeName, role, privacyAcknowledgedAt, ... }.
@@ -39,6 +52,7 @@ class UserModel {
       officeName: json['officeName'] as String?,
       role: rawRole.replaceFirst('ROLE_', ''),
       privacyAcknowledgedAt: json['privacyAcknowledgedAt'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
     );
   }
 
