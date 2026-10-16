@@ -563,12 +563,12 @@ function Accounts() {
   return (
     <MainLayout>
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-5 border-b border-slate-200 dark:border-zinc-800 overflow-x-auto">
+      <div className="flex items-center gap-1 mb-5 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_theme(colors.slate.200)] dark:shadow-[inset_0_-1px_0_theme(colors.zinc.800)]">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => switchTab(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${
+            className={`px-4 py-2.5 text-sm font-medium transition-all border-b-2 ${
               activeTab === tab.id
                 ? 'border-brand-500 text-brand-500 dark:text-brand-400'
                 : 'border-transparent text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
