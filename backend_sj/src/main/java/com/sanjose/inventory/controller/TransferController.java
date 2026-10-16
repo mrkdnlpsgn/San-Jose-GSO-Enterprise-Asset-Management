@@ -1,6 +1,8 @@
 package com.sanjose.inventory.controller;
 
 import com.sanjose.inventory.entity.Asset;
+import com.sanjose.inventory.service.AccessService;
+import com.sanjose.inventory.service.ActionOtpService;
 import com.sanjose.inventory.service.TransferService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,8 @@ import java.util.Map;
 public class TransferController {
 
     private final TransferService transferService;
+    private final AccessService accessService;
+    private final ActionOtpService actionOtpService;
 
     @GetMapping
     public List<TransferService.TransferView> list(@RequestParam(required = false) String status) {
@@ -28,11 +32,15 @@ public class TransferController {
 
     @PostMapping("/{id}/approve")
     public Asset approve(@PathVariable Long id) {
+        accessService.requireAdmin("approve transfer requests");
+        actionOtpService.require("approve a transfer request");
         return transferService.approve(id);
     }
 
     @PostMapping("/{id}/reject")
     public TransferService.TransferView reject(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
+        accessService.requireAdmin("reject transfer requests");
+        actionOtpService.require("reject a transfer request");
         return transferService.reject(id, body != null ? body.get("note") : null);
     }
 }

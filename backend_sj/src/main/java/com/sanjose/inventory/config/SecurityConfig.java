@@ -187,7 +187,8 @@ public class SecurityConfig {
             // Webhook headers — needed when frontend simulates scanner hardware
             "X-Webhook-Signature-256", "X-Webhook-Timestamp", "X-Webhook-Id",
             // Lets clients opt individual create requests into duplicate-submission protection
-            "Idempotency-Key"
+            "Idempotency-Key",
+            "X-Action-Otp" // emailed confirmation code — see ActionOtpService
         ));
         // Expose rate-limit headers so clients can handle back-pressure gracefully
         config.setExposedHeaders(List.of("Retry-After", "X-RateLimit-Reset"));

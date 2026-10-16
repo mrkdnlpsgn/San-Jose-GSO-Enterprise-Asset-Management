@@ -85,6 +85,10 @@ services:
       # one machine keeps tripping the "too many login attempts" lockout.
       AUTH_RATE_LIMIT_MAX_ATTEMPTS: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:-20}
       AUTH_RATE_LIMIT_WINDOW_MINUTES: ${AUTH_RATE_LIMIT_WINDOW_MINUTES:-15}
+      # Local testing only: also writes the emailed confirmation codes (status changes and
+      # request approvals) to the backend log, since email is usually off locally.
+      # Never turn this on for a real deployment.
+      AUTH_LOG_ACTION_OTP: ${AUTH_LOG_ACTION_OTP:-false}
       # AI Insight tab (asset lifecycle recommendations) needs a free key from
       # aistudio.google.com/apikey — set GEMINI_API_KEY and AI_RECOMMENDATIONS_ENABLED=true in .env to enable it.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

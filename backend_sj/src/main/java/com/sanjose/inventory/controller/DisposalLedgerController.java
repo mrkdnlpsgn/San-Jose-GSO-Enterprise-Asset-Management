@@ -4,6 +4,7 @@ import com.sanjose.inventory.dto.DisposalLedgerRequest;
 import com.sanjose.inventory.dto.EvidencePhotoResponse;
 import com.sanjose.inventory.entity.DisposalLedger;
 import com.sanjose.inventory.service.AccessService;
+import com.sanjose.inventory.service.ActionOtpService;
 import com.sanjose.inventory.service.DisposalLedgerService;
 import com.sanjose.inventory.service.EvidenceService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class DisposalLedgerController {
     private final DisposalLedgerService disposalLedgerService;
     private final EvidenceService evidenceService;
     private final AccessService accessService;
+    private final ActionOtpService actionOtpService;
 
     @GetMapping
     public List<DisposalLedger> getAll(@RequestParam(required = false) String search,
@@ -74,6 +76,8 @@ public class DisposalLedgerController {
     @PostMapping
     public DisposalLedger create(@RequestBody DisposalLedgerRequest req) {
         accessService.requireAssetAccess(req.getAssetId());
+        // a staff record is a request to put the asset under disposal, so it is confirmed by code
+        if (!accessService.isAdmin()) actionOtpService.require("send a disposal request");
         return disposalLedgerService.create(req);
     }
 
@@ -86,13 +90,18 @@ public class DisposalLedgerController {
     @PostMapping("/{id}/approve")
     public DisposalLedger approve(@PathVariable Long id) {
         accessService.requireAdmin("approve requests");
+        actionOtpService.require("approve a disposal request");
         return disposalLedgerService.approve(id);
     }
 
     @PostMapping("/{id}/reject")
     public DisposalLedger reject(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
         accessService.requireAdmin("reject requests");
-        return disposalLedgerService.reject(id, body != null ? body.get("note") : null);
+        String note = body != null ? body.get("note") : null;
+        // checked before the code is asked for, so a missing reason doesn't use the code up
+        if (note == null || note.isBlank()) throw new IllegalArgumentException("Give a reason for rejecting the request.");
+        actionOtpService.require("reject a disposal request");
+        return disposalLedgerService.reject(id, note);
     }
 
     @DeleteMapping("/{id}")

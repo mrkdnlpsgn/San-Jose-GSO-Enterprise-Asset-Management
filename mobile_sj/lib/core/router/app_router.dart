@@ -41,10 +41,12 @@ import '../../features/transfer/screens/transfer_form_screen.dart';
 import '../../features/legal/screens/privacy_acknowledgment_screen.dart';
 import '../../shared/widgets/main_shell.dart';
 import 'page_transitions.dart';
+import 'root_navigator.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final notifier = _RouterNotifier(ref);
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/login',
     refreshListenable: notifier,
     redirect: notifier.redirect,

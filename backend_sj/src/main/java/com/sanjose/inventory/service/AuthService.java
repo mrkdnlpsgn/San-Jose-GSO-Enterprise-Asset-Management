@@ -3,6 +3,7 @@ package com.sanjose.inventory.service;
 import com.sanjose.inventory.config.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.util.HtmlUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -64,6 +65,11 @@ public class AuthService {
 
     @Value("${auth.delete-otp-resend-cooldown-seconds:60}")
     private int deleteOtpResendCooldownSeconds;
+
+    // Local testing only, never in production: also writes action confirmation codes to the
+    // log, because a local backend usually has email turned off.
+    @Value("${auth.log-action-otp:false}")
+    private boolean logActionOtp;
 
     private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
@@ -503,6 +509,24 @@ public class AuthService {
     // surfaced directly rather than swallowed.
     @Transactional
     public void requestDeleteOtp(String username) {
+        sendStepUpOtp(username, "Confirm permanent deletion",
+            "<p>You requested to permanently delete a record from the San Jose GSO Enterprise Asset "
+                + "Management Recycle Bin. <strong>This action cannot be undone.</strong> Enter this code to confirm:</p>",
+            "nothing will be deleted without the code.", false);
+    }
+
+    // The same one-time code (with the same expiry and attempt limits) confirms a change to an
+    // asset's status and an admin's decision on a staff request — see ActionOtpService. Returns
+    // the address it went to, masked, for the client's "we emailed a code to ..." prompt.
+    @Transactional
+    public String requestActionOtp(String username, String action) {
+        return sendStepUpOtp(username, "Confirm: " + action,
+            "<p>You are about to <strong>" + HtmlUtils.htmlEscape(action) + "</strong> in the San Jose GSO "
+                + "Inventory Management System. Enter this code to confirm:</p>",
+            "nothing will change without the code.", logActionOtp);
+    }
+
+    private String sendStepUpOtp(String username, String subject, String intro, String ignoreNote, boolean logCode) {
         List<DeleteOtpUserData> rows = jdbcTemplate.query(
             "CALL sp_auth_get_delete_otp(?)", DELETE_OTP_MAPPER, username);
         if (rows.isEmpty()) throw new BadCredentialsException("Invalid credentials");
@@ -517,7 +541,9 @@ public class AuthService {
         // Don't spam a fresh code/email if one was just requested.
         if (user.otpExpiresAt() != null) {
             LocalDateTime issuedAt = user.otpExpiresAt().minusMinutes(deleteOtpExpiryMinutes);
-            if (LocalDateTime.now().isBefore(issuedAt.plusSeconds(deleteOtpResendCooldownSeconds))) return;
+            if (LocalDateTime.now().isBefore(issuedAt.plusSeconds(deleteOtpResendCooldownSeconds))) {
+                return maskEmail(user.email());
+            }
         }
 
         String otp = String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
@@ -525,12 +551,19 @@ public class AuthService {
         jdbcTemplate.update("CALL sp_auth_set_delete_otp(?, ?, ?)",
             user.id(), passwordEncoder.encode(otp), Timestamp.valueOf(expiresAt));
 
-        String html = "<p>You requested to permanently delete a record from the San Jose GSO Enterprise Asset "
-            + "Management Recycle Bin. <strong>This action cannot be undone.</strong> Enter this code to confirm:</p>"
+        String html = intro
             + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;\">" + otp + "</p>"
             + "<p>This code expires in " + deleteOtpExpiryMinutes + " minutes. "
-            + "If you didn't request this, you can safely ignore this email — nothing will be deleted without the code.</p>";
-        emailService.send(user.email(), "Confirm permanent deletion", html);
+            + "If you didn't request this, you can safely ignore this email — " + ignoreNote + "</p>";
+        if (logCode) log.warn("[local testing] confirmation code for {}: {}", username, otp);
+        emailService.send(user.email(), subject, html);
+        return maskEmail(user.email());
+    }
+
+    // "juan.cruz@gmail.com" -> "j•••@gmail.com"
+    private static String maskEmail(String email) {
+        int at = email.indexOf('@');
+        return at > 0 ? email.charAt(0) + "•••" + email.substring(at) : "your email";
     }
 
     // Step-up 2FA, step 2: verify the emailed code. Throws on any failure (unknown

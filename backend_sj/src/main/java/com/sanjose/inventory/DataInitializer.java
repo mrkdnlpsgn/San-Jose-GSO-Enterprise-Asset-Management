@@ -22,6 +22,7 @@ public class DataInitializer implements CommandLineRunner {
     private final OfficeRepository officeRepository;
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    private final com.sanjose.inventory.service.UserService userService;
 
     // Resets admin/ict_staff to their fixture passwords on every boot — dev only.
     // Set SEED_DEFAULT_ACCOUNTS=false on any public deployment. The env var is read here
@@ -64,6 +65,7 @@ public class DataInitializer implements CommandLineRunner {
 
         // every account (seeded ones included) needs its personnel record — see sp_personnel_sync_accounts
         jdbcTemplate.update("CALL sp_personnel_sync_accounts()");
+        userService.assignDefaultAdminOffice();
 
         log.info("DataInitializer: done.");
     }

@@ -153,6 +153,7 @@ public class UserService {
             0, // office is assigned by an admin on the Personnel module
             req.getIsActive() != null ? req.getIsActive() : true);
         jdbcTemplate.update("CALL sp_personnel_sync_accounts()");
+        assignDefaultAdminOffice();
         // the column defaults to on, which would lock out an account that has no email
         setTwoFactor(newId, req.getTwoFactorEnabled() != null ? req.getTwoFactorEnabled() : hasText(req.getEmail()));
         // Only an auto-generated (emailed) password is temporary and must be changed at first
@@ -209,6 +210,7 @@ public class UserService {
             req.getIsActive() != null ? req.getIsActive() : existing.getIsActive(),
             hash);
         jdbcTemplate.update("CALL sp_personnel_sync_accounts()"); // personnel name follows the account
+        assignDefaultAdminOffice(); // e.g. a staff account just made an admin
         boolean twoFactorChanged = twoFactor != Boolean.TRUE.equals(existing.getTwoFactorEnabled());
         if (twoFactorChanged) {
             setTwoFactor(id, twoFactor);
@@ -220,6 +222,23 @@ public class UserService {
         auditLogService.log(deactivating ? "USER_DEACTIVATED" : "USER_UPDATED", "Users", id, "user",
             (deactivating ? "Deactivated: " : "Updated: ") + saved.getUsername());
         return saved;
+    }
+
+    // Admins without an office belong to the General Services Office: their account and its
+    // personnel record. Only fills a missing office; an admin moved to another office on the
+    // Personnel page keeps it. An admin sees every office regardless — this is who they are, not
+    // what they can see.
+    public static final String ADMIN_DEFAULT_OFFICE = "General Services Office";
+
+    public void assignDefaultAdminOffice() {
+        jdbcTemplate.update("""
+            UPDATE users u JOIN offices o ON o.office_name = ?
+            SET u.office_id = o.office_id
+            WHERE u.role = 'ADMIN' AND u.office_id IS NULL""", ADMIN_DEFAULT_OFFICE);
+        jdbcTemplate.update("""
+            UPDATE personnel p JOIN users u ON u.user_id = p.user_id
+            SET p.office_id = u.office_id
+            WHERE u.role = 'ADMIN' AND p.office_id IS NULL AND u.office_id IS NOT NULL""");
     }
 
     // Each account's personnel record carries its name, so two accounts can't share one —

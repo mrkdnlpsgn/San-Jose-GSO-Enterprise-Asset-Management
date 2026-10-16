@@ -4,6 +4,7 @@ import com.sanjose.inventory.dto.MaintenanceLedgerRequest;
 import com.sanjose.inventory.dto.MaintenancePhotoResponse;
 import com.sanjose.inventory.entity.MaintenanceLedger;
 import com.sanjose.inventory.service.AccessService;
+import com.sanjose.inventory.service.ActionOtpService;
 import com.sanjose.inventory.service.MaintenanceLedgerService;
 import com.sanjose.inventory.service.MaintenancePhotoService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class MaintenanceLedgerController {
     private final MaintenanceLedgerService maintenanceLedgerService;
     private final MaintenancePhotoService maintenancePhotoService;
     private final AccessService accessService;
+    private final ActionOtpService actionOtpService;
 
     @GetMapping
     public List<MaintenanceLedger> getAll(@RequestParam(required = false) String search,
@@ -54,6 +56,8 @@ public class MaintenanceLedgerController {
     @PostMapping
     public MaintenanceLedger create(@RequestBody MaintenanceLedgerRequest req) {
         accessService.requireAssetAccess(req.getAssetId());
+        // a staff record is a request to put the asset under maintenance, so it is confirmed by code
+        if (!accessService.isAdmin()) actionOtpService.require("send a maintenance request");
         return maintenanceLedgerService.create(req);
     }
 
@@ -66,13 +70,18 @@ public class MaintenanceLedgerController {
     @PostMapping("/{id}/approve")
     public MaintenanceLedger approve(@PathVariable Long id) {
         accessService.requireAdmin("approve requests");
+        actionOtpService.require("approve a maintenance request");
         return maintenanceLedgerService.approve(id);
     }
 
     @PostMapping("/{id}/reject")
     public MaintenanceLedger reject(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
         accessService.requireAdmin("reject requests");
-        return maintenanceLedgerService.reject(id, body != null ? body.get("note") : null);
+        String note = body != null ? body.get("note") : null;
+        // checked before the code is asked for, so a missing reason doesn't use the code up
+        if (note == null || note.isBlank()) throw new IllegalArgumentException("Give a reason for rejecting the request.");
+        actionOtpService.require("reject a maintenance request");
+        return maintenanceLedgerService.reject(id, note);
     }
 
     @DeleteMapping("/{id}")

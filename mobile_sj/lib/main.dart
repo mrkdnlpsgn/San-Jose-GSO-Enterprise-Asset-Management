@@ -3,15 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/api/api_client.dart';
 import 'core/router/app_router.dart';
+import 'core/router/root_navigator.dart';
 import 'core/theme/app_theme.dart';
 import 'features/settings/provider/settings_provider.dart';
 import 'shared/widgets/offline_banner.dart';
 import 'shared/widgets/idle_timeout_guard.dart';
+import 'shared/widgets/action_otp_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   await ApiClient.instance.init(prefs);
+  ApiClient.instance.actionOtpPrompt = (message, send) async {
+    final context = rootNavigatorKey.currentContext;
+    if (context == null) return const ActionOtpOutcome();
+    return showActionOtpDialog(context, message: message, send: send);
+  };
   runApp(
     ProviderScope(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
