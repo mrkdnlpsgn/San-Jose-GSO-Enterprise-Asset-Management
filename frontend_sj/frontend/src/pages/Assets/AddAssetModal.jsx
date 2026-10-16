@@ -101,8 +101,24 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
   const keepSelected = (list, person) =>
     person && !list.some((p) => p.id === person.id) ? [...list, { ...person, _former: true }] : list
-  const accountableOptions = keepSelected(personnelForOffice, initial?.accountablePerson)
+  // The asset's existing accountable person stays listed (e.g. a since-deactivated account) only
+  // while the asset stays in its office; pick another office and only that office's people show.
+  const inOriginalOffice = String(form.officeId) === String(initial?.office?.id ?? '')
+  const accountableOptions = inOriginalOffice
+    ? keepSelected(personnelForOffice, initial?.accountablePerson)
+    : personnelForOffice
   const currentUserOptions = keepSelected(activePersonnel, initial?.currentUser)
+
+  // A new office drops an accountable person who isn't in it (they're tied to their office).
+  const handleOfficeChange = (e) => {
+    const officeId = e.target.value
+    setForm((p) => {
+      const stays = activePersonnel.some((x) => String(x.id) === String(p.personnelId) && String(x.office?.id) === String(officeId))
+        || (String(officeId) === String(initial?.office?.id ?? '') && String(p.personnelId) === String(initial?.accountablePerson?.id ?? ''))
+      return { ...p, officeId, personnelId: stays ? p.personnelId : '' }
+    })
+    setErrors((p) => { const n = { ...p }; delete n.officeId; return n })
+  }
 
   const set = (key) => (e) => {
     setForm((p) => ({ ...p, [key]: e.target.value }))
@@ -508,7 +524,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               </>
             ) : (
               <div className="relative">
-                <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.officeId} onChange={set('officeId')}>
+                <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.officeId} onChange={handleOfficeChange}>
                   <option value="">— Select location —</option>
                   {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
                 </select>
@@ -519,17 +535,27 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Accountable Person<span className="text-red-400 ml-0.5">*</span></label>
-            <div className="relative">
-              <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.personnelId} onChange={handlePersonnelChange}>
-                <option value="">— Select accountable person —</option>
-                {accountableOptions.map((p) => (
-                  <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (not an account)' : ''}</option>
-                ))}
-              </select>
-              <ChevronIcon />
-            </div>
+            {staffMode ? (
+              // the accountable person decides who can see the asset, so staff can't change it
+              <>
+                <div className={INPUT_CLASS + ' bg-slate-50 dark:bg-zinc-800/60 cursor-default'}>
+                  {initial?.accountablePerson?.fullName || '—'}
+                </div>
+                <p className="text-2xs text-slate-400 dark:text-zinc-600">You are this asset&apos;s accountable person.</p>
+              </>
+            ) : (
+              <div className="relative">
+                <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.personnelId} onChange={handlePersonnelChange}>
+                  <option value="">— Select accountable person —</option>
+                  {accountableOptions.map((p) => (
+                    <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
+                  ))}
+                </select>
+                <ChevronIcon />
+              </div>
+            )}
             {errors.personnelId && <p className="text-xs text-red-400">{errors.personnelId}</p>}
-            {form.officeId && personnelForOffice.length === 0 && (
+            {!staffMode && form.officeId && personnelForOffice.length === 0 && (
               <p className="text-2xs text-amber-500">No accounts are assigned to this office yet — assign one on the Personnel page.</p>
             )}
           </div>
@@ -544,7 +570,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.currentUserId} onChange={set('currentUserId')}>
               <option value="">— Same as accountable person / unspecified —</option>
               {currentUserOptions.map((p) => (
-                <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (not an account)' : ''}</option>
+                <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
               ))}
             </select>
             <ChevronIcon />

@@ -382,16 +382,34 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         value: offices.where((o) => o.id == _officeId).firstOrNull,
                         items: offices,
                         itemLabel: (o) => o.officeName,
-                        onChanged: (o) => setState(() => _officeId = o?.id),
+                        onChanged: (o) => setState(() {
+                          _officeId = o?.id;
+                          // the accountable person is tied to their office — drop one from another
+                          if (!personnel.any((p) => p.id == _personnelId && p.officeId == _officeId)) _personnelId = null;
+                        }),
                       ),
-                    _dropdown<PersonnelModel>(
-                      label: 'Accountable Person',
-                      value: personnelForOffice.where((p) => p.id == _personnelId).firstOrNull,
-                      items: personnelForOffice,
-                      itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
-                      onChanged: (p) => setState(() => _personnelId = p?.id),
-                    ),
-                    if (_officeId != null && personnelForOffice.isEmpty)
+                    if (_staffMode)
+                      // the accountable person decides who can see the asset, so staff can't change it
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                              labelText: 'Accountable Person', helperText: "You are this asset's accountable person."),
+                          child: Text(
+                            widget.asset?.accountablePerson?.fullName ?? '—',
+                            style: TextStyle(color: context.colors.textPrimary),
+                          ),
+                        ),
+                      )
+                    else
+                      _dropdown<PersonnelModel>(
+                        label: 'Accountable Person',
+                        value: personnelForOffice.where((p) => p.id == _personnelId).firstOrNull,
+                        items: personnelForOffice,
+                        itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
+                        onChanged: (p) => setState(() => _personnelId = p?.id),
+                      ),
+                    if (!_staffMode && _officeId != null && personnelForOffice.isEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
                         child: Text(
