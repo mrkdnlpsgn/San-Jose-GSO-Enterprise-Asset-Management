@@ -38,13 +38,13 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
     super.dispose();
   }
 
-  // Staff: their own office (for an asset they can see, also the asset's office). Moving the asset
-  // within it keeps the current accountable person by default; moving it anywhere else needs the
+  // Staff: their own offices (for an asset they can see, one is the asset's office). Moving the asset
+  // within them keeps the current accountable person by default; moving it anywhere else needs the
   // person who takes it over there (the transfer sets exactly this, so none = nobody). Same as web.
   bool _isOwnOffice(int? officeId) {
     if (officeId == null) return false;
     final me = ref.read(authProvider).valueOrNull;
-    return officeId == me?.officeId || officeId == widget.asset.office.id;
+    return (me?.officeIds.contains(officeId) ?? false) || officeId == me?.officeId || officeId == widget.asset.office.id;
   }
 
   bool _personRequired(bool isAdmin) => !isAdmin && _toOfficeId != null && !_isOwnOffice(_toOfficeId);
@@ -52,7 +52,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
   int? _defaultPersonFor(int? officeId, bool isAdmin, List<PersonnelModel> people) {
     final current = widget.asset.accountablePerson?.id;
     if (isAdmin || current == null || !_isOwnOffice(officeId)) return null;
-    return people.any((p) => p.id == current && p.officeId == officeId) ? current : null;
+    return people.any((p) => p.id == current && p.inOffice(officeId)) ? current : null;
   }
 
   Future<void> _submit() async {
@@ -178,7 +178,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
               data: (people) {
-                final inOffice = _toOfficeId == null ? <PersonnelModel>[] : people.where((p) => p.officeId == _toOfficeId).toList();
+                final inOffice = _toOfficeId == null ? <PersonnelModel>[] : people.where((p) => p.inOffice(_toOfficeId)).toList();
                 final required = _personRequired(isAdmin);
                 return IosSelectFormField<int?>(
                   key: ValueKey(_toOfficeId), // reset when the office changes

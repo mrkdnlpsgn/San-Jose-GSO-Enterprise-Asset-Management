@@ -3,14 +3,17 @@ import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
 
 /// One row of the Personnel page. Personnel are the accounts (each made on Accounts);
-/// this is the only place an admin sets an account's office, position and contact info.
+/// this is the only place an admin sets an account's offices (one or more), position and contact info.
 class PersonnelRecord {
   final int id;
   final String fullName;
   final String? username;
   final String? position;
+  /// Primary office.
   final int? officeId;
+  /// Every assigned office's name, comma-separated (primary first).
   final String? officeName;
+  final List<int> officeIds;
   final String? contactInfo;
   final String? userRole; // ADMIN | STAFF
   final bool userActive;
@@ -22,6 +25,7 @@ class PersonnelRecord {
     this.position,
     this.officeId,
     this.officeName,
+    this.officeIds = const [],
     this.contactInfo,
     this.userRole,
     this.userActive = true,
@@ -29,13 +33,18 @@ class PersonnelRecord {
 
   factory PersonnelRecord.fromJson(Map<String, dynamic> json) {
     final office = json['office'] as Map<String, dynamic>?;
+    final offices = [
+      for (final o in (json['offices'] as List?) ?? const []) o as Map<String, dynamic>,
+    ];
+    if (offices.isEmpty && office != null) offices.add(office);
     return PersonnelRecord(
       id: (json['id'] as num).toInt(),
       fullName: json['fullName'] as String? ?? '—',
       username: json['username'] as String?,
       position: json['position'] as String?,
       officeId: (office?['id'] as num?)?.toInt(),
-      officeName: office?['officeName'] as String?,
+      officeName: offices.isEmpty ? null : offices.map((o) => o['officeName'] as String? ?? '—').join(', '),
+      officeIds: [for (final o in offices) (o['id'] as num).toInt()],
       contactInfo: json['contactInfo'] as String?,
       userRole: json['userRole'] as String?,
       userActive: json['userActive'] != false,
@@ -58,11 +67,13 @@ class PersonnelService {
     }
   }
 
-  /// PUT /api/personnel/{id} — office is required; position and contact info are optional.
-  Future<PersonnelRecord> update(int id, {required int officeId, String? position, String? contactInfo}) async {
+  /// PUT /api/personnel/{id} — at least one office is required (the first is the primary);
+  /// position and contact info are optional.
+  Future<PersonnelRecord> update(int id, {required List<int> officeIds, String? position, String? contactInfo}) async {
     try {
       final res = await _dio.put('/personnel/$id', data: {
-        'officeId': officeId,
+        'officeId': officeIds.first,
+        'officeIds': officeIds,
         'position': position,
         'contactInfo': contactInfo,
       });

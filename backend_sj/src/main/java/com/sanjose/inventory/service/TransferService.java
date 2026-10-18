@@ -29,6 +29,7 @@ public class TransferService {
     private final AssetHistoryService assetHistoryService;
     private final AuditLogService auditLogService;
     private final SseEmitterService sseEmitterService;
+    private final OfficeAssignmentService officeAssignments;
 
     public record TransferRequest(Long assetId, Long toOfficeId, Long toPersonnelId, String toLocation, String reason) {}
 
@@ -87,7 +88,7 @@ public class TransferService {
         Long fromOfficeId = asset.getOffice() != null ? asset.getOffice().getId() : null;
         // Staff sending an asset out of their office must name who takes it over there: the
         // transfer sets the accountable person to exactly this, so none would leave it with nobody.
-        boolean leavesOffice = !Objects.equals(req.toOfficeId(), me.officeId()) && !Objects.equals(req.toOfficeId(), fromOfficeId);
+        boolean leavesOffice = !me.inOffice(req.toOfficeId()) && !Objects.equals(req.toOfficeId(), fromOfficeId);
         if (!me.admin() && leavesOffice && req.toPersonnelId() == null) {
             throw new IllegalArgumentException("Choose the new accountable person — the asset is leaving your office.");
         }
@@ -202,10 +203,9 @@ public class TransferService {
     }
 
     private void requirePersonnelInOffice(Long personnelId, Long officeId) {
-        List<Long> office = jdbcTemplate.query("SELECT office_id FROM personnel WHERE personnel_id = ?",
-            (rs, rn) -> rs.getObject("office_id", Long.class), personnelId);
-        if (office.isEmpty()) throw new IllegalArgumentException("That accountable person doesn't exist.");
-        if (!Objects.equals(office.get(0), officeId)) {
+        Integer exists = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM personnel WHERE personnel_id = ?", Integer.class, personnelId);
+        if (exists == null || exists == 0) throw new IllegalArgumentException("That accountable person doesn't exist.");
+        if (!officeAssignments.personnelInOffice(personnelId, officeId)) {
             throw new IllegalArgumentException("The accountable person must belong to the office the asset is moving to.");
         }
     }

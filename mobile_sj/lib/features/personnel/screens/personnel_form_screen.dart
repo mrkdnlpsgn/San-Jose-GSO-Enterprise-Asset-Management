@@ -5,9 +5,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/provider/reference_provider.dart';
 import '../../../shared/widgets/ui.dart';
 import '../data/personnel_service.dart';
-import '../../../shared/widgets/ios_pickers.dart';
 
-/// "Assign Office" — the web's PersonnelModal. Pops with the saved record.
+/// "Assign Offices" — the web's PersonnelModal. An account can be assigned several offices;
+/// staff see the assets they're accountable for in all of them. Pops with the saved record.
 class PersonnelFormScreen extends ConsumerStatefulWidget {
   final PersonnelRecord person;
   const PersonnelFormScreen({super.key, required this.person});
@@ -18,7 +18,7 @@ class PersonnelFormScreen extends ConsumerStatefulWidget {
 
 class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  late int? _officeId = widget.person.officeId;
+  late final List<int> _officeIds = [...widget.person.officeIds];
   late final _position = TextEditingController(text: widget.person.position ?? '');
   late final _contact = TextEditingController(text: widget.person.contactInfo ?? '');
   bool _saving = false;
@@ -33,13 +33,20 @@ class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
 
   String? _orNull(String s) => s.trim().isEmpty ? null : s.trim();
 
+  // the primary office stays the same unless it was unchecked
+  List<int> _primaryFirst() {
+    final primary = widget.person.officeId;
+    if (primary == null || !_officeIds.contains(primary)) return [..._officeIds];
+    return [primary, ..._officeIds.where((id) => id != primary)];
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _saving = true; _error = null; });
     try {
       final saved = await PersonnelService().update(
         widget.person.id,
-        officeId: _officeId!,
+        officeIds: _primaryFirst(),
         position: _orNull(_position.text),
         contactInfo: _orNull(_contact.text),
       );
@@ -56,7 +63,7 @@ class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
     final officesAsync = ref.watch(officesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(p.officeId == null ? 'Assign Office' : 'Change Office')),
+      appBar: AppBar(title: Text(p.officeId == null ? 'Assign Offices' : 'Change Offices')),
       bottomNavigationBar: FormActionBar(
         child: SizedBox(
           height: 50,
@@ -84,20 +91,60 @@ class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
               Callout(_error!, tone: CalloutTone.error),
               const SizedBox(height: 16),
             ],
-            IosSelectFormField<int>(
-              initialValue: _officeId,
-              isExpanded: true,
-              dropdownColor: c.surface,
-              decoration: InputDecoration(
-                labelText: 'Office *',
-                hintText: officesAsync.isLoading ? 'Loading offices…' : '— Select office —',
+            FormField<List<int>>(
+              validator: (_) => _officeIds.isEmpty ? 'Choose at least one office.' : null,
+              builder: (field) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('Offices *',
+                            style: TextStyle(color: c.textSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
+                      ),
+                      Text('${_officeIds.length} selected', style: TextStyle(color: c.textTertiary, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 320),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: field.hasError ? AppTheme.statusDisposed : c.border),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: officesAsync.isLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          )
+                        : ListView(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            children: [
+                              for (final o in officesAsync.valueOrNull ?? const [])
+                                CheckboxListTile(
+                                  dense: true,
+                                  controlAffinity: ListTileControlAffinity.leading,
+                                  value: _officeIds.contains(o.id),
+                                  title: Text(o.officeName, style: TextStyle(color: c.textPrimary, fontSize: 15)),
+                                  onChanged: (v) => setState(() {
+                                    v == true ? _officeIds.add(o.id) : _officeIds.remove(o.id);
+                                    _error = null;
+                                    field.didChange(_officeIds);
+                                  }),
+                                ),
+                            ],
+                          ),
+                  ),
+                  if (field.hasError) ...[
+                    const SizedBox(height: 6),
+                    Text(field.errorText!, style: const TextStyle(color: AppTheme.statusDisposed, fontSize: 13)),
+                  ],
+                  const SizedBox(height: 6),
+                  Text("Staff see and manage the assets they're accountable for in every office checked.",
+                      style: TextStyle(color: c.textTertiary, fontSize: 13)),
+                ],
               ),
-              items: [
-                for (final o in officesAsync.valueOrNull ?? const [])
-                  DropdownMenuItem(value: o.id, child: Text(o.officeName, overflow: TextOverflow.ellipsis)),
-              ],
-              onChanged: (v) => setState(() { _officeId = v; _error = null; }),
-              validator: (v) => v == null ? 'Office is required.' : null,
             ),
             if (officesAsync.hasError) ...[
               const SizedBox(height: 8),

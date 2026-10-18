@@ -37,6 +37,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
     private final EmailService emailService;
+    private final OfficeAssignmentService officeAssignments;
 
     private static String resolveRole(String role, String fallback) {
         if (role == null || role.isBlank()) return fallback;
@@ -92,10 +93,20 @@ public class UserService {
         return withTwoFactor(list).get(0);
     }
 
-    // The users procedures predate 2-step verification and don't return the flag, so it is
-    // filled in here with one extra query instead of changing every procedure.
+    // The users procedures predate 2-step verification and multiple offices, so the flag and the
+    // office list are filled in here with extra queries instead of changing every procedure.
     private List<UserResponse> withTwoFactor(List<UserResponse> users) {
         if (users.isEmpty()) return users;
+        java.util.Map<Long, List<OfficeAssignmentService.OfficeRef>> offices = officeAssignments.byUser();
+        users.forEach(u -> {
+            List<OfficeAssignmentService.OfficeRef> refs = new ArrayList<>(offices.getOrDefault(u.getId(), List.of()));
+            if (u.getOfficeId() != null && refs.stream().noneMatch(r -> r.id().equals(u.getOfficeId()))) {
+                refs.add(0, new OfficeAssignmentService.OfficeRef(u.getOfficeId(), u.getOfficeName()));
+            }
+            u.setOfficeIds(refs.stream().map(OfficeAssignmentService.OfficeRef::id).toList());
+            u.setOfficeNames(refs.stream().map(OfficeAssignmentService.OfficeRef::officeName).toList());
+            if (!refs.isEmpty()) u.setOfficeName(OfficeAssignmentService.names(refs));
+        });
         java.util.Map<Long, Boolean> flags = new java.util.HashMap<>();
         jdbcTemplate.query("SELECT user_id, two_factor_enabled FROM users",
             rs -> { flags.put(rs.getLong("user_id"), rs.getBoolean("two_factor_enabled")); });

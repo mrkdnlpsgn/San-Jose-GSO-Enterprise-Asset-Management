@@ -10,7 +10,7 @@ import { printQrSticker } from '../../utils/printQrSticker'
 import { useToast } from '../../context/ToastContext'
 import { getAssets, updateAssetStatus, verifyAssetQr } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
-import { getPersonnel } from '../../services/personnelService'
+import { getPersonnel, inOffice } from '../../services/personnelService'
 import { getTransfers, submitTransfer, approveTransfer, rejectTransfer } from '../../services/transferService'
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
 
@@ -102,6 +102,7 @@ function TransferAsset() {
   const { show }   = useToast()
   const isAdmin    = useSelector((s) => s.auth.user?.role === 'ADMIN')
   const myOfficeId = useSelector((s) => s.auth.user?.officeId)
+  const myOfficeIds = useSelector((s) => s.auth.user?.officeIds)
 
   const [offices, setOffices]       = useState([])
   const [personnel, setPersonnel]   = useState([])
@@ -278,15 +279,16 @@ function TransferAsset() {
     setTransferErrors({})
   }, [result?.id])
 
-  // Staff: their own office (which, for an asset they can see, is also the asset's office). Moving
-  // the asset within it keeps the current accountable person by default; moving it anywhere else
+  // Staff: their own offices (one of which, for an asset they can see, is the asset's office). Moving
+  // the asset within them keeps the current accountable person by default; moving it anywhere else
   // needs the person who takes it over there.
   const isOwnOffice = (officeId) => !!officeId
-    && (String(officeId) === String(myOfficeId) || String(officeId) === String(result?.office?.id))
+    && ((myOfficeIds?.length ? myOfficeIds : [myOfficeId]).some((id) => String(id) === String(officeId))
+      || String(officeId) === String(result?.office?.id))
   const defaultPersonFor = (officeId) => {
     const current = result?.accountablePerson?.id
     if (isAdmin || !current || !isOwnOffice(officeId)) return ''
-    return personnel.some((p) => p.id === current && String(p.office?.id) === String(officeId)) ? String(current) : ''
+    return personnel.some((p) => p.id === current && inOffice(p, officeId)) ? String(current) : ''
   }
   const personRequired = !isAdmin && !!transfer.toOfficeId && !isOwnOffice(transfer.toOfficeId)
 
@@ -296,7 +298,7 @@ function TransferAsset() {
     setTransferErrors((p) => { const n = { ...p }; delete n[key]; if (key === 'toOfficeId') delete n.toPersonnelId; return n })
   }
 
-  const officePersonnel = personnel.filter((p) => String(p.office?.id) === String(transfer.toOfficeId))
+  const officePersonnel = personnel.filter((p) => inOffice(p, transfer.toOfficeId))
 
   const submitTransferForm = async (e) => {
     e.preventDefault()

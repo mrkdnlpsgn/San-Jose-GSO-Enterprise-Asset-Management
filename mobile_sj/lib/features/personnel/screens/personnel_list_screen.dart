@@ -172,7 +172,7 @@ class _PersonCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 72, child: Text('Office', style: label)),
+              SizedBox(width: 72, child: Text(p.officeIds.length > 1 ? 'Offices' : 'Office', style: label)),
               Expanded(
                 child: p.officeName != null
                     ? Text(p.officeName!, style: TextStyle(color: c.textPrimary, fontSize: 15, fontWeight: FontWeight.w500))
@@ -208,7 +208,7 @@ class _PersonCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onEdit,
             icon: Icon(p.officeName == null ? Icons.add_business_rounded : Icons.edit_rounded, size: 18),
-            label: Text(p.officeName == null ? 'Assign office' : 'Change office'),
+            label: Text(p.officeName == null ? 'Assign offices' : 'Change offices'),
             style: OutlinedButton.styleFrom(
               foregroundColor: context.brandAccent,
               side: BorderSide(color: AppTheme.brand.withValues(alpha: 0.5)),

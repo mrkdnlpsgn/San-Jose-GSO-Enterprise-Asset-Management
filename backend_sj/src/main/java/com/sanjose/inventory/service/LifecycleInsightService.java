@@ -63,7 +63,7 @@ public class LifecycleInsightService {
         out.put("label", range.label);
         out.put("from", start.toString());
         out.put("to", end.toString());
-        out.put("scope", scope == null ? "ALL_OFFICES" : "Assets this staff member is accountable for in " + officeName(scope.officeId()));
+        out.put("scope", scope == null ? "ALL_OFFICES" : "Assets this staff member is accountable for in " + officeNames(scope.officeIds()));
         out.put("maintenance", ledger(Ledger.MAINTENANCE, start, end, prevStart, prevEnd, scope, range));
         out.put("disposal", ledger(Ledger.DISPOSAL, start, end, prevStart, prevEnd, scope, range));
         return out;
@@ -106,7 +106,7 @@ public class LifecycleInsightService {
 
     // one summary per range for admins, and per range per staff account (their numbers differ)
     private static String cacheKey(Range range, AccessService.StaffScope scope) {
-        return range.name() + ":" + (scope == null ? "all" : "user" + scope.userId() + "@" + scope.officeId());
+        return range.name() + ":" + (scope == null ? "all" : "user" + scope.userId() + "@" + scope.officeIds());
     }
 
     // ---- aggregation ---------------------------------------------------------------
@@ -157,7 +157,13 @@ public class LifecycleInsightService {
     }
 
     private static Object[] withScope(AccessService.StaffScope scope, LocalDate from, LocalDate to) {
-        return scope == null ? new Object[]{ from, to } : new Object[]{ from, to, scope.args()[0], scope.args()[1] };
+        if (scope == null) return new Object[]{ from, to };
+        Object[] scoped = scope.args();
+        Object[] out = new Object[scoped.length + 2];
+        out[0] = from;
+        out[1] = to;
+        System.arraycopy(scoped, 0, out, 2, scoped.length);
+        return out;
     }
 
     private List<Map<String, Object>> countBy(String expr, String from, Object[] args, int limit) {
@@ -194,9 +200,11 @@ public class LifecycleInsightService {
         return points;
     }
 
-    private String officeName(Long officeId) {
-        List<String> names = jdbcTemplate.queryForList("SELECT office_name FROM offices WHERE office_id = ?", String.class, officeId);
-        return names.isEmpty() ? "No office assigned" : names.get(0);
+    private String officeNames(List<Long> officeIds) {
+        String marks = String.join(", ", java.util.Collections.nCopies(officeIds.size(), "?"));
+        List<String> names = jdbcTemplate.queryForList(
+            "SELECT office_name FROM offices WHERE office_id IN (" + marks + ") ORDER BY office_name", String.class, officeIds.toArray());
+        return names.isEmpty() ? "No office assigned" : String.join(", ", names);
     }
 
     private static BigDecimal toMoney(Object v) {

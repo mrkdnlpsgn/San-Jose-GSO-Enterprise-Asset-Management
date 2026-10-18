@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { inOffice } from '../../services/personnelService'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 import CameraCaptureModal from '../../components/common/CameraCaptureModal'
@@ -91,13 +92,13 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
   // deactivated accounts can't take on assets (an asset already assigned to one still shows it — see keepSelected)
   const activePersonnel = personnel.filter((p) => p.userActive !== false)
-  // Accountable Person narrows to the asset's office once one is picked (the person is
-  // custodially tied to that office). Current User is who actually has the device right
-  // now, which can be anyone active — including someone from another office, or the
-  // admin — so it's never office-filtered.
+  // Accountable Person lists only the chosen location's people (the person is custodially
+  // tied to that office), and nobody until a location is picked. Current User is who
+  // actually has the device right now, which can be anyone active — including someone from
+  // another office, or the admin — so it's never office-filtered.
   const personnelForOffice = form.officeId
-    ? activePersonnel.filter((p) => String(p.office?.id) === String(form.officeId))
-    : activePersonnel
+    ? activePersonnel.filter((p) => inOffice(p, form.officeId))
+    : []
 
   const keepSelected = (list, person) =>
     person && !list.some((p) => p.id === person.id) ? [...list, { ...person, _former: true }] : list
@@ -113,7 +114,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const handleOfficeChange = (e) => {
     const officeId = e.target.value
     setForm((p) => {
-      const stays = activePersonnel.some((x) => String(x.id) === String(p.personnelId) && String(x.office?.id) === String(officeId))
+      const stays = activePersonnel.some((x) => String(x.id) === String(p.personnelId) && inOffice(x, officeId))
         || (String(officeId) === String(initial?.office?.id ?? '') && String(p.personnelId) === String(initial?.accountablePerson?.id ?? ''))
       return { ...p, officeId, personnelId: stays ? p.personnelId : '' }
     })
@@ -545,8 +546,8 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               </>
             ) : (
               <div className="relative">
-                <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.personnelId} onChange={handlePersonnelChange}>
-                  <option value="">— Select accountable person —</option>
+                <select className={INPUT_CLASS + ' appearance-none pr-9 disabled:opacity-60 disabled:cursor-not-allowed'} value={form.personnelId} onChange={handlePersonnelChange} disabled={!form.officeId}>
+                  <option value="">{form.officeId ? '— Select accountable person —' : '— Select a location first —'}</option>
                   {accountableOptions.map((p) => (
                     <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
                   ))}

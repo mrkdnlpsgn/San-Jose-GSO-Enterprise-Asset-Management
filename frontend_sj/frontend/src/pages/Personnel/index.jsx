@@ -5,7 +5,7 @@ import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import Modal from '../../components/common/Modal'
 import Badge from '../../components/common/Badge'
-import { getPersonnel, updatePersonnel } from '../../services/personnelService'
+import { getPersonnel, updatePersonnel, personOffices } from '../../services/personnelService'
 import { getOffices } from '../../services/officeService'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
@@ -15,14 +15,27 @@ const PAGE_SIZE = 8
 
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
+const officeNames = (p) => personOffices(p).map((o) => o.officeName).join(', ')
+
 // Personnel are the accounts — each is created on the Accounts page. This is the only
-// place an admin assigns an account's office; name and role come from the account.
+// place an admin assigns an account's offices (one or more); name and role come from the account.
 function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
   const [form, setForm]     = useState({
     position:    initial.position || '',
-    officeId:    initial.office?.id ? String(initial.office.id) : '',
+    officeIds:   personOffices(initial).map((o) => String(o.id)),
     contactInfo: initial.contactInfo || '',
   })
+  // drafts saved before multiple offices were allowed carry a single officeId
+  const selected = form.officeIds || (form.officeId ? [String(form.officeId)] : [])
+  const [officeFilter, setOfficeFilter] = useState('')
+  const toggleOffice = (id) => {
+    setForm((p) => {
+      const cur = p.officeIds || (p.officeId ? [String(p.officeId)] : [])
+      return { ...p, officeIds: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] }
+    })
+    setErrors((p) => { const n = { ...p }; delete n.officeId; return n })
+  }
+  const shownOffices = offices.filter((o) => !officeFilter.trim() || o.officeName.toLowerCase().includes(officeFilter.trim().toLowerCase()))
   const draft = useFormDraft(`personnel:${initial?.id}`, form, setForm, { title: initial.fullName })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -34,11 +47,14 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.officeId) { setErrors({ officeId: 'Office is required.' }); return }
+    if (!selected.length) { setErrors({ officeId: 'Choose at least one office.' }); return }
     setSaving(true)
     try {
+      // the primary office (shown first) stays the same unless it was unchecked
+      const primary = selected.includes(String(initial.office?.id)) ? String(initial.office.id) : selected[0]
       await onSave({
-        officeId:    Number(form.officeId),
+        officeId:    Number(primary),
+        officeIds:   [primary, ...selected.filter((x) => x !== primary)].map(Number),
         position:    form.position.trim() || null,
         contactInfo: form.contactInfo.trim() || null,
       })
@@ -52,19 +68,38 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
   }
 
   return (
-    <Modal title="Assign Office" subtitle={`${initial.fullName} · @${initial.username}`} onClose={onClose}>
+    <Modal title="Assign Offices" subtitle={`${initial.fullName} · @${initial.username}`} onClose={onClose}>
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <DraftNotice draft={draft} />
         {errors._global && (
           <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Office<span className="text-red-400 ml-0.5">*</span></label>
-          <select className={INPUT_CLASS + ' appearance-none'} value={form.officeId} onChange={set('officeId')} autoFocus>
-            <option value="">— Select office —</option>
-            {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
-          </select>
+          <div className="flex items-baseline justify-between gap-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Offices<span className="text-red-400 ml-0.5">*</span></label>
+            <span className="text-xs text-slate-400 dark:text-zinc-500">{selected.length} selected</span>
+          </div>
+          {offices.length > 8 && (
+            <input className={INPUT_CLASS} placeholder="Filter offices…" value={officeFilter} onChange={(e) => setOfficeFilter(e.target.value)} autoFocus />
+          )}
+          <div className="max-h-56 overflow-y-auto rounded-md border border-slate-200 dark:border-zinc-700 divide-y divide-slate-100 dark:divide-zinc-800">
+            {shownOffices.length === 0 && <p className="px-3.5 py-2.5 text-xs text-slate-400 dark:text-zinc-500">No offices match.</p>}
+            {shownOffices.map((o) => {
+              const id = String(o.id)
+              return (
+                <label key={o.id} className="flex items-center gap-2.5 px-3.5 py-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/60 text-slate-700 dark:text-zinc-200">
+                  <input type="checkbox" className="h-4 w-4 rounded border-slate-300 dark:border-zinc-600 text-brand-600 focus:ring-brand-500"
+                    checked={selected.includes(id)} onChange={() => toggleOffice(id)} />
+                  <span className="flex-1">{o.officeName}</span>
+                  {selected[0] === id && selected.length > 1 && String(initial.office?.id) === id && (
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">Primary</span>
+                  )}
+                </label>
+              )
+            })}
+          </div>
           {errors.officeId && <p className="text-xs text-red-400">{errors.officeId}</p>}
+          <p className="text-xs text-slate-400 dark:text-zinc-500">Staff see and manage the assets they're accountable for in every office checked.</p>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Position <span className="text-slate-400 font-normal">(optional)</span></label>
@@ -102,7 +137,8 @@ function Personnel() {
   // Draft rows use the table's columns: draft fields laid over the saved person.
   const draftRecord = (d) => {
     const base = personnel.find((x) => String(x.id) === d.id) || {}
-    return { ...base, contactInfo: d.data.contactInfo, officeName: offices.find((o) => String(o.id) === String(d.data.officeId))?.officeName }
+    const ids = d.data.officeIds || (d.data.officeId ? [String(d.data.officeId)] : [])
+    return { ...base, contactInfo: d.data.contactInfo, officeName: offices.filter((o) => ids.includes(String(o.id))).map((o) => o.officeName).join(', ') }
   }
   const draftColumns = [
     { className: 'px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap', render: (p) => p.fullName },
@@ -135,7 +171,7 @@ function Personnel() {
   const handleUpdate = async (payload) => {
     const { data } = await updatePersonnel(editing.id, payload)
     setPersonnel((prev) => prev.map((p) => (p.id === data.id ? data : p)))
-    toast.show(`${data.fullName} assigned to ${data.office?.officeName}.`, 'success')
+    toast.show(`${data.fullName} assigned to ${officeNames(data)}.`, 'success')
   }
 
   const filtered = personnel
@@ -203,10 +239,10 @@ function Personnel() {
             })}
             {paged.map((p) => (
               <li key={p.id} className="px-4 py-3.5">
-                <PersonCard p={p} office={p.office?.officeName}>
+                <PersonCard p={p} office={officeNames(p)}>
                   <button onClick={() => setEditing(p)}
                     className="px-3 py-2 rounded-md border border-brand-500/40 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors">
-                    {p.office ? 'Change office' : 'Assign office'}
+                    {p.office ? 'Change offices' : 'Assign offices'}
                   </button>
                 </PersonCard>
               </li>
@@ -237,7 +273,7 @@ function Personnel() {
                     </td>
                     <td className="px-5 py-3.5 text-xs">
                       {p.office?.officeName
-                        ? <span className="text-slate-600 dark:text-zinc-300">{p.office.officeName}</span>
+                        ? <span className="text-slate-600 dark:text-zinc-300">{officeNames(p)}</span>
                         : <span className="text-amber-500 dark:text-amber-400 italic">Not assigned</span>}
                     </td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{p.contactInfo || '—'}</td>
@@ -245,7 +281,7 @@ function Personnel() {
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setEditing(p)}
                           className="px-2.5 py-1.5 rounded-md whitespace-nowrap text-xs font-semibold text-brand-500 dark:text-brand-400 hover:bg-brand-500/10 transition-all duration-150">
-                          {p.office ? 'Change office' : 'Assign office'}
+                          {p.office ? 'Change offices' : 'Assign offices'}
                         </button>
                       </div>
                     </td>

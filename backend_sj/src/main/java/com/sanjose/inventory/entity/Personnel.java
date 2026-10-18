@@ -29,6 +29,12 @@ public class Personnel {
     @JsonIgnoreProperties({"headUser", "createdAt"})
     private Office office;
 
+    // Every office the person is assigned to, primary (= office) first. See OfficeAssignmentService.
+    @Transient
+    @JsonIgnoreProperties({"headUser", "createdAt"})
+    @Builder.Default
+    private java.util.List<Office> offices = new java.util.ArrayList<>();
+
     @Column(name = "contact_info", length = 150)
     private String contactInfo;
 

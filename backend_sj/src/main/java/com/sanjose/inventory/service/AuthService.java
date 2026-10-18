@@ -79,6 +79,7 @@ public class AuthService {
     private final EmailService emailService;
     private final AuditLogService auditLogService;
     private final ProfilePictureService profilePictureService;
+    private final OfficeAssignmentService officeAssignments;
     private final TrustedDeviceService trustedDeviceService;
     private final PlatformTransactionManager transactionManager;
 
@@ -608,11 +609,12 @@ public class AuthService {
     // Office + profile picture for the signed-in user's payload (login / me).
     private void putProfile(Map<String, Object> userMap, Long userId) {
         userMap.put("avatarUrl", profilePictureService.urlFor(userId));
-        jdbcTemplate.query(
-            "SELECT o.office_id, o.office_name FROM users u LEFT JOIN offices o ON o.office_id = u.office_id WHERE u.user_id = ?",
-            rs -> {
-                userMap.put("officeId", rs.getObject("office_id", Long.class));
-                userMap.put("officeName", rs.getString("office_name"));
-            }, userId);
+        // officeId = primary office (older clients); officeIds = every assigned office;
+        // officeName = all their names, comma-separated, for display.
+        List<OfficeAssignmentService.OfficeRef> offices = officeAssignments.ofUser(userId);
+        userMap.put("officeId", offices.isEmpty() ? null : offices.get(0).id());
+        userMap.put("officeName", OfficeAssignmentService.names(offices));
+        userMap.put("officeIds", offices.stream().map(OfficeAssignmentService.OfficeRef::id).toList());
+        userMap.put("officeNames", offices.stream().map(OfficeAssignmentService.OfficeRef::officeName).toList());
     }
 }

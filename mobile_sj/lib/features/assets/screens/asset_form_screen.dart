@@ -300,13 +300,14 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text(e.toString())),
             data: (personnel) {
-              // Accountable Person narrows to the asset's office once one is picked (the
-              // person is custodially tied to that office). Current User is who actually
-              // has the device right now, which can be anyone active — including someone
-              // from another office, or the admin — so it's never office-filtered.
+              // Accountable Person lists only the chosen location's people (the person is
+              // custodially tied to that office), and nobody until a location is picked.
+              // Current User is who actually has the device right now, which can be anyone
+              // active — including someone from another office, or the admin — so it's
+              // never office-filtered.
               final personnelForOffice = _officeId == null
-                  ? personnel
-                  : personnel.where((p) => p.officeId == _officeId).toList();
+                  ? <PersonnelModel>[]
+                  : personnel.where((p) => p.inOffice(_officeId)).toList();
 
               return Form(
                 key: _formKey,
@@ -385,7 +386,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         onChanged: (o) => setState(() {
                           _officeId = o?.id;
                           // the accountable person is tied to their office — drop one from another
-                          if (!personnel.any((p) => p.id == _personnelId && p.officeId == _officeId)) _personnelId = null;
+                          if (!personnel.any((p) => p.id == _personnelId && p.inOffice(_officeId))) _personnelId = null;
                         }),
                       ),
                     if (_staffMode)
@@ -403,11 +404,15 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       )
                     else
                       _dropdown<PersonnelModel>(
+                        // rebuilt per office so a person dropped by an office change clears here too
+                        key: ValueKey('accountable-$_officeId'),
                         label: 'Accountable Person',
                         value: personnelForOffice.where((p) => p.id == _personnelId).firstOrNull,
                         items: personnelForOffice,
                         itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
                         onChanged: (p) => setState(() => _personnelId = p?.id),
+                        enabled: _officeId != null,
+                        hint: _officeId == null ? 'Select a location first' : null,
                       ),
                     if (!_staffMode && _officeId != null && personnelForOffice.isEmpty)
                       Padding(
@@ -616,25 +621,31 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   }
 
   Widget _dropdown<T>({
+    Key? key,
     required String label,
     required T? value,
     required List<T> items,
     required String Function(T) itemLabel,
     required void Function(T?) onChanged,
     bool required = true,
+    bool enabled = true,
+    String? hint,
   }) {
     return Padding(
+      key: key,
       padding: const EdgeInsets.only(bottom: 14),
       child: IosSelectFormField<T>(
         initialValue: value,
         isExpanded: true,
         decoration: InputDecoration(labelText: label),
+        // drawn by the picker itself — a decoration hintText would be painted a second time
+        hint: hint == null ? null : Text(hint, style: TextStyle(fontSize: 16, color: context.colors.textTertiary)),
         dropdownColor: context.colors.surface,
         items: items.map((e) => DropdownMenuItem(
           value: e,
           child: Text(itemLabel(e), overflow: TextOverflow.ellipsis),
         )).toList(),
-        onChanged: onChanged,
+        onChanged: enabled ? onChanged : null,
         validator: required ? (v) => v == null ? 'Required' : null : null,
       ),
     );

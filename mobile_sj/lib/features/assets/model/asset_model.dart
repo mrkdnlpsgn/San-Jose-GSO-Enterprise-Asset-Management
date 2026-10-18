@@ -16,19 +16,28 @@ class PersonnelModel {
   final int id;
   final String fullName;
   final String? position;
+  /// Primary office.
   final int? officeId;
+  /// Every office the person is assigned to (primary first).
+  final List<int> officeIds;
 
-  const PersonnelModel({required this.id, required this.fullName, this.position, this.officeId});
+  const PersonnelModel({required this.id, required this.fullName, this.position, this.officeId, this.officeIds = const []});
 
   factory PersonnelModel.fromJson(Map<String, dynamic> json) {
     final office = json['office'] as Map<String, dynamic>?;
+    final officeId = office?['id'] as int?;
+    final offices = (json['offices'] as List?) ?? const [];
+    final ids = [for (final o in offices) ((o as Map<String, dynamic>)['id'] as num).toInt()];
     return PersonnelModel(
       id: json['id'] as int,
       fullName: json['fullName'] as String? ?? '—',
       position: json['position'] as String?,
-      officeId: office?['id'] as int?,
+      officeId: officeId,
+      officeIds: ids.isNotEmpty ? ids : [if (officeId != null) officeId],
     );
   }
+
+  bool inOffice(int? id) => id != null && officeIds.contains(id);
 }
 
 class OfficeModel {

@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import com.sanjose.inventory.service.AuditLogService;
+import com.sanjose.inventory.service.OfficeAssignmentService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +32,7 @@ public class MyAccountController {
 
     private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
+    private final OfficeAssignmentService officeAssignments;
     private final AuditLogService auditLogService;
 
     public record TwoFactorRequest(Boolean enabled, String currentPassword) {}
@@ -101,6 +103,8 @@ public class MyAccountController {
             }, principal.getUsername());
         if (rows.isEmpty()) return ResponseEntity.status(401).build();
         Map<String, Object> out = rows.get(0);
+        String offices = OfficeAssignmentService.names(officeAssignments.ofUser((Long) out.get("id")));
+        if (offices != null) out.put("officeName", offices);
 
         out.put("recentActivity", jdbcTemplate.query(
             "SELECT action, module, details, logged_at FROM audit_logs WHERE user_id = ? "
