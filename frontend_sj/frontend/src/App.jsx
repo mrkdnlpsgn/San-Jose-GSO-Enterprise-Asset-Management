@@ -23,7 +23,8 @@ function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <BrowserRouter>
+        {/* startTransition keeps the current page on screen while the next page's chunk loads */}
+        <BrowserRouter future={{ v7_startTransition: true }}>
           <AppContent />
         </BrowserRouter>
       </ToastProvider>

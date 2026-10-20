@@ -208,7 +208,7 @@ function Login() {
 
         <div className="flex-1 flex flex-col items-center justify-center text-center px-12 py-10 [@container(max-height:44rem)]:py-6">
           <img
-            src="/logo.jpg"
+            src="/logo.webp"
             alt="San Jose Municipal Hall seal"
             className="w-32 h-32 [@container(max-height:44rem)]:w-20 [@container(max-height:44rem)]:h-20 rounded-full object-cover ring-4 ring-white dark:ring-zinc-800 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_8px_24px_-8px_rgba(15,23,42,0.25)] animate-seal-in"
           />
@@ -270,7 +270,7 @@ function Login() {
           <div className="flex flex-col items-center text-center gap-3 mb-8 lg:hidden animate-rise-in">
             <div className="relative">
               <img
-                src="/logo.jpg"
+                src="/logo.webp"
                 alt="San Jose Municipal Hall seal"
                 className="w-20 h-20 rounded-full object-cover ring-1 ring-slate-200 dark:ring-zinc-700"
               />

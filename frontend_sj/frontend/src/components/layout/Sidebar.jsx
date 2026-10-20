@@ -276,7 +276,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
       <div className={`flex items-center h-[3.75rem] flex-shrink-0 border-b border-slate-200 dark:border-zinc-800 justify-between px-4 ${isCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
         <div className={`flex items-center gap-2.5 min-w-0 overflow-hidden ${isCollapsed ? 'lg:hidden' : ''}`}>
           <img
-            src="/logo.jpg"
+            src="/logo.webp"
             alt="San Jose Municipal Hall seal"
             className="rounded-full object-cover bg-white flex-shrink-0 ring-1 ring-slate-200 dark:ring-white/10 w-8 h-8"
           />

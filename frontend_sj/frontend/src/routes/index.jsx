@@ -1,19 +1,22 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import Login        from '../pages/Auth/Login'
-import Dashboard    from '../pages/Dashboard'
-import Assets       from '../pages/Assets'
-import AssetHistory from '../pages/AssetHistory'
-import Maintenance  from '../pages/Maintenance'
-import Disposal     from '../pages/Disposal'
-import Reports      from '../pages/Reports'
-import TransferAsset from '../pages/TransferAsset'
-import Accounts     from '../pages/Accounts'
-import Offices      from '../pages/Offices'
-import Categories   from '../pages/Categories'
-import Personnel    from '../pages/Personnel'
-import DeletedRecords from '../pages/DeletedRecords'
-import PrivacyNotice from '../pages/Legal/PrivacyNotice'
+
+// Every other page is its own chunk, so the login screen doesn't download the whole app
+const Dashboard     = lazy(() => import('../pages/Dashboard'))
+const Assets        = lazy(() => import('../pages/Assets'))
+const AssetHistory  = lazy(() => import('../pages/AssetHistory'))
+const Maintenance   = lazy(() => import('../pages/Maintenance'))
+const Disposal      = lazy(() => import('../pages/Disposal'))
+const Reports       = lazy(() => import('../pages/Reports'))
+const TransferAsset = lazy(() => import('../pages/TransferAsset'))
+const Accounts      = lazy(() => import('../pages/Accounts'))
+const Offices       = lazy(() => import('../pages/Offices'))
+const Categories    = lazy(() => import('../pages/Categories'))
+const Personnel     = lazy(() => import('../pages/Personnel'))
+const DeletedRecords = lazy(() => import('../pages/DeletedRecords'))
+const PrivacyNotice = lazy(() => import('../pages/Legal/PrivacyNotice'))
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated)
@@ -36,6 +39,7 @@ function PublicRoute({ children }) {
 
 function AppRoutes() {
   return (
+    <Suspense fallback={null}>
     <Routes>
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/privacy" element={<PrivacyNotice />} />
@@ -59,6 +63,7 @@ function AppRoutes() {
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </Suspense>
   )
 }
 

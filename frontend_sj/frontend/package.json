@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
     "@reduxjs/toolkit": "^2.2.7",
     "axios": "^1.7.7",
     "html5-qrcode": "^2.3.8",

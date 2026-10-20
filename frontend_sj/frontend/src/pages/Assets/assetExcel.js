@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx'
+// xlsx is ~400 KB; load it only when a user actually imports or exports
+const loadXlsx = () => import('xlsx')
 
 // Import columns — keys must match backend AssetImportRow fields exactly
 // (see backend_sj/.../dto/AssetImportRow.java). propertyNumber is deliberately
@@ -59,7 +60,8 @@ const HEADER_MAP = {
 
 const ACCEPTED_EXTENSIONS = ['csv', 'xlsx', 'xls']
 
-export function downloadImportTemplate() {
+export async function downloadImportTemplate() {
+  const XLSX = await loadXlsx()
   const ws = XLSX.utils.aoa_to_sheet([IMPORT_COLUMNS.map((c) => c.label)])
   ws['!cols'] = IMPORT_COLUMNS.map(() => ({ wch: 22 }))
   const wb = XLSX.utils.book_new()
@@ -69,12 +71,13 @@ export function downloadImportTemplate() {
 
 // Resolves with an array of row objects (string values, matching what the
 // backend's AssetImportRow expects), or rejects with a user-facing message.
-export function parseImportFile(file) {
+export async function parseImportFile(file) {
   const ext = file.name.split('.').pop().toLowerCase()
   if (!ACCEPTED_EXTENSIONS.includes(ext)) {
-    return Promise.reject(new Error('Unsupported file type. Please upload a .csv or .xlsx file.'))
+    throw new Error('Unsupported file type. Please upload a .csv or .xlsx file.')
   }
 
+  const XLSX = await loadXlsx()
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
@@ -122,7 +125,8 @@ export function parseImportFile(file) {
 // Full-fidelity backup/export — includes the manually entered shortage/overage
 // columns shown in the Assets table, plus fields (accountable person, lifecycle
 // status, remarks) not shown there but still worth having in an export.
-export function exportAssetsToExcel(assets) {
+export async function exportAssetsToExcel(assets) {
+  const XLSX = await loadXlsx()
   const columns = [
     { label: 'Property No.',           value: (a) => a.propertyNumber || '' },
     { label: 'PAR No.',                value: (a) => a.parNumber || '' },

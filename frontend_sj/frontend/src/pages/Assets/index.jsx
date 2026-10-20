@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useLocation } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
@@ -53,8 +53,12 @@ function Assets() {
   const toast    = useToast()
   const location = useLocation()
 
-  const [items, setItems]           = useState([])
-  const [loading, setLoading]       = useState(true)
+  // Start from the list another page (e.g. Dashboard) already loaded, so the table shows at once;
+  // the first fetch below then refreshes it in the background.
+  const cachedAssets = useSelector((s) => s.assets.items)
+  const refreshCacheSilently = useRef(cachedAssets.length > 0)
+  const [items, setItems]           = useState(cachedAssets)
+  const [loading, setLoading]       = useState(cachedAssets.length === 0)
   const [categories, setCategories] = useState([])
   const [offices, setOffices]       = useState([])
   const [personnel, setPersonnel]   = useState([])
@@ -174,7 +178,10 @@ function Assets() {
     if (searchParam) setSearch(searchParam)
   }, [location.search])
 
-  useEffect(() => { fetchAssets(debouncedSearch) }, [debouncedSearch, fetchAssets])
+  useEffect(() => {
+    fetchAssets(debouncedSearch, { silent: refreshCacheSilently.current })
+    refreshCacheSilently.current = false
+  }, [debouncedSearch, fetchAssets])
   useEffect(() => { setPage(1) }, [debouncedSearch, filterCondition, filterLifecycle, filterCategory, filterOffice])
 
   useEventStream('asset', ({ action, id, data }) => {

@@ -162,7 +162,7 @@ function PrivacyNotice() {
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <img src="/logo.jpg" alt="San Jose Municipal Hall seal" className="w-12 h-12 rounded-full object-cover ring-2 ring-brand-500/20 flex-shrink-0" />
+          <img src="/logo.webp" alt="San Jose Municipal Hall seal" className="w-12 h-12 rounded-full object-cover ring-2 ring-brand-500/20 flex-shrink-0" />
           <div>
             <p className="text-2xs font-bold text-brand-500 uppercase tracking-[0.15em]">San Jose Municipal Hall · GSO</p>
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Privacy, Terms &amp; Conditions</h1>

@@ -1,6 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import * as XLSX from 'xlsx'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import DatePicker from '../../components/common/DatePicker'
@@ -355,8 +354,11 @@ const REPORTS = [
 // ── Export helpers ────────────────────────────────────────────────────────────
 // File and sheet names can't contain : \ / ? * [ ] — PAR numbers like 2026-09:GA21231 do.
 const safeName = (s) => s.replace(/[:\\/?*[\]]/g, '-')
+// xlsx is ~400 KB; load it only when someone exports
+const loadXlsx = () => import('xlsx')
 
-function exportExcel(rows, headers, title) {
+async function exportExcel(rows, headers, title) {
+  const XLSX = await loadXlsx()
   const data = rows.map((row) => {
     const obj = {}
     headers.forEach(({ label, raw }) => { obj[label] = raw(row) })
@@ -537,7 +539,8 @@ function exportParPDF(rows, par) {
   win.document.close()
 }
 
-function exportParExcel(rows, par) {
+async function exportParExcel(rows, par) {
+  const XLSX = await loadXlsx()
   const h = parHeader(rows, par)
   const aoa = [
     ['', '', 'PROPERTY ACKNOWLEDGMENT RECEIPT'],
