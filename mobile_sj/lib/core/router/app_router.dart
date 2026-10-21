@@ -39,6 +39,8 @@ import '../../features/legal/screens/legal_screen.dart';
 import '../../features/transfer/screens/transfer_list_screen.dart';
 import '../../features/transfer/screens/transfer_form_screen.dart';
 import '../../features/legal/screens/privacy_acknowledgment_screen.dart';
+import '../../features/onboarding/provider/onboarding_provider.dart';
+import '../../features/onboarding/screens/onboarding_screen.dart';
 import '../../shared/widgets/main_shell.dart';
 import 'page_transitions.dart';
 import 'root_navigator.dart';
@@ -52,6 +54,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: notifier.redirect,
     routes: [
       GoRoute(path: '/login', pageBuilder: (c, s) => fadeThroughPage(c, s, const LoginScreen())),
+      // First-launch intro; ?replay=1 when opened again from Settings
+      GoRoute(
+        path: '/welcome',
+        pageBuilder: (c, s) =>
+            fadeThroughPage(c, s, OnboardingScreen(replay: s.uri.queryParameters['replay'] == '1')),
+      ),
       GoRoute(path: '/forgot-password', pageBuilder: (c, s) => fadeThroughPage(c, s, const ForgotPasswordScreen())),
       // The five bottom-bar destinations (Home, Assets, Scan, History, Account) live in a
       // shell so switching between them preserves each tab's own navigation stack.
@@ -181,6 +189,7 @@ class _RouterNotifier extends ChangeNotifier {
 
   _RouterNotifier(this._ref) {
     _ref.listen(authProvider, (_, __) => notifyListeners());
+    _ref.listen(onboardingDoneProvider, (_, __) => notifyListeners());
   }
 
   String? redirect(BuildContext context, GoRouterState state) {
@@ -192,6 +201,15 @@ class _RouterNotifier extends ChangeNotifier {
     final isLoggedIn = user != null;
     final onLogin = state.matchedLocation == '/login';
     final onForgotPassword = state.matchedLocation == '/forgot-password';
+    // First launch: the intro comes before sign-in. Signed-in users only reach it from
+    // Settings, so someone updating from an older version isn't shown it mid-session.
+    final onWelcome = state.matchedLocation == '/welcome';
+    if (!isLoggedIn) {
+      final onboarded = _ref.read(onboardingDoneProvider);
+      if (!onboarded && !onWelcome) return '/welcome';
+      if (onboarded && onWelcome) return '/login';
+      if (onWelcome) return null;
+    }
     if (!isLoggedIn && !onLogin && !onForgotPassword) return '/login';
     if (isLoggedIn && (onLogin || onForgotPassword)) return '/dashboard';
 
