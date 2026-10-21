@@ -2,6 +2,7 @@ package com.sanjose.inventory.config;
 
 import com.google.genai.Client;
 import com.google.genai.errors.ApiException;
+import com.google.genai.types.ThinkingConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -61,6 +62,15 @@ public class GeminiConfig {
 
     public Client buildClient() {
         return Client.builder().apiKey(apiKey).build();
+    }
+
+    // gemini-2.5-flash "thinks" before answering by default, which is most of the wait (about 14s
+    // for a recommendation). A token cap keeps answers fast; 0 turns thinking off for simple writing.
+    public static final int NO_THINKING = 0;
+    public static final int LIGHT_THINKING = 1024;
+
+    public static ThinkingConfig thinking(int budgetTokens) {
+        return ThinkingConfig.builder().thinkingBudget(budgetTokens).build();
     }
 
     // Turns a failed Gemini call into the exception the services throw. A 429 also starts the

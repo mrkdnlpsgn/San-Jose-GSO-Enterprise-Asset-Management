@@ -228,6 +228,7 @@ public class LifecycleInsightService {
         Client client = geminiConfig.buildClient();
         String prompt = "Reporting period statistics:\n" + statsJson;
         GenerateContentConfig config = GenerateContentConfig.builder()
+            .thinkingConfig(GeminiConfig.thinking(GeminiConfig.NO_THINKING))
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
         GenerateContentResponse response;

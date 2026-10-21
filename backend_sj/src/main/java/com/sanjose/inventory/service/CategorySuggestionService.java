@@ -78,6 +78,7 @@ public class CategorySuggestionService {
         Client client = geminiConfig.buildClient();
 
         GenerateContentConfig config = GenerateContentConfig.builder()
+            .thinkingConfig(GeminiConfig.thinking(GeminiConfig.NO_THINKING))
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .responseMimeType("application/json")
             .responseSchema(schema)

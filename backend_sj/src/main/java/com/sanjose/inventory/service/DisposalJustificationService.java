@@ -134,6 +134,7 @@ public class DisposalJustificationService {
                 disposal.getRecommendedMethod(), disposal.getDisposalStatus());
 
         GenerateContentConfig config = GenerateContentConfig.builder()
+            .thinkingConfig(GeminiConfig.thinking(GeminiConfig.NO_THINKING))
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
 

@@ -88,6 +88,7 @@ public class MaintenanceSummaryService {
                 record.getFindings(), record.getActionsTaken());
 
         GenerateContentConfig config = GenerateContentConfig.builder()
+            .thinkingConfig(GeminiConfig.thinking(GeminiConfig.NO_THINKING))
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
 

@@ -106,8 +106,13 @@ public class AiRecommendationService {
                 rs.getLong("cnt")), args);
     }
 
-    // What the AI is shown about an asset's history.
+    // What the AI is shown about an asset's history. repairFrequency counts REPAIR and CORRECTIVE
+    // records only, so routine preventive upkeep (cleaning, scheduled battery swaps) isn't read as a breakdown.
     private record Inputs(BigDecimal ageYears, int conditionScore, BigDecimal totalRepairCost, int repairFrequency) {}
+
+    // Longest record fields sent to the AI, to keep the prompt small.
+    private static final int MAX_TEXT = 220;
+    private static final int MAX_MAINTENANCE_ROWS = 15;
 
     private Inputs inputsFor(Asset asset) {
         BigDecimal ageYears = BigDecimal.valueOf(
@@ -124,9 +129,70 @@ public class AiRecommendationService {
             "SELECT COALESCE(SUM(cost), 0) FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0",
             BigDecimal.class, asset.getId());
         Integer repairFrequency = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0",
+            "SELECT COUNT(*) FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0"
+                + " AND maintenance_type IN ('REPAIR', 'CORRECTIVE')",
             Integer.class, asset.getId());
         return new Inputs(ageYears, conditionScore, totalRepairCost, repairFrequency);
+    }
+
+    // The asset's maintenance timeline, transfers and disposal records, as plain text lines.
+    private String historyFor(Long assetId) {
+        StringBuilder sb = new StringBuilder();
+
+        List<String> maintenance = jdbcTemplate.query("""
+            SELECT maintenance_date, maintenance_type, status, cost, findings, actions_taken
+            FROM maintenance_ledger
+            WHERE asset_id = ? AND is_deleted = 0
+            ORDER BY maintenance_date DESC, maintenance_id DESC
+            LIMIT ?""",
+            (rs, rn) -> "- %s | %s | %s | %s | Found: %s | Done: %s".formatted(
+                rs.getDate("maintenance_date"), rs.getString("maintenance_type"), rs.getString("status"),
+                rs.getBigDecimal("cost") != null ? "PHP " + rs.getBigDecimal("cost") : "no cost",
+                clip(rs.getString("findings")), clip(rs.getString("actions_taken"))),
+            assetId, MAX_MAINTENANCE_ROWS);
+        Integer totalRecords = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0",
+            Integer.class, assetId);
+        sb.append("Maintenance records, newest first (").append(totalRecords).append(" total");
+        if (totalRecords != null && totalRecords > maintenance.size()) {
+            sb.append(", showing the latest ").append(maintenance.size());
+        }
+        sb.append("):\n");
+        if (maintenance.isEmpty()) sb.append("- none logged\n");
+        maintenance.forEach(line -> sb.append(line).append('\n'));
+
+        List<String> byType = jdbcTemplate.query("""
+            SELECT maintenance_type, COUNT(*) AS n, COALESCE(SUM(cost), 0) AS total
+            FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0
+            GROUP BY maintenance_type ORDER BY maintenance_type""",
+            (rs, rn) -> rs.getString("maintenance_type") + ": " + rs.getInt("n")
+                + " (PHP " + rs.getBigDecimal("total") + ")",
+            assetId);
+        if (!byType.isEmpty()) sb.append("By type: ").append(String.join(", ", byType)).append('\n');
+
+        Integer transfers = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM asset_history WHERE asset_id = ? AND event_type = 'TRANSFERRED'",
+            Integer.class, assetId);
+        sb.append("Transfers between offices: ").append(transfers).append('\n');
+
+        List<String> disposals = jdbcTemplate.query("""
+            SELECT inspection_date, disposal_status, recommended_method, reason
+            FROM disposal_ledger WHERE asset_id = ? AND is_deleted = 0
+            ORDER BY inspection_date DESC""",
+            (rs, rn) -> "- %s | %s | %s | %s".formatted(rs.getDate("inspection_date"),
+                rs.getString("disposal_status"), rs.getString("recommended_method"), clip(rs.getString("reason"))),
+            assetId);
+        if (!disposals.isEmpty()) {
+            sb.append("Disposal records:\n");
+            disposals.forEach(line -> sb.append(line).append('\n'));
+        }
+        return sb.toString();
+    }
+
+    private static String clip(String s) {
+        if (s == null || s.isBlank()) return "-";
+        String flat = s.replaceAll("\\s+", " ").trim();
+        return flat.length() <= MAX_TEXT ? flat : flat.substring(0, MAX_TEXT) + "...";
     }
 
     public AiRecommendation generate(Long assetId) {
@@ -152,37 +218,64 @@ public class AiRecommendationService {
     }
 
     private static final String SYSTEM_PROMPT = """
-        You are an asset-lifecycle advisor for a Philippine municipal government's equipment \
-        inventory system. Given an asset's age, condition, value, and recorded repair history, \
-        recommend exactly one lifecycle action and explain it in 2-3 sentences a non-technical \
-        municipal employee can act on. Be conservative: a repair-frequency or cost of zero means no \
-        maintenance has been logged yet, not that the asset is trouble-free — do not treat it as \
-        evidence either way. Only recommend REVIEW_FOR_DISPOSAL or BUDGET_PRIORITY when the age, \
-        condition, or repair history clearly support it. This recommendation is advisory only — a \
-        human always makes the final disposal decision. Respond only with JSON matching the given schema.""";
+        You are an asset-lifecycle advisor for the General Services Office of a Philippine \
+        municipal government. You are given one asset's details and its full maintenance, transfer \
+        and disposal history. Recommend exactly one action:
+        - MAINTAIN: working well; keep the normal preventive schedule.
+        - MONITOR: working, but there are warning signs (aging, a recent fault, worn parts); check it more often.
+        - REPAIR: has a fault that is worth fixing; the repair is cheap compared with replacing it.
+        - BUDGET_PRIORITY: still usable now, but it should be replaced soon, so include it in the next \
+        budget (for example: old age, no longer supported, parts getting scarce, rising repair costs).
+        - REVIEW_FOR_DISPOSAL: beyond economical repair now, or unserviceable, or disposal is already \
+        under way; start or finish the disposal process (IIRUP).
+        How to judge:
+        - Read the records, not just the totals. PREVENTIVE records (cleaning, scheduled battery or lamp \
+        replacement, inspections) are normal upkeep and are not signs of failure. Repeated REPAIR or \
+        CORRECTIVE records for the same problem, or rising repair costs, are.
+        - Compare total repair cost with the unit value, and look at the newest records and any \
+        ONGOING or SCHEDULED work to see the asset's current state.
+        - Age alone is not enough for REVIEW_FOR_DISPOSAL. An old asset that works and is maintained \
+        is usually MONITOR or BUDGET_PRIORITY.
+        - If no maintenance is logged, that means nothing has been recorded yet, not that the asset is \
+        trouble-free; do not treat it as evidence either way.
+        - If a disposal record exists, say what stage it is at and what is left to do.
+        Write the rationale in 3-4 plain sentences a non-technical municipal employee can act on. \
+        Mention the specific facts behind the advice (for example a repeated fault, a cost compared \
+        with the unit value, or an end-of-support note) and end with the next step to take. Do not \
+        invent facts that are not in the data. This is advisory only; a person always makes the final \
+        decision. Respond only with JSON matching the given schema.""";
 
     private AssetLifecycleAdvice requestAdvice(Asset asset, BigDecimal ageYears, int conditionScore,
                                                 BigDecimal totalRepairCost, int repairFrequency) {
         Client client = geminiConfig.buildClient();
 
+        String costShare = asset.getUnitValue() != null && asset.getUnitValue().signum() > 0
+            ? totalRepairCost.multiply(BigDecimal.valueOf(100))
+                .divide(asset.getUnitValue(), 0, RoundingMode.HALF_UP) + "% of unit value"
+            : "unit value unknown";
+
         String prompt = """
             Asset: %s — %s
             Category: %s
             Office: %s
-            Age: %s years
+            Specifications: %s
+            Remarks: %s
+            Acquired: %s (%s years ago)
             Unit value: PHP %s
-            Quantity: %d
             Current condition: %s (score %d/3, where 3 = serviceable, 2 = repairable, 1 = unserviceable)
             Lifecycle status: %s
-            Total recorded repair cost: PHP %s
-            Repair frequency (recorded maintenance events): %d
-            """.formatted(
+            Total maintenance cost: PHP %s (%s)
+            Repairs (REPAIR + CORRECTIVE records): %d
+
+            %s""".formatted(
                 asset.getPropertyNumber(), asset.getDescription(),
                 asset.getCategory() != null ? asset.getCategory().getCategoryName() : "Uncategorized",
                 asset.getOffice() != null ? asset.getOffice().getOfficeName() : "Unassigned",
-                ageYears, asset.getUnitValue(), asset.getQuantity(),
+                clip(asset.getSpecifications()), clip(asset.getRemarks()),
+                asset.getAcquisitionDate(), ageYears, asset.getUnitValue(),
                 asset.getCondition(), conditionScore, asset.getLifecycleStatus(),
-                totalRepairCost, repairFrequency);
+                totalRepairCost, costShare, repairFrequency,
+                historyFor(asset.getId()));
 
         Schema schema = Schema.builder()
             .type(Type.Known.OBJECT)
@@ -196,13 +289,14 @@ public class AiRecommendationService {
                     .build(),
                 "rationale", Schema.builder()
                     .type(Type.Known.STRING)
-                    .description("2-3 plain-language sentences a non-technical municipal employee can act on, "
-                        + "explaining why this recommendation was made.")
+                    .description("3-4 plain-language sentences a non-technical municipal employee can act on: "
+                        + "the specific facts behind the recommendation, then the next step to take.")
                     .build()))
             .required("recommendation", "rationale")
             .build();
 
         GenerateContentConfig config = GenerateContentConfig.builder()
+            .thinkingConfig(GeminiConfig.thinking(GeminiConfig.LIGHT_THINKING))
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .responseMimeType("application/json")
             .responseSchema(schema)

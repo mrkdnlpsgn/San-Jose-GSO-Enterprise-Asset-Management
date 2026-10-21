@@ -107,6 +107,7 @@ public class AuditLogDigestService {
         String prompt = "Recent audit log entries (most recent first; times are Philippine time):\n" + logLines;
 
         GenerateContentConfig config = GenerateContentConfig.builder()
+            .thinkingConfig(GeminiConfig.thinking(GeminiConfig.NO_THINKING))
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
 
