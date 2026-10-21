@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -124,18 +125,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Expanded(child: ColoredBox(color: Color(0xFFFCD116))),
               ]),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4, right: 4),
-                child: TextButton.icon(
-                  icon: const Icon(Icons.settings_ethernet_rounded, size: 20),
-                  label: const Text('Connection'),
-                  style: TextButton.styleFrom(foregroundColor: c.textSecondary),
-                  onPressed: () => Navigator.of(context).push(fadeThroughRoute(const ConnectionSettingsScreen())),
+            // Server address picker: debug builds only (pointing the app at a local backend).
+            if (kDebugMode)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 4),
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.settings_ethernet_rounded, size: 20),
+                    label: const Text('Connection'),
+                    style: TextButton.styleFrom(foregroundColor: c.textSecondary),
+                    onPressed: () => Navigator.of(context).push(fadeThroughRoute(const ConnectionSettingsScreen())),
+                  ),
                 ),
-              ),
-            ),
+              )
+            else
+              const SizedBox(height: 16),
             Expanded(
               child: Center(
                 child: SingleChildScrollView(

@@ -8,6 +8,7 @@ import 'core/theme/app_theme.dart';
 import 'features/settings/provider/settings_provider.dart';
 import 'shared/widgets/offline_banner.dart';
 import 'shared/widgets/idle_timeout_guard.dart';
+import 'shared/widgets/update_check_guard.dart';
 import 'shared/widgets/action_otp_dialog.dart';
 
 void main() async {
@@ -51,7 +52,7 @@ class EamApp extends ConsumerWidget {
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(systemScale * settings.textSize.scaleFactor),
           ),
-          child: IdleTimeoutGuard(child: OfflineBanner(child: child!)),
+          child: UpdateCheckGuard(child: IdleTimeoutGuard(child: OfflineBanner(child: child!))),
         );
       },
     );

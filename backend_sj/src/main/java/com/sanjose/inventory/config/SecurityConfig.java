@@ -101,6 +101,8 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 // Container healthcheck (Docker HEALTHCHECK hits this with no auth)
                 .requestMatchers("/actuator/health").permitAll()
+                // Mobile app update check: runs on app open, before sign-in
+                .requestMatchers(HttpMethod.GET, "/api/app/version").permitAll()
                 // Uploaded evidence photos: served as plain static files, not sensitive
                 .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                 // RBAC: ADMIN manages everything. STAFF may only view/edit/update assets of the

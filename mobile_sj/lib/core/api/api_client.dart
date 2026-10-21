@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../shared/widgets/action_otp_dialog.dart' show ActionOtpOutcome;
@@ -35,8 +35,10 @@ class ApiClient {
 
   static String _urlFor(String address) => '${originFor(address)}/api';
 
-  /// The saved address, or null if using [defaultAddress].
-  String? get serverAddressOverride => _prefs.getString(kServerAddressPrefsKey);
+  /// The saved address, or null if using [defaultAddress]. Debug builds only: the Connection
+  /// screen is hidden in release builds, so an installed app always talks to the live server
+  /// and can't be left pointing at a test address with no way to change it back.
+  String? get serverAddressOverride => kDebugMode ? _prefs.getString(kServerAddressPrefsKey) : null;
 
   String get effectiveAddress => serverAddressOverride ?? defaultAddress;
 
