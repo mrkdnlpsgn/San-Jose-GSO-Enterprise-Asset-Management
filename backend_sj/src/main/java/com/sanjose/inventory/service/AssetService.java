@@ -511,7 +511,10 @@ public class AssetService {
             Long recorderId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
             assetHistoryService.logEvent(id, "TRANSFERRED", oldOfficeId, newOfficeId, recorderId,
                 "Transferred from " + (before.getOffice() != null ? before.getOffice().getOfficeName() : "unassigned")
-                    + " to " + (saved.getOffice() != null ? saved.getOffice().getOfficeName() : "unassigned"));
+                    + " to " + (saved.getOffice() != null ? saved.getOffice().getOfficeName() : "unassigned")
+                    // same wording as Transfer Asset notes; the Property Card reads the person from it
+                    + (saved.getAccountablePerson() != null && saved.getAccountablePerson().getFullName() != null
+                        ? ", accountable: " + saved.getAccountablePerson().getFullName() : ""));
         }
 
         auditLogService.log("ASSET_UPDATED", "Assets", id, "asset",

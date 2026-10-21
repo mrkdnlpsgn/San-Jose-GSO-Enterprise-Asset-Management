@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { getMaintenanceByAsset } from '../../services/maintenanceService'
 import { getDisposalByAsset } from '../../services/disposalService'
 import { getHistoryByAsset } from '../../services/assetHistoryService'
+import { getPropertyCard } from '../../services/propertyCardService'
+import { openPrintWindow, printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 import { getLatestRecommendation, generateRecommendation } from '../../services/aiRecommendationService'
 import { useEventStream } from '../../hooks/useEventStream'
 import AssetQrModal from './AssetQrModal'
@@ -59,7 +61,24 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
   const [aiNotice, setAiNotice]       = useState('')
   const [showQr, setShowQr]           = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
+  const [cardLoading, setCardLoading] = useState(false)
+  const [cardError, setCardError]     = useState('')
   const isFirstRender = useRef(true)
+
+  // Fetches this asset's Property Card, then prints or exports it. The print window opens on the
+  // click itself (a window opened after the request returns would be blocked as a popup).
+  const withPropertyCard = (kind) => {
+    const win = kind === 'print' ? openPrintWindow() : null
+    setCardLoading(true)
+    setCardError('')
+    getPropertyCard(asset.id)
+      .then(({ data }) => (kind === 'print' ? printPropertyCards([data], win) : exportPropertyCardsExcel([data])))
+      .catch((err) => {
+        win?.close()
+        setCardError(err.response?.data?.message || err.message || 'Could not load the Property Card.')
+      })
+      .finally(() => setCardLoading(false))
+  }
 
   useEffect(() => {
     if (!asset) return
@@ -262,9 +281,30 @@ export default function AssetDrawer({ asset, onClose, onEdit, exiting }) {
               cost: m.cost,
             }))
             const combined = [...historyItems, ...disposalItems, ...maintenanceItems].sort((a, b) => new Date(b.sortKey) - new Date(a.sortKey))
+            // A Property Card exists only once the asset has been transferred somewhere.
+            const wasTransferred = history.some((h) => h.eventType === 'TRANSFERRED' && h.toOffice)
 
             return (
               <div className="space-y-2">
+                {wasTransferred && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/40 px-3 py-2.5 mb-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Property Card</p>
+                      <p className="text-xs text-slate-500 dark:text-zinc-400">Every transfer: to whom and to which office.</p>
+                      {cardError && <p className="text-xs text-red-500 mt-1" role="alert">{cardError}</p>}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button type="button" disabled={cardLoading} onClick={() => withPropertyCard('print')}
+                        className="px-2.5 py-1.5 rounded-md text-xs font-semibold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+                        Print / PDF
+                      </button>
+                      <button type="button" disabled={cardLoading} onClick={() => withPropertyCard('excel')}
+                        className="px-2.5 py-1.5 rounded-md text-xs font-semibold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors">
+                        Excel
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {combined.length === 0
                   ? <p className="text-sm text-zinc-500 py-8 text-center">No lifecycle events recorded.</p>
                   : combined.map((item) => (

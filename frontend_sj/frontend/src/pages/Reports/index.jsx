@@ -7,6 +7,8 @@ import { useToast } from '../../context/ToastContext'
 import { manilaDateKey, manilaDateTime } from '../../utils/helpers'
 import api from '../../services/api'
 import { getAssetHistory } from '../../services/assetHistoryService'
+import { getPropertyCards } from '../../services/propertyCardService'
+import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 
 // Reports need the full dataset, not a paginated page. getAssets()/getDisposal()/getMaintenance()
 // default to the backend's page size of 20 — fine for list pages, wrong here, so fetch directly
@@ -91,6 +93,43 @@ const varianceValue = (r) => {
 }
 
 // ── Report definitions ────────────────────────────────────────────────────────
+// PAR items: the PAR report's columns, also listed under an expanded PAR row.
+const PAR_HEADERS = [
+  { label: 'Qty',            display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
+  { label: 'Description',    display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || '—'}</span>,              raw: (r) => r.description || '' },
+  { label: 'Serial No.',     display: (r) => <span className="font-mono text-xs">{r.serialNumber || '—'}</span>,                                     raw: (r) => r.serialNumber || '' },
+  { label: 'Property No.',   display: (r) => <span className="font-mono text-xs">{r.propertyNumber || '—'}</span>,                                   raw: (r) => r.propertyNumber || '' },
+  { label: 'Date Acquired',  display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
+  { label: 'Unit Cost',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
+  { label: 'Amount',         display: (r) => fmtMoney(lineAmount(r)),                                                                                raw: (r) => lineAmount(r).toFixed(2) },
+]
+
+// One Property Card line, as listed under an expanded card row.
+const CARD_ENTRY_HEADERS = [
+  { label: 'Date',                 display: (e) => fmtDate(e.date) },
+  { label: 'Reference Property #', display: (e) => <span className="font-mono">{e.reference || '—'}</span> },
+  { label: 'Description',          display: (e) => e.description || '—' },
+  { label: 'Receipt Qty',          display: (e) => e.receiptQty ?? '' },
+  { label: 'Transfer',             display: (e) => e.transferTo || '—' },
+  { label: 'Office',               display: (e) => e.office || '—' },
+  { label: 'Balance Qty',          display: (e) => e.balanceQty },
+]
+
+// One entry per distinct PAR number in the loaded assets, newest PAR first
+// (PAR numbers start with the acquisition year-month).
+function parGroupsOf(assets) {
+  const byKey = new Map()
+  assets.forEach((a) => {
+    const key = normPar(a.parNumber)
+    if (!key) return
+    if (!byKey.has(key)) byKey.set(key, { key, par: a.parNumber.trim(), rows: [] })
+    byKey.get(key).rows.push(a)
+  })
+  return [...byKey.values()]
+    .map((g) => ({ ...g, ...parHeader(g.rows, g.par), office: uniqueJoined(g.rows, (r) => r.office?.officeName) }))
+    .sort((a, b) => b.par.localeCompare(a.par))
+}
+
 const REPORTS = [
   {
     id: 'inventory',
@@ -265,17 +304,69 @@ const REPORTS = [
       return (await getAllAssets()).data
     },
     // No date filter: the table lists PAR numbers, and the ticked ones are exported.
-    // These headers are the item columns shown when a PAR row is expanded.
-    parFilter: true,
-    headers: [
-      { label: 'Qty',            display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
-      { label: 'Description',    display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || '—'}</span>,              raw: (r) => r.description || '' },
-      { label: 'Serial No.',     display: (r) => <span className="font-mono text-xs">{r.serialNumber || '—'}</span>,                                     raw: (r) => r.serialNumber || '' },
-      { label: 'Property No.',   display: (r) => <span className="font-mono text-xs">{r.propertyNumber || '—'}</span>,                                   raw: (r) => r.propertyNumber || '' },
-      { label: 'Date Acquired',  display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
-      { label: 'Unit Cost',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
-      { label: 'Amount',         display: (r) => fmtMoney(lineAmount(r)),                                                                                raw: (r) => lineAmount(r).toFixed(2) },
-    ],
+    selectable: {
+      toItems: parGroupsOf,
+      noun: ['PAR number', 'PAR numbers'],
+      placeholder: 'Search PAR, office, person, property No.',
+      hint: 'Tick one or more PAR numbers to export their receipts.',
+      none: 'No assets have a PAR number yet.',
+      search: (g, q) => g.par.toLowerCase().includes(q) || g.office.toLowerCase().includes(q)
+        || g.receivedBy.toLowerCase().includes(q)
+        || g.rows.some((r) => String(r.propertyNumber || '').toLowerCase().includes(q)),
+      label: (g) => `PAR No. ${g.par}`,
+      columns: [
+        { label: 'PAR No.',            cell: (g) => <span className="font-mono text-xs text-slate-900 dark:text-white whitespace-nowrap">{g.par}</span> },
+        { label: 'Office',             cell: (g) => g.office || '—' },
+        { label: 'Accountable Person', cell: (g) => g.receivedBy || '—' },
+        { label: 'Items',              cell: (g) => g.rows.length, right: true },
+        { label: 'Total Amount',       cell: (g) => fmtMoney(g.total), right: true },
+      ],
+      expandLabel: 'items',
+      expanded: (g) => <MiniTable headers={PAR_HEADERS} rows={g.rows} rowKey={(a) => a.id} />,
+      summary: (items) => `${items.reduce((n, g) => n + g.rows.length, 0)} items · Total ${fmtMoney(items.reduce((n, g) => n + g.total, 0))}`,
+      exportExcel: (items) => exportParExcel(items),
+      exportPdf: (items) => exportParPDF(items),
+    },
+    headers: PAR_HEADERS,
+  },
+  {
+    id: 'propertycard',
+    title: 'Property Card',
+    description: 'A card for each transferred asset: who it was transferred to and which office, in date order.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+      </svg>
+    ),
+    async load() {
+      return (await getPropertyCards()).data
+    },
+    // Only assets that have been transferred have a card; the backend leaves the rest out.
+    selectable: {
+      toItems: (cards) => cards.map((c) => ({ ...c, key: String(c.assetId) })),
+      noun: ['property card', 'property cards'],
+      placeholder: 'Search property No., office, person',
+      hint: 'Tick one or more assets to export their property cards.',
+      none: 'No asset has been transferred yet, so there are no property cards.',
+      search: (c, q) => [c.propertyNumber, c.parNumber, c.description, c.currentOffice, c.currentAccountable,
+        ...c.entries.map((e) => e.transferTo), ...c.entries.map((e) => e.office)]
+        .some((v) => String(v || '').toLowerCase().includes(q)),
+      label: (c) => `property card ${c.propertyNumber}`,
+      columns: [
+        { label: 'Property No.',       cell: (c) => <span className="font-mono text-xs text-slate-900 dark:text-white whitespace-nowrap">{c.propertyNumber}</span> },
+        { label: 'Description',        cell: (c) => c.description || '—' },
+        { label: 'Current Office',     cell: (c) => c.currentOffice || '—' },
+        { label: 'Accountable Person', cell: (c) => c.currentAccountable || '—' },
+        { label: 'Transfers',          cell: (c) => c.transferCount, right: true },
+        { label: 'Last Transfer',      cell: (c) => <span className="whitespace-nowrap">{fmtDate(c.lastTransferDate)}</span> },
+      ],
+      expandLabel: 'card lines',
+      expanded: (c) => <MiniTable headers={CARD_ENTRY_HEADERS} rows={c.entries} rowKey={(e, i) => i} />,
+      summary: (items) => `${items.reduce((n, c) => n + c.transferCount, 0)} transfers`,
+      exportExcel: (items) => exportPropertyCardsExcel(items),
+      exportPdf: (items) => printPropertyCards(items),
+    },
+    headers: [],
   },
   {
     id: 'rpcppe',
@@ -512,7 +603,8 @@ function exportParPDF(groups) {
   <title>${esc(title)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 28px; color: #000; }
+    :root { color-scheme: light; }
+    body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 28px; color: #000; background: #fff; }
     .title { text-align: center; font-family: 'Times New Roman', serif; }
     .title h1 { font-size: 20px; font-weight: 700; letter-spacing: .02em; }
     .title h2 { font-size: 16px; font-weight: 700; margin-top: 2px; }
@@ -596,14 +688,13 @@ function parSheet(XLSX, rows, par) {
   return ws
 }
 
-// ── PAR picker table ──────────────────────────────────────────────────────────
-// One row per PAR number. Tick one or several to export their PAR forms; expand a row to see its items.
-const PAR_ITEM_HEADERS = REPORTS.find((r) => r.id === 'par').headers
+// ── Pick-and-export table (PAR, Property Card) ────────────────────────────────
+// One row per item. Tick one or several to export them; expand a row to see what's inside.
 const CHECKBOX_CLASS = 'h-4 w-4 rounded border-slate-300 dark:border-zinc-600 text-brand-600 focus:ring-brand-500 cursor-pointer'
 
-function ParTable({ groups, selected, onToggle, onToggleAll, expanded, onExpand }) {
-  const allChecked  = groups.length > 0 && groups.every((g) => selected.has(g.key))
-  const someChecked = !allChecked && groups.some((g) => selected.has(g.key))
+function SelectTable({ config, items, selected, onToggle, onToggleAll, expanded, onExpand }) {
+  const allChecked  = items.length > 0 && items.every((it) => selected.has(it.key))
+  const someChecked = !allChecked && items.some((it) => selected.has(it.key))
   const headCls = 'px-4 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap'
 
   return (
@@ -612,37 +703,31 @@ function ParTable({ groups, selected, onToggle, onToggleAll, expanded, onExpand 
         <thead className="bg-slate-50 dark:bg-zinc-900">
           <tr>
             <th className="pl-4 pr-2 py-3 w-8">
-              <input type="checkbox" aria-label="Select all PAR numbers on this page" className={CHECKBOX_CLASS}
+              <input type="checkbox" aria-label={`Select all ${config.noun[1]} on this page`} className={CHECKBOX_CLASS}
                 checked={allChecked} ref={(el) => { if (el) el.indeterminate = someChecked }}
-                onChange={() => onToggleAll(groups, !allChecked)} />
+                onChange={() => onToggleAll(items, !allChecked)} />
             </th>
-            <th className={headCls}>PAR No.</th>
-            <th className={headCls}>Office</th>
-            <th className={headCls}>Accountable Person</th>
-            <th className={`${headCls} text-right`}>Items</th>
-            <th className={`${headCls} text-right`}>Total Amount</th>
-            <th className="px-2 py-3 w-10"><span className="sr-only">Show items</span></th>
+            {config.columns.map((c) => <th key={c.label} className={`${headCls}${c.right ? ' text-right' : ''}`}>{c.label}</th>)}
+            <th className="px-2 py-3 w-10"><span className="sr-only">Show {config.expandLabel}</span></th>
           </tr>
         </thead>
         <tbody className="bg-white dark:bg-zinc-950 divide-y divide-slate-100 dark:divide-zinc-800/60">
-          {groups.map((g) => {
-            const isOpen = expanded === g.key
-            const isChecked = selected.has(g.key)
+          {items.map((it) => {
+            const isOpen = expanded === it.key
+            const isChecked = selected.has(it.key)
             return [
-              <tr key={g.key} onClick={() => onToggle(g.key)}
+              <tr key={it.key} onClick={() => onToggle(it.key)}
                 className={`cursor-pointer transition-colors duration-100 ${isChecked ? 'bg-brand-500/5 dark:bg-brand-500/10' : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50'}`}>
                 <td className="pl-4 pr-2 py-3" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" aria-label={`Select PAR No. ${g.par}`} className={CHECKBOX_CLASS}
-                    checked={isChecked} onChange={() => onToggle(g.key)} />
+                  <input type="checkbox" aria-label={`Select ${config.label(it)}`} className={CHECKBOX_CLASS}
+                    checked={isChecked} onChange={() => onToggle(it.key)} />
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-900 dark:text-white whitespace-nowrap">{g.par}</td>
-                <td className="px-4 py-3 text-slate-600 dark:text-zinc-300">{g.office || '—'}</td>
-                <td className="px-4 py-3 text-slate-600 dark:text-zinc-300">{g.receivedBy || '—'}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-zinc-300">{g.rows.length}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-zinc-300 whitespace-nowrap">{fmtMoney(g.total)}</td>
+                {config.columns.map((c) => (
+                  <td key={c.label} className={`px-4 py-3 text-slate-600 dark:text-zinc-300${c.right ? ' text-right tabular-nums whitespace-nowrap' : ''}`}>{c.cell(it)}</td>
+                ))}
                 <td className="px-2 py-3 text-right">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); onExpand(isOpen ? null : g.key) }}
-                    aria-expanded={isOpen} aria-label={`${isOpen ? 'Hide' : 'Show'} items under PAR No. ${g.par}`}
+                  <button type="button" onClick={(e) => { e.stopPropagation(); onExpand(isOpen ? null : it.key) }}
+                    aria-expanded={isOpen} aria-label={`${isOpen ? 'Hide' : 'Show'} ${config.expandLabel} of ${config.label(it)}`}
                     className="p-1 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -651,24 +736,9 @@ function ParTable({ groups, selected, onToggle, onToggleAll, expanded, onExpand 
                 </td>
               </tr>,
               isOpen && (
-                <tr key={`${g.key}:items`} className="bg-slate-50/70 dark:bg-zinc-900/60">
+                <tr key={`${it.key}:more`} className="bg-slate-50/70 dark:bg-zinc-900/60">
                   <td />
-                  <td colSpan={6} className="px-4 py-3">
-                    <table className="min-w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-slate-400 dark:text-zinc-500">
-                          {PAR_ITEM_HEADERS.map((h) => <th key={h.label} className="py-1.5 pr-4 font-medium whitespace-nowrap">{h.label}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200/70 dark:divide-zinc-800">
-                        {g.rows.map((a) => (
-                          <tr key={a.id}>
-                            {PAR_ITEM_HEADERS.map((h) => <td key={h.label} className="py-1.5 pr-4 text-slate-600 dark:text-zinc-300 whitespace-nowrap">{h.display(a)}</td>)}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </td>
+                  <td colSpan={config.columns.length + 1} className="px-4 py-3">{config.expanded(it)}</td>
                 </tr>
               ),
             ]
@@ -676,6 +746,25 @@ function ParTable({ groups, selected, onToggle, onToggleAll, expanded, onExpand 
         </tbody>
       </table>
     </div>
+  )
+}
+
+function MiniTable({ headers, rows, rowKey }) {
+  return (
+    <table className="min-w-full text-xs">
+      <thead>
+        <tr className="text-left text-slate-400 dark:text-zinc-500">
+          {headers.map((h) => <th key={h.label} className="py-1.5 pr-4 font-medium whitespace-nowrap">{h.label}</th>)}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-200/70 dark:divide-zinc-800">
+        {rows.map((r, i) => (
+          <tr key={rowKey(r, i)}>
+            {headers.map((h) => <td key={h.label} className="py-1.5 pr-4 text-slate-600 dark:text-zinc-300 whitespace-nowrap">{h.display(r)}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 
@@ -750,9 +839,10 @@ function Reports() {
   const [dateFrom, setDateFrom]     = useState('')
   const [dateTo, setDateTo]         = useState('')
   const [page, setPage]             = useState(1)
-  const [parSearch, setParSearch]   = useState('')
-  const [selectedPars, setSelectedPars] = useState(() => new Set())
-  const [expandedPar, setExpandedPar]   = useState(null)
+  // Pick-and-export reports (PAR, Property Card): search text, ticked item keys, expanded row
+  const [pickSearch, setPickSearch]   = useState('')
+  const [picked, setPicked]           = useState(() => new Set())
+  const [expandedKey, setExpandedKey] = useState(null)
   const previewRef = useRef(null)
 
   const activeReport = REPORTS.find((r) => r.id === activeId)
@@ -762,9 +852,9 @@ function Reports() {
   const resetFilters = () => {
     setDateFrom('')
     setDateTo('')
-    setParSearch('')
-    setSelectedPars(new Set())
-    setExpandedPar(null)
+    setPickSearch('')
+    setPicked(new Set())
+    setExpandedKey(null)
     setPage(1)
   }
 
@@ -804,62 +894,41 @@ function Reports() {
   // Date filter runs on the raw loaded rows first, then any per-report
   // aggregation (`transform`, e.g. the Condition Report's grouping) runs on
   // top of that — so filtering a range re-aggregates instead of just hiding rows.
-  // One entry per distinct PAR number in the loaded assets, newest PAR first
-  // (PAR numbers start with the acquisition year-month).
-  const parGroups = useMemo(() => {
-    if (!activeReport?.parFilter) return []
-    const byKey = new Map()
-    reportData.forEach((a) => {
-      const key = normPar(a.parNumber)
-      if (!key) return
-      if (!byKey.has(key)) byKey.set(key, { key, par: a.parNumber.trim(), rows: [] })
-      byKey.get(key).rows.push(a)
-    })
-    return [...byKey.values()]
-      .map((g) => ({ ...g, ...parHeader(g.rows, g.par), office: uniqueJoined(g.rows, (r) => r.office?.officeName) }))
-      .sort((a, b) => b.par.localeCompare(a.par))
-  }, [reportData, activeReport])
-
-  // PAR search matches the PAR number, office, accountable person, or any item's property number.
-  const filteredParGroups = useMemo(() => {
-    const q = parSearch.trim().toLowerCase()
-    if (!q) return parGroups
-    return parGroups.filter((g) =>
-      g.par.toLowerCase().includes(q)
-      || g.office.toLowerCase().includes(q)
-      || g.receivedBy.toLowerCase().includes(q)
-      || g.rows.some((r) => String(r.propertyNumber || '').toLowerCase().includes(q)))
-  }, [parGroups, parSearch])
+  const pick = activeReport?.selectable
+  const pickItems = useMemo(() => (pick ? pick.toItems(reportData) : []), [reportData, pick])
 
   const displayRows = useMemo(() => {
     if (!activeReport) return []
-    if (activeReport.parFilter) return filteredParGroups
+    if (pick) {
+      const q = pickSearch.trim().toLowerCase()
+      return q ? pickItems.filter((it) => pick.search(it, q)) : pickItems
+    }
     const filtered = applyDateFilter(reportData, activeReport.dateField, dateFrom, dateTo)
     return activeReport.transform ? activeReport.transform(filtered) : filtered
-  }, [reportData, activeReport, dateFrom, dateTo, filteredParGroups])
+  }, [reportData, activeReport, dateFrom, dateTo, pick, pickItems, pickSearch])
 
   const isDateFiltered = Boolean(dateFrom || dateTo)
-  // Kept in table order so exported forms come out in the same order as the list.
-  const selectedParGroups = parGroups.filter((g) => selectedPars.has(g.key))
+  // Kept in list order so exported forms come out in the same order as the table.
+  const pickedItems = pickItems.filter((it) => picked.has(it.key))
   const canExport = !loading && reportData.length > 0
-  // The PAR report keeps its export buttons visible but disabled until a PAR is ticked.
-  const exportDisabled = Boolean(activeReport?.parFilter) && selectedParGroups.length === 0
-  const exportCount = activeReport?.parFilter && selectedParGroups.length > 0 ? ` (${selectedParGroups.length})` : ''
+  // Pick-and-export reports keep their export buttons visible but disabled until something is ticked.
+  const exportDisabled = Boolean(pick) && pickedItems.length === 0
+  const exportCount = pick && pickedItems.length > 0 ? ` (${pickedItems.length})` : ''
 
-  const toggleParSelected = (key) => setSelectedPars((prev) => {
+  const togglePicked = (key) => setPicked((prev) => {
     const next = new Set(prev)
     if (next.has(key)) next.delete(key)
     else next.add(key)
     return next
   })
-  const setParsSelected = (groups, checked) => setSelectedPars((prev) => {
+  const setManyPicked = (items, checked) => setPicked((prev) => {
     const next = new Set(prev)
-    groups.forEach((g) => (checked ? next.add(g.key) : next.delete(g.key)))
+    items.forEach((it) => (checked ? next.add(it.key) : next.delete(it.key)))
     return next
   })
 
   // Every asset is its own row, same as the Assets table — no grouping by model.
-  // The PAR report pages through PAR numbers instead.
+  // Pick-and-export reports page through their items (PARs, cards) instead.
   const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE))
   const pagedRows = displayRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -924,11 +993,11 @@ function Reports() {
               <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">{activeReport?.title}</p>
               {!loading && (
                 <p className="text-xs text-slate-400 dark:text-zinc-500 mt-px">
-                  {displayRows.length} {activeReport?.parFilter
-                    ? (displayRows.length === 1 ? 'PAR number' : 'PAR numbers')
+                  {displayRows.length} {pick
+                    ? pick.noun[displayRows.length === 1 ? 0 : 1]
                     : (displayRows.length === 1 ? 'record' : 'records')}
-                  {activeReport?.parFilter && parSearch.trim() && parGroups.length !== displayRows.length && (
-                    <span className="text-slate-300 dark:text-zinc-600"> (of {parGroups.length})</span>
+                  {pick && pickSearch.trim() && pickItems.length !== displayRows.length && (
+                    <span className="text-slate-300 dark:text-zinc-600"> (of {pickItems.length})</span>
                   )}
                   {isDateFiltered && !activeReport?.aggregated && reportData.length !== displayRows.length && (
                     <span className="text-slate-300 dark:text-zinc-600"> (of {reportData.length})</span>
@@ -938,13 +1007,13 @@ function Reports() {
             </div>
             {canExport && (
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => activeReport.parFilter ? exportParExcel(selectedParGroups) : exportExcel(getExportRows(), activeReport.headers, activeReport.title)}>
+                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportExcel(pickedItems) : exportExcel(getExportRows(), activeReport.headers, activeReport.title)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                   <span className="hidden sm:inline">Export Excel{exportCount}</span>
                 </Button>
-                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => activeReport.parFilter ? exportParPDF(selectedParGroups) : exportPDF(getExportRows(), activeReport.headers, activeReport.title, activeReport.certification)}>
+                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportPdf(pickedItems) : exportPDF(getExportRows(), activeReport.headers, activeReport.title, activeReport.certification)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
                   </svg>
@@ -954,29 +1023,28 @@ function Reports() {
             )}
           </div>
 
-          {!loading && activeReport?.parFilter && parGroups.length > 0 && (
+          {!loading && pick && pickItems.length > 0 && (
             <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/20 flex flex-wrap items-center gap-3">
-              <label htmlFor="par-search" className="sr-only">Search PAR numbers</label>
+              <label htmlFor="pick-search" className="sr-only">Search {pick.noun[1]}</label>
               <input
-                id="par-search"
+                id="pick-search"
                 type="search"
-                value={parSearch}
-                onChange={(e) => { setParSearch(e.target.value); setPage(1) }}
-                placeholder="Search PAR, office, person, property No."
+                value={pickSearch}
+                onChange={(e) => { setPickSearch(e.target.value); setPage(1) }}
+                placeholder={pick.placeholder}
                 className="w-80 max-w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
               <p className="text-sm text-slate-500 dark:text-zinc-400" aria-live="polite">
-                {selectedParGroups.length > 0 ? (
+                {pickedItems.length > 0 ? (
                   <>
-                    <span className="font-medium text-slate-700 dark:text-zinc-200">{selectedParGroups.length} selected</span>
-                    {' · '}{selectedParGroups.reduce((s, g) => s + g.rows.length, 0)} items
-                    {' · '}Total {fmtMoney(selectedParGroups.reduce((s, g) => s + g.total, 0))}
-                    <button type="button" onClick={() => setSelectedPars(new Set())}
+                    <span className="font-medium text-slate-700 dark:text-zinc-200">{pickedItems.length} selected</span>
+                    {' · '}{pick.summary(pickedItems)}
+                    <button type="button" onClick={() => setPicked(new Set())}
                       className="ml-3 text-xs font-medium text-slate-400 dark:text-zinc-500 hover:text-red-400 transition-colors">
                       Clear selection
                     </button>
                   </>
-                ) : 'Tick one or more PAR numbers to export their receipts.'}
+                ) : pick.hint}
               </p>
             </div>
           )}
@@ -1007,16 +1075,16 @@ function Reports() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p className="text-sm">
-                  {activeReport?.parFilter
-                    ? (parGroups.length ? `No PAR numbers match "${parSearch.trim()}".` : 'No assets have a PAR number yet.')
+                  {pick
+                    ? (pickItems.length ? `No ${pick.noun[1]} match "${pickSearch.trim()}".` : pick.none)
                     : reportData.length > 0 && isDateFiltered
                       ? 'No records in the selected date range.'
                       : 'No data available for this report.'}
                 </p>
               </div>
-            ) : activeReport?.parFilter ? (
-              <ParTable groups={pagedRows} selected={selectedPars} onToggle={toggleParSelected}
-                onToggleAll={setParsSelected} expanded={expandedPar} onExpand={setExpandedPar} />
+            ) : pick ? (
+              <SelectTable config={pick} items={pagedRows} selected={picked} onToggle={togglePicked}
+                onToggleAll={setManyPicked} expanded={expandedKey} onExpand={setExpandedKey} />
             ) : (
               <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-800">
                 <table className="min-w-full text-sm divide-y divide-slate-200 dark:divide-zinc-800">
