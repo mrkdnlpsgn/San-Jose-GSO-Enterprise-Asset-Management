@@ -2,7 +2,6 @@ package com.sanjose.inventory.service;
 
 import com.sanjose.inventory.config.AppTime;
 import com.google.genai.Client;
-import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -31,7 +30,6 @@ import java.util.Optional;
 @Transactional
 public class DisposalJustificationService {
 
-    private static final String MODEL = "gemini-2.5-flash";
 
     private final JdbcTemplate jdbcTemplate;
     private final DisposalLedgerService disposalLedgerService;
@@ -138,13 +136,8 @@ public class DisposalJustificationService {
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
 
-        GenerateContentResponse response;
-        try {
-            response = client.models.generateContent(MODEL, prompt, config);
-        } catch (ApiException e) {
-            log.error("AI justification request failed for disposal {}: {}", disposal.getId(), e.getMessage());
-            throw geminiConfig.failure("AI justification request", e);
-        }
+        GenerateContentResponse response = geminiConfig.generate(
+            client, GeminiConfig.Tier.FAST, "AI justification request", prompt, config);
 
         String text = response.text();
         if (text == null || text.isBlank()) {

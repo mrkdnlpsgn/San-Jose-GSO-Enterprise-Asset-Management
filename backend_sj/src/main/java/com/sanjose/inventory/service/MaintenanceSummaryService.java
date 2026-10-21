@@ -1,7 +1,6 @@
 package com.sanjose.inventory.service;
 
 import com.google.genai.Client;
-import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -25,7 +24,6 @@ import java.util.Optional;
 @Transactional
 public class MaintenanceSummaryService {
 
-    private static final String MODEL = "gemini-2.5-flash";
 
     private final JdbcTemplate jdbcTemplate;
     private final MaintenanceLedgerService maintenanceLedgerService;
@@ -92,13 +90,8 @@ public class MaintenanceSummaryService {
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
 
-        GenerateContentResponse response;
-        try {
-            response = client.models.generateContent(MODEL, prompt, config);
-        } catch (ApiException e) {
-            log.error("Maintenance summary request failed for record {}: {}", record.getId(), e.getMessage());
-            throw geminiConfig.failure("AI summary request", e);
-        }
+        GenerateContentResponse response = geminiConfig.generate(
+            client, GeminiConfig.Tier.FAST, "AI summary request", prompt, config);
 
         String text = response.text();
         if (text == null || text.isBlank()) {

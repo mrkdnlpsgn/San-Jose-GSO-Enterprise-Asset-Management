@@ -3,7 +3,6 @@ package com.sanjose.inventory.service;
 import com.sanjose.inventory.config.AppTime;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
-import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -38,7 +37,6 @@ import java.util.Optional;
 @Transactional
 public class AiRecommendationService {
 
-    private static final String MODEL = "gemini-2.5-flash";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final JdbcTemplate jdbcTemplate;
@@ -195,6 +193,30 @@ public class AiRecommendationService {
         return flat.length() <= MAX_TEXT ? flat : flat.substring(0, MAX_TEXT) + "...";
     }
 
+    // For the background worker: makes a new recommendation only when its inputs moved since the
+    // latest one (condition, repair cost or repair count) or the records behind it changed
+    // (recordsChanged). Age is left out: it changes every day and alone rarely changes the advice.
+    // Archived and deleted assets are skipped. beforeCall runs just before Gemini is asked (the
+    // worker's pacing). Returns whether a new one was made.
+    public boolean refreshIfChanged(Long assetId, boolean recordsChanged, Runnable beforeCall) {
+        Integer live = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM assets WHERE asset_id = ? AND is_deleted = 0 AND lifecycle_status <> 'ARCHIVED'",
+            Integer.class, assetId);
+        if (live == null || live == 0) return false;
+        Optional<AiRecommendation> latest = getLatest(assetId);
+        if (latest.isPresent() && !recordsChanged) {
+            Inputs in = inputsFor(assetService.findById(assetId));
+            AiRecommendation r = latest.get();
+            boolean same = r.getConditionScore() != null && r.getConditionScore() == in.conditionScore()
+                && r.getRepairFrequency() != null && r.getRepairFrequency() == in.repairFrequency()
+                && r.getTotalRepairCost() != null && r.getTotalRepairCost().compareTo(in.totalRepairCost()) == 0;
+            if (same) return false;
+        }
+        beforeCall.run();
+        generate(assetId);
+        return true;
+    }
+
     public AiRecommendation generate(Long assetId) {
         geminiConfig.requireConfigured();
 
@@ -302,13 +324,8 @@ public class AiRecommendationService {
             .responseSchema(schema)
             .build();
 
-        GenerateContentResponse response;
-        try {
-            response = client.models.generateContent(MODEL, prompt, config);
-        } catch (ApiException e) {
-            log.error("AI recommendation request failed for asset {}: {}", asset.getId(), e.getMessage());
-            throw geminiConfig.failure("AI recommendation request", e);
-        }
+        GenerateContentResponse response = geminiConfig.generate(
+            client, GeminiConfig.Tier.FAST, "AI recommendation request", prompt, config);
 
         String json = response.text();
         if (json == null || json.isBlank()) {

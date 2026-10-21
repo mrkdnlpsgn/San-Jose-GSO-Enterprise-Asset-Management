@@ -1,7 +1,6 @@
 package com.sanjose.inventory.service;
 
 import com.google.genai.Client;
-import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -29,7 +28,6 @@ import java.util.stream.Collectors;
 @Transactional
 public class AuditLogDigestService {
 
-    private static final String MODEL = "gemini-2.5-flash";
     private static final int MAX_ENTRIES = 50;
 
     private final JdbcTemplate jdbcTemplate;
@@ -111,13 +109,8 @@ public class AuditLogDigestService {
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
 
-        GenerateContentResponse response;
-        try {
-            response = client.models.generateContent(MODEL, prompt, config);
-        } catch (ApiException e) {
-            log.error("Audit log digest request failed: {}", e.getMessage());
-            throw geminiConfig.failure("AI digest request", e);
-        }
+        GenerateContentResponse response = geminiConfig.generate(
+            client, GeminiConfig.Tier.FAST, "AI digest request", prompt, config);
 
         String text = response.text();
         if (text == null || text.isBlank()) {

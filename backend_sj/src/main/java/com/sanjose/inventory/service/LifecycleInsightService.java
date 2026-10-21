@@ -2,7 +2,6 @@ package com.sanjose.inventory.service;
 
 import com.sanjose.inventory.config.AppTime;
 import com.google.genai.Client;
-import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -34,7 +33,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LifecycleInsightService {
 
-    private static final String MODEL = "gemini-2.5-flash";
 
     private final JdbcTemplate jdbcTemplate;
     private final GeminiConfig geminiConfig;
@@ -231,13 +229,8 @@ public class LifecycleInsightService {
             .thinkingConfig(GeminiConfig.thinking(GeminiConfig.NO_THINKING))
             .systemInstruction(Content.fromParts(Part.fromText(SYSTEM_PROMPT)))
             .build();
-        GenerateContentResponse response;
-        try {
-            response = client.models.generateContent(MODEL, prompt, config);
-        } catch (ApiException e) {
-            log.error("Lifecycle summary request failed: {}", e.getMessage());
-            throw geminiConfig.failure("AI summary request", e);
-        }
+        GenerateContentResponse response = geminiConfig.generate(
+            client, GeminiConfig.Tier.SMART, "AI summary request", prompt, config);
         String text = response.text();
         if (text == null || text.isBlank()) throw new IllegalStateException("The AI did not return a summary.");
         return text.trim();

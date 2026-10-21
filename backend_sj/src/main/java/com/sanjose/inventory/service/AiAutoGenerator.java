@@ -16,12 +16,14 @@ import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-// Writes the AI summary of a maintenance record / justification of a disposal record in the
-// background when the record is created, edited or approved, so nobody has to press Generate.
-// Everything else (asset recommendations, the dashboard period summary, the audit digest, and
-// summaries for records saved before this existed) is only made when someone presses Generate:
-// the Gemini free plan allows about 20 requests a day, and generating on every view or asset
-// change used that up by midday.
+// Keeps the AI up to date in the background, so nobody has to press Generate:
+//   - the summary of a maintenance record / justification of a disposal record, when the record
+//     is created, edited or approved;
+//   - the asset's recommendation, when one of its maintenance or disposal records changes or the
+//     asset is edited in a way that matters (condition, repairs) — see refreshIfChanged.
+// These run on the FAST model (Flash-Lite, about 1,000 free requests a day; GeminiConfig).
+// The dashboard period summary, the audit digest and anything for records saved before this
+// existed are still made when someone presses Generate.
 //
 // Jobs run one at a time on a single worker, spaced MIN_INTERVAL_MS apart to stay under
 // Gemini's per-minute limit; a job already waiting isn't queued twice. When one finishes, an
@@ -38,6 +40,7 @@ public class AiAutoGenerator {
     private final JdbcTemplate jdbcTemplate;
     private final MaintenanceSummaryService maintenanceSummaryService;
     private final DisposalJustificationService disposalJustificationService;
+    private final AiRecommendationService aiRecommendationService;
     private final SseEmitterService sseEmitterService;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
@@ -46,16 +49,19 @@ public class AiAutoGenerator {
         return t;
     });
     private final Set<String> queued = ConcurrentHashMap.newKeySet();
+    private final Set<Long> recordsChangedFor = ConcurrentHashMap.newKeySet();
     private long lastCallAt; // worker thread only
 
     public AiAutoGenerator(GeminiConfig geminiConfig, JdbcTemplate jdbcTemplate,
                            MaintenanceSummaryService maintenanceSummaryService,
                            DisposalJustificationService disposalJustificationService,
+                           AiRecommendationService aiRecommendationService,
                            SseEmitterService sseEmitterService) {
         this.geminiConfig = geminiConfig;
         this.jdbcTemplate = jdbcTemplate;
         this.maintenanceSummaryService = maintenanceSummaryService;
         this.disposalJustificationService = disposalJustificationService;
+        this.aiRecommendationService = aiRecommendationService;
         this.sseEmitterService = sseEmitterService;
     }
 
@@ -69,9 +75,30 @@ public class AiAutoGenerator {
     @TransactionalEventListener(fallbackExecution = true)
     public void onRecordChanged(RecordChangedEvent e) {
         if (!geminiConfig.isAvailable() || e.id() == null) return;
-        if (!LEDGER_ACTIONS.contains(e.action())) return;
-        if ("maintenance".equals(e.channel())) requestMaintenanceSummary(e.id());
-        else if ("disposal".equals(e.channel())) requestDisposalJustification(e.id());
+        switch (e.channel()) {
+            case "maintenance" -> {
+                if (LEDGER_ACTIONS.contains(e.action())) {
+                    requestMaintenanceSummary(e.id());
+                    requestRecommendation(firstLong("SELECT asset_id FROM maintenance_ledger WHERE maintenance_id = ?", e.id()), true);
+                } else if ("CHANGED".equals(e.action())) {
+                    requestRecommendation(e.id(), false); // condition cascade; id is the asset's
+                }
+            }
+            case "disposal" -> {
+                if (LEDGER_ACTIONS.contains(e.action())) {
+                    requestDisposalJustification(e.id());
+                    requestRecommendation(firstLong("SELECT asset_id FROM disposal_ledger WHERE disposal_id = ?", e.id()), true);
+                } else if ("CHANGED".equals(e.action())) {
+                    requestRecommendation(e.id(), false);
+                }
+            }
+            // An edit only counts if the inputs moved; new assets (incl. bulk imports) wait for a
+            // record or a Generate press, so an import can't use up the day's quota.
+            case "asset" -> {
+                if ("UPDATED".equals(e.action()) || "CHANGED".equals(e.action())) requestRecommendation(e.id(), false);
+            }
+            default -> { }
+        }
     }
 
     // The 404 body when nothing exists yet, plus — if AI is paused (quota used up) — the message
@@ -97,6 +124,16 @@ public class AiAutoGenerator {
         return submit("disp:" + disposalId, "justification", disposalId,
             () -> firstLong("SELECT asset_id FROM disposal_ledger WHERE disposal_id = ?", disposalId),
             () -> { pace(); disposalJustificationService.generate(disposalId); return true; });
+    }
+
+    // recordsChanged: a maintenance/disposal record behind the advice changed, so make a new one
+    // even if the totals look the same. The job is keyed by asset, so a burst of changes to one
+    // asset makes one call.
+    public boolean requestRecommendation(Long assetId, boolean recordsChanged) {
+        if (assetId == null) return false;
+        if (recordsChanged) recordsChangedFor.add(assetId); // survives a job already waiting
+        return submit("rec:" + assetId, "recommendation", assetId, () -> assetId,
+            () -> aiRecommendationService.refreshIfChanged(assetId, recordsChangedFor.remove(assetId), this::pace));
     }
 
     // job returns true when it produced something new (false = nothing needed doing). Either way

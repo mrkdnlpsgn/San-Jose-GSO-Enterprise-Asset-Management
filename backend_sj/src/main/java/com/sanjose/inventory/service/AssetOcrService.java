@@ -2,7 +2,6 @@ package com.sanjose.inventory.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
-import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -32,7 +31,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AssetOcrService {
 
-    private static final String MODEL = "gemini-2.5-flash";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Set<String> ACCEPTED_CONTENT_TYPES =
         Set.of("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif");
@@ -120,13 +118,8 @@ public class AssetOcrService {
             .responseSchema(schema)
             .build();
 
-        GenerateContentResponse response;
-        try {
-            response = client.models.generateContent(MODEL, content, config);
-        } catch (ApiException e) {
-            log.error("Asset label OCR request failed: {}", e.getMessage());
-            throw geminiConfig.failure("Reading the photo", e);
-        }
+        GenerateContentResponse response = geminiConfig.generate(
+            client, GeminiConfig.Tier.SMART, "Reading the photo", content, config);
 
         String json = response.text();
         if (json == null || json.isBlank()) {

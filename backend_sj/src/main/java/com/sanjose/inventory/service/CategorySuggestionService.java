@@ -2,7 +2,6 @@ package com.sanjose.inventory.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
-import com.google.genai.errors.ApiException;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
 @Service
 public class CategorySuggestionService {
 
-    private static final String MODEL = "gemini-2.5-flash";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final CategoryService categoryService;
@@ -84,13 +82,8 @@ public class CategorySuggestionService {
             .responseSchema(schema)
             .build();
 
-        GenerateContentResponse response;
-        try {
-            response = client.models.generateContent(MODEL, prompt, config);
-        } catch (ApiException e) {
-            log.error("Category suggestion request failed: {}", e.getMessage());
-            throw geminiConfig.failure("AI category suggestion", e);
-        }
+        GenerateContentResponse response = geminiConfig.generate(
+            client, GeminiConfig.Tier.FAST, "AI category suggestion", prompt, config);
 
         String json = response.text();
         if (json == null || json.isBlank()) {
