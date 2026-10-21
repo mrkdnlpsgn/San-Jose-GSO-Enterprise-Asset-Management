@@ -14,6 +14,7 @@ import '../../../shared/widgets/main_shell.dart';
 import '../../../shared/widgets/large_title_scaffold.dart';
 import '../provider/qr_lookup_provider.dart';
 import '../widgets/qr_scanner_overlay.dart';
+import '../../assets/widgets/asset_history_sheet.dart';
 
 // mobile_scanner only ships Android/iOS/macOS/web implementations — desktop platforms
 // like Windows and Linux fall back to manual property-number entry (still fully usable,
@@ -387,11 +388,27 @@ class _ResultCard extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.swap_horiz_rounded, size: 20),
-              label: const Text('Transfer this asset'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              onPressed: () => context.push('/transfers/new', extra: asset),
+            child: Row(
+              children: [
+                // this asset's own history, in a sheet over the scan result
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.history_rounded, size: 20),
+                    label: const Text('View history'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    onPressed: () => showAssetHistorySheet(context, asset),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 20),
+                    label: const Text('Transfer'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    onPressed: () => context.push('/transfers/new', extra: asset),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

@@ -128,7 +128,7 @@ class _AssetDetailBody extends ConsumerWidget {
             child: TabBarView(
               children: [
                 _DetailsTab(asset: asset),
-                _HistoryTab(assetId: asset.id),
+                AssetHistoryTimeline(assetId: asset.id),
               ],
             ),
           ),
@@ -343,9 +343,13 @@ class _DetailsTab extends ConsumerWidget {
   }
 }
 
-class _HistoryTab extends ConsumerWidget {
+/// One asset's timeline: its history events, maintenance and disposal records, newest first.
+/// The asset page's History tab, and the sheet opened from a scanned QR ([showAssetHistorySheet]).
+class AssetHistoryTimeline extends ConsumerWidget {
   final int assetId;
-  const _HistoryTab({required this.assetId});
+  /// Given when the timeline sits in a draggable sheet, so scrolling it also drags the sheet.
+  final ScrollController? controller;
+  const AssetHistoryTimeline({super.key, required this.assetId, this.controller});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -371,6 +375,7 @@ class _HistoryTab extends ConsumerWidget {
     return entries.isEmpty
         ? Center(child: Text('No lifecycle events recorded.', style: TextStyle(color: context.colors.textTertiary)))
         : ListView.builder(
+            controller: controller,
             padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
             itemCount: entries.length,
             itemBuilder: (context, i) => _LifecycleTile(entry: entries[i], isLast: i == entries.length - 1),
