@@ -6,6 +6,7 @@ import ForgotPasswordForm from './ForgotPasswordForm'
 import ForceChangePasswordForm from './ForceChangePasswordForm'
 import TwoFactorForm from './TwoFactorForm'
 import SettingsMenu from '../../components/common/SettingsMenu'
+import DownloadAppLink from '../../components/common/DownloadAppLink'
 import { waitForServer, isServerAsleep } from '../../services/api'
 
 // Must match the backend's auth.max-failed-attempts / auth.lockout-minutes (application.properties).
@@ -455,6 +456,8 @@ function Login() {
             </svg>
             <span>For authorized San Jose Municipal Hall personnel only. Sign-ins and activity in this system are recorded.</span>
           </p>
+
+          <DownloadAppLink className="mt-4 animate-rise-in [animation-delay:360ms]" />
 
         </div>
         )}

@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useEffect, useState, useRef } from 'react'
 import { getAuditLogs } from '../../services/auditLogService'
+import DownloadAppLink from '../common/DownloadAppLink'
 
 const LAST_SEEN_KEY = 'lastSeenAuditLogId'
 
@@ -382,7 +383,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
 
       {/* Footer */}
       <div
-        className={`border-t border-slate-200 dark:border-zinc-800 overflow-hidden transition-all duration-300 max-h-40 px-4 py-4 ${isCollapsed ? 'lg:max-h-0 lg:py-0 lg:px-0' : ''}`}
+        className={`border-t border-slate-200 dark:border-zinc-800 overflow-hidden transition-all duration-300 max-h-48 px-4 py-4 ${isCollapsed ? 'lg:max-h-0 lg:py-0 lg:px-0' : ''}`}
       >
         <p className="text-xs text-slate-500 dark:text-zinc-500 whitespace-nowrap">San Jose Municipal Hall</p>
         <p className="text-2xs text-slate-400 dark:text-zinc-600 mt-0.5 whitespace-nowrap">Republic of the Philippines</p>
@@ -392,6 +393,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
         >
           Privacy, Terms & Conditions
         </NavLink>
+        <DownloadAppLink variant="sidebar" className="-mt-1" />
         {onHelp && (
           <button
             onClick={onHelp}
