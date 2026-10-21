@@ -56,22 +56,17 @@ class _OfficeListScreenState extends ConsumerState<OfficeListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TitleWithCount('Offices', subtitle: countLabel(officesAsync.valueOrNull?.length, singular: 'office', plural: 'offices')),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: FilledButton.icon(
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Add Office'),
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
-              onPressed: () async {
-                final result = await context.push<bool>('/offices/new');
-                if (result == true) ref.invalidate(officesProvider);
-              },
-            ),
-          ),
-        ],
+        title: TitleWithCount('Offices',
+            subtitle: countLabel(officesAsync.valueOrNull?.length, singular: 'office', plural: 'offices')),
         bottom: ListToolbar(
+          primaryAction: FilledButton.icon(
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Add Office'),
+            onPressed: () async {
+              final result = await context.push<bool>('/offices/new');
+              if (result == true) ref.invalidate(officesProvider);
+            },
+          ),
           controller: _searchCtrl,
           hintText: 'Search offices',
           onSearch: (v) => setState(() => _search = v),
@@ -114,15 +109,16 @@ class _OfficeListScreenState extends ConsumerState<OfficeListScreen> {
                       onPressed: () => _delete(office),
                     ),
                     child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CardTitle(office.officeName),
-                          const SizedBox(height: 4),
-                          MetaLine(Icons.person_rounded, office.headUserName ?? 'No head assigned'),
-                          const SizedBox(height: 6),
-                          Text('Tap to edit', style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.w600)),
-                        ],
-                      ),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CardTitle(office.officeName),
+                        const SizedBox(height: 4),
+                        MetaLine(Icons.person_rounded, office.headUserName ?? 'No head assigned'),
+                        const SizedBox(height: 6),
+                        Text('Tap to edit',
+                            style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
                   ),
                 );
               },

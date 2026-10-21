@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart'
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
-/// iOS tab-root page: a large bold title that shrinks into a centred title in a frosted bar
+/// iOS tab-root page: a large bold centred title that shrinks into a centred title in a frosted bar
 /// as the content scrolls, with an optional [bottom] (search, filters, tabs) pinned under it.
 ///
 /// The [body]'s scroll view must not have its own ScrollController — it rides the
@@ -36,7 +36,11 @@ class LargeTitleScaffold extends StatelessWidget {
         body: NestedScrollView(
           headerSliverBuilder: (context, _) => [
             CupertinoSliverNavigationBar(
-              largeTitle: Text(title),
+              // centred like every other screen's title (iOS would left-align it); the collapsed
+              // title in the bar is centred already
+              largeTitle: SizedBox(width: double.infinity, child: Text(title, textAlign: TextAlign.center)),
+              middle: Text(title),
+              alwaysShowMiddle: false,
               trailing: trailing == null ? null : Material(type: MaterialType.transparency, child: trailing),
               automaticallyImplyLeading: false,
               transitionBetweenRoutes: false, // the app's own page transitions handle this

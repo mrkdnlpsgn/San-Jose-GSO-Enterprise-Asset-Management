@@ -43,21 +43,18 @@ class _AccountListScreenState extends ConsumerState<AccountListScreen> {
               tooltip: 'Refresh',
               onPressed: () => ref.invalidate(accountsPagedProvider(search)),
             ),
-          if (isAdmin)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: FilledButton.icon(
-                icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
-                label: const Text('New Account'),
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
-                onPressed: () async {
-                  final result = await context.push<bool>('/accounts/new');
-                  if (result == true) ref.invalidate(accountsPagedProvider(search));
-                },
-              ),
-            ),
         ],
         bottom: ListToolbar(
+          primaryAction: isAdmin
+              ? FilledButton.icon(
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
+                  label: const Text('New Account'),
+                  onPressed: () async {
+                    final result = await context.push<bool>('/accounts/new');
+                    if (result == true) ref.invalidate(accountsPagedProvider(search));
+                  },
+                )
+              : null,
           controller: _searchCtrl,
           hintText: 'Search username or full name',
           onSearch: (v) => ref.read(accountSearchProvider.notifier).state = v,

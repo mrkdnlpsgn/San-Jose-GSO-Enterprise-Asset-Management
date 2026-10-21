@@ -20,7 +20,6 @@ class TitleWithCount extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title),
           Text(
@@ -35,7 +34,9 @@ class TitleWithCount extends StatelessWidget {
 String countLabel(int? n, {String singular = 'record', String plural = 'records'}) =>
     n == null ? ' ' : '$n ${n == 1 ? singular : plural}';
 
-/// The bottom of a list screen's app bar: search field, then worded buttons (Filter etc.).
+/// The bottom of a list screen's app bar: the search field, worded buttons (Filter etc.), then an
+/// optional full-width main action (Add Office etc.). The main action sits here rather than in
+/// the app bar, where it crowded the centered title.
 class ListToolbar extends StatelessWidget implements PreferredSizeWidget {
   final TextEditingController controller;
   final String hintText;
@@ -43,6 +44,7 @@ class ListToolbar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onFilter;
   final bool filtersActive;
   final List<Widget> extraButtons;
+  final Widget? primaryAction;
 
   const ListToolbar({
     super.key,
@@ -52,12 +54,13 @@ class ListToolbar extends StatelessWidget implements PreferredSizeWidget {
     this.onFilter,
     this.filtersActive = false,
     this.extraButtons = const [],
+    this.primaryAction,
   });
 
   bool get _hasButtons => onFilter != null || extraButtons.isNotEmpty;
 
   @override
-  Size get preferredSize => Size.fromHeight(_hasButtons ? 124 : 68);
+  Size get preferredSize => Size.fromHeight((_hasButtons ? 124 : 68) + (primaryAction != null ? 58 : 0));
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +93,10 @@ class ListToolbar extends StatelessWidget implements PreferredSizeWidget {
                 ],
               ],
             ),
+          ],
+          if (primaryAction != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(width: double.infinity, height: 48, child: primaryAction),
           ],
         ],
       ),

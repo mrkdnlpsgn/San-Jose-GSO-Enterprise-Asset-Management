@@ -61,7 +61,10 @@ class DashboardScreen extends ConsumerWidget {
                 physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                 slivers: [
                   CupertinoSliverNavigationBar(
-                    largeTitle: const Text('Home'),
+                    // centred like every other screen's title; the small one shows once it's scrolled away
+                    largeTitle: const SizedBox(width: double.infinity, child: Text('Home', textAlign: TextAlign.center)),
+                    middle: const Text('Home'),
+                    alwaysShowMiddle: false,
                     transitionBetweenRoutes: false, // the app's own page transitions handle this
                     // translucent → the bar frosts (blurs) the content scrolling under it
                     backgroundColor: Ios.groupedBg(context).withValues(alpha: 0.82),

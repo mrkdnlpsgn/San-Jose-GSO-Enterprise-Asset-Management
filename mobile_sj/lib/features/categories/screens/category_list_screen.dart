@@ -56,22 +56,17 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TitleWithCount('Categories', subtitle: countLabel(categoriesAsync.valueOrNull?.length, singular: 'category', plural: 'categories')),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: FilledButton.icon(
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Add Category'),
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
-              onPressed: () async {
-                final result = await context.push<bool>('/categories/new');
-                if (result == true) ref.invalidate(categoriesProvider);
-              },
-            ),
-          ),
-        ],
+        title: TitleWithCount('Categories',
+            subtitle: countLabel(categoriesAsync.valueOrNull?.length, singular: 'category', plural: 'categories')),
         bottom: ListToolbar(
+          primaryAction: FilledButton.icon(
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Add Category'),
+            onPressed: () async {
+              final result = await context.push<bool>('/categories/new');
+              if (result == true) ref.invalidate(categoriesProvider);
+            },
+          ),
           controller: _searchCtrl,
           hintText: 'Search categories',
           onSearch: (v) => setState(() => _search = v),
@@ -114,20 +109,21 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
                       onPressed: () => _delete(cat),
                     ),
                     child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CardTitle(cat.categoryName),
-                          if (cat.description != null && cat.description!.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(cat.description!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
-                          ],
-                          const SizedBox(height: 6),
-                          Text('Tap to edit', style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CardTitle(cat.categoryName),
+                        if (cat.description != null && cat.description!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(cat.description!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
                         ],
-                      ),
+                        const SizedBox(height: 6),
+                        Text('Tap to edit',
+                            style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
                   ),
                 );
               },
