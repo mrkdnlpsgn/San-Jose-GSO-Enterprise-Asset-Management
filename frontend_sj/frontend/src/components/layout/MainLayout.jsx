@@ -68,7 +68,9 @@ function MainLayout({ children }) {
         />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Header onMenuOpen={() => setIsMobileSidebarOpen(true)} />
-          <main className="flex-1 overflow-auto p-4 sm:p-5 lg:p-6 xl:p-8">
+          {/* relative: absolute children (e.g. sr-only labels) stay inside this scroll area instead of
+              stretching the page, which let scrollIntoView scroll the whole document */}
+          <main className="relative flex-1 overflow-auto p-4 sm:p-5 lg:p-6 xl:p-8">
             <div key={pathname} className="animate-fade-slide">
               {user?.role === 'STAFF' && !user?.officeId && (
                 <div className="mb-4 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-600 dark:text-amber-400">
