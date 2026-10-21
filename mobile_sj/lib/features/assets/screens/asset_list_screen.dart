@@ -90,21 +90,10 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
                 ref.invalidate(assetCountProvider(search));
               },
             ),
-          // Adding is ADMIN-only; worded (not just "+") so it's obvious to older staff
-          if (isAdmin)
-            TextButton.icon(
-              icon: const Icon(Icons.add_rounded, size: 22),
-              label: const Text('Add'),
-              style: TextButton.styleFrom(
-                foregroundColor: context.brandAccent,
-                textStyle: const TextStyle(fontFamily: AppTheme.fontFamily, fontSize: 17, fontWeight: FontWeight.w600),
-              ),
-              onPressed: addAsset,
-            ),
         ],
       ),
       bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(146),
+          preferredSize: Size.fromHeight(isAdmin ? 204 : 146),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Column(
@@ -113,14 +102,21 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
                 SizedBox(
                   height: 22,
                   child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Text(
+                    alignment: Alignment.topCenter, // under the centred title
+                    // the number in bold primary text so it reads at a glance; the word stays quiet
+                    child: Text.rich(
                       countAsync.when(
-                        data: (c) => '$c ${c == 1 ? 'record' : 'records'}',
-                        loading: () => ' ',
-                        error: (_, __) => ' ',
+                        data: (c) => TextSpan(children: [
+                          TextSpan(
+                            text: _withCommas(c),
+                            style: TextStyle(fontWeight: FontWeight.w700, color: context.colors.textPrimary),
+                          ),
+                          TextSpan(text: c == 1 ? ' record' : ' records'),
+                        ]),
+                        loading: () => const TextSpan(text: ' '),
+                        error: (_, __) => const TextSpan(text: ' '),
                       ),
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: context.colors.textTertiary),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: context.colors.textTertiary),
                     ),
                   ),
                 ),
@@ -176,6 +172,20 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
                     ],
                   ],
                 ),
+                // Adding is ADMIN-only. A full-width button here, like Add Office and New Account,
+                // rather than a small "+ Add" in the corner of the bar that was easy to miss.
+                if (isAdmin) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                      label: const Text('Add Asset'),
+                      onPressed: addAsset,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -291,3 +301,7 @@ class _AssetCard extends StatelessWidget {
     );
   }
 }
+
+/// 2417 → "2,417".
+String _withCommas(int n) =>
+    n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
