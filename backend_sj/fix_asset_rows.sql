@@ -28,8 +28,11 @@ BEGIN
   SELECT ROW_COUNT() AS groups_cleared;
 
   -- 2. Multi-quantity rows
+  -- Scratch tables declare a primary key: hosted MySQL (Aiven) sets sql_require_primary_key.
   DROP TEMPORARY TABLE IF EXISTS split_src;
-  CREATE TEMPORARY TABLE split_src AS
+  CREATE TEMPORARY TABLE split_src (
+    asset_id INT PRIMARY KEY, property_number VARCHAR(50), quantity INT, physical_count INT);
+  INSERT INTO split_src
     SELECT asset_id, property_number, quantity, physical_count
     FROM assets WHERE is_deleted = 0 AND quantity > 1;
 
@@ -52,7 +55,9 @@ BEGIN
   SELECT ROW_COUNT() AS item_rows_added;
 
   DROP TEMPORARY TABLE IF EXISTS split_map;
-  CREATE TEMPORARY TABLE split_map AS
+  CREATE TEMPORARY TABLE split_map (
+    new_id INT PRIMARY KEY, orig_id INT, orig_no VARCHAR(50), orig_qty INT, new_no VARCHAR(60));
+  INSERT INTO split_map (orig_id, orig_no, orig_qty, new_id, new_no)
     SELECT s.asset_id AS orig_id, s.property_number AS orig_no, s.quantity AS orig_qty, c.asset_id AS new_id, c.property_number AS new_no
     FROM split_src s
     JOIN assets c ON c.property_number LIKE CONCAT(s.property_number, '-%')
