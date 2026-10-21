@@ -45,17 +45,6 @@ class _TransferListScreenState extends ConsumerState<TransferListScreen> {
           'Transfer Asset',
           subtitle: isAdmin ? 'Requests from staff' : 'Your transfer requests',
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: FilledButton.icon(
-              icon: const Icon(Icons.swap_horiz_rounded, size: 20),
-              label: const Text('New Transfer'),
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 14)),
-              onPressed: _newTransfer,
-            ),
-          ),
-        ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -74,6 +63,14 @@ class _TransferListScreenState extends ConsumerState<TransferListScreen> {
                   style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45),
                 ),
                 const SizedBox(height: 12),
+                // In the page rather than the app bar, where it crowded the centered title.
+                FilledButton.icon(
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 20),
+                  label: const Text('New Transfer'),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                  onPressed: _newTransfer,
+                ),
+                const SizedBox(height: 16),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
