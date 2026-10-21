@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useEffect, useState, useRef } from 'react'
 import { getAuditLogs } from '../../services/auditLogService'
-import DownloadAppLink from '../common/DownloadAppLink'
+import { useMobileRelease } from '../../hooks/useMobileRelease'
 
 const LAST_SEEN_KEY = 'lastSeenAuditLogId'
 
@@ -153,15 +153,6 @@ const systemNavItems = [
       </svg>
     ),
   },
-  {
-    to: '/privacy',
-    label: 'Privacy, Terms & Conditions',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-[1.125rem] w-[1.125rem] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 1L3 5v6c0 5.25 3.5 8.75 7 9.5 3.5-.75 7-4.25 7-9.5V5l-7-4zm-1.5 12.5L5 10l1.4-1.4 2.1 2.1 4.1-4.1L14 8l-5.5 5.5z" clipRule="evenodd" />
-      </svg>
-    ),
-  },
 ]
 
 // Reference data, audit logs and the recycle bin are ADMIN-only; staff work only with
@@ -182,35 +173,67 @@ const adminNavItems = [
   },
 ]
 
-function NavItemLink({ to, label, icon, alsoActiveOn, isCollapsed, pathname, hasNewAuditLog }) {
+// Docs: reference material for everyone. The mobile app download is added when the server
+// has a release to offer (see useMobileRelease).
+const docsNavItems = [
+  {
+    to: '/privacy',
+    label: 'Privacy & Terms', // the full title is on the page; the long one was cut off here
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-[1.125rem] w-[1.125rem] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M10 1L3 5v6c0 5.25 3.5 8.75 7 9.5 3.5-.75 7-4.25 7-9.5V5l-7-4zm-1.5 12.5L5 10l1.4-1.4 2.1 2.1 4.1-4.1L14 8l-5.5 5.5z" clipRule="evenodd" />
+      </svg>
+    ),
+  },
+]
+
+const phoneIcon = (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-[1.125rem] w-[1.125rem] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M7 2a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2H7zm3 14a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+  </svg>
+)
+
+// href instead of to: a plain link out of the app (a file download), never shown as active.
+// hint: a small line after the label, e.g. the app version.
+function NavItemLink({ to, href, label, hint, icon, alsoActiveOn, isCollapsed, pathname, hasNewAuditLog }) {
   const showPing = to === '/audit-logs' && hasNewAuditLog
+  const itemClass = (active) => [
+    'flex items-center gap-2.5 px-2.5 py-2 w-full rounded-md text-sm font-medium transition-all duration-150',
+    isCollapsed ? 'lg:justify-center lg:w-10 lg:h-10 lg:mx-auto lg:gap-0 lg:px-0 lg:py-0' : '',
+    active
+      ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900'
+      : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-slate-900 dark:hover:text-zinc-100',
+  ].join(' ')
+  const content = (
+    <>
+      <span className="relative flex-shrink-0">
+        {icon}
+        {showPing && (
+          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-500" />
+          </span>
+        )}
+      </span>
+      <span className={`whitespace-nowrap overflow-hidden flex-1 ${isCollapsed ? 'lg:hidden' : ''}`}>
+        {label}
+        {hint && <span className="ml-1.5 text-xs font-normal text-slate-400 dark:text-zinc-500">{hint}</span>}
+      </span>
+    </>
+  )
 
   return (
     <div className="relative group">
-      <NavLink
-        to={to}
-        className={({ isActive }) => {
-          const active = isActive || (alsoActiveOn?.includes(pathname) ?? false)
-          return [
-            'flex items-center gap-2.5 px-2.5 py-2 w-full rounded-md text-sm font-medium transition-all duration-150',
-            isCollapsed ? 'lg:justify-center lg:w-10 lg:h-10 lg:mx-auto lg:gap-0 lg:px-0 lg:py-0' : '',
-            active
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900'
-              : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-slate-900 dark:hover:text-zinc-100',
-          ].join(' ')
-        }}
-      >
-        <span className="relative flex-shrink-0">
-          {icon}
-          {showPing && (
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-500" />
-            </span>
-          )}
-        </span>
-        <span className={`whitespace-nowrap overflow-hidden flex-1 ${isCollapsed ? 'lg:hidden' : ''}`}>{label}</span>
-      </NavLink>
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className={itemClass(false)}>{content}</a>
+      ) : (
+        <NavLink
+          to={to}
+          className={({ isActive }) => itemClass(isActive || (alsoActiveOn?.includes(pathname) ?? false))}
+        >
+          {content}
+        </NavLink>
+      )}
 
       {isCollapsed && (
         <div className="
@@ -223,7 +246,7 @@ function NavItemLink({ to, label, icon, alsoActiveOn, isCollapsed, pathname, has
           [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-100
           transition-[opacity,transform] duration-150
         ">
-          {label}
+          {label}{hint && ` ${hint}`}
           <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800 dark:border-r-zinc-800" />
         </div>
       )}
@@ -236,6 +259,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
   const isAdmin = user?.role === 'ADMIN'
   const { pathname } = useLocation()
   const hasNewAuditLog = useAuditLogPing(pathname, isAdmin)
+  const mobileRelease = useMobileRelease()
   const visible = (items) => items.filter((i) => isAdmin || !ADMIN_ONLY_PATHS.has(i.to))
 
   // Close mobile sidebar on navigation
@@ -363,6 +387,24 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
             />
           </>
         )}
+
+        <p className={`text-2xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-widest px-2 mt-3 mb-1.5 whitespace-nowrap ${isCollapsed ? 'lg:hidden' : ''}`}>
+          Docs
+        </p>
+        {mobileRelease && (
+          <NavItemLink
+            href={mobileRelease.downloadUrl}
+            label="Mobile App"
+            hint={mobileRelease.latestVersion ? `v${mobileRelease.latestVersion}` : null}
+            icon={phoneIcon}
+            isCollapsed={isCollapsed}
+            pathname={pathname}
+            hasNewAuditLog={false}
+          />
+        )}
+        {docsNavItems.map(({ to, label, icon, alsoActiveOn }) => (
+          <NavItemLink key={to} to={to} label={label} icon={icon} alsoActiveOn={alsoActiveOn} isCollapsed={isCollapsed} pathname={pathname} hasNewAuditLog={hasNewAuditLog} />
+        ))}
       </nav>
       {moreBelow && (
         <button
@@ -383,7 +425,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
 
       {/* Footer */}
       <div
-        className={`border-t border-slate-200 dark:border-zinc-800 overflow-hidden transition-all duration-300 max-h-48 px-4 py-4 ${isCollapsed ? 'lg:max-h-0 lg:py-0 lg:px-0' : ''}`}
+        className={`border-t border-slate-200 dark:border-zinc-800 overflow-hidden transition-all duration-300 max-h-40 px-4 py-4 ${isCollapsed ? 'lg:max-h-0 lg:py-0 lg:px-0' : ''}`}
       >
         <p className="text-xs text-slate-500 dark:text-zinc-500 whitespace-nowrap">San Jose Municipal Hall</p>
         <p className="text-2xs text-slate-400 dark:text-zinc-600 mt-0.5 whitespace-nowrap">Republic of the Philippines</p>
@@ -393,7 +435,6 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
         >
           Privacy, Terms & Conditions
         </NavLink>
-        <DownloadAppLink variant="sidebar" className="-mt-1" />
         {onHelp && (
           <button
             onClick={onHelp}
