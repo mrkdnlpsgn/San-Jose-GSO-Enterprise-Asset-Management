@@ -181,56 +181,22 @@ class LegalScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Privacy, Terms & Conditions'),
+          // Fixed tabs sharing the width equally, so the bar never scrolls sideways.
+          // Labels wrap to two lines on narrow phones instead of being cut off.
           bottom: const TabBar(
-            isScrollable: true,
+            labelPadding: EdgeInsets.symmetric(horizontal: 6),
             tabs: [
-              Tab(text: 'Terms & Conditions'),
-              Tab(text: 'Privacy Notice'),
-              Tab(text: 'User Consent'),
+              Tab(height: 52, child: Text('Terms & Conditions', textAlign: TextAlign.center, maxLines: 2)),
+              Tab(height: 52, child: Text('Privacy Notice', textAlign: TextAlign.center, maxLines: 2)),
+              Tab(height: 52, child: Text('User Consent', textAlign: TextAlign.center, maxLines: 2)),
             ],
           ),
         ),
-        body: Column(
+        body: TabBarView(
           children: [
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.statusMaintenance.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.statusMaintenance.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.warning_rounded, size: 22, color: context.isLight ? const Color(0xFFB45309) : const Color(0xFFFBBF24)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: TextStyle(fontSize: 15, color: context.colors.textSecondary, height: 1.45),
-                        children: const [
-                          TextSpan(
-                              text: 'This is a private, internal government system ',
-                              style: TextStyle(fontWeight: FontWeight.w700)),
-                          TextSpan(text: 'for San Jose GSO/ICT staff only. It is not accessible to the public.'),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _SectionList(sections: _termsSections, onOpenLink: (url) => _openLink(context, url)),
-                  _SectionList(sections: _privacySections, onOpenLink: (url) => _openLink(context, url)),
-                  _SectionList(sections: _consentSections, onOpenLink: (url) => _openLink(context, url)),
-                ],
-              ),
-            ),
+            _SectionList(sections: _termsSections, onOpenLink: (url) => _openLink(context, url)),
+            _SectionList(sections: _privacySections, onOpenLink: (url) => _openLink(context, url)),
+            _SectionList(sections: _consentSections, onOpenLink: (url) => _openLink(context, url)),
           ],
         ),
       ),
@@ -246,7 +212,7 @@ class _SectionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: sections.length,
       separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, i) {

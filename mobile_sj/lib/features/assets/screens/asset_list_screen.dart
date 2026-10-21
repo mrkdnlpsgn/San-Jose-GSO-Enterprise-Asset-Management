@@ -7,7 +7,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/ui.dart' show toolbarButtonStyle;
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/paginated_list_view.dart';
-import '../../../shared/provider/paginated_list_notifier.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/main_shell.dart';
@@ -17,8 +16,6 @@ import '../../../core/api/api_exception.dart';
 import '../data/asset_service.dart';
 import '../utils/asset_excel.dart';
 import '../widgets/asset_filter_sheet.dart';
-import '../widgets/asset_group_widgets.dart';
-import '../../reports/utils/formatters.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../../shared/widgets/ios_touch.dart';
 
@@ -186,8 +183,9 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
       body: AutoRefreshTicker(
         interval: const Duration(seconds: 30),
         onTick: () => ref.read(assetsPagedProvider(search).notifier).silentRefresh(),
-        child: PaginatedListView<_AssetEntry>(
-          state: _groupedState(state),
+        // One card per asset, same as the web list (grouping was retired with the single-quantity model).
+        child: PaginatedListView<AssetModel>(
+          state: state,
           emptyMessage: 'No assets found.',
           extraBottomPadding: context.mainShellBottomInset,
           onLoadMore: () => ref.read(assetsPagedProvider(search).notifier).loadMore(),
@@ -195,12 +193,10 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
             ref.invalidate(assetCountProvider(search));
             await ref.read(assetsPagedProvider(search).notifier).refresh();
           },
-          itemBuilder: (context, entry, i) => entry.isGroup
-              ? _AssetGroupCard(members: entry.members, onOpen: (a) => context.push('/assets/${a.id}'))
-              : _AssetCard(
-                  asset: entry.members.first,
-                  onTap: () => context.push('/assets/${entry.members.first.id}'),
-                ),
+          itemBuilder: (context, asset, i) => _AssetCard(
+            asset: asset,
+            onTap: () => context.push('/assets/${asset.id}'),
+          ),
         ),
       ),
     );
@@ -208,158 +204,6 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
 
   ButtonStyle _toolbarButton(BuildContext context, {bool active = false}) =>
       toolbarButtonStyle(context, active: active);
-}
-
-// One row in the list: a single asset, or a group of same-model devices that were
-// added together (shared groupId). Every member of a group is still a complete asset.
-class _AssetEntry {
-  final List<AssetModel> members;
-  const _AssetEntry(this.members);
-  bool get isGroup => members.length > 1 || (members.first.groupSize ?? 0) > 1;
-}
-
-// Groups assets that share a groupId (first occurrence keeps its position). A group with
-// only one loaded member renders as a normal card. Pages are loaded 20 assets at a time,
-// so a group whose devices land on different pages simply fills in as more are loaded.
-PaginatedListState<_AssetEntry> _groupedState(PaginatedListState<AssetModel> s) {
-  final entries = <_AssetEntry>[];
-  final byGroup = <String, List<AssetModel>>{};
-  for (final a in s.items) {
-    final g = a.groupId;
-    if (g == null) {
-      entries.add(_AssetEntry([a]));
-    } else if (byGroup.containsKey(g)) {
-      byGroup[g]!.add(a);
-    } else {
-      final members = <AssetModel>[a];
-      byGroup[g] = members;
-      entries.add(_AssetEntry(members));
-    }
-  }
-  return PaginatedListState<_AssetEntry>(
-    items: entries,
-    isLoading: s.isLoading,
-    isLoadingMore: s.isLoadingMore,
-    hasMore: s.hasMore,
-    error: s.error,
-    loadMoreError: s.loadMoreError,
-  );
-}
-
-class _AssetGroupCard extends StatefulWidget {
-  final List<AssetModel> members;
-  final void Function(AssetModel) onOpen;
-
-  const _AssetGroupCard({required this.members, required this.onOpen});
-
-  @override
-  State<_AssetGroupCard> createState() => _AssetGroupCardState();
-}
-
-class _AssetGroupCardState extends State<_AssetGroupCard> {
-  bool _expanded = false;
-  Future<List<AssetModel>>? _all; // every device of the group, fetched when first expanded
-
-  String get _groupId => widget.members.first.groupId!;
-
-  @override
-  Widget build(BuildContext context) {
-    final members = widget.members;
-    final first = members.first;
-    // Header numbers come from the server's roll-up, so they're right even if only some of
-    // the group's devices are loaded in this list.
-    final count = first.groupSize ?? members.length;
-    final total = first.groupTotalValue ?? members.fold<double>(0, (n, m) => n + m.unitValue * m.quantity);
-    final offices = members.map((m) => m.office.officeName).toSet();
-    final accent = context.brandAccent;
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => setState(() {
-              _expanded = !_expanded;
-              _all ??= AssetService().getGroup(_groupId);
-            }),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(first.description,
-                            style: TextStyle(
-                                color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(Icons.apartment_rounded, size: 16, color: context.colors.textTertiary),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(offices.length == 1 ? offices.first : 'Multiple locations',
-                                  style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text('Total value ${fmtMoney(total)}',
-                            style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  StatusBadge(label: '$count devices', color: AppTheme.gov),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Group details & lifecycle',
-                    icon: Icon(Icons.info_outline_rounded, color: accent),
-                    onPressed: () => showAssetGroupSheet(
-                      context,
-                      groupId: _groupId,
-                      description: first.description,
-                      onOpenDevice: widget.onOpen,
-                    ),
-                  ),
-                  DisclosureArrow(expanded: _expanded, color: accent),
-                ],
-              ),
-            ),
-          ),
-          ExpandReveal(
-              expanded: _expanded,
-              child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-              child: FutureBuilder<List<AssetModel>>(
-                future: _all,
-                builder: (context, snap) {
-                  if (snap.connectionState != ConnectionState.done) {
-                    return const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(
-                          child: SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2))),
-                    );
-                  }
-                  // If the fetch fails, fall back to whichever devices are already loaded.
-                  final all = snap.hasError ? members : snap.data!;
-                  return GroupDevicesTable(members: all, onOpen: widget.onOpen);
-                },
-              ),
-            ),
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 class _AssetCard extends StatelessWidget {
