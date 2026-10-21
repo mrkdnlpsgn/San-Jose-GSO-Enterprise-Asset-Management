@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { useEffect, useState, useRef } from 'react'
 import { getAuditLogs } from '../../services/auditLogService'
 import { useMobileRelease } from '../../hooks/useMobileRelease'
+import ConfirmDialog from '../common/ConfirmDialog'
 
 const LAST_SEEN_KEY = 'lastSeenAuditLogId'
 
@@ -193,9 +194,9 @@ const phoneIcon = (
   </svg>
 )
 
-// href instead of to: a plain link out of the app (a file download), never shown as active.
-// hint: a small line after the label, e.g. the app version.
-function NavItemLink({ to, href, label, hint, icon, alsoActiveOn, isCollapsed, pathname, hasNewAuditLog }) {
+// onClick instead of to: an action rather than a page (the app download), never shown as active.
+// hint: small text after the label, e.g. the app version.
+function NavItemLink({ to, onClick, label, hint, icon, alsoActiveOn, isCollapsed, pathname, hasNewAuditLog }) {
   const showPing = to === '/audit-logs' && hasNewAuditLog
   const itemClass = (active) => [
     'flex items-center gap-2.5 px-2.5 py-2 w-full rounded-md text-sm font-medium transition-all duration-150',
@@ -224,8 +225,8 @@ function NavItemLink({ to, href, label, hint, icon, alsoActiveOn, isCollapsed, p
 
   return (
     <div className="relative group">
-      {href ? (
-        <a href={href} target="_blank" rel="noopener noreferrer" className={itemClass(false)}>{content}</a>
+      {onClick ? (
+        <button type="button" onClick={onClick} className={`${itemClass(false)} text-left`}>{content}</button>
       ) : (
         <NavLink
           to={to}
@@ -260,6 +261,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
   const { pathname } = useLocation()
   const hasNewAuditLog = useAuditLogPing(pathname, isAdmin)
   const mobileRelease = useMobileRelease()
+  const [confirmDownload, setConfirmDownload] = useState(false)
   const visible = (items) => items.filter((i) => isAdmin || !ADMIN_ONLY_PATHS.has(i.to))
 
   // Close mobile sidebar on navigation
@@ -393,7 +395,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
         </p>
         {mobileRelease && (
           <NavItemLink
-            href={mobileRelease.downloadUrl}
+            onClick={() => setConfirmDownload(true)}
             label="Mobile App"
             hint={mobileRelease.latestVersion ? `v${mobileRelease.latestVersion}` : null}
             icon={phoneIcon}
@@ -453,6 +455,21 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
         )}
       </div>
     </aside>
+
+    {confirmDownload && mobileRelease && (
+      <ConfirmDialog
+        tone="primary"
+        title={`Download the mobile app${mobileRelease.latestVersion ? ` (v${mobileRelease.latestVersion})` : ''}?`}
+        message="This downloads the San Jose GSO app for Android phones as an APK file. Open it on the phone to install; Android may ask you to allow installs from this source. It installs over an older version and keeps your sign-in."
+        confirmLabel="Download"
+        onCancel={() => setConfirmDownload(false)}
+        onConfirm={() => {
+          setConfirmDownload(false)
+          // the file is sent as an attachment, so the browser saves it and this page stays open
+          window.location.assign(mobileRelease.downloadUrl)
+        }}
+      />
+    )}
     </>
   )
 }
