@@ -34,7 +34,7 @@ void main() {
       await tester.tap(find.text('Next'));
       await settle(tester);
     }
-    expect(find.text('Sign in with your GSO account'), findsOneWidget);
+    expect(find.text('AI-assisted insights'), findsOneWidget);
     await tester.tap(find.text('Get started'));
     await settle(tester);
     expect(container.read(onboardingDoneProvider), isTrue);

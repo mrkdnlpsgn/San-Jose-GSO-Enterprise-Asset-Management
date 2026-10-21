@@ -1,13 +1,16 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/ios_touch.dart';
 import '../provider/onboarding_provider.dart';
 
 // How a page's icon moves while it's on screen.
-enum _Motion { pulse, scan, wrench, swap, check }
+enum _Motion { pulse, scan, wrench, swap, sparkle }
 
 class _OnboardingPage {
   final IconData? icon; // null = the municipal seal
@@ -46,11 +49,12 @@ const _pages = [
         'so the PAR and Property Card always show who holds it.',
   ),
   _OnboardingPage(
-    icon: Icons.verified_user_outlined,
-    motion: _Motion.check,
-    title: 'Sign in with your GSO account',
-    body: 'Use the username and password given to you by the GSO system administrator. '
-        'Office staff see the assets of their own office.',
+    icon: Icons.auto_awesome_rounded,
+    motion: _Motion.sparkle,
+    title: 'AI-assisted insights',
+    body: 'Built-in AI looks at each asset\'s age, condition and repair history and suggests the next '
+        'step, from routine maintenance to review for disposal. It also drafts maintenance summaries '
+        'and disposal justifications for GSO staff to review.',
   ),
 ];
 
@@ -77,6 +81,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _finish() {
+    HapticFeedback.lightImpact(); // the one commit moment on this screen
     if (widget.replay) {
       context.pop();
       return;
@@ -107,9 +112,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 child: AnimatedOpacity(
                   opacity: _isLast ? 0 : 1,
                   duration: AppTheme.motionFast,
-                  child: TextButton(
-                    onPressed: _isLast ? null : _finish,
-                    child: Text(widget.replay ? 'Close' : 'Skip'),
+                  child: PressScale(
+                    child: TextButton(
+                      onPressed: _isLast ? null : _finish,
+                      child: Text(widget.replay ? 'Close' : 'Skip'),
+                    ),
                   ),
                 ),
               ),
@@ -119,16 +126,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 controller: _controller,
                 itemCount: _pages.length,
                 onPageChanged: (i) => setState(() => _index = i),
-                itemBuilder: (context, i) => _PageBody(page: _pages[i], active: i == _index),
+                itemBuilder: (context, i) =>
+                    _PageBody(page: _pages[i], index: i, controller: _controller, active: i == _index),
               ),
             ),
-            _Dots(count: _pages.length, index: _index),
+            _Dots(count: _pages.length, index: _index, controller: _controller),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: FilledButton(
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                onPressed: _next,
-                child: Text(_isLast ? (widget.replay ? 'Done' : 'Get started') : 'Next'),
+              child: PressScale(
+                scale: 0.97,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                  onPressed: _next,
+                  child: Text(_isLast ? (widget.replay ? 'Done' : 'Get started') : 'Next'),
+                ),
               ),
             ),
           ],
@@ -138,13 +149,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 }
 
+// The pager's live scroll position in pages (1.4 = 40% of the way from page 1 to page 2), so
+// anything tied to it follows the finger frame by frame instead of jumping when a page settles.
+double _pagePosition(PageController c, int fallback) =>
+    c.hasClients && c.position.haveDimensions ? c.page ?? fallback.toDouble() : fallback.toDouble();
+
 class _PageBody extends StatelessWidget {
   final _OnboardingPage page;
+  final int index;
+  final PageController controller;
   final bool active;
-  const _PageBody({required this.page, required this.active});
+  const _PageBody({required this.page, required this.index, required this.controller, required this.active});
 
   @override
   Widget build(BuildContext context) {
+    final reduced = context.prefersReducedMotion;
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -153,24 +172,38 @@ class _PageBody extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _AnimatedIcon(page: page, active: active),
+              // Depth while swiping: the icon trails the page a little, as if it sat further
+              // back, and fades as it leaves. It tracks the drag 1:1, so a swipe that's let go
+              // halfway just slides back. Reduce Motion keeps only the fade.
+              AnimatedBuilder(
+                animation: controller,
+                builder: (context, child) {
+                  final d = _pagePosition(controller, index) - index; // -1..1 while on screen
+                  final width = MediaQuery.sizeOf(context).width;
+                  return Opacity(
+                    opacity: (1 - d.abs() * 0.8).clamp(0.0, 1.0),
+                    child: Transform.translate(offset: Offset(reduced ? 0 : d * width * 0.35, 0), child: child),
+                  );
+                },
+                child: _AnimatedIcon(page: page, active: active),
+              ),
               const SizedBox(height: 12),
               Text(
                 page.title,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: context.colors.heading,
-                  fontSize: 26,
+                  fontSize: 28,
                   fontWeight: FontWeight.w700,
-                  height: 1.2,
-                  letterSpacing: -0.3,
+                  height: 1.15, // tight leading and negative tracking on large type
+                  letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 14),
               Text(
                 page.body,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: context.colors.textSecondary, fontSize: 16, height: 1.5),
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 18, height: 1.45),
               ),
               const SizedBox(height: 16),
             ],
@@ -184,35 +217,46 @@ class _PageBody extends StatelessWidget {
 class _Dots extends StatelessWidget {
   final int count;
   final int index;
-  const _Dots({required this.count, required this.index});
+  final PageController controller;
+  const _Dots({required this.count, required this.index, required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label: 'Page ${index + 1} of $count',
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < count; i++)
-            AnimatedContainer(
-              duration: AppTheme.motionFast,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: i == index ? 22 : 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: i == index ? context.brandAccent : context.colors.border,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-        ],
+      // the active pill stretches and recolours with the swipe itself, not after it
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final p = _pagePosition(controller, index);
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < count; i++)
+                Builder(builder: (context) {
+                  final near = (1 - (p - i).abs()).clamp(0.0, 1.0);
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 8 + 14 * near,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Color.lerp(context.colors.border, context.brandAccent, near),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  );
+                }),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-/// The page's icon in its tinted circle. Each time the page comes into view the icon pops in,
-/// then keeps a small looping motion that hints at what the page is about. With Reduce Motion
-/// on, it only fades in and stays still.
+/// The page's icon in its tinted circle. Each time the page comes into view the icon settles in
+/// on a spring, then keeps a small looping motion that hints at what the page is about; leaving
+/// the page plays the entrance in reverse. With Reduce Motion on, it only cross-fades and stays
+/// still.
 class _AnimatedIcon extends StatefulWidget {
   final _OnboardingPage page;
   final bool active;
@@ -225,7 +269,11 @@ class _AnimatedIcon extends StatefulWidget {
 class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMixin {
   static const _size = 132.0;
 
-  late final _enter = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
+  // Critically damped (no overshoot: nothing was flung, the page just arrived), ~0.45 s response.
+  static final _spring = SpringDescription.withDampingRatio(
+      mass: 1, stiffness: math.pow(2 * math.pi / 0.45, 2).toDouble(), ratio: 1.0);
+
+  late final _enter = AnimationController(vsync: this);
   late final _loop = AnimationController(vsync: this, duration: _loopDuration);
   bool _reduced = false;
   bool _started = false;
@@ -235,7 +283,7 @@ class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMi
         _Motion.scan => const Duration(milliseconds: 1800),
         _Motion.wrench => const Duration(milliseconds: 2000),
         _Motion.swap => const Duration(milliseconds: 1600),
-        _Motion.check => const Duration(milliseconds: 2600),
+        _Motion.sparkle => const Duration(milliseconds: 2600),
       };
 
   @override
@@ -250,19 +298,25 @@ class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMi
     super.didUpdateWidget(old);
     if (widget.active && !old.active) _play();
     if (!widget.active && old.active) {
-      // reset, so the entrance plays again when swiped back to
+      // leave the way it came, so swiping back plays the entrance again
       _started = false;
-      _loop.stop();
-      _loop.value = 0;
-      _enter.value = 0;
+      _loop.animateTo(0, duration: AppTheme.motionFast, curve: Curves.easeOut);
+      _settle(0);
     }
   }
 
   void _play() {
     _started = true;
-    _enter.forward(from: 0).whenComplete(() {
+    _settle(1).whenComplete(() {
       if (mounted && widget.active && !_reduced) _loop.repeat();
     });
+  }
+
+  // Always from the icon's current value and speed, so a swipe that changes its mind
+  // mid-entrance turns the motion around smoothly instead of restarting it.
+  TickerFuture _settle(double target) {
+    if (_reduced) return _enter.animateTo(target, duration: const Duration(milliseconds: 200));
+    return _enter.animateWith(SpringSimulation(_spring, _enter.value, target, _enter.velocity));
   }
 
   @override
@@ -288,10 +342,11 @@ class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMi
         builder: (context, _) {
           final e = _enter.value;
           final t = _loop.value;
-          // entrance: fade, and (unless reduced) a scale with a little overshoot and a slight rise
-          final opacity = Curves.easeOut.transform((e * 1.6).clamp(0.0, 1.0));
-          final scale = _reduced ? 1.0 : 0.55 + 0.45 * Curves.easeOutBack.transform(e);
-          final rise = _reduced ? 0.0 : 16 * (1 - Curves.easeOutCubic.transform(e));
+          // entrance: fade, and (unless reduced) grow from 80% and rise into place; the spring
+          // supplies the easing, so these follow it linearly
+          final opacity = (e * 1.6).clamp(0.0, 1.0);
+          final scale = _reduced ? 1.0 : 0.8 + 0.2 * e;
+          final rise = _reduced ? 0.0 : 14 * (1 - e);
 
           return Opacity(
             opacity: opacity,
@@ -306,7 +361,7 @@ class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMi
                     alignment: Alignment.center,
                     clipBehavior: Clip.none,
                     children: [
-                      if (!_reduced && (page.motion == _Motion.pulse || page.motion == _Motion.check))
+                      if (!_reduced && (page.motion == _Motion.pulse || page.motion == _Motion.sparkle))
                         _ring(accent, t),
                       Container(
                         width: _size,
@@ -322,7 +377,7 @@ class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMi
                           ],
                         ),
                       ),
-                      if (page.motion == _Motion.check) _checkBadge(accent, e),
+                      if (!_reduced && page.motion == _Motion.sparkle) ..._sparkles(accent, e, t),
                     ],
                   ),
                 ),
@@ -347,8 +402,14 @@ class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMi
       case _Motion.swap:
         // slides toward one office, then the other
         return Transform.translate(offset: Offset(9 * math.sin(t * 2 * math.pi), 0), child: glyph);
+      case _Motion.sparkle:
+        // a gentle shimmer: a small turn and swell, twice per loop
+        final w = math.sin(t * 4 * math.pi);
+        return Transform.rotate(
+          angle: 0.08 * w,
+          child: Transform.scale(scale: 1 + 0.05 * w.abs(), child: glyph),
+        );
       case _Motion.scan:
-      case _Motion.check:
         return glyph;
     }
   }
@@ -385,29 +446,28 @@ class _AnimatedIconState extends State<_AnimatedIcon> with TickerProviderStateMi
     );
   }
 
-  // A check badge that pops onto the shield just after it lands.
-  Widget _checkBadge(Color color, double e) {
-    final p = _reduced ? e : ((e - 0.55) / 0.45).clamp(0.0, 1.0);
-    final s = _reduced ? 1.0 : Curves.elasticOut.transform(p);
-    return Positioned(
-      right: 34,
-      bottom: 34,
-      child: Opacity(
-        opacity: p,
-        child: Transform.scale(
-          scale: s,
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: context.colors.surface, width: 3),
-            ),
-            child: const Icon(Icons.check_rounded, size: 22, color: Colors.white),
-          ),
+  // Small stars around the circle that twinkle in turn, after the icon lands.
+  List<Widget> _sparkles(Color color, double e, double t) {
+    final shown = ((e - 0.6) / 0.4).clamp(0.0, 1.0); // fade in at the end of the entrance
+    // (left, top, size, phase) inside the icon's 180 × 180 box
+    const stars = [(136.0, 18.0, 22.0, 0.0), (20.0, 128.0, 18.0, 0.33), (26.0, 30.0, 14.0, 0.66)];
+    return [
+      for (final (left, top, size, phase) in stars)
+        Positioned(
+          left: left,
+          top: top,
+          child: Builder(builder: (context) {
+            // each star brightens and swells once per loop, offset from the others
+            final glow = math.max(0.0, math.sin((t + phase) * 2 * math.pi));
+            return Opacity(
+              opacity: shown * (0.25 + 0.75 * glow),
+              child: Transform.scale(
+                scale: 0.6 + 0.5 * glow,
+                child: Icon(Icons.auto_awesome, size: size, color: color),
+              ),
+            );
+          }),
         ),
-      ),
-    );
+    ];
   }
 }
