@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/offline/asset_snapshot.dart';
 import '../model/asset_model.dart';
 import '../model/asset_import_result.dart';
 
@@ -12,6 +13,17 @@ typedef AssetOcrResult = ({String? description, String? serialNumber, String? sp
 
 class AssetService {
   final Dio _dio = ApiClient.instance.dio;
+  final AssetSnapshot _snapshot = AssetSnapshot.instance;
+
+  /// Offline (or the server didn't answer): read from the asset list saved on the phone,
+  /// if there is one; otherwise the original error stands.
+  Future<T> _orSnapshot<T>(Object error, Future<T?> Function() local) async {
+    final e = ApiException.from(error);
+    if (!e.serverAsleep) throw e;
+    final fromPhone = await local();
+    if (fromPhone == null) throw e;
+    return fromPhone;
+  }
 
   Future<List<AssetModel>> getAll({
     String? search,
@@ -22,21 +34,47 @@ class AssetService {
     String? condition,
     String? lifecycleStatus,
   }) async {
+    Future<List<AssetModel>?> local() => _snapshot.query(
+        search: search,
+        page: page,
+        size: size,
+        categoryId: categoryId,
+        officeId: officeId,
+        condition: condition,
+        lifecycleStatus: lifecycleStatus);
+    // The whole list, unfiltered — the same download the offline copy is made of.
+    final everything = page == 0 && size >= 100000 && (search == null || search.isEmpty) &&
+        categoryId == null && officeId == null && (condition ?? '').isEmpty && (lifecycleStatus ?? '').isEmpty;
+    if (ApiClient.instance.deviceOffline) {
+      final fromPhone = await local();
+      if (fromPhone != null) return fromPhone;
+    }
     try {
-      final res = await _dio.get('/assets', queryParameters: {
-        if (search != null && search.isNotEmpty) 'search': search,
-        'page': page,
-        'size': size,
-        if (categoryId != null) 'categoryId': categoryId,
-        if (officeId != null) 'officeId': officeId,
-        if (condition != null && condition.isNotEmpty) 'condition': condition,
-        if (lifecycleStatus != null && lifecycleStatus.isNotEmpty) 'lifecycleStatus': lifecycleStatus,
-      });
-      return (res.data as List).map((e) => AssetModel.fromJson(e as Map<String, dynamic>)).toList();
+      final res = await _dio.get('/assets',
+          queryParameters: {
+            if (search != null && search.isNotEmpty) 'search': search,
+            'page': page,
+            'size': size,
+            if (categoryId != null) 'categoryId': categoryId,
+            if (officeId != null) 'officeId': officeId,
+            if (condition != null && condition.isNotEmpty) 'condition': condition,
+            if (lifecycleStatus != null && lifecycleStatus.isNotEmpty) 'lifecycleStatus': lifecycleStatus,
+          },
+          // kept as the offline asset list instead of a second copy in the response cache
+          options: everything ? Options(extra: {'noCache': true}) : null);
+      final rows = res.data as List;
+      if (everything) {
+        await _snapshot.replaceAll(rows);
+        return (await local()) ?? const [];
+      }
+      return rows.map((e) => AssetModel.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
-      throw ApiException.from(e);
+      return _orSnapshot(e, local);
     }
   }
+
+  /// Downloads every asset the account can see into the offline copy.
+  Future<void> refreshOfflineCopy() => getAll(size: 100000);
 
   // Every device of one group — loaded when a group is opened, so the view doesn't depend on
   // which page (or search results) happened to be loaded in the list.
@@ -56,6 +94,12 @@ class AssetService {
     String? condition,
     String? lifecycleStatus,
   }) async {
+    Future<int?> local() => _snapshot.count(
+        search: search, categoryId: categoryId, officeId: officeId, condition: condition, lifecycleStatus: lifecycleStatus);
+    if (ApiClient.instance.deviceOffline) {
+      final fromPhone = await local();
+      if (fromPhone != null) return fromPhone;
+    }
     try {
       final res = await _dio.get('/assets/count', queryParameters: {
         if (search != null && search.isNotEmpty) 'search': search,
@@ -66,16 +110,21 @@ class AssetService {
       });
       return res.data as int;
     } catch (e) {
-      throw ApiException.from(e);
+      return _orSnapshot(e, local);
     }
   }
 
   Future<AssetModel> getById(int id) async {
+    // added offline (negative id) or no network: the phone's copy, with waiting edits
+    if (id < 0 || ApiClient.instance.deviceOffline) {
+      final fromPhone = await _snapshot.byId(id);
+      if (fromPhone != null) return fromPhone;
+    }
     try {
       final res = await _dio.get('/assets/$id');
       return AssetModel.fromJson(res.data as Map<String, dynamic>);
     } catch (e) {
-      throw ApiException.from(e);
+      return _orSnapshot(e, () => _snapshot.byId(id));
     }
   }
 
@@ -94,6 +143,7 @@ class AssetService {
     try {
       final res = await _dio.post('/assets', data: data,
           options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
+      await _snapshot.upsert(res.data as Map<String, dynamic>);
       return AssetModel.fromJson(res.data as Map<String, dynamic>);
     } catch (e) {
       throw ApiException.from(e);
@@ -122,6 +172,7 @@ class AssetService {
   Future<AssetModel> update(int id, Map<String, dynamic> data) async {
     try {
       final res = await _dio.put('/assets/$id', data: data);
+      await _snapshot.upsert(res.data as Map<String, dynamic>);
       return AssetModel.fromJson(res.data as Map<String, dynamic>);
     } catch (e) {
       throw ApiException.from(e);

@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../shared/widgets/action_otp_dialog.dart' show ActionOtpOutcome;
+import '../offline/offline_store.dart';
+import '../offline/response_cache.dart';
 
 const kServerAddressPrefsKey = 'settings.serverAddress';
 
@@ -16,6 +18,13 @@ class ApiClient {
   late final Dio dio;
   late final PersistCookieJar _cookieJar;
   late final SharedPreferences _prefs;
+
+  /// Answers GETs from the phone when the server can't be reached (see [ResponseCacheInterceptor]).
+  final ResponseCacheInterceptor _cache = ResponseCacheInterceptor();
+
+  /// True while the phone has no network at all — set from the connectivity provider.
+  bool get deviceOffline => _cache.deviceOffline;
+  set deviceOffline(bool value) => _cache.deviceOffline = value;
 
   /// The live deployment (Render, HTTPS) — the default, so a phone works anywhere.
   static const String liveAddress = 'https://sjgso.onrender.com';
@@ -63,7 +72,8 @@ class ApiClient {
         // no answer yet — still starting
       }
       if (DateTime.now().isAfter(deadline)) return false;
-      if (!notified) {
+      // no network on the phone isn't the server starting up — don't say it is
+      if (!notified && !deviceOffline) {
         notified = true;
         onWaiting?.call();
       }
@@ -73,6 +83,7 @@ class ApiClient {
 
   Future<void> init(SharedPreferences prefs) async {
     _prefs = prefs;
+    await OfflineStore.instance.init();
     final dir = await getApplicationDocumentsDirectory();
     _cookieJar = PersistCookieJar(
       storage: FileStorage('${dir.path}/.cookies/'),
@@ -88,6 +99,9 @@ class ApiClient {
 
     // Automatically stores the jwt HttpOnly cookie and sends it with every request
     dio.interceptors.add(CookieManager(_cookieJar));
+
+    // Offline: answer GETs from the saved copy, fail everything else at once.
+    dio.interceptors.add(_cache);
 
     // A status change or a decision on a staff request needs an emailed code: the server answers
     // 428 ACTION_OTP_REQUIRED (having emailed one), the prompt asks for it and repeats the request.
@@ -163,4 +177,11 @@ class ApiClient {
   }
 
   Future<void> clearCookies() async => _cookieJar.deleteAll();
+
+  /// Whether a sign-in cookie is still saved. The jar drops it once its 1-hour max-age
+  /// passes, so this is false for a session the server would refuse anyway.
+  Future<bool> hasSessionCookie() async {
+    final cookies = await _cookieJar.loadForRequest(Uri.parse(dio.options.baseUrl));
+    return cookies.any((c) => c.name == 'jwt');
+  }
 }

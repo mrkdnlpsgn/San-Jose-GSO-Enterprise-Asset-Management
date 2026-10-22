@@ -12,6 +12,9 @@ import '../../auth/provider/auth_provider.dart';
 import '../data/transfer_service.dart';
 import '../provider/transfer_provider.dart';
 import '../../../shared/widgets/ios_pickers.dart';
+import '../../../core/offline/outbox.dart';
+import '../../../shared/utils/idempotency.dart';
+import '../../outbox/sync_engine.dart';
 
 /// "Transfer this asset" — the web Transfer Asset page's form: move to office (required), new
 /// accountable person and reason. The asset's location follows the office. An admin's transfer
@@ -25,6 +28,7 @@ class TransferFormScreen extends ConsumerStatefulWidget {
 }
 
 class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
+  final String _idempotencyKey = newIdempotencyKey();
   final _formKey = GlobalKey<FormState>();
   final _reason = TextEditingController();
   int? _toOfficeId;
@@ -60,16 +64,34 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
     try {
-      final status = await TransferService().submit(
-        assetId: widget.asset.id,
-        toOfficeId: _toOfficeId!,
-        toPersonnelId: _toPersonnelId,
-        reason: _reason.text,
+      final status = await sendOrQueue<String>(
+        ref,
+        send: () => TransferService().submit(
+          assetId: widget.asset.id,
+          toOfficeId: _toOfficeId!,
+          toPersonnelId: _toPersonnelId,
+          reason: _reason.text,
+          idempotencyKey: _idempotencyKey,
+        ),
+        queue: () => Outbox.instance.add(
+          kind: 'transfer.create',
+          method: 'POST',
+          path: '/transfers',
+          body: TransferService.body(
+              assetId: widget.asset.id, toOfficeId: _toOfficeId!, toPersonnelId: _toPersonnelId, reason: _reason.text),
+          label: 'Transfer ${widget.asset.propertyNumber}',
+          idempotencyKey: _idempotencyKey,
+        ),
       );
       ref.invalidate(transfersProvider);
       ref.invalidate(assetDetailProvider(widget.asset.id));
       ref.invalidate(assetsPagedProvider(ref.read(assetSearchProvider)));
       if (!mounted) return;
+      if (status == null) {
+        showSavedOffline(context, what: 'Transfer saved');
+        context.pop(true);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(status == 'APPLIED'
             ? 'Transferred — ${widget.asset.propertyNumber} has been moved.'

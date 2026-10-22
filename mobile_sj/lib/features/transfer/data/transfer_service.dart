@@ -24,20 +24,26 @@ class TransferService {
     required int toOfficeId,
     int? toPersonnelId,
     String? reason,
+    String? idempotencyKey,
   }) async {
     try {
-      final res = await _dio.post('/transfers', data: {
-        'assetId': assetId,
-        'toOfficeId': toOfficeId,
-        'toPersonnelId': toPersonnelId,
-        // no toLocation: the server sets the asset's location to the new office's name
-        'reason': (reason == null || reason.trim().isEmpty) ? null : reason.trim(),
-      });
+      final res = await _dio.post('/transfers',
+          data: body(assetId: assetId, toOfficeId: toOfficeId, toPersonnelId: toPersonnelId, reason: reason),
+          options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
       return (res.data as Map<String, dynamic>)['status'] as String? ?? 'APPLIED';
     } catch (e) {
       throw ApiException.from(e);
     }
   }
+
+  /// The request body — also what the outbox saves when the phone is offline.
+  static Map<String, dynamic> body({required int assetId, required int toOfficeId, int? toPersonnelId, String? reason}) => {
+        'assetId': assetId,
+        'toOfficeId': toOfficeId,
+        'toPersonnelId': toPersonnelId,
+        // no toLocation: the server sets the asset's location to the new office's name
+        'reason': (reason == null || reason.trim().isEmpty) ? null : reason.trim(),
+      };
 
   Future<void> approve(int id) async {
     try {

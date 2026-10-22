@@ -49,6 +49,8 @@ dependencies:
   # Proactive "you're offline" signal, instead of only discovering connectivity
   # loss reactively after a request fails
   connectivity_plus: ^6.1.4
+  # Password check for offline sign-in (PBKDF2-HMAC-SHA256, see offline_credentials.dart)
+  crypto: ^3.0.6
   url_launcher: ^6.3.2
 
 dev_dependencies:

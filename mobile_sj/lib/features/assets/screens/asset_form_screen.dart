@@ -18,6 +18,9 @@ import '../../auth/provider/auth_provider.dart';
 import '../../maintenance/data/maintenance_service.dart';
 import '../../disposal/data/disposal_service.dart';
 import '../../../shared/utils/idempotency.dart';
+import '../../../core/offline/asset_snapshot.dart';
+import '../../../core/offline/outbox.dart';
+import '../../outbox/sync_engine.dart';
 import '../../../shared/widgets/ios_pickers.dart';
 
 // image_picker has no live-camera implementation on Windows/Linux (only a
@@ -214,13 +217,36 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
         'specifications': _specifications.text.trim().isEmpty ? null : _specifications.text.trim(),
       };
       final service = AssetService();
-      final AssetModel saved;
-      if (_isEdit) {
-        saved = await service.update(widget.asset!.id, data);
-      } else {
-        saved = await service.create(data, idempotencyKey: _idempotencyKey);
-      }
+      final asset = widget.asset;
+      final saved = await sendOrQueue<AssetModel>(
+        ref,
+        // an asset added offline only exists on this phone — its edits join that upload
+        forceQueue: asset != null && asset.id < 0,
+        send: () => asset != null
+            ? service.update(asset.id, data)
+            : service.create(data, idempotencyKey: _idempotencyKey),
+        queue: () async => Outbox.instance.add(
+          kind: asset != null ? 'asset.update' : 'asset.create',
+          method: asset != null ? 'PUT' : 'POST',
+          path: asset != null ? '/assets/${asset.id}' : '/assets',
+          body: data,
+          baseUpdatedAt: asset?.updatedAt,
+          label: asset != null
+              ? 'Edit asset ${asset.propertyNumber}'
+              : 'New asset ${data['propertyNumber'] ?? data['description']}',
+          preview: await _offlinePreview(data),
+          idempotencyKey: asset == null ? _idempotencyKey : null,
+        ),
+      );
       ref.invalidate(assetsPagedProvider(ref.read(assetSearchProvider)));
+      if (asset != null) ref.invalidate(assetDetailProvider(asset.id));
+      if (saved == null) {
+        if (mounted) {
+          showSavedOffline(context);
+          Navigator.pop(context, true);
+        }
+        return;
+      }
 
       // The backend auto-creates a placeholder maintenance/disposal record the
       // moment an asset's condition transitions into REPAIRABLE/UNSERVICEABLE
@@ -263,6 +289,36 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  // How the asset will look once uploaded, so the offline lists and detail show the change.
+  Future<Map<String, dynamic>> _offlinePreview(Map<String, dynamic> data) async {
+    final asset = widget.asset;
+    final base = asset != null && asset.id > 0 ? await AssetSnapshot.instance.rawById(asset.id) : null;
+    final category = (ref.read(categoriesProvider).valueOrNull ?? []).where((c) => c.id == _categoryId).firstOrNull;
+    final office = (ref.read(officesProvider).valueOrNull ?? []).where((o) => o.id == _officeId).firstOrNull;
+    final people = ref.read(personnelProvider).valueOrNull ?? [];
+    Map<String, dynamic>? person(int? id) {
+      final p = people.where((p) => p.id == id).firstOrNull;
+      return p == null ? null : {'id': p.id, 'fullName': p.fullName, 'position': p.position};
+    }
+
+    // A staff status change is only a request until an admin approves it — the asset keeps its status.
+    final request = _staffRequest != null;
+    return {
+      ...?base,
+      ...data,
+      'id': asset?.id ?? 0,
+      'propertyNumber': data['propertyNumber'] ?? asset?.propertyNumber ?? 'New asset',
+      'category': {'id': _categoryId ?? 0, 'categoryName': category?.categoryName ?? asset?.category.categoryName ?? '—'},
+      'office': {'id': _officeId ?? 0, 'officeName': office?.officeName ?? asset?.office.officeName ?? '—'},
+      'accountablePerson': person(_personnelId),
+      'currentUser': person(_currentUserId),
+      if (request) 'condition': asset!.condition,
+      if (request) 'lifecycleStatus': asset!.lifecycleStatus,
+      'createdAt': base?['createdAt'] ?? asset?.createdAt ?? DateTime.now().toUtc().toIso8601String(),
+      'updatedAt': base?['updatedAt'] ?? asset?.updatedAt ?? '',
+    };
   }
 
   void _showError(String msg) {

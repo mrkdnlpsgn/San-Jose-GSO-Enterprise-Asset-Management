@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../data/auth_service.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/connectivity/connectivity_provider.dart';
 import '../provider/auth_provider.dart';
 import 'force_change_password_screen.dart';
 import 'two_factor_screen.dart';
@@ -33,9 +34,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.initState();
     _wake();
     // Sent here because the session ended mid-use — say so once, rather than a blank sign-in.
-    if (ref.read(sessionExpiredNoticeProvider)) {
-      _error = 'Your session has expired. Please sign in again.';
-      Future.microtask(() => ref.read(sessionExpiredNoticeProvider.notifier).state = false);
+    final notice = ref.read(sessionExpiredNoticeProvider);
+    if (notice != null) {
+      _error = notice;
+      Future.microtask(() => ref.read(sessionExpiredNoticeProvider.notifier).state = null);
     }
   }
 
@@ -59,6 +61,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     final identifier = _identifierCtrl.text.trim();
     final password = _passwordCtrl.text;
+    // No network at all: check the password on the phone instead of waiting for the server.
+    if (ApiClient.instance.deviceOffline) return _signInOffline(identifier, password);
     await _serverReady;
     await ref.read(authProvider.notifier).login(identifier, password);
     if (!mounted) return;
@@ -71,6 +75,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         error = ref.read(authProvider).error;
       }
     }
+    // Connected, but the server still can't be reached (e.g. Wi-Fi with no internet).
+    if (error is ApiException && error.serverAsleep) return _signInOffline(identifier, password);
     if (error is MustChangePasswordRequired) {
       // Not a real auth failure — clear it so it isn't mistaken for one, then
       // hand off to the password-change step.
@@ -96,6 +102,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (error != null) setState(() => _error = _describe(error.toString()));
   }
 
+  Future<void> _signInOffline(String identifier, String password) async {
+    await ref.read(authProvider.notifier).loginOffline(identifier, password);
+    if (!mounted) return;
+    final error = ref.read(authProvider).error;
+    if (error != null) {
+      ref.read(authProvider.notifier).clearError();
+      setState(() => _error = error.toString());
+    }
+  }
+
   // The backend's wording is terse — say it in plain words, as the web sign-in page does.
   String _describe(String msg) {
     if (RegExp(r'invalid (credentials|email or password|username or password)|bad credentials', caseSensitive: false)
@@ -108,6 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isLoading = ref.watch(authProvider).isLoading;
+    final offline = ref.watch(isOnlineProvider).valueOrNull == false;
     final c = context.colors;
     final errorFg = context.isLight ? const Color(0xFFB91C1C) : const Color(0xFFFCA5A5);
 
@@ -202,7 +219,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            if (_serverWaking && _error == null) ...[
+                            // Offline, the server isn't "starting up" — the phone just can't reach it.
+                            if (_serverWaking && _error == null && !offline) ...[
                               Container(
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(

@@ -28,6 +28,7 @@ import '../../features/offices/screens/office_form_screen.dart';
 import '../../features/reports/screens/reports_list_screen.dart';
 import '../../features/asset_history/screens/asset_history_screen.dart';
 import '../../features/reports/screens/report_preview_screen.dart';
+import '../../features/outbox/outbox_screen.dart';
 import '../../features/recycle_bin/screens/recycle_bin_screen.dart';
 import '../../features/qr_scanner/screens/qr_scanner_screen.dart';
 import '../../features/settings/screens/settings_screen.dart';
@@ -174,6 +175,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (c, s) => fadeThroughPage(c, s, TransferFormScreen(asset: s.extra as AssetModel)),
       ),
       GoRoute(path: '/recycle-bin', pageBuilder: (c, s) => fadeThroughPage(c, s, const RecycleBinScreen())),
+      GoRoute(path: '/outbox', pageBuilder: (c, s) => fadeThroughPage(c, s, const OutboxScreen())),
       GoRoute(path: '/account', pageBuilder: (c, s) => fadeThroughPage(c, s, const AccountScreen())),
       GoRoute(path: '/legal', pageBuilder: (c, s) => fadeThroughPage(c, s, const LegalScreen())),
       GoRoute(

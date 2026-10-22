@@ -46,7 +46,8 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
     }
     setState(() => _loading = true);
     try {
-      await ref.read(authProvider.notifier).completeLoginOtp(widget.identifier, otp, rememberDevice: _remember);
+      await ref.read(authProvider.notifier).completeLoginOtp(widget.identifier, otp,
+          rememberDevice: _remember, password: widget.password);
       if (!mounted) return;
       final error = ref.read(authProvider).error;
       if (error != null) {

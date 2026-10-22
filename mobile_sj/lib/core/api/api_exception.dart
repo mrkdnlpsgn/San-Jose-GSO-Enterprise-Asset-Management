@@ -31,7 +31,9 @@ class ApiException implements Exception {
           e.type == DioExceptionType.receiveTimeout) {
         msg = 'Request timed out. Check your network connection.';
       } else if (e.type == DioExceptionType.connectionError) {
-        msg = 'Cannot reach the server. Check your network.';
+        msg = e.requestOptions.method.toUpperCase() == 'GET'
+            ? 'Cannot reach the server. Check your network.'
+            : "You're offline. This needs an internet connection.";
       }
 
       final asleep = e.response == null

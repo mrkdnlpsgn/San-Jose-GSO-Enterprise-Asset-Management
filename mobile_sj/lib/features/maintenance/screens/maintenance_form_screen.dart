@@ -10,6 +10,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/utils/idempotency.dart';
 import '../../../shared/widgets/ios_pickers.dart';
+import '../../../core/offline/outbox.dart';
+import '../../outbox/sync_engine.dart';
 
 class MaintenanceFormScreen extends ConsumerStatefulWidget {
   final MaintenanceModel? maintenance;
@@ -76,10 +78,29 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
         'status': _status,
       };
       final service = MaintenanceService();
-      if (_isEdit) {
-        await service.update(widget.maintenance!.id, data);
-      } else {
-        await service.create(data, idempotencyKey: _idempotencyKey);
+      final record = widget.maintenance;
+      final asset = _selectedAsset!;
+      final sent = await sendOrQueue<Object>(
+        ref,
+        send: () async => record != null
+            ? await service.update(record.id, data)
+            : await service.create(data, idempotencyKey: _idempotencyKey),
+        queue: () => Outbox.instance.add(
+          kind: record != null ? 'maintenance.update' : 'maintenance.create',
+          method: record != null ? 'PUT' : 'POST',
+          path: record != null ? '/maintenance/${record.id}' : '/maintenance',
+          body: data,
+          baseUpdatedAt: record?.updatedAt,
+          label: '${record != null ? 'Edit' : 'New'} maintenance record · ${asset.propertyNumber}',
+          idempotencyKey: record == null ? _idempotencyKey : null,
+        ),
+      );
+      if (sent == null) {
+        if (mounted) {
+          showSavedOffline(context);
+          Navigator.pop(context, true);
+        }
+        return;
       }
       ref.invalidate(maintenancePagedProvider(ref.read(maintenanceSearchProvider)));
       if (mounted) Navigator.pop(context, true);

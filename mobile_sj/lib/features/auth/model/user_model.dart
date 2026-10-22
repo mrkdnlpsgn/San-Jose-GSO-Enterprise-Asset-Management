@@ -66,6 +66,19 @@ class UserModel {
     );
   }
 
+  // Same shape fromJson reads — used to remember the signed-in user on the phone.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'username': username,
+        'fullName': fullName,
+        'officeName': officeName,
+        'officeId': officeId,
+        'officeIds': officeIds,
+        'role': role,
+        'privacyAcknowledgedAt': privacyAcknowledgedAt,
+        'avatarUrl': avatarUrl,
+      };
+
   bool get isAdmin => role == 'ADMIN';
 
   /// Full name when the account has one, otherwise the username.

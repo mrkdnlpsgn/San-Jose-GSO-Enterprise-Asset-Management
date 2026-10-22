@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/api/api_client.dart';
+import 'core/offline/outbox.dart';
 import 'core/router/app_router.dart';
 import 'core/router/root_navigator.dart';
 import 'core/theme/app_theme.dart';
 import 'features/settings/provider/settings_provider.dart';
+import 'features/outbox/sync_engine.dart';
 import 'shared/widgets/offline_banner.dart';
 import 'shared/widgets/idle_timeout_guard.dart';
 import 'shared/widgets/update_check_guard.dart';
@@ -15,6 +17,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   await ApiClient.instance.init(prefs);
+  await Outbox.instance.load();
   ApiClient.instance.actionOtpPrompt = (message, send) async {
     final context = rootNavigatorKey.currentContext;
     if (context == null) return const ActionOtpOutcome();
@@ -34,6 +37,8 @@ class EamApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    // Keeps the uploader running for the app's lifetime (listen, not watch: no app-wide rebuilds).
+    ref.listen(syncEngineProvider, (_, __) {});
     final settings = ref.watch(settingsProvider);
     return MaterialApp.router(
       title: 'San Jose EAM',
