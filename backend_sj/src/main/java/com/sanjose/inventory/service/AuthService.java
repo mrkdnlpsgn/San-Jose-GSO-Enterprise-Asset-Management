@@ -10,6 +10,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import com.sanjose.inventory.exception.AccountLockedException;
 import com.sanjose.inventory.exception.LoginFailedException;
+import com.sanjose.inventory.exception.ResourceNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -415,10 +416,11 @@ public class AuthService {
             },
             username);
 
-        // Unknown username, inactive account, no email on file, or still in cooldown:
-        // no-op rather than reveal anything via a distinguishable response — the
-        // controller returns the same generic message in every case.
-        if (rows.isEmpty()) return;
+        // An unknown username is told so (the GSO asked for this, so people don't wait for a
+        // code that will never come). Inactive account, no email on file, or still in cooldown:
+        // no-op — the controller returns the same generic message for those.
+        if (rows.isEmpty()) throw new ResourceNotFoundException(
+            "No account with that username was found. Check the spelling, or ask the system administrator.");
         ForgotPasswordUserData user = rows.get(0);
         if (!Boolean.TRUE.equals(user.isActive())) return;
         if (user.email() == null || user.email().isBlank()) return;
