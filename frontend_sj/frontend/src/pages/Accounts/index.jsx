@@ -12,7 +12,7 @@ import DeactivateAccountModal from './DeactivateAccountModal'
 import ResetPasswordModal from './ResetPasswordModal'
 import { getUsers, createUser, updateUser, deactivateUser, resetPassword } from '../../services/userService'
 import MyAccountTab from './MyAccountTab'
-import { getAuditLogs } from '../../services/auditLogService'
+import { getAuditLogs, getAuditArchiveSummary, runAuditArchive, exportAuditArchive } from '../../services/auditLogService'
 import DraftRows from '../../components/common/DraftRows'
 import { useDraftList } from '../../hooks/useFormDraft'
 
@@ -320,6 +320,114 @@ function AccountsTab() {
   )
 }
 
+// ── Audit log archive ─────────────────────────────────────────────────────────
+// Old entries leave the live list (keeps it fast) but are kept in an archive that can be
+// downloaded as a spreadsheet-friendly CSV, optionally for a date range.
+function formatDate(dt) {
+  if (!dt) return '—'
+  return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function AuditArchivePanel({ onArchived }) {
+  const toast                       = useToast()
+  const [summary, setSummary]       = useState(null)
+  const [from, setFrom]             = useState('')
+  const [to, setTo]                 = useState('')
+  const [exporting, setExporting]   = useState(false)
+  const [archiving, setArchiving]   = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await getAuditArchiveSummary()
+      setSummary(data)
+    } catch {
+      setSummary(null)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const retention = summary?.retentionDays
+  const retentionLabel = !retention ? '' : retention % 365 === 0
+    ? `${retention / 365} year${retention === 365 ? '' : 's'}`
+    : `${retention} days`
+
+  const handleExport = async () => {
+    if (from && to && from > to) { toast.show('The start date is after the end date.', 'error'); return }
+    setExporting(true)
+    try {
+      const { data } = await exportAuditArchive(from, to)
+      const url = URL.createObjectURL(data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `audit-logs-archive${from ? `-from-${from}` : ''}${to ? `-to-${to}` : ''}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.show('Failed to export the archive.', 'error')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleArchiveNow = async () => {
+    setArchiving(true)
+    try {
+      const { data } = await runAuditArchive()
+      setSummary(data)
+      toast.show(data.moved > 0
+        ? `Moved ${data.moved} old ${data.moved === 1 ? 'entry' : 'entries'} to the archive.`
+        : 'Nothing to archive — no entries are older than the limit.', 'success')
+      if (data.moved > 0) onArchived?.()
+    } catch {
+      toast.show('Failed to archive old entries.', 'error')
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  const inputCls = 'px-2.5 py-1.5 text-sm rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-brand-500'
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 px-5 py-4 space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">Archive</p>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+            {summary
+              ? <>Entries older than {retentionLabel} move here every night, so the list above stays fast. Nothing is deleted.{' '}
+                  {summary.archivedCount > 0
+                    ? <>{summary.archivedCount.toLocaleString()} archived {summary.archivedCount === 1 ? 'entry' : 'entries'}, {formatDate(summary.archivedOldest)} – {formatDate(summary.archivedNewest)}.</>
+                    : 'The archive is empty.'}</>
+              : 'Loading…'}
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" className="self-start whitespace-nowrap -ml-3 sm:ml-0" onClick={handleArchiveNow} disabled={archiving || !summary}>
+          {archiving ? 'Archiving…' : 'Archive old entries now'}
+        </Button>
+      </div>
+      {summary?.archivedCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-end gap-2.5">
+          <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-zinc-400">
+            From
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-zinc-400">
+            To
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
+          </label>
+          <Button variant="secondary" size="md" onClick={handleExport} disabled={exporting}>
+            {exporting ? 'Exporting…' : 'Export archive (CSV)'}
+          </Button>
+          <p className="text-xs text-slate-400 dark:text-zinc-500 sm:ml-1 sm:mb-2">Leave the dates empty to export everything.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Audit Logs tab ────────────────────────────────────────────────────────────
 function AuditLogsTab() {
   const toast                           = useToast()
@@ -511,6 +619,8 @@ function AuditLogsTab() {
           </div>
         )}
       </div>
+
+      <AuditArchivePanel onArchived={() => fetchLogs(debouncedSearch)} />
     </div>
   )
 }
