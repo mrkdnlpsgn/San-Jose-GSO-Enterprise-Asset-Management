@@ -497,7 +497,7 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
     return _SummaryCard(
       icon: Icons.auto_awesome_rounded,
       accent: Ios.indigo,
-      title: 'AI Activity Digest',
+      title: 'AI Asset Health',
       // a worded button, like the web dashboard's "Generate summary"
       trailing: _generating
           ? const Padding(
@@ -523,7 +523,7 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
         error: (e, _) => Text(e.toString(), style: TextStyle(color: c.textSecondary, fontSize: 14)),
         data: (digest) {
           if (digest == null) {
-            return Text('No digest yet. Tap Generate to write a plain-language summary of recent activity.',
+            return Text('No insights yet. Tap Generate for a short check of how the assets are doing and what needs action.',
                 style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45));
           }
           return Column(
@@ -532,7 +532,7 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
               Text(digest.digest, style: TextStyle(color: c.textPrimary, fontSize: 16, height: 1.5, letterSpacing: -0.2)),
               const SizedBox(height: 10),
               Text(
-                'Covers ${digest.coveredEntries} recent entries · generated ${_fmtDateTime(digest.generatedAt)}',
+                'Covers ${digest.coveredEntries} assets in use · generated ${_fmtDateTime(digest.generatedAt)}',
                 style: TextStyle(color: c.textTertiary, fontSize: 13),
               ),
             ],
