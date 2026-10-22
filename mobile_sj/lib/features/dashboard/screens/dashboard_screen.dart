@@ -138,6 +138,7 @@ class _ModuleList extends StatelessWidget {
         _ModuleItem(Icons.badge_rounded, 'Personnel', 'Assign each account its office', '/personnel', Ios.teal),
         _ModuleItem(Icons.people_rounded, 'Accounts', 'Create and manage user accounts', '/accounts', Ios.gray),
         _ModuleItem(Icons.restore_from_trash_rounded, 'Recycle Bin', 'Restore deleted records', '/recycle-bin', Ios.pink),
+        _ModuleItem(Icons.history_edu_rounded, 'Audit Logs', 'Who did what, and the log archive', '/audit-logs', Color(0xFFA2845E)),
       ],
     ];
     // iOS home-screen style: colourful rounded-square "app icons" with the name underneath, in
