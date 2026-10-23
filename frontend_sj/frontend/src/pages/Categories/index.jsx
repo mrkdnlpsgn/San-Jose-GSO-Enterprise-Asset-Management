@@ -15,6 +15,8 @@ import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, Dat
 
 const PAGE_SIZE = 25
 
+const lifeText = (years) => (years ? `${years} year${years === 1 ? '' : 's'}` : 'Not set')
+
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
 // onDelete (editing only) puts a Delete button in the form, since a row opens this form directly.
@@ -23,6 +25,7 @@ function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
   const [form, setForm]     = useState({
     categoryName:    initial?.categoryName || '',
     description:     initial?.description || '',
+    usefulLifeYears: initial?.usefulLifeYears != null ? String(initial.usefulLifeYears) : '',
   })
   const draft = useFormDraft(`category:${initial?.id ?? 'new'}`, form, setForm, {
     title: (f) => f.categoryName.trim() || initial?.categoryName || 'Untitled category',
@@ -39,11 +42,16 @@ function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.categoryName.trim()) { setErrors({ categoryName: 'Category name is required.' }); return }
+    const life = String(form.usefulLifeYears ?? '').trim()
+    if (life && !(/^\d+$/.test(life) && +life >= 1 && +life <= 100)) {
+      setErrors({ usefulLifeYears: 'Enter a whole number of years from 1 to 100, or leave it blank.' }); return
+    }
     setSaving(true)
     try {
       await onSave({
         categoryName: form.categoryName.trim(),
         description: form.description.trim(),
+        usefulLifeYears: life ? Number(life) : null,
       }, idempotencyKey)
       draft.clear()
       onClose()
@@ -75,6 +83,19 @@ function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
             value={form.description}
             onChange={set('description')}
           />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="cat-life" className="text-sm font-medium text-slate-700 dark:text-zinc-300">Expected life <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
+          <div className="flex items-center gap-2">
+            <input id="cat-life" type="number" inputMode="numeric" min={1} max={100} step={1}
+              className={INPUT_CLASS + ' max-w-[8rem]'} placeholder="e.g. 5" value={form.usefulLifeYears} onChange={set('usefulLifeYears')}
+              aria-describedby="cat-life-hint" aria-invalid={!!errors.usefulLifeYears} />
+            <span className="text-sm text-slate-700 dark:text-zinc-300">years</span>
+          </div>
+          <p id="cat-life-hint" className="text-xs text-slate-600 dark:text-zinc-400">
+            How long assets in this category are expected to stay in service, counted from the date acquired. Each asset shows when its expected life ends, and the AI advice takes it into account.
+          </p>
+          {errors.usefulLifeYears && <p className="text-xs text-red-700 dark:text-red-300">{errors.usefulLifeYears}</p>}
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           {isEditing && onDelete && (
@@ -108,7 +129,8 @@ function Categories() {
   const draftRecord = (d) => d.data
   const draftColumns = [
     { className: 'px-4 py-3 align-top', render: (c) => <PrimaryCell title={c.categoryName || 'No name yet'} /> },
-    { className: 'px-4 py-3 align-top hidden sm:table-cell w-[55%]', render: (c) => <MutedCell>{c.description}</MutedCell> },
+    { className: 'px-4 py-3 align-top hidden sm:table-cell w-[50%]', render: (c) => <MutedCell>{c.description}</MutedCell> },
+    { className: 'px-4 py-3 align-top whitespace-nowrap', render: (c) => <MutedCell>{lifeText(c.usefulLifeYears)}</MutedCell> },
   ]
   const [deleting, setDeleting]     = useState(null)
   const [blockedDelete, setBlockedDelete] = useState(null)
@@ -166,7 +188,8 @@ function Categories() {
   const columns = [
     { key: 'name', label: 'Category', cell: (c, open) => <PrimaryCell title={c.categoryName} open={open}
         extra={c.description && <p className="sm:hidden text-xs text-slate-600 dark:text-zinc-400 mt-0.5 truncate">{c.description}</p>} /> },
-    { key: 'desc', label: 'Description', className: 'hidden sm:table-cell w-[55%]', cell: (c) => <MutedCell>{c.description}</MutedCell> },
+    { key: 'desc', label: 'Description', className: 'hidden sm:table-cell w-[50%]', cell: (c) => <MutedCell>{c.description}</MutedCell> },
+    { key: 'life', label: 'Expected life', className: 'whitespace-nowrap', cell: (c) => <MutedCell>{lifeText(c.usefulLifeYears)}</MutedCell> },
   ]
 
   return (

@@ -30,6 +30,17 @@ function fmt(dt) {
   if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
+// The category's expected useful life, counted from the acquisition date.
+function expectedLife(asset) {
+  const years = asset.category?.usefulLifeYears
+  if (!years) return 'Not set for this category'
+  const label = `${years} year${years === 1 ? '' : 's'}`
+  if (!asset.acquisitionDate) return label
+  const end = new Date(asset.acquisitionDate)
+  end.setFullYear(end.getFullYear() + years)
+  const when = end.toLocaleDateString('en-PH', { year: 'numeric', month: 'short' })
+  return end < new Date() ? `${label} · ended ${when}` : `${label} · ends ${when}`
+}
 function php(v) {
   if (v == null) return 'N/A'
   return '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
@@ -242,6 +253,7 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
                 <section aria-labelledby="sec-value">
                   <h3 id="sec-value" className={SECTION}>Acquisition &amp; count</h3>
                   <Field label="Acquired"          value={`${fmt(asset.acquisitionDate)} · ${php(asset.unitValue)}`} />
+                  <Field label="Expected life"     value={expectedLife(asset)} />
                   <Field label="Quantity"          value={`${asset.quantity ?? 1} on Property Card · ${asset.physicalCount ?? 'N/A'} counted`} />
                   <Field label="Shortage/Overage"  value={`${so(Number(asset.shortageOverageQty ?? 0))} · ${php(asset.shortageOverageValue ?? 0)}`} />
                 </section>

@@ -187,6 +187,13 @@ public class AiRecommendationService {
         return sb.toString();
     }
 
+    private static String expectedLife(Asset asset) {
+        Integer years = asset.getCategory() != null ? asset.getCategory().getUsefulLifeYears() : null;
+        if (years == null) return "not set";
+        LocalDate end = asset.getAcquisitionDate().plusYears(years);
+        return years + " years (" + (end.isBefore(AppTime.today()) ? "ended " : "ends ") + end + ")";
+    }
+
     private static String clip(String s) {
         if (s == null || s.isBlank()) return "-";
         String flat = s.replaceAll("\\s+", " ").trim();
@@ -258,6 +265,8 @@ public class AiRecommendationService {
         ONGOING or SCHEDULED work to see the asset's current state.
         - Age alone is not enough for REVIEW_FOR_DISPOSAL. An old asset that works and is maintained \
         is usually MONITOR or BUDGET_PRIORITY.
+        - When the category has an expected useful life, compare the age with it. Nearing or past \
+        that life is a reason to plan a replacement (BUDGET_PRIORITY), not on its own a reason for disposal.
         - If no maintenance is logged, that means nothing has been recorded yet, not that the asset is \
         trouble-free; do not treat it as evidence either way.
         - If a disposal record exists, say what stage it is at and what is left to do.
@@ -283,6 +292,7 @@ public class AiRecommendationService {
             Specifications: %s
             Remarks: %s
             Acquired: %s (%s years ago)
+            Expected useful life for this category: %s
             Unit value: PHP %s
             Current condition: %s (score %d/3, where 3 = serviceable, 2 = repairable, 1 = unserviceable)
             Lifecycle status: %s
@@ -294,7 +304,7 @@ public class AiRecommendationService {
                 asset.getCategory() != null ? asset.getCategory().getCategoryName() : "Uncategorized",
                 asset.getOffice() != null ? asset.getOffice().getOfficeName() : "Unassigned",
                 clip(asset.getSpecifications()), clip(asset.getRemarks()),
-                asset.getAcquisitionDate(), ageYears, asset.getUnitValue(),
+                asset.getAcquisitionDate(), ageYears, expectedLife(asset), asset.getUnitValue(),
                 asset.getCondition(), conditionScore, asset.getLifecycleStatus(),
                 totalRepairCost, costShare, repairFrequency,
                 historyFor(asset.getId()));

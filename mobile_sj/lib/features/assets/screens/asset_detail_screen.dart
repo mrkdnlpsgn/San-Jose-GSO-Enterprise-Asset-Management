@@ -257,6 +257,7 @@ class _DetailsTab extends ConsumerWidget {
         _card(context, 'Financial', [
           _row(context, 'Unit Value', fmtMoney(asset.unitValue)),
           _row(context, 'Acquisition Date', asset.acquisitionDate),
+          _row(context, 'Expected Life', expectedLifeText(asset)),
         ]),
         if (asset.specifications != null && asset.specifications!.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -743,3 +744,16 @@ String _titleCase(String raw) => raw
     .where((w) => w.isNotEmpty)
     .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
     .join(' ');
+
+// The category's expected useful life, counted from the acquisition date.
+String expectedLifeText(AssetModel asset) {
+  final years = asset.category.usefulLifeYears;
+  if (years == null) return 'Not set for this category';
+  final label = '$years year${years == 1 ? '' : 's'}';
+  final acquired = DateTime.tryParse(asset.acquisitionDate);
+  if (acquired == null) return label;
+  final end = DateTime(acquired.year + years, acquired.month, acquired.day);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  final when = '${months[end.month - 1]} ${end.year}';
+  return end.isBefore(DateTime.now()) ? '$label · ended $when' : '$label · ends $when';
+}

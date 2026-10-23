@@ -2,13 +2,16 @@ class CategoryModel {
   final int id;
   final String categoryName;
   final String? description;
+  /// Expected useful life in years, counted from the acquisition date; null when not set.
+  final int? usefulLifeYears;
 
-  const CategoryModel({required this.id, required this.categoryName, this.description});
+  const CategoryModel({required this.id, required this.categoryName, this.description, this.usefulLifeYears});
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) => CategoryModel(
         id: json['id'] as int,
         categoryName: json['categoryName'] as String? ?? 'N/A',
         description: json['description'] as String?,
+        usefulLifeYears: json['usefulLifeYears'] as int?,
       );
 }
 

@@ -45,6 +45,15 @@ public class AssetService {
     private final DisposalLedgerService disposalLedgerService;
     private final AssetQrService assetQrService;
 
+    // A column a database with older copies of the procedures may not return yet.
+    private static Integer optionalInt(java.sql.ResultSet rs, String column) {
+        try {
+            return rs.getObject(column, Integer.class);
+        } catch (java.sql.SQLException e) {
+            return null;
+        }
+    }
+
     private static final RowMapper<Asset> ASSET_MAPPER = (rs, rn) -> {
         Asset a = new Asset();
         a.setId(rs.getLong("id"));
@@ -82,6 +91,7 @@ public class AssetService {
             Category c = new Category();
             c.setId(catId);
             c.setCategoryName(rs.getString("categoryName"));
+            c.setUsefulLifeYears(optionalInt(rs, "categoryUsefulLifeYears"));
             a.setCategory(c);
         }
 

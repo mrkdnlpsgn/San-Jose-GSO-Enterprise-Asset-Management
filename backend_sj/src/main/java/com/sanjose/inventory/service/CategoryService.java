@@ -43,7 +43,16 @@ public class CategoryService {
         return list.get(0);
     }
 
+    // Expected useful life: blank, or a whole number of years within reason.
+    private static void checkUsefulLife(CategoryRequest req) {
+        Integer years = req.getUsefulLifeYears();
+        if (years != null && (years < 1 || years > 100)) {
+            throw new IllegalArgumentException("Expected life must be between 1 and 100 years.");
+        }
+    }
+
     public Category create(CategoryRequest req) {
+        checkUsefulLife(req);
         Boolean exists = SpHelper.callWithOutBoolean(jdbcTemplate,
             "CALL sp_categories_name_exists(?, ?)", req.getCategoryName());
         if (Boolean.TRUE.equals(exists)) {
@@ -59,6 +68,7 @@ public class CategoryService {
 
     public Category update(Long id, CategoryRequest req) {
         findById(id); // throws if not found
+        checkUsefulLife(req);
         jdbcTemplate.update("CALL sp_categories_update(?, ?, ?, ?)",
             id, req.getCategoryName(), req.getDescription(), req.getUsefulLifeYears());
         Category saved = findById(id);
