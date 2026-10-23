@@ -1,63 +1,50 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import MainLayout from '../../components/layout/MainLayout'
-import Modal from '../../components/common/Modal'
 import { getAccountableHistory, getEditRequests } from '../../services/assetHistoryService'
 import { getUsers } from '../../services/userService'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../hooks/useAuth'
 import { useEventStream } from '../../hooks/useEventStream'
-import { ApprovalActions, RejectRequestModal } from '../../components/common/ApprovalControls'
+import { RejectRequestModal } from '../../components/common/ApprovalControls'
+import {
+  SearchBox, FilterSelect, FilterBar, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty,
+  DataTable, PrimaryCell, MutedCell, MappedBadge, ICON, fmtDate, personName,
+} from '../../components/common/ListKit'
+import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
 import { approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
 import { approveDisposal, rejectDisposal } from '../../services/disposalService'
 import { approveTransfer, rejectTransfer } from '../../services/transferService'
 
 // Only the events the system actually records (ASSIGNED / ARCHIVED are never logged).
-const EVENT_TYPES = ['REGISTERED', 'TRANSFERRED', 'MAINTENANCE', 'DISPOSAL']
-
-const EVENT_BADGE = {
-  REGISTERED:  'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
-  ASSIGNED:    'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
-  TRANSFERRED: 'bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20',
-  MAINTENANCE: 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20',
-  DISPOSAL:    'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
-  TRANSFER:    'bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20',
-  ARCHIVED:    'bg-zinc-500/10 text-zinc-400 ring-1 ring-zinc-500/20',
+const EVENT = {
+  REGISTERED:  { label: 'Registered',  tone: 'blue' },
+  TRANSFERRED: { label: 'Transferred', tone: 'violet' },
+  MAINTENANCE: { label: 'Maintenance', tone: 'amber' },
+  DISPOSAL:    { label: 'Disposal',    tone: 'red' },
 }
 
 // Staff request kinds: label in the list, the API calls, and what approving does.
 const REQUEST_KIND = {
-  MAINTENANCE: { label: 'Under Maintenance', approve: approveMaintenance, reject: rejectMaintenance, done: 'is now under maintenance' },
-  DISPOSAL:    { label: 'Disposal',          approve: approveDisposal,    reject: rejectDisposal,    done: 'is now disposed' },
-  TRANSFER:    { label: 'Transfer',          approve: approveTransfer,    reject: rejectTransfer,    done: 'has been transferred' },
+  MAINTENANCE: { label: 'Maintenance', tone: 'amber',  approve: approveMaintenance, reject: rejectMaintenance, done: 'is now under maintenance' },
+  DISPOSAL:    { label: 'Disposal',    tone: 'red',    approve: approveDisposal,    reject: rejectDisposal,    done: 'is now disposed' },
+  TRANSFER:    { label: 'Transfer',    tone: 'violet', approve: approveTransfer,    reject: rejectTransfer,    done: 'has been transferred' },
 }
 
 // Where a staff request (maintenance / disposal / transfer) stands.
 const REQUEST_STATUS = {
-  PENDING_APPROVAL: { label: 'Pending',  cls: 'bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/20' },
-  APPROVED:         { label: 'Approved', cls: 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' },
-  REJECTED:         { label: 'Rejected', cls: 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20' },
+  PENDING_APPROVAL: { label: 'Awaiting approval', tone: 'amber' },
+  APPROVED:         { label: 'Approved',          tone: 'green' },
+  REJECTED:         { label: 'Rejected',          tone: 'red' },
 }
 
-function formatDate(dt) {
-  if (!dt) return '—'
-  return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
-}
+const WHEN = [['today', 'Today'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days']]
 
-const SELECT_CLASS = 'appearance-none text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 px-3 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all disabled:opacity-70 disabled:cursor-not-allowed'
-
-function Chevron() {
-  return (
-    <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-    </div>
-  )
-}
-
-const PAGE_SIZE = 10
+const PAGE_SIZE = 25
 
 function withinDate(dt, dateFilter, now) {
-  if (dateFilter === 'all') return true
+  if (!dateFilter) return true
   const t = new Date(dt).getTime()
   if (dateFilter === 'today') {
     const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -67,23 +54,49 @@ function withinDate(dt, dateFilter, now) {
   return now - t <= days * 86400000
 }
 
+const HISTORY_COLUMNS = [
+  { key: 'asset', label: 'Asset', cell: (h, open) => (
+    <PrimaryCell code={h.asset?.propertyNumber} title={h.asset?.description} open={open}
+      extra={<div className="sm:hidden mt-1"><MappedBadge map={EVENT} value={h.eventType} /></div>} />
+  ) },
+  { key: 'event', label: 'Event', className: 'hidden sm:table-cell w-[9rem]', cell: (h) => <MappedBadge map={EVENT} value={h.eventType} /> },
+  { key: 'who', label: 'Done by', className: 'hidden md:table-cell w-[22%]', cell: (h) => <MutedCell>{personName(h.performedBy)}</MutedCell> },
+  { key: 'date', label: 'Date', className: 'hidden lg:table-cell w-[8.5rem]', cell: (h) => <MutedCell>{fmtDate(h.eventDate || h.createdAt)}</MutedCell> },
+]
+
+const REQUEST_COLUMNS = [
+  { key: 'asset', label: 'Asset', cell: (r, open) => (
+    <PrimaryCell code={r.propertyNumber} title={r.assetDescription} open={open}
+      extra={<div className="sm:hidden mt-1"><MappedBadge map={REQUEST_STATUS} value={r.approvalStatus} /></div>} />
+  ) },
+  { key: 'kind', label: 'Request', className: 'hidden md:table-cell w-[8.5rem]', cell: (r) => <MappedBadge map={REQUEST_KIND} value={r.kind} /> },
+  { key: 'status', label: 'Status', className: 'hidden sm:table-cell w-[10.5rem]', cell: (r) => <MappedBadge map={REQUEST_STATUS} value={r.approvalStatus} /> },
+  { key: 'who', label: 'Requested by', className: 'hidden lg:table-cell w-[20%]', cell: (r) => <MutedCell>{r.requestedByName}</MutedCell> },
+  { key: 'date', label: 'Requested', className: 'hidden xl:table-cell w-[8.5rem]', cell: (r) => <MutedCell>{fmtDate(r.requestedAt)}</MutedCell> },
+]
+
 function AssetHistory() {
   const toast = useToast()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const isAdmin = user?.role === 'ADMIN'
 
-  const [view, setView]           = useState('history')   // 'history' | 'requests'
+  // The dashboard links here with ?view=requests&status=PENDING_APPROVAL|REJECTED.
+  const location = useLocation()
+  const linked = new URLSearchParams(location.search)
+  const [view, setView]           = useState(linked.get('view') === 'requests' ? 'requests' : 'history')   // 'history' | 'requests'
   const [history, setHistory]     = useState([])
   const [requests, setRequests]   = useState([])
   const [loading, setLoading]     = useState(true)
   const [users, setUsers]         = useState([])
   const [search, setSearch]       = useState('')
   const [filterType, setFilterType] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [dateFilter, setDateFilter] = useState('all')
+  const [filterStatus, setFilterStatus] = useState(() => (REQUEST_STATUS[linked.get('status')] ? linked.get('status') : ''))
+  const [dateFilter, setDateFilter] = useState('')
   // Admin can narrow to one person ('' = everyone). Staff aren't filtered here — the backend
   // already limits them to their accountable assets' history and their own requests.
   const [performer, setPerformer] = useState('')
+  const [moreFilters, setMoreFilters] = useState(false)
   const [viewing, setViewing]     = useState(null)
   const [rejecting, setRejecting] = useState(null)
   const [page, setPage]           = useState(1)
@@ -123,11 +136,17 @@ function AssetHistory() {
     else fetchRequests(performer || null)
   }, [view, debouncedSearch, performer, fetchHistory, fetchRequests])
 
-  // Admin approves / rejects a staff request right from the list.
+  const refresh = (silent = false) => {
+    if (view === 'history') fetchHistory(debouncedSearch, silent)
+    else fetchRequests(performer || null, silent)
+  }
+
+  // Admin approves / rejects a staff request from its details window.
   const handleApprove = async (r) => {
     try {
       await REQUEST_KIND[r.kind].approve(r.recordId)
       toast.show(`Request approved — ${r.propertyNumber} ${REQUEST_KIND[r.kind].done}.`, 'success')
+      setViewing(null)
       fetchRequests(performer || null)
     } catch (err) {
       toast.show(err.response?.data?.message || 'Failed to approve the request.', 'error')
@@ -137,19 +156,17 @@ function AssetHistory() {
   const handleReject = async (note) => {
     await REQUEST_KIND[rejecting.kind].reject(rejecting.recordId, note)
     toast.show('Request rejected.', 'success')
+    setViewing(null)
     fetchRequests(performer || null)
   }
 
   // Keep the list current as assets / requests change anywhere (no loading flicker).
-  const refreshSilently = () => {
-    if (view === 'history') fetchHistory(debouncedSearch, true)
-    else fetchRequests(performer || null, true)
-  }
-  useEventStream('asset', refreshSilently)
-  useEventStream('maintenance', refreshSilently)
-  useEventStream('disposal', refreshSilently)
+  useEventStream('asset', () => refresh(true))
+  useEventStream('maintenance', () => refresh(true))
+  useEventStream('disposal', () => refresh(true))
 
   useEffect(() => { setPage(1) }, [view, debouncedSearch, filterType, filterStatus, dateFilter, performer])
+  useEffect(() => { if (performer) setMoreFilters(true) }, [performer])
 
   const now = Date.now()
   const filteredHistory = useMemo(() => history.filter((h) => {
@@ -168,261 +185,140 @@ function AssetHistory() {
     })
   }, [requests, filterStatus, debouncedSearch, dateFilter, now])
 
-  const rows       = view === 'history' ? filteredHistory : filteredRequests
-  const total      = view === 'history' ? history.length : requests.length
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  const paged      = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const noun       = view === 'history' ? ['entry', 'entries'] : ['request', 'requests']
+  const isHistory = view === 'history'
+  const rows   = isHistory ? filteredHistory : filteredRequests
+  const total  = isHistory ? history.length : requests.length
+  const paged  = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const activeFilters = [search.trim(), isHistory ? filterType : filterStatus, dateFilter, performer].filter(Boolean).length
+  const clearFilters = () => { setSearch(''); setFilterType(''); setFilterStatus(''); setDateFilter(''); setPerformer('') }
+  const requestsLabel = isAdmin ? 'Staff requests' : 'My requests'
+
+  const personOptions = users.map((u) => [String(u.id), `${u.fullName || u.username}${u.role === 'ADMIN' ? ' (Admin)' : ''}`])
 
   return (
     <MainLayout>
-      <div className="flex flex-col gap-3 mb-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="relative w-full sm:max-w-xs">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-            <input type="text" placeholder={view === 'history' ? 'Search asset, event type, person…' : 'Search asset, person, details…'}
-              value={search} onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
-          </div>
-          <div className="inline-flex self-start sm:self-auto rounded-lg border border-slate-200 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900">
-            {[['history', 'History'], ['requests', isAdmin ? 'Staff Requests' : 'My Requests']].map(([v, label]) => (
-              <button key={v} onClick={() => setView(v)}
-                className={`text-xs px-3 py-1.5 rounded-md font-medium transition-all ${
-                  view === v
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900'
-                    : 'text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
+      <div className="flex flex-col gap-2.5 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <SearchBox value={search} onChange={setSearch} label={isHistory ? 'Search asset history' : 'Search requests'}
+            placeholder={isHistory ? 'Search by asset, property no. or person' : 'Search by asset, person or details'} />
+          {/* Two lists on one page: what happened to assets, and maintenance/disposal/transfer requests */}
+          <div className="inline-flex self-start sm:self-auto rounded-lg border border-slate-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900" role="tablist">
+            {[['history', 'History'], ['requests', requestsLabel]].map(([key, label]) => (
+              <button key={key} role="tab" aria-selected={view === key} onClick={() => { setView(key); setViewing(null) }}
+                className={`text-sm px-3.5 py-1.5 rounded-md font-medium transition-colors ${
+                  view === key ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900' : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800'
                 }`}>{label}</button>
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <select value={performer} onChange={(e) => setPerformer(e.target.value)} disabled={!isAdmin}
-              title={isAdmin ? 'Show changes made by one person' : view === 'history' ? 'Changes to the assets you are accountable for' : 'Your own requests'}
-              className={SELECT_CLASS}>
-              {isAdmin ? (
-                <>
-                  <option value="">{view === 'history' ? 'Performed by: everyone' : 'Requested by: all staff'}</option>
-                  {users.map((u) => <option key={u.id} value={String(u.id)}>{u.fullName || u.username}{u.role === 'ADMIN' ? ' (Admin)' : ''}</option>)}
-                </>
-              ) : (
-                <option value="">{view === 'history' ? 'Assets you are accountable for' : `Requested by: ${user?.fullName || user?.username} (you)`}</option>
-              )}
-            </select>
-            <Chevron />
-          </div>
-          {view === 'history' ? (
-            <div className="relative">
-              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={SELECT_CLASS}>
-                <option value="">All Event Types</option>
-                {EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <Chevron />
-            </div>
-          ) : (
-            <div className="relative">
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={SELECT_CLASS}>
-                <option value="">All Statuses</option>
-                {Object.entries(REQUEST_STATUS).map(([k, { label }]) => <option key={k} value={k}>{label}</option>)}
-              </select>
-              <Chevron />
-            </div>
-          )}
-          {['all', 'today', '7d', '30d'].map((d) => (
-            <button key={d} onClick={() => setDateFilter(d)}
-              className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-all ${
-                dateFilter === d
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900 border-slate-900 dark:border-white'
-                  : 'border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
-              }`}>
-              {d === 'all' ? 'All time' : d === 'today' ? 'Today' : d === '7d' ? 'Last 7 days' : 'Last 30 days'}
-            </button>
-          ))}
-        </div>
+        <FilterBar activeCount={activeFilters} onClear={clearFilters} moreOpen={moreFilters} onMoreToggle={setMoreFilters}
+          more={isAdmin ? (
+            <FilterSelect label={isHistory ? 'Done by' : 'Requested by'} value={performer} onChange={setPerformer} options={personOptions} anyLabel="Anyone" />
+          ) : null}>
+          {isHistory
+            ? <FilterSelect label="Event" value={filterType} onChange={setFilterType} options={Object.entries(EVENT).map(([k, e]) => [k, e.label])} />
+            : <FilterSelect label="Status" value={filterStatus} onChange={setFilterStatus} options={Object.entries(REQUEST_STATUS).map(([k, s]) => [k, s.label])} />}
+          <FilterSelect label="When" value={dateFilter} onChange={setDateFilter} options={WHEN} anyLabel="Any time" />
+        </FilterBar>
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">
-            {view === 'history' ? 'Asset History' : isAdmin ? 'Staff Requests' : 'My Requests'}
-          </p>
-          {!loading && (
-            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full">
-              {rows.length}{rows.length !== total ? ` of ${total}` : ''} {rows.length !== 1 ? noun[1] : noun[0]}
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-slate-100 dark:divide-zinc-800">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-3.5">
-                <div className="animate-pulse h-3 w-32 rounded bg-slate-200 dark:bg-zinc-800" />
-                <div className="animate-pulse h-5 w-20 rounded-full bg-slate-200 dark:bg-zinc-800" />
-                <div className="animate-pulse h-3 w-24 rounded bg-slate-200 dark:bg-zinc-800 ml-auto" />
-              </div>
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-2 text-zinc-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <p className="text-sm text-zinc-500">
-              {total === 0
-                ? (view === 'history' ? 'No history recorded yet.' : 'No requests yet.')
-                : 'Nothing matches your filters.'}
-            </p>
-          </div>
-        ) : view === 'history' ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
-              <thead>
-                <tr>
-                  {['Asset', 'Event Type', 'From Office', 'Performed By', 'Date', 'Notes'].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                {paged.map((h) => (
-                  <tr key={h.id} onClick={() => setViewing(h)}
-                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                    <td className="px-5 py-3.5">
-                      <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{h.asset?.propertyNumber}</p>
-                      {h.asset?.parNumber && <p className="font-mono text-2xs text-slate-400 dark:text-zinc-500">PAR: {h.asset.parNumber}</p>}
-                      <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem]">{h.asset?.description}</p>
-                    </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${EVENT_BADGE[h.eventType] || 'bg-zinc-500/10 text-zinc-400 ring-1 ring-zinc-500/20'}`}>
-                        {h.eventType}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{h.fromOffice?.officeName || '—'}</td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{h.performedBy?.fullName || h.performedBy?.username || '—'}</td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{formatDate(h.eventDate || h.createdAt)}</td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[10rem]">
-                      <span className="block truncate" title={h.notes}>{h.notes || '—'}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <ListCard title={isHistory ? 'Asset history' : requestsLabel} filtered={rows.length !== total}
+        count={rows.length} total={total} noun={isHistory ? 'entry' : 'request'} loading={loading}
+        actions={<RefreshButton onClick={() => refresh()} />}
+        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />}>
+        {loading ? <ListSkeleton /> : rows.length === 0 ? (
+          <ListEmpty>{total === 0 ? (isHistory ? 'No history recorded yet.' : 'No requests yet.') : 'Nothing matches your search or filters.'}</ListEmpty>
+        ) : isHistory ? (
+          <DataTable columns={HISTORY_COLUMNS} rows={paged} rowKey={(h) => h.id} onOpen={setViewing} selectedKey={viewing?.id}
+            caption="Asset history. Select an entry to see its details." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
-              <thead>
-                <tr>
-                  {['Asset', 'Request', 'Details', 'Requested By', 'Requested', 'Status', 'Reviewed', ...(isAdmin ? [''] : [])].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                {paged.map((r) => {
-                  const status = REQUEST_STATUS[r.approvalStatus] || { label: r.approvalStatus, cls: 'bg-zinc-500/10 text-zinc-400 ring-1 ring-zinc-500/20' }
-                  return (
-                    <tr key={`${r.kind}-${r.recordId}`}>
-                      <td className="px-5 py-3.5">
-                        <p className="font-mono text-xs text-slate-500 dark:text-zinc-400">{r.propertyNumber}</p>
-                        {r.parNumber && <p className="font-mono text-2xs text-slate-400 dark:text-zinc-500">PAR: {r.parNumber}</p>}
-                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[10rem]">{r.assetDescription}</p>
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${EVENT_BADGE[r.kind]}`}>
-                          {REQUEST_KIND[r.kind]?.label || r.kind}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[12.5rem]">
-                        <span className="block truncate" title={r.detail}>{r.detail || '—'}</span>
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{r.requestedByName || '—'}</td>
-                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{formatDate(r.requestedAt)}</td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${status.cls}`}>{status.label}</span>
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-[12.5rem]">
-                        {r.approvalStatus === 'PENDING_APPROVAL' ? '—' : (
-                          <>
-                            <p className="whitespace-nowrap">{r.reviewedByName || '—'} · {formatDate(r.reviewedAt)}</p>
-                            {r.reviewNote && <p className="truncate text-red-400" title={r.reviewNote}>Reason: {r.reviewNote}</p>}
-                          </>
-                        )}
-                      </td>
-                      {isAdmin && (
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center justify-end gap-1">
-                            <ApprovalActions record={r} onApprove={handleApprove} onReject={setRejecting} />
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable columns={REQUEST_COLUMNS} rows={paged} rowKey={(r) => `${r.kind}-${r.recordId}`} onOpen={setViewing}
+            selectedKey={viewing ? `${viewing.kind}-${viewing.recordId}` : null}
+            caption="Requests. Select a request to see its details." />
         )}
+      </ListCard>
 
-        {!loading && rows.length > PAGE_SIZE && (
-          <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-400 dark:text-zinc-500">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, rows.length)} of {rows.length}
-            </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                Prev
-              </button>
-              <span className="text-xs text-slate-400 px-2">{page} / {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {viewing && isHistory && (
+        <DetailModal
+          title={viewing.asset?.description || 'History entry'}
+          onClose={() => setViewing(null)}
+          subtitle={<>
+            <span className="text-slate-600 dark:text-zinc-400">Property No.</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{viewing.asset?.propertyNumber || '—'}</span>
+            <span className="text-slate-300 dark:text-zinc-600" aria-hidden="true">·</span>
+            <MappedBadge map={EVENT} value={viewing.eventType} />
+          </>}
+          footer={viewing.asset?.propertyNumber && (
+            <ModalAction label="Open asset" onClick={() => navigate(`/assets?search=${encodeURIComponent(viewing.asset.propertyNumber)}`)} />
+          )}
+        >
+          <DetailGrid>
+            <DetailSection title="What happened">
+              <DetailField label="Date" value={fmtDate(viewing.eventDate || viewing.createdAt)} />
+              <DetailField label="Done by" value={personName(viewing.performedBy)} />
+              <DetailField label="From office" value={viewing.fromOffice?.officeName} />
+              <DetailField label="To office" value={viewing.toOffice?.officeName} />
+            </DetailSection>
+            <DetailSection title="Asset">
+              <DetailField label="PAR Number" value={viewing.asset?.parNumber} mono />
+            </DetailSection>
+            <DetailSection title="Notes" wide>
+              <DetailField label="Notes" value={viewing.notes} />
+            </DetailSection>
+          </DetailGrid>
+        </DetailModal>
+      )}
+
+      {viewing && !isHistory && (
+        <DetailModal
+          title={viewing.assetDescription || 'Request'}
+          escDisabled={!!rejecting}
+          onClose={() => setViewing(null)}
+          subtitle={<>
+            <span className="text-slate-600 dark:text-zinc-400">Property No.</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{viewing.propertyNumber || '—'}</span>
+            <span className="text-slate-300 dark:text-zinc-600" aria-hidden="true">·</span>
+            <MappedBadge map={REQUEST_KIND} value={viewing.kind} />
+            <MappedBadge map={REQUEST_STATUS} value={viewing.approvalStatus} />
+          </>}
+          footer={<>
+            {isAdmin && viewing.approvalStatus === 'PENDING_APPROVAL' && <>
+              <ModalAction label="Approve request" icon={ICON.check} tone="primary" onClick={() => handleApprove(viewing)} />
+              <ModalAction label="Reject" icon={ICON.x} tone="danger" onClick={() => setRejecting(viewing)} />
+            </>}
+            {viewing.propertyNumber && (
+              <ModalAction label="Open asset" onClick={() => navigate(`/assets?search=${encodeURIComponent(viewing.propertyNumber)}`)} />
+            )}
+          </>}
+        >
+          <DetailGrid>
+            <DetailSection title="Request">
+              <DetailField label="Requested by" value={viewing.requestedByName} />
+              <DetailField label="Requested" value={fmtDate(viewing.requestedAt)} />
+              <DetailField label="PAR Number" value={viewing.parNumber} mono />
+            </DetailSection>
+            <DetailSection title="Review">
+              <DetailField label="Status" value={REQUEST_STATUS[viewing.approvalStatus]?.label} />
+              <DetailField label="Reviewed by" value={viewing.approvalStatus === 'PENDING_APPROVAL' ? 'Not yet reviewed' : viewing.reviewedByName} />
+              <DetailField label="Reviewed" value={viewing.reviewedAt ? fmtDate(viewing.reviewedAt) : '—'} />
+              {viewing.reviewNote && <DetailField label="Reason given" value={viewing.reviewNote} />}
+            </DetailSection>
+            <DetailSection title="Details" wide>
+              <DetailField label="Details" value={viewing.detail} />
+            </DetailSection>
+          </DetailGrid>
+        </DetailModal>
+      )}
 
       {rejecting && (
         <RejectRequestModal
-          record={rejecting}
-          describe={(r) => `${r.propertyNumber} — ${r.assetDescription}`}
+          record={{ ...rejecting, kind: rejecting.kind.toLowerCase(), id: rejecting.recordId }}
+          describe={() => `${rejecting.propertyNumber} — ${rejecting.assetDescription}`}
           onClose={() => setRejecting(null)}
           onConfirm={handleReject}
         />
       )}
-
-      {viewing && (
-        <Modal title="Event Details" subtitle={viewing.asset?.propertyNumber} onClose={() => setViewing(null)} size="md">
-          <div className="space-y-0">
-            <Field label="Asset" value={viewing.asset?.description} />
-            <Field label="PAR Number" value={viewing.asset?.parNumber} />
-            <Field label="Event Type" value={
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${EVENT_BADGE[viewing.eventType] || 'bg-zinc-500/10 text-zinc-400 ring-1 ring-zinc-500/20'}`}>
-                {viewing.eventType}
-              </span>
-            } />
-            <Field label="From Office" value={viewing.fromOffice?.officeName} />
-            <Field label="Performed By" value={viewing.performedBy?.fullName || viewing.performedBy?.username} />
-            <Field label="Date" value={formatDate(viewing.eventDate || viewing.createdAt)} />
-            <Field label="Notes" value={viewing.notes} />
-          </div>
-        </Modal>
-      )}
     </MainLayout>
-  )
-}
-
-function Field({ label, value }) {
-  return (
-    <div className="flex items-start gap-2 py-2.5 border-b border-slate-100 dark:border-zinc-800/60 last:border-0">
-      <span className="text-xs text-slate-400 dark:text-zinc-500 w-28 flex-shrink-0 pt-0.5">{label}</span>
-      <span className="text-sm text-slate-900 dark:text-zinc-200 font-medium break-words">{value ?? '—'}</span>
-    </div>
   )
 }
 

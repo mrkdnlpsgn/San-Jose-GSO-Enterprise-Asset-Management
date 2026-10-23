@@ -1,17 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import Modal from '../../components/common/Modal'
-import Badge from '../../components/common/Badge'
 import { getPersonnel, updatePersonnel, personOffices } from '../../services/personnelService'
 import { getOffices } from '../../services/officeService'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
+import { SearchBox, FilterBar, FilterToggle, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, StatusBadge } from '../../components/common/ListKit'
 
-const PAGE_SIZE = 8
+const PAGE_SIZE = 25
 
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
@@ -72,18 +72,18 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <DraftNotice draft={draft} />
         {errors._global && (
-          <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
+          <div className="text-sm text-red-700 dark:text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between gap-2">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Offices<span className="text-red-400 ml-0.5">*</span></label>
-            <span className="text-xs text-slate-400 dark:text-zinc-500">{selected.length} selected</span>
+            <span className="text-xs text-slate-600 dark:text-zinc-400">{selected.length} selected</span>
           </div>
           {offices.length > 8 && (
             <input className={INPUT_CLASS} placeholder="Filter offices…" value={officeFilter} onChange={(e) => setOfficeFilter(e.target.value)} autoFocus />
           )}
           <div className="max-h-56 overflow-y-auto rounded-md border border-slate-200 dark:border-zinc-700 divide-y divide-slate-100 dark:divide-zinc-800">
-            {shownOffices.length === 0 && <p className="px-3.5 py-2.5 text-xs text-slate-400 dark:text-zinc-500">No offices match.</p>}
+            {shownOffices.length === 0 && <p className="px-3.5 py-2.5 text-xs text-slate-600 dark:text-zinc-400">No offices match.</p>}
             {shownOffices.map((o) => {
               const id = String(o.id)
               return (
@@ -92,24 +92,24 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
                     checked={selected.includes(id)} onChange={() => toggleOffice(id)} />
                   <span className="flex-1">{o.officeName}</span>
                   {selected[0] === id && selected.length > 1 && String(initial.office?.id) === id && (
-                    <span className="text-2xs font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">Primary</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400">Primary</span>
                   )}
                 </label>
               )
             })}
           </div>
-          {errors.officeId && <p className="text-xs text-red-400">{errors.officeId}</p>}
-          <p className="text-xs text-slate-400 dark:text-zinc-500">Staff see and manage the assets they're accountable for in every office checked.</p>
+          {errors.officeId && <p className="text-xs text-red-700 dark:text-red-300">{errors.officeId}</p>}
+          <p className="text-xs text-slate-600 dark:text-zinc-400">Staff see and manage the assets they're accountable for in every office checked.</p>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Position <span className="text-slate-400 font-normal">(optional)</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Position <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
           <input className={INPUT_CLASS} placeholder="e.g. Administrative Aide IV" value={form.position} onChange={set('position')} />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Contact Info <span className="text-slate-400 font-normal">(optional)</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Contact Info <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
           <input className={INPUT_CLASS} placeholder="Phone or email" value={form.contactInfo} onChange={set('contactInfo')} />
         </div>
-        <p className="text-xs text-slate-400 dark:text-zinc-500">Name and role are managed on the Accounts page.</p>
+        <p className="text-xs text-slate-600 dark:text-zinc-400">Name and role are managed on the Accounts page.</p>
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>
           <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
@@ -118,6 +118,26 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
     </Modal>
   )
 }
+
+const roleBadge = (p) => (<>
+  {p.userRole && <StatusBadge tone={p.userRole === 'ADMIN' ? 'green' : 'slate'}>{p.userRole === 'ADMIN' ? 'Administrator' : 'GSO Staff'}</StatusBadge>}
+  {p.userActive === false && <StatusBadge tone="red">Inactive</StatusBadge>}
+</>)
+const officeText = (p) => p.officeName ?? officeNames(p)
+const NOT_ASSIGNED = <span className="italic text-amber-800 dark:text-amber-300">Not assigned</span>
+
+// A row opens the person's "Assign Offices" form — the one thing this page changes.
+const COLUMNS = [
+  { key: 'name', label: 'Person', cell: (p, open) => (
+    <PrimaryCell code={`@${p.username}`} title={p.fullName} open={open}
+      extra={<p className="sm:hidden text-xs mt-0.5 truncate">{officeText(p) ? <span className="text-slate-600 dark:text-zinc-400">{officeText(p)}</span> : NOT_ASSIGNED}</p>} />
+  ) },
+  { key: 'role', label: 'Role', className: 'hidden md:table-cell w-[11rem]', cell: (p) => <div className="flex flex-wrap gap-1">{roleBadge(p)}</div> },
+  { key: 'office', label: 'Office', className: 'hidden sm:table-cell w-[34%]', cell: (p) => (
+    officeText(p) ? <MutedCell>{officeText(p)}</MutedCell> : <p className="text-sm">{NOT_ASSIGNED}</p>
+  ) },
+  { key: 'contact', label: 'Contact', className: 'hidden lg:table-cell w-[16%]', cell: (p) => <MutedCell>{p.contactInfo}</MutedCell> },
+]
 
 function Personnel() {
   const toast = useToast()
@@ -140,15 +160,9 @@ function Personnel() {
     const ids = d.data.officeIds || (d.data.officeId ? [String(d.data.officeId)] : [])
     return { ...base, contactInfo: d.data.contactInfo, officeName: offices.filter((o) => ids.includes(String(o.id))).map((o) => o.officeName).join(', ') }
   }
-  const draftColumns = [
-    { className: 'px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap', render: (p) => p.fullName },
-    { className: 'px-5 py-3.5 whitespace-nowrap', render: (p) => <span className="font-mono text-xs text-slate-500 dark:text-zinc-400">@{p.username}</span> },
-    { className: 'px-5 py-3.5 text-xs', render: (p) => p.officeName
-        ? <span className="text-slate-600 dark:text-zinc-300">{p.officeName}</span>
-        : <span className="text-amber-500 dark:text-amber-400 italic">Not assigned</span> },
-    { className: 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap', render: (p) => p.contactInfo || '—' },
-  ]
+  const draftColumns = COLUMNS.map((c) => ({ className: `px-4 py-3 align-top ${c.className || ''}`, render: (p) => c.cell(p) }))
   const [page, setPage]             = useState(1)
+  const [needsOffice, setNeedsOffice] = useState(false)
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -165,7 +179,7 @@ function Personnel() {
   }, [toast])
 
   useEffect(() => { fetchPersonnel(debouncedSearch) }, [debouncedSearch, fetchPersonnel])
-  useEffect(() => { setPage(1) }, [debouncedSearch])
+  useEffect(() => { setPage(1) }, [debouncedSearch, needsOffice])
   useEffect(() => { getOffices().then(({ data }) => setOffices(data)).catch(() => {}) }, [])
 
   const handleUpdate = async (payload) => {
@@ -174,171 +188,42 @@ function Personnel() {
     toast.show(`${data.fullName} assigned to ${officeNames(data)}.`, 'success')
   }
 
-  const filtered = personnel
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const unassigned = (p) => !p.office && p.userActive !== false
+  const unassignedCount = personnel.filter(unassigned).length
+  const filtered = useMemo(() => (needsOffice ? personnel.filter(unassigned) : personnel), [personnel, needsOffice])
+  const activeFilters = [search.trim(), needsOffice].filter(Boolean).length
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <MainLayout>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div className="relative w-full sm:max-w-xs">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-          </svg>
-          <input type="text" placeholder="Search name, username, office…" value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
+      <div className="flex flex-col gap-2.5 mb-4">
+        <div className="flex items-center gap-2">
+          <SearchBox value={search} onChange={setSearch} label="Search personnel" placeholder="Search by name, username or office" />
         </div>
-        {!loading && personnel.some((p) => !p.office && p.userActive !== false) && (
-          <p className="text-xs text-amber-500 dark:text-amber-400 self-start sm:self-auto">
-            {personnel.filter((p) => !p.office && p.userActive !== false).length} active account(s) still need an office.
-          </p>
+        {(unassignedCount > 0 || activeFilters > 0) && (
+          <FilterBar activeCount={activeFilters} onClear={() => { setSearch(''); setNeedsOffice(false) }}>
+            {unassignedCount > 0 && (
+              <FilterToggle on={needsOffice} onChange={setNeedsOffice}>Needs an office ({unassignedCount})</FilterToggle>
+            )}
+          </FilterBar>
         )}
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">All Personnel</p>
-          {!loading && (
-            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full">
-              {filtered.length} {filtered.length === 1 ? 'person' : 'people'}
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-slate-100 dark:divide-zinc-800">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="animate-pulse h-3 w-40 rounded bg-slate-200 dark:bg-zinc-800" />
-                <div className="animate-pulse h-3 w-64 rounded bg-slate-200 dark:bg-zinc-800 ml-auto" />
-              </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-3.995-4.2" />
-            </svg>
-            <p className="text-sm text-zinc-400 font-medium">{debouncedSearch ? 'No personnel match your search' : 'No accounts yet — create one on the Accounts page'}</p>
-          </div>
-        ) : (<>
-          {/* Phones: one card per person so the office and action stay visible */}
-          <ul className="md:hidden divide-y divide-slate-100 dark:divide-zinc-800/60">
-            {drafts.map((d) => {
-              const p = draftRecord(d)
-              return (
-                <li key={d.key} className="px-4 py-3.5 bg-sky-50/70 dark:bg-sky-950/25">
-                  <PersonCard p={p} office={p.officeName} tag={d.id === 'new' ? 'New draft' : 'Unsaved changes'}>
-                    <button type="button" onClick={() => continueDraft(d)}
-                      className="px-3 py-2 rounded-md text-xs font-semibold bg-brand-700 text-white hover:bg-brand-800 transition-colors">Continue</button>
-                    <button type="button" onClick={() => discardDraft(d.key)}
-                      className="px-3 py-2 rounded-md text-xs font-semibold text-slate-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors">Discard</button>
-                  </PersonCard>
-                </li>
-              )
-            })}
-            {paged.map((p) => (
-              <li key={p.id} className="px-4 py-3.5">
-                <PersonCard p={p} office={officeNames(p)}>
-                  <button onClick={() => setEditing(p)}
-                    className="px-3 py-2 rounded-md border border-brand-500/40 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:bg-brand-500/10 transition-colors">
-                    {p.office ? 'Change offices' : 'Assign offices'}
-                  </button>
-                </PersonCard>
-              </li>
-            ))}
-          </ul>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
-              <thead>
-                <tr>
-                  {['Full Name', 'Account', 'Office', 'Contact Info', ''].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left whitespace-nowrap text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
-                {paged.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                    <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap">{p.fullName}</td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-slate-500 dark:text-zinc-400">@{p.username}</span>
-                        <Badge label={p.userRole === 'ADMIN' ? 'Administrator' : 'GSO Staff'} color={p.userRole === 'ADMIN' ? 'green' : 'gray'} />
-                        {p.userActive === false && (
-                          <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-full">Inactive</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-xs">
-                      {p.office?.officeName
-                        ? <span className="text-slate-600 dark:text-zinc-300">{officeNames(p)}</span>
-                        : <span className="text-amber-500 dark:text-amber-400 italic">Not assigned</span>}
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{p.contactInfo || '—'}</td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditing(p)}
-                          className="px-2.5 py-1.5 rounded-md whitespace-nowrap text-xs font-semibold text-brand-500 dark:text-brand-400 hover:bg-brand-500/10 transition-all duration-150">
-                          {p.office ? 'Change offices' : 'Assign offices'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>)}
-
-        {!loading && filtered.length > PAGE_SIZE && (
-          <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-400 dark:text-zinc-500">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-            </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Prev</button>
-              <span className="text-xs text-slate-400 px-2">{page} / {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
-            </div>
-          </div>
+      <ListCard title={activeFilters > 0 ? 'Matching personnel' : 'All personnel'} filtered={filtered.length !== personnel.length}
+        count={filtered.length} total={personnel.length} noun="person" loading={loading}
+        actions={<RefreshButton onClick={() => fetchPersonnel(debouncedSearch)} />}
+        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 && drafts.length === 0 ? (
+          <ListEmpty>{activeFilters > 0 ? 'No personnel match your search.' : 'No accounts yet — create one on the Accounts page.'}</ListEmpty>
+        ) : (
+          <DataTable columns={COLUMNS} rows={paged} rowKey={(p) => p.id} onOpen={setEditing} wideEnd={drafts.length > 0}
+            caption="Personnel. Select a person to assign their offices."
+            leading={<DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />} />
         )}
-      </div>
+      </ListCard>
 
       {editing  && <PersonnelModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} offices={offices} />}
     </MainLayout>
-  )
-}
-
-function PersonCard({ p, office, tag, children }) {
-  return (
-    <>
-      {tag && (
-        <span className="mb-1.5 inline-flex items-center rounded-full border border-sky-300 dark:border-sky-800 bg-white dark:bg-sky-950 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-sky-800 dark:text-sky-300">{tag}</span>
-      )}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900 dark:text-white">{p.fullName}</p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-xs text-slate-500 dark:text-zinc-400">@{p.username}</span>
-            {p.userRole && <Badge label={p.userRole === 'ADMIN' ? 'Administrator' : 'GSO Staff'} color={p.userRole === 'ADMIN' ? 'green' : 'gray'} />}
-            {p.userActive === false && <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-full">Inactive</span>}
-          </div>
-        </div>
-      </div>
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-        <dt className="text-slate-400 dark:text-zinc-500">Office</dt>
-        <dd>{office
-          ? <span className="text-slate-700 dark:text-zinc-200">{office}</span>
-          : <span className="text-amber-600 dark:text-amber-400 italic">Not assigned</span>}</dd>
-        <dt className="text-slate-400 dark:text-zinc-500">Contact</dt>
-        <dd className="text-slate-600 dark:text-zinc-300 break-words">{p.contactInfo || '—'}</dd>
-      </dl>
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">{children}</div>
-    </>
   )
 }
 

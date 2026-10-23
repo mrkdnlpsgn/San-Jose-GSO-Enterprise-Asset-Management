@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useToast } from '../../context/ToastContext'
@@ -6,7 +6,6 @@ import { useDebounce } from '../../hooks/useDebounce'
 import { usePolling } from '../../hooks/usePolling'
 import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
-import Badge from '../../components/common/Badge'
 import UserModal from './UserModal'
 import DeactivateAccountModal from './DeactivateAccountModal'
 import ResetPasswordModal from './ResetPasswordModal'
@@ -15,6 +14,11 @@ import MyAccountTab from './MyAccountTab'
 import { getAuditLogs, getAuditArchiveSummary, runAuditArchive, exportAuditArchive } from '../../services/auditLogService'
 import DraftRows from '../../components/common/DraftRows'
 import { useDraftList } from '../../hooks/useFormDraft'
+import {
+  SearchBox, FilterSelect, FilterBar, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty,
+  DataTable, PrimaryCell, MutedCell, MappedBadge, StatusBadge, ICON,
+} from '../../components/common/ListKit'
+import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatDateTime(dt) {
@@ -25,22 +29,57 @@ function formatDateTime(dt) {
   })
 }
 
-const ACTION_STYLES = {
-  CREATE: { bg: 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20', label: 'CREATE' },
-  UPDATE: { bg: 'bg-blue-500/10 text-blue-400 ring-blue-500/20',         label: 'UPDATE' },
-  DELETE: { bg: 'bg-red-500/10 text-red-400 ring-red-500/20',            label: 'DELETE' },
+// Audit entries store an action like ASSET_UPDATED and a module like "Assets". The Action
+// filter groups actions by what happened (the verb at the end); the badge shows the action
+// itself in words ("Asset updated").
+const ACTION_KIND = {
+  ADDED:   { label: 'Added',                tone: 'green' },
+  CHANGED: { label: 'Changed',              tone: 'blue' },
+  REMOVED: { label: 'Removed',              tone: 'red' },
+  REVIEW:  { label: 'Requests & approvals', tone: 'amber' },
+  OTHER:   { label: 'Other',                tone: 'slate' },
 }
-
-const MODULE_STYLES = {
-  ASSET:       { bg: 'bg-brand-500/10 text-brand-400 ring-brand-500/20' },
-  MAINTENANCE: { bg: 'bg-amber-500/10 text-amber-400 ring-amber-500/20' },
-  DISPOSAL:    { bg: 'bg-red-500/10 text-red-400 ring-red-500/20' },
-  USER:        { bg: 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20' },
+function actionKind(action = '') {
+  if (/(CREATED|ADDED|ENABLED)$/.test(action)) return 'ADDED'
+  if (/(UPDATED|CHANGED|TRANSFERRED)$/.test(action)) return 'CHANGED'
+  if (/(DELETED|REMOVED|DEACTIVATED|DISABLED)$/.test(action)) return 'REMOVED'
+  if (/(REQUESTED|APPROVED|REJECTED)$/.test(action)) return 'REVIEW'
+  return 'OTHER'
 }
+const actionText = (action = '') => {
+  const t = action.replace(/_/g, ' ').toLowerCase().replace(/2fa/, '2-step sign-in').replace(/ai/, 'AI')
+  return t.charAt(0).toUpperCase() + t.slice(1)
+}
+const ActionBadge = ({ action }) => <StatusBadge tone={ACTION_KIND[actionKind(action)].tone}>{actionText(action)}</StatusBadge>
+const MODULE = {
+  Assets:       { label: 'Assets',        tone: 'green' },
+  Maintenance:  { label: 'Maintenance',   tone: 'amber' },
+  Disposal:     { label: 'Disposal',      tone: 'red' },
+  AssetHistory: { label: 'Asset history', tone: 'violet' },
+  Users:        { label: 'Accounts',      tone: 'slate' },
+  Personnel:    { label: 'Personnel',     tone: 'slate' },
+  Offices:      { label: 'Offices',       tone: 'blue' },
+  Categories:   { label: 'Categories',    tone: 'blue' },
+}
+const AUDIT_PAGE_SIZE = 25
+const ACCOUNTS_PAGE_SIZE = 25
 
-const ALL_MODULES  = ['ALL', 'ASSET', 'MAINTENANCE', 'DISPOSAL', 'USER']
-const ALL_ACTIONS  = ['ALL', 'CREATE', 'UPDATE', 'DELETE']
-const AUDIT_PAGE_SIZE = 8
+const roleBadge = (u) => <StatusBadge tone={u.role === 'ADMIN' ? 'green' : 'slate'}>{u.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'}</StatusBadge>
+const NO_OFFICE = <span className="italic text-amber-800 dark:text-amber-300">Not assigned</span>
+
+// The account list keeps who it is, where they work and whether they can sign in; email,
+// 2-step status and the actions (edit, reset password, deactivate) are in the window a row opens.
+const ACCOUNT_COLUMNS = [
+  { key: 'name', label: 'Account', cell: (u, open) => (
+    <PrimaryCell code={u.username ? `@${u.username}` : ''} title={u.fullName || u.username} open={open}
+      extra={<div className="md:hidden mt-1 flex flex-wrap gap-1">{roleBadge(u)}{u.isActive === false && <StatusBadge tone="red">Inactive</StatusBadge>}</div>} />
+  ) },
+  { key: 'office', label: 'Office', className: 'hidden sm:table-cell w-[28%]', cell: (u) => (u.officeName ? <MutedCell>{u.officeName}</MutedCell> : <p className="text-sm">{NO_OFFICE}</p>) },
+  { key: 'role', label: 'Role & status', className: 'hidden md:table-cell w-[13rem]', cell: (u) => (
+    <div className="flex flex-wrap gap-1">{roleBadge(u)}{u.isActive === false ? <StatusBadge tone="red">Inactive</StatusBadge> : <StatusBadge tone="green">Active</StatusBadge>}</div>
+  ) },
+  { key: 'email', label: 'Email', className: 'hidden xl:table-cell w-[22%]', cell: (u) => (u.email ? <MutedCell>{u.email}</MutedCell> : <p className="text-sm italic text-amber-800 dark:text-amber-300">No email</p>) },
+]
 
 // ── Accounts tab ──────────────────────────────────────────────────────────────
 function AccountsTab() {
@@ -64,21 +103,14 @@ function AccountsTab() {
     const base = d.id === 'new' ? {} : users.find((u) => String(u.id) === d.id) || {}
     return { ...base, ...d.data }
   }
-  const draftColumns = [
-    { className: 'px-5 py-3.5 whitespace-nowrap', render: (u) => <span className="font-mono text-xs text-slate-600 dark:text-zinc-400">{u.username ? `@${u.username}` : '—'}</span> },
-    { className: 'px-5 py-3.5 text-xs whitespace-nowrap', render: (u) => u.email
-        ? <span className="text-slate-500 dark:text-zinc-400">{u.email}</span>
-        : <span className="text-amber-500 dark:text-amber-400 italic">No email</span> },
-    { className: 'px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap', render: (u) => u.fullName || '—' },
-    { className: 'px-5 py-3.5 text-xs whitespace-nowrap', render: (u) => u.officeName
-        ? <span className="text-slate-600 dark:text-zinc-300">{u.officeName}</span>
-        : <span className="text-amber-500 dark:text-amber-400 italic">Not assigned</span> },
-    { className: 'px-5 py-3.5', render: (u) => <Badge label={u.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'} color={u.role === 'ADMIN' ? 'green' : 'gray'} /> },
-    { className: 'px-5 py-3.5 text-xs text-slate-500 dark:text-zinc-400', render: (u) => (u.isActive === false ? 'Inactive' : 'Active') },
-  ]
+  const draftColumns = ACCOUNT_COLUMNS.map((c) => ({ className: `px-4 py-3 align-top ${c.className || ''}`, render: (u) => c.cell(u) }))
   const [deleting, setDeleting]     = useState(null)
   const [resetting, setResetting]   = useState(null)
   const [search, setSearch]         = useState('')
+  const [viewing, setViewing]       = useState(null)
+  const [filterRole, setFilterRole] = useState('')
+  const [filterActive, setFilterActive] = useState('')
+  const [page, setPage]             = useState(1)
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -107,6 +139,7 @@ function AccountsTab() {
   const handleUpdate = async (form) => {
     const { data } = await updateUser(editing.id, form)
     setUsers((prev) => prev.map((u) => (u.id === data.id ? data : u)))
+    setViewing((v) => (v?.id === data.id ? data : v))
     toast.show('Account updated.', 'success')
   }
 
@@ -115,6 +148,7 @@ function AccountsTab() {
     await deactivateUser(deleting.id, transferToUserId ? { transferToUserId } : undefined)
     const name = deleting.fullName || deleting.username
     await fetchUsers(debouncedSearch) // status and asset counts changed
+    setViewing(null)
     if (transferToUserId) {
       const to = users.find((u) => u.id === transferToUserId)
       toast.show(`"${name}" deactivated — assets transferred to ${to?.fullName || to?.username || 'the selected account'}.`, 'warning')
@@ -128,187 +162,80 @@ function AccountsTab() {
     toast.show(`Password reset for "${resetting.fullName || resetting.username}".`, 'success')
   }
 
+  useEffect(() => { setPage(1) }, [debouncedSearch, filterRole, filterActive])
+  const filtered = useMemo(() => users.filter((u) => {
+    if (filterRole && u.role !== filterRole) return false
+    if (filterActive === 'ACTIVE' && u.isActive === false) return false
+    if (filterActive === 'INACTIVE' && u.isActive !== false) return false
+    return true
+  }), [users, filterRole, filterActive])
+  const paged = filtered.slice((page - 1) * ACCOUNTS_PAGE_SIZE, page * ACCOUNTS_PAGE_SIZE)
+  const activeFilters = [search.trim(), filterRole, filterActive].filter(Boolean).length
+  const v = viewing
+
   return (
     <>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div className="relative w-full sm:max-w-xs">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-          </svg>
-          <input type="text" placeholder="Search accounts…" value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
+      <div className="flex flex-col gap-2.5 mb-4">
+        <div className="flex items-center gap-2">
+          <SearchBox value={search} onChange={setSearch} label="Search accounts" placeholder="Search by name, username, email or office" />
+          <Button size="md" className="whitespace-nowrap flex-shrink-0" onClick={() => setShowCreate(true)}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">{ICON.plus}</svg>
+            <span className="sr-only sm:not-sr-only">Add Account</span>
+          </Button>
         </div>
-        <Button size="md" className="self-start sm:self-auto" onClick={() => setShowCreate(true)}>
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-          Add Account
-        </Button>
+        <FilterBar activeCount={activeFilters} onClear={() => { setSearch(''); setFilterRole(''); setFilterActive('') }}>
+          <FilterSelect label="Role" value={filterRole} onChange={setFilterRole} options={[['ADMIN', 'Administrator'], ['STAFF', 'GSO Staff']]} />
+          <FilterSelect label="Status" value={filterActive} onChange={setFilterActive} options={[['ACTIVE', 'Active'], ['INACTIVE', 'Inactive']]} />
+        </FilterBar>
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">All Accounts</p>
-          {users.length > 0 && (
-            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full">
-              {users.length} account{users.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-zinc-800/60">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="animate-pulse w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-800 flex-shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="animate-pulse h-3 w-32 rounded bg-slate-200 dark:bg-zinc-800" />
-                  <div className="animate-pulse h-3 w-48 rounded bg-slate-200 dark:bg-zinc-800" />
-                </div>
-                <div className="animate-pulse h-5 w-20 rounded-full bg-slate-200 dark:bg-zinc-800" />
-              </div>
-            ))}
-          </div>
-        ) : users.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <p className="text-sm text-zinc-400 font-medium">No accounts yet</p>
-            <p className="text-xs text-zinc-600 mt-1">Add a new account using the button above.</p>
-          </div>
+      <ListCard title={activeFilters > 0 ? 'Matching accounts' : 'All accounts'} filtered={filtered.length !== users.length}
+        count={filtered.length} total={users.length} noun="account" loading={loading}
+        actions={<RefreshButton onClick={() => fetchUsers(debouncedSearch)} />}
+        footer={!loading && <Pager page={page} pageSize={ACCOUNTS_PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        {loading ? <ListSkeleton rows={4} /> : filtered.length === 0 && drafts.length === 0 ? (
+          <ListEmpty>{users.length === 0 ? 'No accounts yet. Add one with the button above.' : 'No accounts match your search or filters.'}</ListEmpty>
         ) : (
-          <>
-            {/* Mobile cards */}
-            <div className="md:hidden divide-y divide-slate-100 dark:divide-zinc-800/60">
-              {users.map((user) => (
-                <div key={user.id} className="flex items-center gap-3 px-4 py-3.5">
-                  <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300">{(user.fullName || user.username || 'U').charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.fullName || user.username}</p>
-                    <p className="text-xs text-slate-400 dark:text-zinc-500 truncate mt-0.5">@{user.username}</p>
-                    <p className="text-xs text-slate-400 dark:text-zinc-500 truncate mt-0.5">
-                      {user.officeName || 'No office assigned'}
-                    </p>
-                    <p className={`text-xs truncate mt-0.5 ${user.email ? 'text-slate-400 dark:text-zinc-500' : 'text-amber-500 dark:text-amber-400 italic'}`}>
-                      {user.email || 'No email on file (forgot-password unavailable)'}
-                    </p>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <Badge
-                        label={user.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'}
-                        color={user.role === 'ADMIN' ? 'green' : 'gray'}
-                      />
-                      {!user.isActive && (
-                        <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded-full">Inactive</span>
-                      )}
-                      {user.twoFactorEnabled && <TwoStepChip />}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => setEditing(user)} title="Edit account"
-                      className="p-2 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => setResetting(user)} title="Reset password"
-                      className="p-2 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                    {user.isActive && user.username !== me && (
-                    <button onClick={() => setDeleting(user)} title="Deactivate account"
-                      className="p-2 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-950/40 transition-all duration-150">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                      </svg>
-                                        </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
-                <thead>
-                  <tr>
-                    {['Username', 'Email', 'Full Name', 'Office', 'Role', 'Active', ''].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                  <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
-                  {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300">{(user.fullName || user.username || 'U').charAt(0).toUpperCase()}</span>
-                          </div>
-                          <span className="font-mono text-xs text-slate-600 dark:text-zinc-400">@{user.username}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-xs whitespace-nowrap">
-                        {user.email
-                          ? <span className="text-slate-500 dark:text-zinc-400">{user.email}</span>
-                          : <span className="text-amber-500 dark:text-amber-400 italic">No email</span>}
-                      </td>
-                      <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap">{user.fullName || '—'}</td>
-                      <td className="px-5 py-3.5 text-xs whitespace-nowrap">
-                        {user.officeName
-                          ? <span className="text-slate-600 dark:text-zinc-300">{user.officeName}</span>
-                          : <span className="text-amber-500 dark:text-amber-400 italic" title="Assign one on the Personnel page">Not assigned</span>}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <Badge
-                          label={user.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'}
-                          color={user.role === 'ADMIN' ? 'green' : 'gray'}
-                        />
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${user.isActive ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-400/10' : 'text-slate-400 dark:text-zinc-600 bg-slate-100 dark:bg-zinc-800'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                          {user.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                        {user.twoFactorEnabled && <TwoStepChip className="ml-1.5" />}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setEditing(user)} title="Edit account"
-                            className="p-1.5 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => setResetting(user)} title="Reset password"
-                            className="p-1.5 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-                          {user.isActive && user.username !== me && (
-                          <button onClick={() => setDeleting(user)} title="Deactivate account"
-                            className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-950/40 transition-all duration-150">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                            </svg>
-                                                    </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <DataTable columns={ACCOUNT_COLUMNS} rows={paged} rowKey={(u) => u.id} onOpen={setViewing} selectedKey={v?.id} wideEnd={drafts.length > 0}
+            caption="Accounts. Select an account to see its details."
+            leading={<DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />} />
         )}
-      </div>
+      </ListCard>
+
+      {v && (
+        <DetailModal
+          title={v.fullName || v.username}
+          escDisabled={!!(editing || resetting || deleting)}
+          onClose={() => setViewing(null)}
+          subtitle={<>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">@{v.username}</span>
+            <span className="text-slate-300 dark:text-zinc-600" aria-hidden="true">·</span>
+            {roleBadge(v)}
+            {v.isActive === false ? <StatusBadge tone="red">Inactive</StatusBadge> : <StatusBadge tone="green">Active</StatusBadge>}
+            {v.twoFactorEnabled && <TwoStepChip />}
+          </>}
+          actions={[
+            { label: 'Edit', icon: ICON.edit, onClick: () => setEditing(v) },
+            { label: 'Reset password', onClick: () => setResetting(v) },
+          ]}
+          footer={v.isActive && v.username !== me && (
+            <span className="sm:ml-auto"><ModalAction label="Deactivate account" tone="danger" onClick={() => setDeleting(v)} /></span>
+          )}
+        >
+          <DetailGrid>
+            <DetailSection title="Account">
+              <DetailField label="Full name" value={v.fullName} />
+              <DetailField label="Username" value={`@${v.username}`} mono />
+              <DetailField label="Email" value={v.email || 'No email on file — "Forgot password" won\'t work for this account'} />
+            </DetailSection>
+            <DetailSection title="Work">
+              <DetailField label="Office" value={v.officeName || 'Not assigned — set it on the Personnel page'} />
+              <DetailField label="Role" value={v.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'} />
+              <DetailField label="2-step sign-in" value={v.twoFactorEnabled ? 'On — a code is emailed at sign-in' : 'Off'} />
+            </DetailSection>
+          </DetailGrid>
+        </DetailModal>
+      )}
 
       {showCreate && <UserModal onClose={() => setShowCreate(false)} onSave={handleCreate} />}
       {editing   && <UserModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} />}
@@ -429,12 +356,23 @@ function AuditArchivePanel({ onArchived }) {
 }
 
 // ── Audit Logs tab ────────────────────────────────────────────────────────────
+const AUDIT_COLUMNS = [
+  { key: 'what', label: 'What happened', cell: (l, open) => (
+    <PrimaryCell code={formatDateTime(l.loggedAt)} title={l.details} open={open}
+      extra={<div className="sm:hidden mt-1 flex flex-wrap gap-1"><ActionBadge action={l.action} /><MappedBadge map={MODULE} value={l.module} /></div>} />
+  ) },
+  { key: 'action', label: 'Action', className: 'hidden sm:table-cell w-[15rem]', cell: (l) => <div className="truncate"><ActionBadge action={l.action} /></div> },
+  { key: 'module', label: 'Area', className: 'hidden lg:table-cell w-[9rem]', cell: (l) => <MappedBadge map={MODULE} value={l.module} /> },
+  { key: 'by', label: 'By', className: 'hidden xl:table-cell w-[12%]', cell: (l) => <MutedCell>{l.user?.username || 'System'}</MutedCell> },
+]
+
 function AuditLogsTab() {
   const toast                           = useToast()
   const [logs, setLogs]                 = useState([])
   const [loading, setLoading]           = useState(true)
-  const [moduleFilter, setModuleFilter] = useState('ALL')
-  const [actionFilter, setActionFilter] = useState('ALL')
+  const [moduleFilter, setModuleFilter] = useState('')
+  const [actionFilter, setActionFilter] = useState('')
+  const [viewing, setViewing]           = useState(null)
   const [search, setSearch]             = useState('')
   const [page, setPage]                 = useState(1)
 
@@ -457,168 +395,58 @@ function AuditLogsTab() {
   usePolling(() => fetchLogs(debouncedSearch, { silent: true }), 30000)
 
   const filtered = logs.filter((l) => {
-    if (moduleFilter !== 'ALL' && l.module !== moduleFilter) return false
-    if (actionFilter !== 'ALL' && l.action !== actionFilter) return false
+    if (moduleFilter && l.module !== moduleFilter) return false
+    if (actionFilter && actionKind(l.action) !== actionFilter) return false
     return true
   })
 
   useEffect(() => { setPage(1) }, [debouncedSearch, moduleFilter, actionFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / AUDIT_PAGE_SIZE))
   const paged = filtered.slice((page - 1) * AUDIT_PAGE_SIZE, page * AUDIT_PAGE_SIZE)
+
+  const activeFilters = [search.trim(), moduleFilter, actionFilter].filter(Boolean).length
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3">
-        <div className="relative w-full sm:flex-1 sm:min-w-[12.5rem] sm:max-w-xs">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-          </svg>
-          <input
-            type="text" placeholder="Search description or user…"
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all"
-          />
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center gap-2">
+          <SearchBox value={search} onChange={setSearch} label="Search audit logs" placeholder="Search what happened or who did it" />
         </div>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          {ALL_MODULES.map((m) => (
-            <button key={m} onClick={() => setModuleFilter(m)}
-              className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
-                moduleFilter === m
-                  ? 'bg-brand-500 text-white'
-                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'
-              }`}>
-              {m}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          {ALL_ACTIONS.map((a) => {
-            const style = ACTION_STYLES[a]
-            return (
-              <button key={a} onClick={() => setActionFilter(a)}
-                className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
-                  actionFilter === a
-                    ? (style ? style.bg + ' ring-1' : 'bg-brand-500 text-white')
-                    : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'
-                }`}>
-                {a}
-              </button>
-            )
-          })}
-        </div>
+        <FilterBar activeCount={activeFilters} onClear={() => { setSearch(''); setModuleFilter(''); setActionFilter('') }}>
+          <FilterSelect label="Area" value={moduleFilter} onChange={setModuleFilter} options={Object.entries(MODULE).map(([k, m]) => [k, m.label])} />
+          <FilterSelect label="Action" value={actionFilter} onChange={setActionFilter} options={Object.entries(ACTION_KIND).map(([k, a]) => [k, a.label])} />
+        </FilterBar>
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">System Audit Logs</p>
-          {!loading && (
-            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full">
-              {filtered.length}{filtered.length !== logs.length ? ` of ${logs.length}` : ''} {logs.length === 1 ? 'entry' : 'entries'}
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-zinc-800/60">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-3.5">
-                <div className="animate-pulse h-3 w-28 rounded bg-slate-200 dark:bg-zinc-800" />
-                <div className="animate-pulse h-3 w-20 rounded bg-slate-200 dark:bg-zinc-800 ml-auto" />
-                <div className="animate-pulse h-5 w-16 rounded-full bg-slate-200 dark:bg-zinc-800" />
-                <div className="animate-pulse h-3 w-40 rounded bg-slate-200 dark:bg-zinc-800" />
-              </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <p className="text-sm text-zinc-500">{logs.length === 0 ? 'No activity recorded yet.' : 'No entries match the current filter.'}</p>
-          </div>
+      <ListCard title="Audit logs" filtered={filtered.length !== logs.length} count={filtered.length} total={logs.length} noun="entry" loading={loading}
+        actions={<RefreshButton onClick={() => fetchLogs(debouncedSearch)} />}
+        footer={!loading && <Pager page={page} pageSize={AUDIT_PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        {loading ? <ListSkeleton /> : filtered.length === 0 ? (
+          <ListEmpty>{logs.length === 0 ? 'No activity recorded yet.' : 'No entries match your search or filters.'}</ListEmpty>
         ) : (
-          <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
-              <thead>
-                <tr>
-                  {['Timestamp', 'Action', 'Module', 'Description', 'Performed By'].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                {paged.map((log) => {
-                  const aStyle = ACTION_STYLES[log.action] || { bg: 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300', label: log.action }
-                  const mStyle = MODULE_STYLES[log.module] || { bg: 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300' }
-                  return (
-                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                      <td className="px-5 py-3.5 text-xs text-slate-400 dark:text-zinc-500 whitespace-nowrap font-mono">{formatDateTime(log.loggedAt)}</td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${aStyle.bg}`}>{aStyle.label}</span>
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${mStyle.bg}`}>{log.module}</span>
-                      </td>
-                      <td className="px-5 py-3.5 text-slate-600 dark:text-zinc-300 max-w-md">
-                        <span className="block truncate" title={log.details}>{log.details}</span>
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 flex items-center justify-center flex-shrink-0">
-                            <span className="text-[0.625rem] font-semibold text-slate-500 dark:text-zinc-400">{(log.user?.username || 'S').charAt(0).toUpperCase()}</span>
-                          </div>
-                          <span className="text-slate-500 dark:text-zinc-400 text-xs">{log.user?.username || 'System'}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable columns={AUDIT_COLUMNS} rows={paged} rowKey={(l) => l.id} onOpen={setViewing} selectedKey={viewing?.id}
+            caption="Audit log entries. Select an entry to read it in full." />
         )}
+      </ListCard>
 
-        {/* Phones: the table above is hidden below md, so list the same entries as cards */}
-        {!loading && filtered.length > 0 && (
-          <ul className="md:hidden divide-y divide-slate-100 dark:divide-zinc-800/60">
-            {paged.map((log) => {
-              const aStyle = ACTION_STYLES[log.action] || { bg: 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300', label: log.action }
-              const mStyle = MODULE_STYLES[log.module] || { bg: 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300' }
-              return (
-                <li key={log.id} className="px-4 py-3.5 space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${aStyle.bg}`}>{aStyle.label}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ring-1 ${mStyle.bg}`}>{log.module}</span>
-                  </div>
-                  <p className="text-sm text-slate-700 dark:text-zinc-200 break-words">{log.details}</p>
-                  <p className="text-xs text-slate-400 dark:text-zinc-500">
-                    {log.user?.username || 'System'} · <span className="font-mono">{formatDateTime(log.loggedAt)}</span>
-                  </p>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-
-        {!loading && filtered.length > AUDIT_PAGE_SIZE && (
-          <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-400 dark:text-zinc-500">
-              {(page - 1) * AUDIT_PAGE_SIZE + 1}–{Math.min(page * AUDIT_PAGE_SIZE, filtered.length)} of {filtered.length}
-            </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Prev</button>
-              <span className="text-xs text-slate-400 px-2">{page} / {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
-            </div>
-          </div>
-        )}
-      </div>
+      {viewing && (
+        <DetailModal
+          title={actionText(viewing.action) || 'Audit log entry'}
+          onClose={() => setViewing(null)}
+          subtitle={<>
+            <MappedBadge map={MODULE} value={viewing.module} />
+            <span className="text-slate-600 dark:text-zinc-400">{formatDateTime(viewing.loggedAt)}</span>
+          </>}
+        >
+          <DetailGrid>
+            <DetailSection title="What happened" wide>
+              <DetailField label="Details" value={viewing.details} />
+              <DetailField label="Done by" value={viewing.user?.fullName || viewing.user?.username || 'System'} />
+              <DetailField label="When" value={formatDateTime(viewing.loggedAt)} />
+            </DetailSection>
+          </DetailGrid>
+        </DetailModal>
+      )}
 
       <AuditArchivePanel onArchived={() => fetchLogs(debouncedSearch)} />
     </div>
@@ -678,10 +506,12 @@ function Accounts() {
           <button
             key={tab.id}
             onClick={() => switchTab(tab.id)}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             className={`px-4 py-2.5 text-sm font-medium transition-all border-b-2 ${
               activeTab === tab.id
-                ? 'border-brand-500 text-brand-500 dark:text-brand-400'
-                : 'border-transparent text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                ? 'border-brand-600 text-brand-700 dark:text-brand-300'
+                : 'border-transparent text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
             }`}
           >
             {tab.label}

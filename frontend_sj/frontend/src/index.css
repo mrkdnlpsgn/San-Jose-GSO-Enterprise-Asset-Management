@@ -8,6 +8,17 @@
   }
 }
 
+/* Keyboard users need to see where they are. Only on keyboard focus (:focus-visible), so mouse
+   clicks don't show it. !important because many buttons carry focus:outline-none; text fields
+   keep their own focus ring and aren't listed here. */
+a:focus-visible,
+button:focus-visible,
+[role="tab"]:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #157a3c !important; /* 5.4:1 on white, 3.3:1 on zinc-900 */
+  outline-offset: 2px !important;
+}
+
 /* ── Hide scrollbars app-wide ────────────────────────────────────────────────
    Scrolling still works via wheel/trackpad/keyboard — just no visible track,
    thumb, or arrow buttons, in either theme.

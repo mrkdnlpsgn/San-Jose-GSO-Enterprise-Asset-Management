@@ -11,12 +11,14 @@ import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
+import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
 
-const PAGE_SIZE = 8
+const PAGE_SIZE = 25
 
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
-function CategoryModal({ onClose, onSave, initial = null }) {
+// onDelete (editing only) puts a Delete button in the form, since a row opens this form directly.
+function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
   const isEditing = !!initial
   const [form, setForm]     = useState({
     categoryName:    initial?.categoryName || '',
@@ -57,15 +59,15 @@ function CategoryModal({ onClose, onSave, initial = null }) {
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <DraftNotice draft={draft} />
         {errors._global && (
-          <div className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
+          <div className="text-sm text-red-700 dark:text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Category Name<span className="text-red-400 ml-0.5">*</span></label>
           <input className={INPUT_CLASS} placeholder="e.g. Desktop Computer" value={form.categoryName} onChange={set('categoryName')} />
-          {errors.categoryName && <p className="text-xs text-red-400">{errors.categoryName}</p>}
+          {errors.categoryName && <p className="text-xs text-red-700 dark:text-red-300">{errors.categoryName}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Description <span className="text-slate-400 font-normal">(optional)</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Description <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
           <textarea
             className={INPUT_CLASS + ' resize-none'}
             rows={3}
@@ -75,6 +77,9 @@ function CategoryModal({ onClose, onSave, initial = null }) {
           />
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
+          {isEditing && onDelete && (
+            <Button type="button" variant="danger" size="md" className="mr-auto" onClick={onDelete}>Delete Category</Button>
+          )}
           <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>
           <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Category'}</Button>
         </div>
@@ -102,8 +107,8 @@ function Categories() {
   // Draft rows use the table's columns.
   const draftRecord = (d) => d.data
   const draftColumns = [
-    { className: 'px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap', render: (c) => c.categoryName || <span className="italic font-normal text-slate-400">No name yet</span> },
-    { className: 'px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-xs', render: (c) => <span className="block truncate">{c.description || '—'}</span> },
+    { className: 'px-4 py-3 align-top', render: (c) => <PrimaryCell title={c.categoryName || 'No name yet'} /> },
+    { className: 'px-4 py-3 align-top hidden sm:table-cell w-[55%]', render: (c) => <MutedCell>{c.description}</MutedCell> },
   ]
   const [deleting, setDeleting]     = useState(null)
   const [blockedDelete, setBlockedDelete] = useState(null)
@@ -155,116 +160,43 @@ function Categories() {
   }
 
   const filtered = categories
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // A row opens the category's form (name and description), which also holds Delete.
+  const columns = [
+    { key: 'name', label: 'Category', cell: (c, open) => <PrimaryCell title={c.categoryName} open={open}
+        extra={c.description && <p className="sm:hidden text-xs text-slate-600 dark:text-zinc-400 mt-0.5 truncate">{c.description}</p>} /> },
+    { key: 'desc', label: 'Description', className: 'hidden sm:table-cell w-[55%]', cell: (c) => <MutedCell>{c.description}</MutedCell> },
+  ]
 
   return (
     <MainLayout>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div className="relative w-full sm:max-w-xs">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-          </svg>
-          <input type="text" placeholder="Search categories…" value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
-        </div>
-        <Button size="md" className="self-start sm:self-auto" onClick={() => setShowAdd(true)}>
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-          Add Category
+      <div className="flex items-center gap-2 mb-4">
+        <SearchBox value={search} onChange={setSearch} label="Search categories" placeholder="Search categories by name" />
+        <Button size="md" className="whitespace-nowrap flex-shrink-0" onClick={() => setShowAdd(true)}>
+          <Icon className="h-4 w-4 sm:mr-1.5">{ICON.plus}</Icon>
+          <span className="sr-only sm:not-sr-only">Add Category</span>
         </Button>
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-3">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">All Categories</p>
-          {!loading && (
-            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full">
-              {filtered.length} categor{filtered.length !== 1 ? 'ies' : 'y'}
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-slate-100 dark:divide-zinc-800">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="animate-pulse h-3 w-40 rounded bg-slate-200 dark:bg-zinc-800" />
-                <div className="animate-pulse h-3 w-64 rounded bg-slate-200 dark:bg-zinc-800 ml-auto" />
-              </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-            </svg>
-            <p className="text-sm text-zinc-400 font-medium">{categories.length === 0 ? 'No categories yet' : 'No categories match your search'}</p>
-          </div>
+      <ListCard title={search.trim() ? 'Matching categories' : 'All categories'} count={filtered.length} noun="category" loading={loading}
+        actions={<RefreshButton onClick={() => fetchCategories(debouncedSearch)} />}
+        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 && drafts.length === 0 ? (
+          <ListEmpty>{search.trim() ? 'No categories match your search.' : 'No categories yet.'}</ListEmpty>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-slate-100 dark:divide-zinc-800">
-              <thead>
-                <tr>
-                  {['Category Name', 'Description', 'Actions'].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
-                {paged.map((cat) => (
-                  <tr key={cat.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                    <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white whitespace-nowrap">{cat.categoryName}</td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs max-w-xs">
-                      <span className="block truncate">{cat.description || '—'}</span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditing(cat)} title="Edit"
-                          className="p-1.5 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
-                        </button>
-                        <button onClick={() => setDeleting(cat)} title="Delete"
-                          className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-950/40 transition-all duration-150">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable columns={columns} rows={paged} rowKey={(c) => c.id} onOpen={setEditing} wideEnd={drafts.length > 0}
+            caption="Categories. Select a category to edit or delete it."
+            leading={<DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />} />
         )}
-
-        {!loading && filtered.length > PAGE_SIZE && (
-          <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-400 dark:text-zinc-500">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-            </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Prev</button>
-              <span className="text-xs text-slate-400 px-2">{page} / {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
-            </div>
-          </div>
-        )}
-      </div>
+      </ListCard>
 
       {showAdd  && <CategoryModal onClose={() => setShowAdd(false)} onSave={handleCreate} />}
-      {editing  && <CategoryModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} />}
+      {editing  && <CategoryModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} onDelete={() => { setDeleting(editing); setEditing(null) }} />}
       {deleting && (
         <ConfirmDialog
           title="Delete this category?"
-          message={`"${deleting.categoryName}" will be permanently removed.`}
+          message={`"${deleting.categoryName}" will be removed. A category that still has assets can't be deleted.`}
           confirmLabel="Delete Category"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}

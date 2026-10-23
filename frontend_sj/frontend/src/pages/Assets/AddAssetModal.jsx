@@ -12,12 +12,9 @@ import DraftNotice from '../../components/common/DraftNotice'
 import DatePicker from '../../components/common/DatePicker'
 
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
-const CONDITIONS  = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
-// REGISTERED and ARCHIVED exist in the database enum but nothing ever sets them, so they aren't offered.
-const LIFECYCLES  = ['ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED']
-// Staff picking these doesn't change the asset — saving sends the matching request to an admin.
-const REQUEST_FOR_STATUS = { UNDER_MAINTENANCE: 'maintenance', DISPOSED: 'disposal' }
-const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
+// The status (Assigned / Under maintenance / Disposed) isn't edited here: it follows the
+// condition (Repairable starts maintenance, Unserviceable starts disposal) and the Transfer page.
+const CONDITIONS  = [['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable — needs repair'], ['UNSERVICEABLE', 'Unserviceable — for disposal']]
 const PAR_SERIAL_RE = /^[A-Za-z0-9-]+$/
 
 // PAR number = acquisition year-month + ':' + a serial typed by hand,
@@ -36,6 +33,10 @@ const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-
 // another office or create categories (all admin-only).
 export default function AddAssetModal({ onClose, onSave, initial = null, categories = [], offices = [], personnel = [], onCategoryCreated, staffMode = false }) {
   const isEditing = !!initial
+  // Required for new assets. Older assets were registered without a PAR / accountable person;
+  // editing one shouldn't force inventing them first.
+  const parRequired    = !isEditing || !!initial.parNumber
+  const personRequired = !isEditing || !!initial.accountablePerson
   const toast = useToast()
   const uploadInputRef = useRef(null)
   // Phones/tablets: a capture input hands off to the device's own camera app, which is
@@ -46,7 +47,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   // the first one is scrolled into view (and the button repeats it), or the click looks dead.
   const formRef = useRef(null)
   const showFirstError = () => requestAnimationFrame(() =>
-    formRef.current?.querySelector('[data-form-error], p.text-red-400')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    formRef.current?.querySelector('[data-form-error], p.field-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
   const [scanning, setScanning] = useState(false)
   const [wasScanned, setWasScanned] = useState(false)
   const [showCamera, setShowCamera] = useState(false)
@@ -66,7 +67,6 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     shortageOverageValue: initial?.shortageOverageValue != null ? String(initial.shortageOverageValue) : '0',
     location:         initial?.location               || '',
     condition:        initial?.condition              || 'SERVICEABLE',
-    lifecycleStatus:  initial?.lifecycleStatus        || 'REGISTERED',
     specifications:   initial?.specifications         || '',
     remarks:          initial?.remarks                || '',
   })
@@ -203,13 +203,14 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     const e = {}
     if (!form.description.trim())      e.description      = 'Description is required.'
     if (!form.categoryId)              e.categoryId       = 'Category is required.'
-    if (!form.officeId)                e.officeId         = 'Location is required.'
-    if (!form.personnelId)             e.personnelId      = 'Accountable person is required.'
+    if (!form.officeId)                e.officeId         = 'Office is required.'
+    if (!form.personnelId && personRequired) e.personnelId = 'Accountable person is required.'
     if (!form.acquisitionDate)         e.acquisitionDate  = 'Acquisition date is required.'
     if (!form.unitValue && form.unitValue !== 0) e.unitValue = 'Unit value is required.'
 
     const par = form.parSerial.trim()
-    if (!form.acquisitionDate)        e.parSerial = 'Pick the Acquisition Date first — the PAR Number starts with its year-month.'
+    if (!par && !parRequired)         { /* an older asset that never had a PAR may stay without one */ }
+    else if (!form.acquisitionDate)   e.parSerial = 'Pick the Acquisition Date first — the PAR Number starts with its year-month.'
     else if (!par)                    e.parSerial = 'PAR serial is required.'
     else if (!PAR_SERIAL_RE.test(par)) e.parSerial = 'PAR serial: letters, numbers, and hyphens only.'
     return e
@@ -230,15 +231,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         resolvedCategoryId = newCat.id
       }
 
-      if (staffRequest === 'disposal' && !DISPOSABLE_CONDITIONS.includes(form.condition)) {
-        setErrors({ _global: 'Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.' })
-        showFirstError()
-        return
-      }
       const selectedOfficeName = offices.find((o) => String(o.id) === String(form.officeId))?.officeName || ''
       const payload = {
         propertyNumber:    form.propertyNumber.trim() || null,
-        parNumber:         `${parPrefix(form.acquisitionDate)}:${form.parSerial.trim()}`,
+        parNumber:         form.parSerial.trim() ? `${parPrefix(form.acquisitionDate)}:${form.parSerial.trim()}` : '',
         serialNumber:      form.serialNumber.trim() || null,
         description:       form.description.trim(),
         categoryId:        resolvedCategoryId,
@@ -251,9 +247,9 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         currentUserId:     form.currentUserId ? Number(form.currentUserId) : null,
         shortageOverageQty:   form.shortageOverageQty !== '' ? Number(form.shortageOverageQty) : 0,
         shortageOverageValue: form.shortageOverageValue !== '' ? Number(form.shortageOverageValue) : 0,
-        location:          selectedOfficeName,
+        // the room typed below; just the office name when none is given
+        location:          form.location.trim() || selectedOfficeName,
         condition:         form.condition,
-        ...(isEditing ? { lifecycleStatus: form.lifecycleStatus } : {}),
         specifications:    form.specifications.trim() || null,
         remarks:           form.remarks.trim() || null,
       }
@@ -280,10 +276,6 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         : 'A disposal ledger record will be automatically created.' }
     : null
 
-  // Staff choosing Under Maintenance / Disposed: the status change becomes a request.
-  const staffRequest = staffMode && isEditing && form.lifecycleStatus !== initial.lifecycleStatus
-    ? REQUEST_FOR_STATUS[form.lifecycleStatus] ?? null
-    : null
 
   return (
     <>
@@ -294,7 +286,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
       <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-4">
         <DraftNotice draft={draft} />
         {errors._global && (
-          <div data-form-error role="alert" className="text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-4 py-2.5">{errors._global}</div>
+          <div data-form-error role="alert" className="text-sm text-red-700 dark:text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2.5">{errors._global}</div>
         )}
 
         {!isEditing && (
@@ -378,14 +370,14 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         {/* Serial No. */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-            Serial Number <span className="text-slate-400 font-normal">(optional)</span>
+            Serial Number <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span>
           </label>
           <input className={INPUT_CLASS} placeholder="Manufacturer serial number" value={form.serialNumber} onChange={set('serialNumber')} />
         </div>
 
         {/* Category */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Category<span className="text-red-400 ml-0.5">*</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Category<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
           {customMode ? (
               <div className="space-y-2">
                 <div className="flex gap-2">
@@ -412,7 +404,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                     Cancel
                   </button>
                 </div>
-                {customError && <p className="text-xs text-red-400">{customError}</p>}
+                {customError && <p className="field-error text-xs text-red-700 dark:text-red-300">{customError}</p>}
               </div>
             ) : (
               <div className="relative">
@@ -430,74 +422,69 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                 <ChevronIcon />
               </div>
             )}
-          {errors.categoryId && !customMode && <p className="text-xs text-red-400">{errors.categoryId}</p>}
+          {errors.categoryId && !customMode && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.categoryId}</p>}
         </div>
 
         {/* Description */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Description<span className="text-red-400 ml-0.5">*</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Description<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
           <input className={INPUT_CLASS} placeholder="Article / equipment description" value={form.description} onChange={set('description')} />
-          {errors.description && <p className="text-xs text-red-400">{errors.description}</p>}
+          {errors.description && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.description}</p>}
         </div>
 
-        {/* Qty + Acq Date + Unit Value */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        {/* Acq Date + Unit Value. Qty (Property Card) and Physical Count are always 1 — each asset
+            is one item — so they aren't asked for. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300 min-h-[2.5rem] flex items-start">Qty (Property Card)</label>
-            <input type="number" disabled value="1" className={INPUT_CLASS + ' opacity-60 cursor-not-allowed'} />
-            <p className="text-2xs text-slate-400 dark:text-zinc-600">Always 1 — each asset is its own Property Number.</p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300 min-h-[2.5rem] flex items-start">Qty (Physical Count)</label>
-            <input type="number" disabled value="1" className={INPUT_CLASS + ' opacity-60 cursor-not-allowed'} />
-            <p className="text-2xs text-slate-400 dark:text-zinc-600">Always 1.</p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300 min-h-[2.5rem] flex items-start">Acquisition Date<span className="text-red-400 ml-0.5">*</span></label>
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Acquisition Date<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
             <DatePicker required className={INPUT_CLASS} value={form.acquisitionDate} onChange={set('acquisitionDate')} />
-            {errors.acquisitionDate && <p className="text-xs text-red-400">{errors.acquisitionDate}</p>}
+            {errors.acquisitionDate && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.acquisitionDate}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300 min-h-[2.5rem] flex items-start">Unit Value (₱)<span className="text-red-400 ml-0.5">*</span></label>
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Unit Value (₱)<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
             <input type="number" min="0" step="0.01" className={INPUT_CLASS} placeholder="0.00" value={form.unitValue} onChange={set('unitValue')} />
-            {errors.unitValue && <p className="text-xs text-red-400">{errors.unitValue}</p>}
+            {errors.unitValue && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.unitValue}</p>}
           </div>
         </div>
 
         {/* Shortage/Overage — optional, defaults to 0. Independent of Qty/Physical Count
             (both fixed at 1); a positive number is overage, negative is shortage. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <details className="rounded-lg border border-slate-200 dark:border-zinc-700 px-4 py-3" open={Number(form.shortageOverageQty) !== 0 || Number(form.shortageOverageValue) !== 0}>
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-zinc-300">Physical count adjustments <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional — only if the count found a shortage or overage)</span></summary>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Shortage/Overage Qty <span className="text-slate-400 font-normal">(optional)</span></label>
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Shortage/Overage Qty <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
             <input type="number" step="1" className={INPUT_CLASS} placeholder="0" value={form.shortageOverageQty} onChange={set('shortageOverageQty')} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Shortage/Overage Value (₱) <span className="text-slate-400 font-normal">(optional)</span></label>
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Shortage/Overage Value (₱) <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
             <input type="number" step="0.01" className={INPUT_CLASS} placeholder="0.00" value={form.shortageOverageValue} onChange={set('shortageOverageValue')} />
           </div>
         </div>
+        <p className="text-xs text-slate-600 dark:text-zinc-400 mt-2">Negative = shortage, positive = overage.</p>
+        </details>
 
         {/* Property & PAR Number */}
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between gap-3">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Property & PAR Number<span className="text-red-400 ml-0.5">*</span></label>
-            <span className="text-2xs text-slate-400 dark:text-zinc-600 font-mono">
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Property & PAR Number{parRequired && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}</label>
+            <span className="text-xs text-slate-600 dark:text-zinc-400 font-mono">
               PAR = {parPrefix(form.acquisitionDate) || 'YYYY-MM'}:SERIAL
             </span>
           </div>
-          <p className="text-2xs text-slate-400 dark:text-zinc-600 -mt-1">
+          <p className="text-xs text-slate-600 dark:text-zinc-400 -mt-1">
             The Property Number is unique to this asset (leave blank to auto-generate); the PAR Number's serial
             is also unique to this asset. The PAR year-month comes from the Acquisition Date above.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">Property Number <span className="text-slate-400 font-normal">(optional)</span></label>
+              <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">Property Number <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
               <input className={INPUT_CLASS} placeholder="Leave blank to auto-generate" value={form.propertyNumber} onChange={set('propertyNumber')} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">PAR Number<span className="text-red-400 ml-0.5">*</span></label>
+              <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">PAR Number{parRequired ? <span className="text-red-600 dark:text-red-400 ml-0.5">*</span> : <span className="font-normal"> (optional — this asset has none yet)</span>}</label>
               <div className="flex items-stretch">
-                <span className={`flex items-center rounded-l-md border border-r-0 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/60 px-3 text-sm font-mono ${form.acquisitionDate ? 'text-slate-700 dark:text-zinc-300' : 'text-slate-400 dark:text-zinc-600'}`}>
+                <span className={`flex items-center whitespace-nowrap rounded-l-md border border-r-0 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/60 px-3 text-sm font-mono ${form.acquisitionDate ? 'text-slate-700 dark:text-zinc-300' : 'text-slate-600 dark:text-zinc-400'}`}>
                   {parPrefix(form.acquisitionDate) || 'YYYY-MM'}:
                 </span>
                 <input
@@ -509,45 +496,45 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               </div>
             </div>
           </div>
-          {errors.parSerial && <p className="text-xs text-red-400">{errors.parSerial}</p>}
+          {errors.parSerial && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.parSerial}</p>}
         </div>
 
         {/* Location, Accountable Person, Current User */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Location<span className="text-red-400 ml-0.5">*</span></label>
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Office<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
             {staffMode ? (
               <>
                 <div className={INPUT_CLASS + ' bg-slate-50 dark:bg-zinc-800/60 cursor-default'}>
                   {offices.find((o) => String(o.id) === String(form.officeId))?.officeName || '—'}
                 </div>
-                <p className="text-2xs text-slate-400 dark:text-zinc-600">Automatically set to your assigned office — only an administrator can move an asset.</p>
+                <p className="text-xs text-slate-600 dark:text-zinc-400">Automatically set to your assigned office — only an administrator can move an asset.</p>
               </>
             ) : (
               <div className="relative">
                 <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.officeId} onChange={handleOfficeChange}>
-                  <option value="">— Select location —</option>
+                  <option value="">— Select office —</option>
                   {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
                 </select>
                 <ChevronIcon />
               </div>
             )}
-            {errors.officeId && <p className="text-xs text-red-400">{errors.officeId}</p>}
+            {errors.officeId && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.officeId}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Accountable Person<span className="text-red-400 ml-0.5">*</span></label>
+            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Accountable Person{personRequired && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}</label>
             {staffMode ? (
               // the accountable person decides who can see the asset, so staff can't change it
               <>
                 <div className={INPUT_CLASS + ' bg-slate-50 dark:bg-zinc-800/60 cursor-default'}>
                   {initial?.accountablePerson?.fullName || '—'}
                 </div>
-                <p className="text-2xs text-slate-400 dark:text-zinc-600">You are this asset&apos;s accountable person.</p>
+                <p className="text-xs text-slate-600 dark:text-zinc-400">You are this asset&apos;s accountable person.</p>
               </>
             ) : (
               <div className="relative">
                 <select className={INPUT_CLASS + ' appearance-none pr-9 disabled:opacity-60 disabled:cursor-not-allowed'} value={form.personnelId} onChange={handlePersonnelChange} disabled={!form.officeId}>
-                  <option value="">{form.officeId ? '— Select accountable person —' : '— Select a location first —'}</option>
+                  <option value="">{form.officeId ? '— Select accountable person —' : '— Select an office first —'}</option>
                   {accountableOptions.map((p) => (
                     <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
                   ))}
@@ -555,17 +542,25 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                 <ChevronIcon />
               </div>
             )}
-            {errors.personnelId && <p className="text-xs text-red-400">{errors.personnelId}</p>}
+            {errors.personnelId && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.personnelId}</p>}
             {!staffMode && form.officeId && personnelForOffice.length === 0 && (
-              <p className="text-2xs text-amber-500">No accounts are assigned to this office yet — assign one on the Personnel page.</p>
+              <p className="text-xs text-amber-800 dark:text-amber-300">No accounts are assigned to this office yet — assign one on the Personnel page.</p>
             )}
           </div>
+        </div>
+
+        {/* Room / physical location inside the office */}
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="asset-location" className="text-sm font-medium text-slate-700 dark:text-zinc-300">
+            Room / Location <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span>
+          </label>
+          <input id="asset-location" className={INPUT_CLASS} placeholder="e.g. Records Section, 2nd floor" value={form.location} onChange={set('location')} />
         </div>
 
         {/* Current User */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-            Current User <span className="text-slate-400 font-normal">(optional — who actually has the asset, if different from the accountable person; can be anyone, from any office)</span>
+            Current User <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional — who actually has the asset, if different from the accountable person; can be anyone, from any office)</span>
           </label>
           <div className="relative">
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.currentUserId} onChange={set('currentUserId')}>
@@ -580,42 +575,20 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
         {/* Condition */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Condition<span className="text-red-400 ml-0.5">*</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Condition<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
           <div className="relative">
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.condition} onChange={set('condition')}>
-              {CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              {CONDITIONS.map(([c, label]) => <option key={c} value={c}>{label}</option>)}
             </select>
             <ChevronIcon />
           </div>
         </div>
 
-        {/* Lifecycle Status — editing only (a new asset starts as Registered) */}
-        {isEditing && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Lifecycle Status</label>
-            <div className="relative">
-              <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.lifecycleStatus} onChange={set('lifecycleStatus')}>
-                {LIFECYCLES.map((s) => (
-                  <option key={s} value={s} disabled={staffMode && s === 'TRANSFERRED' && initial.lifecycleStatus !== 'TRANSFERRED'}>
-                    {s.replace('_', ' ')}{staffMode && REQUEST_FOR_STATUS[s] && s !== initial.lifecycleStatus ? ' (needs approval)' : ''}
-                  </option>
-                ))}
-              </select>
-              <ChevronIcon />
-            </div>
-            {staffRequest && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Saving sends a {staffRequest} request to an administrator — the asset stays {initial.lifecycleStatus.replace('_', ' ')} until it's approved.
-              </p>
-            )}
-          </div>
-        )}
-
         {conditionNote && (
           <div className={`flex items-start gap-2.5 px-4 py-3 rounded-lg border ${
             conditionNote.color === 'amber'
-              ? 'bg-amber-500/8 border-amber-500/20 text-amber-400'
-              : 'bg-red-500/8 border-red-500/20 text-red-400'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
+              : 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300'
           }`}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
@@ -626,7 +599,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
         {/* Technical Specifications */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Technical Specifications <span className="text-slate-400 font-normal">(optional)</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Technical Specifications <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
           <textarea
             className={INPUT_CLASS + ' resize-none font-mono text-xs'}
             rows={6}
@@ -634,20 +607,20 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             value={form.specifications}
             onChange={set('specifications')}
           />
-          <p className="text-2xs text-slate-400 dark:text-zinc-600">
+          <p className="text-xs text-slate-600 dark:text-zinc-400">
             Free-form — enter whatever specs apply to this device type (processor/memory/storage for a computer, engine/plate no. for a vehicle, etc.), one per line. Auto-filled by Take Photo/Upload Image when available.
           </p>
         </div>
 
         {/* Remarks */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Remarks <span className="text-slate-400 font-normal">(optional)</span></label>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Remarks <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
           <textarea className={INPUT_CLASS + ' resize-none'} rows={2} placeholder="Additional notes…" value={form.remarks} onChange={set('remarks')} />
         </div>
 
         <div className="flex justify-end items-center gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           {Object.keys(errors).length > 0 && (
-            <p className="mr-auto text-xs text-red-500 dark:text-red-400" role="alert">
+            <p className="mr-auto text-xs text-red-700 dark:text-red-300" role="alert">
               {errors._global || (Object.keys(errors).length === 1
                 ? 'Fix the highlighted field above.'
                 : `Fix the ${Object.keys(errors).length} highlighted fields above.`)}
