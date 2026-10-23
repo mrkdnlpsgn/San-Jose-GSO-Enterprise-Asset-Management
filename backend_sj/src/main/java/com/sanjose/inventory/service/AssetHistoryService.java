@@ -121,22 +121,31 @@ public class AssetHistoryService {
     // officeId null = every office (admin).
     // scope null = every asset (admin); otherwise only the staff account's own assets.
     public List<AssetHistory> findAll(String search, AccessService.StaffScope scope) {
+        return findAll(search, scope, null);
+    }
+
+    // limit (optional): only the newest N entries, e.g. the dashboard's recent activity.
+    public List<AssetHistory> findAll(String search, AccessService.StaffScope scope, Integer limit) {
         StringBuilder sql = new StringBuilder(HISTORY_SELECT);
         List<Object> args = new ArrayList<>();
         if (scope != null) {
             sql.append(" AND ").append(scope.sql("a"));
             args.addAll(List.of(scope.args()));
         }
-        return query(sql, args, search);
+        return query(sql, args, search, limit);
     }
 
-    private List<AssetHistory> query(StringBuilder sql, List<Object> args, String search) {
+    private List<AssetHistory> query(StringBuilder sql, List<Object> args, String search, Integer limit) {
         if (search != null && !search.isBlank()) {
             sql.append(SEARCH_FILTER);
             String like = "%" + search.trim() + "%";
             for (int i = 0; i < 6; i++) args.add(like);
         }
         sql.append(" ORDER BY h.event_date DESC, h.history_id DESC");
+        if (limit != null && limit > 0) {
+            sql.append(" LIMIT ?");
+            args.add(limit);
+        }
         return jdbcTemplate.query(sql.toString(), HISTORY_MAPPER, args.toArray());
     }
 

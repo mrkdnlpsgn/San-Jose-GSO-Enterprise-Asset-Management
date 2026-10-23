@@ -18,6 +18,12 @@ function SessionGuard() {
   const user     = useSelector((s) => s.auth.user)
   const userRef  = useRef(user)
   userRef.current = user
+  // navigate changes identity on every page change; through refs the check below runs only
+  // when the tab loads or regains focus, not on each navigation
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
+  const toastRef = useRef(toast)
+  toastRef.current = toast
 
   useEffect(() => {
     let checking = false
@@ -30,15 +36,15 @@ function SessionGuard() {
         if (!me) return
         if (shown?.username !== me.username || shown?.role !== me.role) {
           dispatch(setCredentials({ user: me }))
-          toast.show(`You're signed in as ${me.fullName || me.username} (signed in from another tab). Switched to that account.`, 'warning')
-          navigate('/dashboard', { replace: true })
+          toastRef.current.show(`You're signed in as ${me.fullName || me.username} (signed in from another tab). Switched to that account.`, 'warning')
+          navigateRef.current('/dashboard', { replace: true })
         } else if (shown?.officeId !== me.officeId || shown?.officeName !== me.officeName) {
           dispatch(setCredentials({ user: { ...shown, officeId: me.officeId, officeName: me.officeName } }))
         }
       } catch (err) {
         if (err.response?.status === 401) {
           dispatch(logout())
-          navigate('/login', { replace: true })
+          navigateRef.current('/login', { replace: true })
         }
       } finally {
         checking = false
@@ -51,7 +57,7 @@ function SessionGuard() {
       window.removeEventListener('focus', check)
       document.removeEventListener('visibilitychange', check)
     }
-  }, [dispatch, navigate, toast])
+  }, [dispatch])
 
   return null
 }

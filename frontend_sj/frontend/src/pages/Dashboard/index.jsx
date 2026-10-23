@@ -663,7 +663,7 @@ function Dashboard() {
     if (!silent) { setLoading(true); setError(false) }
     Promise.all([
       getAssets().catch(() => null),
-      getAssetHistory().catch(() => null),
+      getAssetHistory('', 8).catch(() => null),  // Recent Activity shows the 8 newest
       isAdmin ? getUsers().catch(() => null) : Promise.resolve(null),
       getMaintenance().catch(() => null),
       getDisposal().catch(() => null),
@@ -683,7 +683,7 @@ function Dashboard() {
       setDisposalRecords(dispRes?.data ?? [])
       setRequests(reqRes?.data ?? [])
       setRequestsFailed(!reqRes)
-      setInsightToken((t) => t + 1)
+      if (silent) setInsightToken((t) => t + 1)  // the month card loads itself on first open
       if (!silent) setLoading(false)
     })
   }, [dispatch, isAdmin])

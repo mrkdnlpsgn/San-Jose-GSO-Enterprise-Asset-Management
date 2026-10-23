@@ -113,10 +113,15 @@ function Disposal() {
     }
   }, [toast])
 
+  // The full asset list (about 2 MB) and the users are only needed by the edit form, so they
+  // load the first time it opens instead of every time this page does.
+  const [formListsLoaded, setFormListsLoaded] = useState(false)
   useEffect(() => {
+    if (!editing || formListsLoaded) return
+    setFormListsLoaded(true)
     Promise.all([getAssets().catch(() => ({ data: [] })), getUsers().catch(() => ({ data: [] }))])
       .then(([assetRes, userRes]) => { setAssets(assetRes.data); setUsers(userRes.data) })
-  }, [])
+  }, [editing, formListsLoaded])
 
   useEffect(() => { fetchRecords(debouncedSearch) }, [debouncedSearch, fetchRecords])
   useEffect(() => { setPage(1) }, [debouncedSearch, filterStatus, filterMethod, assetFilter, pendingOnly])

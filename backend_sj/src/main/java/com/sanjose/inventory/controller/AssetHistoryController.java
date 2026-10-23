@@ -18,9 +18,12 @@ public class AssetHistoryController {
     private final AssetHistoryService assetHistoryService;
     private final AccessService accessService;
 
+    // limit (optional): only the newest N entries - the dashboard asks for its recent activity
+    // this way instead of downloading the whole history.
     @GetMapping
-    public List<AssetHistory> getAll(@RequestParam(required = false) String search) {
-        return assetHistoryService.findAll(search, accessService.staffScope());
+    public List<AssetHistory> getAll(@RequestParam(required = false) String search,
+                                     @RequestParam(required = false) Integer limit) {
+        return assetHistoryService.findAll(search, accessService.staffScope(), limit);
     }
 
     // Asset History page. Admin: everything. Staff: every event (by anyone) on the assets they

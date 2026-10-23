@@ -7,18 +7,30 @@ import ConfirmDialog from '../common/ConfirmDialog'
 
 const LAST_SEEN_KEY = 'lastSeenAuditLogId'
 
+// The sidebar is mounted again on every page, so the newest audit entry is remembered here and
+// fetched at most once a minute for the whole app instead of once per page.
+const CHECK_EVERY_MS = 60000
+let latestAuditId = null
+let lastAuditCheck = 0
+
 function useAuditLogPing(pathname, enabled) {
   const [hasNew, setHasNew] = useState(false)
   const intervalRef = useRef(null)
 
   const check = async () => {
     if (!enabled) return
+    const seen = () => {
+      // already looking at the audit logs: whatever is newest counts as seen
+      if (latestAuditId != null && window.location.pathname === '/audit-logs') localStorage.setItem(LAST_SEEN_KEY, latestAuditId)
+      setHasNew(latestAuditId != null && localStorage.getItem(LAST_SEEN_KEY) !== latestAuditId)
+    }
+    if (Date.now() - lastAuditCheck < CHECK_EVERY_MS) { seen(); return }
+    lastAuditCheck = Date.now()
     try {
       const { data } = await getAuditLogs()
       if (!data?.length) return
-      const latestId = String(data[0].id)
-      const lastSeen = localStorage.getItem(LAST_SEEN_KEY)
-      setHasNew(lastSeen !== latestId)
+      latestAuditId = String(data[0].id)
+      seen()
     } catch {}
   }
 
@@ -30,10 +42,9 @@ function useAuditLogPing(pathname, enabled) {
 
   useEffect(() => {
     if (enabled && pathname === '/audit-logs') {
-      getAuditLogs().then(({ data }) => {
-        if (data?.length) localStorage.setItem(LAST_SEEN_KEY, String(data[0].id))
-        setHasNew(false)
-      }).catch(() => {})
+      // the Audit Logs page loads the list itself; marking it seen needs no extra download
+      if (latestAuditId != null) localStorage.setItem(LAST_SEEN_KEY, latestAuditId)
+      setHasNew(false)
     }
   }, [pathname])
 

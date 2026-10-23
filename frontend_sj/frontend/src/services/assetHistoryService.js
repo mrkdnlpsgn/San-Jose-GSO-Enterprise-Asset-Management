@@ -1,8 +1,9 @@
 import api from './api';
 
-export const getAssetHistory    = (search = '') => search.trim()
-  ? api.get('/asset-history', { params: { search: search.trim() } })
-  : api.get('/asset-history');
+// limit (optional): only the newest N entries.
+export const getAssetHistory    = (search = '', limit) => api.get('/asset-history', {
+  params: { ...(search.trim() ? { search: search.trim() } : {}), ...(limit ? { limit } : {}) },
+});
 // Asset History page - admin: everything; staff: every event on the assets they're the
 // accountable person for.
 export const getAccountableHistory = (search = '') => search.trim()
