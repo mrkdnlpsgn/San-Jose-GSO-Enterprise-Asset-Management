@@ -4,7 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../model/asset_model.dart';
 
-// Import columns — keys must match the backend's AssetImportRow fields
+// Import columns - keys must match the backend's AssetImportRow fields
 // exactly (see backend_sj/.../dto/AssetImportRow.java), and mirror the web
 // Assets page's import template (assetExcel.js) column-for-column.
 const importColumns = [

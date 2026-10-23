@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 // acting user's username so clients can skip toasting their own actions.
 //
 // Data events are only delivered to users allowed to see the office the record belongs
-// to (admins: all; staff: their assigned office — see AccessService).
+// to (admins: all; staff: their assigned office - see AccessService).
 //
 // Each data change is also published in-process as a RecordChangedEvent (AiAutoGenerator
 // uses it), and the "ai" channel announces background AI results: action "READY", id of the
@@ -46,7 +46,7 @@ public class SseEmitterService {
 
     public SseEmitter subscribe(String username) {
         // No fixed timeout here (Long.MAX_VALUE would overflow the deadline math
-        // Spring's async support does internally) — spring.mvc.async.request-timeout=-1
+        // Spring's async support does internally) - spring.mvc.async.request-timeout=-1
         // disables the timeout at the framework level instead.
         SseEmitter emitter = new SseEmitter();
         emitters.put(emitter, username);
@@ -86,7 +86,7 @@ public class SseEmitterService {
         broadcastScoped("ai", new SseEvent("READY", id, Map.of("kind", kind), null), assetId);
     }
 
-    // A background AI job failed (e.g. the daily quota is used up) — screens stop waiting.
+    // A background AI job failed (e.g. the daily quota is used up) - screens stop waiting.
     public void emitAiFailed(String kind, Long id, Long assetId, String message) {
         broadcastScoped("ai", new SseEvent("FAILED", id, Map.of("kind", kind, "message", message), null), assetId);
     }

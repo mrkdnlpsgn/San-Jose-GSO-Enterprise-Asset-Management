@@ -66,7 +66,7 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
 
   Future<void> refresh() => _loadFirstPage();
 
-  // For background auto-refresh polling — unlike refresh()/_loadFirstPage(),
+  // For background auto-refresh polling - unlike refresh()/_loadFirstPage(),
   // this never flips isLoading, so PaginatedListView keeps showing the
   // current items (no skeleton flash) while fresh data loads underneath.
   // A failed background poll is silently ignored rather than disrupting
@@ -77,7 +77,7 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
       _page = 0;
       state = state.copyWith(items: items, hasMore: items.length == paginatedPageSize, error: null);
     } catch (_) {
-      // Ignored — see comment above.
+      // Ignored - see comment above.
     }
   }
 

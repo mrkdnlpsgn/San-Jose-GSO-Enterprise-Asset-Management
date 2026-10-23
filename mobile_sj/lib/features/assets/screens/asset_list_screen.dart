@@ -225,7 +225,7 @@ class _AssetCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // An older record that counted several devices in one row (Qty > 1) but only stored
-    // one set of numbers — flagged so it can be edited into separate devices.
+    // one set of numbers - flagged so it can be edited into separate devices.
     final legacyMulti = asset.groupId == null && asset.quantity >= 2;
     final c = context.colors;
     // shrinks a touch on press, like an iOS list row
@@ -281,7 +281,7 @@ class _AssetCard extends StatelessWidget {
                     if (legacyMulti) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'Counts ${asset.quantity} devices but only one is recorded — edit to add the others.',
+                        'Counts ${asset.quantity} devices but only one is recorded. Edit to add the others.',
                         style: TextStyle(
                           color: context.isLight ? const Color(0xFFB45309) : const Color(0xFFFBBF24),
                           fontSize: 13,

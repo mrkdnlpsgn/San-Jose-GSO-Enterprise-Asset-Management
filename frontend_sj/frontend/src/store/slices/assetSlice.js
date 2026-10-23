@@ -8,7 +8,7 @@ const assetSlice = createSlice({
     setAssets: (state, action) => { state.items = action.payload; },
     // Both the direct create-response handler and the SSE 'asset' CREATED
     // event can dispatch this for the same asset (the SSE emit fires
-    // server-side before the HTTP response returns) — guard against
+    // server-side before the HTTP response returns) - guard against
     // inserting it twice.
     addAsset: (state, action) => {
       if (state.items.some((i) => i.id === action.payload.id)) return;
@@ -22,7 +22,7 @@ const assetSlice = createSlice({
       state.items = state.items.filter(i => i.id !== action.payload);
     },
   },
-  // The cached list belongs to whoever loaded it — staff only get their office's assets —
+  // The cached list belongs to whoever loaded it - staff only get their office's assets -
   // so drop it whenever the signed-in account changes or signs out.
   extraReducers: (builder) => {
     builder

@@ -33,7 +33,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void initState() {
     super.initState();
     _wake();
-    // Sent here because the session ended mid-use — say so once, rather than a blank sign-in.
+    // Sent here because the session ended mid-use - say so once, rather than a blank sign-in.
     final notice = ref.read(sessionExpiredNoticeProvider);
     if (notice != null) {
       _error = notice;
@@ -67,7 +67,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     await ref.read(authProvider.notifier).login(identifier, password);
     if (!mounted) return;
     var error = ref.read(authProvider).error;
-    // went to sleep again or was mid-restart — wait for it once more, then retry
+    // went to sleep again or was mid-restart - wait for it once more, then retry
     if (error is ApiException && error.serverAsleep) {
       if (await _wake() && mounted) {
         await ref.read(authProvider.notifier).login(identifier, password);
@@ -78,7 +78,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Connected, but the server still can't be reached (e.g. Wi-Fi with no internet).
     if (error is ApiException && error.serverAsleep) return _signInOffline(identifier, password);
     if (error is MustChangePasswordRequired) {
-      // Not a real auth failure — clear it so it isn't mistaken for one, then
+      // Not a real auth failure - clear it so it isn't mistaken for one, then
       // hand off to the password-change step.
       ref.read(authProvider.notifier).clearError();
       await Navigator.of(context).push(fadeThroughRoute(
@@ -112,7 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  // The backend's wording is terse — say it in plain words, as the web sign-in page does.
+  // The backend's wording is terse - say it in plain words, as the web sign-in page does.
   String _describe(String msg) {
     if (RegExp(r'invalid (credentials|email or password|username or password)|bad credentials', caseSensitive: false)
         .hasMatch(msg)) {
@@ -170,7 +170,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Seal, office and system name — the web login's side panel, stacked
+                            // Seal, office and system name - the web login's side panel, stacked
                             Center(
                               child: Container(
                                 width: 88,
@@ -219,7 +219,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // Offline, the server isn't "starting up" — the phone just can't reach it.
+                            // Offline, the server isn't "starting up" - the phone just can't reach it.
                             if (_serverWaking && _error == null && !offline) ...[
                               Container(
                                 padding: const EdgeInsets.all(14),
@@ -237,7 +237,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     Expanded(
                                       child: Text(
                                         'The system is starting up after a quiet period. This can take up to 3 minutes. '
-                                        'You can enter your username and password now — you will be signed in as soon as it is ready.',
+                                        'You can enter your username and password now. You will be signed in as soon as it is ready.',
                                         style: TextStyle(
                                           fontSize: 15,
                                           height: 1.4,
@@ -306,7 +306,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               decoration: InputDecoration(
                                 hintText: 'Enter your password',
                                 prefixIcon: const Icon(Icons.lock_rounded),
-                                // a worded toggle, as on the web form — clearer than an eye icon
+                                // a worded toggle, as on the web form - clearer than an eye icon
                                 suffixIcon: TextButton(
                                   onPressed: () => setState(() => _obscure = !_obscure),
                                   style: TextButton.styleFrom(foregroundColor: c.textSecondary),

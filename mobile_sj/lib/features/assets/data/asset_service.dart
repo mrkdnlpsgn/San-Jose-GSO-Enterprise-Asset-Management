@@ -7,7 +7,7 @@ import '../model/asset_import_result.dart';
 
 // Fields read off an asset tag/sticker photo, or a property document (e.g. a
 // Property Acknowledgment Receipt listing technical specifications), via
-// server-side OCR — meant to pre-fill the Add Asset form for review, not
+// server-side OCR - meant to pre-fill the Add Asset form for review, not
 // saved as-is.
 typedef AssetOcrResult = ({String? description, String? serialNumber, String? specifications});
 
@@ -42,7 +42,7 @@ class AssetService {
         officeId: officeId,
         condition: condition,
         lifecycleStatus: lifecycleStatus);
-    // The whole list, unfiltered — the same download the offline copy is made of.
+    // The whole list, unfiltered - the same download the offline copy is made of.
     final everything = page == 0 && size >= 100000 && (search == null || search.isEmpty) &&
         categoryId == null && officeId == null && (condition ?? '').isEmpty && (lifecycleStatus ?? '').isEmpty;
     if (ApiClient.instance.deviceOffline) {
@@ -76,7 +76,7 @@ class AssetService {
   /// Downloads every asset the account can see into the offline copy.
   Future<void> refreshOfflineCopy() => getAll(size: 100000);
 
-  // Every device of one group — loaded when a group is opened, so the view doesn't depend on
+  // Every device of one group - loaded when a group is opened, so the view doesn't depend on
   // which page (or search results) happened to be loaded in the list.
   Future<List<AssetModel>> getGroup(String groupId) async {
     try {
@@ -151,7 +151,7 @@ class AssetService {
   }
 
   // Reads a photo of an asset tag/sticker via server-side OCR (Gemini vision)
-  // — the image is processed in memory on the backend and never persisted.
+  // - the image is processed in memory on the backend and never persisted.
   Future<AssetOcrResult> scanLabel(String imagePath) async {
     try {
       final formData = FormData.fromMap({
@@ -188,7 +188,7 @@ class AssetService {
     }
   }
 
-  // Create-only bulk import — see AssetImportRow.java for the exact field
+  // Create-only bulk import - see AssetImportRow.java for the exact field
   // names each row map must use.
   Future<AssetImportResult> bulkImport(List<Map<String, String>> rows) async {
     try {

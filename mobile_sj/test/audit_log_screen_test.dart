@@ -38,7 +38,7 @@ void main() {
     _log(3, 'MAINTENANCE_UPDATED', 'Maintenance', 'Updated maintenance for asset: COA-2017-901', now,
         name: 'GSO Administrator'),
     _log(2, 'AI_RECOMMENDATION_GENERATED', 'Assets',
-        'Generated AI recommendation for COA-2016-902: BUDGET_PRIORITY — a long description that wraps', now),
+        'Generated AI recommendation for COA-2016-902: BUDGET_PRIORITY. A long description that wraps', now),
     _log(1, 'ASSET_TRANSFERRED', 'Assets', 'Transferred COA-2017-903 to MTO', DateTime(2026, 3, 4, 9, 5)),
   ];
 

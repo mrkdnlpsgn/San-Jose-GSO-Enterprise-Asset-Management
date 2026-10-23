@@ -7,7 +7,7 @@ final assetServiceProvider = Provider<AssetService>((ref) => AssetService());
 
 final assetSearchProvider = StateProvider<String>((ref) => '');
 
-// Filter chips (Category/Office/Condition/Lifecycle) — separate providers so
+// Filter chips (Category/Office/Condition/Lifecycle) - separate providers so
 // each can be watched independently; changing any one rebuilds the paged
 // provider below with a fresh first page.
 final assetCategoryFilterProvider = StateProvider<int?>((ref) => null);
@@ -36,7 +36,7 @@ final assetsPagedProvider = StateNotifierProvider.autoDispose
   );
 });
 
-// Total matching the same filters as assetsPagedProvider — the paginated list
+// Total matching the same filters as assetsPagedProvider - the paginated list
 // only ever sees one page at a time, so this is a separate lightweight /count
 // call rather than something derivable from PaginatedListState.
 final assetCountProvider = FutureProvider.autoDispose.family<int, String>((ref, search) {

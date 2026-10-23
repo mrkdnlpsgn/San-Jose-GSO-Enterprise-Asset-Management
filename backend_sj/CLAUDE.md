@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Web-based inventory and tracking management system. Two separate projects:
-- `inventory/` — Spring Boot 4.0.6 backend (Java 17, Maven)
-- `../frontend/` — React 19 frontend (Create React App)
+- `inventory/`: Spring Boot 4.0.6 backend (Java 17, Maven)
+- `../frontend/`: React 19 frontend (Create React App)
 
 ## Backend (inventory/)
 
@@ -38,7 +38,7 @@ Standard Spring Boot layered architecture under `com.sanjose.inventory`:
 
 ```
 config/         SecurityConfig (CORS + JWT auth)
-controller/     REST controllers — thin, delegate to services
+controller/     REST controllers, thin, delegate to services
 service/        Business logic, @Transactional
 repository/     Spring Data JPA interfaces
 entity/         JPA @Entity classes
@@ -47,11 +47,11 @@ dto/            Request/response DTOs
 ```
 
 **Domain model:**
-- `EquipmentRecord` — ICT equipment item (article, itemCode, type, office, location, etc.)
-- `DeviceRecord` → EquipmentRecord (ManyToOne) — individual devices under an equipment record
-- `TrackingLog` — movement/check-in/check-out logs linked to equipment
-- `AuditLog` — system-level audit trail
-- `User` — system users with roles (admin / staff)
+- `EquipmentRecord`: ICT equipment item (article, itemCode, type, office, location, etc.)
+- `DeviceRecord` → EquipmentRecord (ManyToOne), individual devices under an equipment record
+- `TrackingLog`, movement/check-in/check-out logs linked to equipment
+- `AuditLog`, system-level audit trail
+- `User`, system users with roles (admin / staff)
 
 ### REST API Base URLs (all under `/api/`)
 | Endpoint | Description |

@@ -10,7 +10,7 @@ import '../data/personnel_service.dart';
 
 final personnelListProvider = FutureProvider.autoDispose<List<PersonnelRecord>>((ref) => PersonnelService().getAll());
 
-/// Personnel — mirrors the web page: every account with its office and contact info, and
+/// Personnel - mirrors the web page: every account with its office and contact info, and
 /// "Assign office" / "Change office". [needsOfficeOnly] opens it filtered to accounts
 /// without an office (from Home's "Needs your attention").
 class PersonnelListScreen extends ConsumerStatefulWidget {
@@ -113,7 +113,7 @@ class _PersonnelListScreenState extends ConsumerState<PersonnelListScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 48),
                     child: Text(
                       all.isEmpty
-                          ? 'No accounts yet — create one on the Accounts page.'
+                          ? 'No accounts yet. Create one on the Accounts page.'
                           : _needsOfficeOnly && q.isEmpty
                               ? 'Every active account has an office.'
                               : 'No personnel match your search.',
@@ -201,7 +201,7 @@ class _PersonCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(width: 72, child: Text('Contact', style: label)),
-              Expanded(child: Text(p.contactInfo ?? '—', style: TextStyle(color: c.textSecondary, fontSize: 15))),
+              Expanded(child: Text(p.contactInfo ?? 'N/A', style: TextStyle(color: c.textSecondary, fontSize: 15))),
             ],
           ),
           const SizedBox(height: 12),

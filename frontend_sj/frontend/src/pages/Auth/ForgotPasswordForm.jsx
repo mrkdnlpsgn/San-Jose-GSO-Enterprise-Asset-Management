@@ -26,8 +26,8 @@ function ErrorBox({ message }) {
 }
 
 // Shown in place of the sign-in fields (not a modal). 3 steps: 'request' (enter username, email a
-// code) -> 'confirm' (code + new password) -> 'done'. Requiring the emailed code — not just the
-// username — is what stops anyone who merely knows a username from taking over the account.
+// code) -> 'confirm' (code + new password) -> 'done'. Requiring the emailed code - not just the
+// username - is what stops anyone who merely knows a username from taking over the account.
 // onBack(username) returns to sign-in, keeping the username typed here.
 function ForgotPasswordForm({ initialIdentifier = '', onBack }) {
   const [step, setStep]                       = useState('request')

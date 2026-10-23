@@ -10,7 +10,7 @@ import java.util.Map;
 
 // The newest mobile app release, so the app can offer an update when it opens. Public: the check
 // runs before sign-in too. Set on the server (Render env vars) when a new APK is published:
-//   MOBILE_LATEST_VERSION   e.g. 1.0.1 — the app asks to update when it's older than this
+//   MOBILE_LATEST_VERSION   e.g. 1.0.1 - the app asks to update when it's older than this
 //   MOBILE_MIN_VERSION      optional; older apps must update before continuing
 //   MOBILE_DOWNLOAD_URL     where the APK is downloaded (e.g. a GitHub release asset)
 //   MOBILE_RELEASE_NOTES    optional short text shown in the dialog

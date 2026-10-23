@@ -85,9 +85,9 @@ public class DisposalJustificationService {
         cost/economic justification if repair cost or age data is meaningful, (3) the recommended disposal \
         method and why it fits. Use a formal, factual tone appropriate for an official government record. \
         Do NOT invent or cite specific COA circular numbers, memorandum numbers, statute sections, or other \
-        legal citations you cannot verify — refer generically to "applicable government property disposal \
+        legal citations you cannot verify. Refer generically to "applicable government property disposal \
         regulations" instead. Do NOT fabricate figures not given to you. This draft is a starting point for \
-        the responsible officer to review and finalize — do not claim final authority or pre-approve anything. \
+        the responsible officer to review and finalize. Do not claim final authority or pre-approve anything. \
         Output plain text only, no markdown formatting, no headers.""";
 
     private String requestJustification(DisposalLedger disposal, Asset asset) {
@@ -106,7 +106,7 @@ public class DisposalJustificationService {
             Integer.class, asset.getId());
 
         String prompt = """
-            Asset: %s — %s
+            Asset: %s, %s
             Category: %s
             Office: %s
             Age: %s years

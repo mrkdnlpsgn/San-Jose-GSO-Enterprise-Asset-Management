@@ -19,17 +19,17 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 @Order(1)
 public class RateLimitingFilter extends OncePerRequestFilter {
 
-    // Tier 1 — global: 100 req / 60 s per IP (all endpoints)
+    // Tier 1 - global: 100 req / 60 s per IP (all endpoints)
     private static final int  GLOBAL_MAX  = 100;
     private static final long GLOBAL_WIN  = 60_000L;
 
-    // Tier 2 — write ops (POST/PUT/DELETE, non-auth): 30 req / 60 s per IP
+    // Tier 2 - write ops (POST/PUT/DELETE, non-auth): 30 req / 60 s per IP
     private static final int  WRITE_MAX   = 30;
     private static final long WRITE_WIN   = 60_000L;
 
-    // Tier 3 — auth login, per IP. Configurable since one dev/admin testing
+    // Tier 3 - auth login, per IP. Configurable since one dev/admin testing
     // multiple accounts from the same machine shares this bucket across every
-    // login attempt regardless of username — 20/15min gives real headroom for
+    // login attempt regardless of username - 20/15min gives real headroom for
     // that while still bounding brute-force from a single IP.
     @Value("${auth.rate-limit.max-attempts:20}")
     private int authMax;
@@ -73,7 +73,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             record(writeBucket, ip);
         }
 
-        // Tier 3: login brute-force limit — also covers verify-otp so guessing the
+        // Tier 3: login brute-force limit - also covers verify-otp so guessing the
         // emailed 2FA code is bounded the same way guessing a password is.
         if ((uri.equals("/api/auth/login") || uri.equals("/api/auth/login/verify-otp")) && method.equals("POST")) {
             long authWindowMs = authWindowMinutes * 60_000L;

@@ -35,9 +35,9 @@ public class GeminiConfig {
     private String apiKey;
 
     // Two models, set on the server (Render env vars GEMINI_MODEL_FAST / GEMINI_MODEL_SMART):
-    //   FAST  — the everyday, automatic work (summaries, justifications, recommendations, digest).
+    //   FAST  - the everyday, automatic work (summaries, justifications, recommendations, digest).
     //           A Flash-Lite model: far more free requests a day than Flash, so it can run on every change.
-    //   SMART — work where a careful read matters more than volume (reading label photos, the
+    //   SMART - work where a careful read matters more than volume (reading label photos, the
     //           dashboard period summary). Flash, about 20 a day on the free plan.
     // Each falls back to the other when its quota runs out, so AI keeps working while either has some left.
     public enum Tier { FAST, SMART }
@@ -67,7 +67,7 @@ public class GeminiConfig {
         return p != null && Instant.now().isBefore(p.until());
     }
 
-    // Why AI can't be used right now, for the user — or null when it can (any model has quota left).
+    // Why AI can't be used right now, for the user - or null when it can (any model has quota left).
     public String unavailableMessage() {
         if (!isPaused(fastModel) || !isPaused(smartModel)) return null;
         // both paused: report the one that comes back first

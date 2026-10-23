@@ -7,7 +7,7 @@ final accountServiceProvider = Provider<AccountService>((ref) => AccountService(
 
 final accountSearchProvider = StateProvider<String>((ref) => '');
 
-/// The backend accounts endpoint has no page/size params — it returns every
+/// The backend accounts endpoint has no page/size params - it returns every
 /// matching account in one call. This still fits PaginatedListView's fetch
 /// shape (all results on the first "page", nothing after), so Accounts gets
 /// the same skeleton/retry/refresh UI as Assets/Maintenance/Disposal without

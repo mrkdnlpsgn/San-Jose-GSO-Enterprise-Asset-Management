@@ -38,7 +38,7 @@ public class MyAccountController {
     public record TwoFactorRequest(Boolean enabled, String currentPassword) {}
 
     // Forget every computer remembered for 2-step ("Don't ask for a code for 30 days"). Remembered
-    // devices are tied to token_version (TrustedDeviceService), so bumping it forgets them all —
+    // devices are tied to token_version (TrustedDeviceService), so bumping it forgets them all -
     // and, like a password change, ends every session too, this one included.
     @PostMapping("/forget-devices")
     public ResponseEntity<Void> forgetDevices(@AuthenticationPrincipal UserDetails principal) {

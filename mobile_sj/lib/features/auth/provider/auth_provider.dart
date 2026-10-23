@@ -65,7 +65,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     }
   }
 
-  // Signed in from the saved user: once the server answers, ask it again — a refused
+  // Signed in from the saved user: once the server answers, ask it again - a refused
   // session goes back to sign-in, an accepted one refreshes the saved details.
   Future<void> _confirmSessionWhenReachable() async {
     if (_confirming) return;
@@ -73,7 +73,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     try {
       await future; // build has stored the saved user
       while (state.valueOrNull != null) {
-        if (!await ApiClient.instance.waitForServer()) continue; // still offline — keep waiting
+        if (!await ApiClient.instance.waitForServer()) continue; // still offline - keep waiting
         if (state.valueOrNull == null) return; // signed out meanwhile
         try {
           final user = await _service.fetchCurrentUser();
@@ -84,7 +84,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
           }
           return;
         } on ApiException catch (e) {
-          if (!e.serverAsleep) return; // a real error — leave the session to later requests
+          if (!e.serverAsleep) return; // a real error - leave the session to later requests
         }
       }
     } finally {
@@ -94,7 +94,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
 
   // Any request found the session gone: drop it and let the router send the user to sign-in.
   void _onSessionExpired() {
-    if (state.valueOrNull == null) return; // already signed out — several requests can fail at once
+    if (state.valueOrNull == null) return; // already signed out - several requests can fail at once
     ApiClient.instance.clearCookies();
     ref.read(sessionExpiredNoticeProvider.notifier).state = _offlineSession
         ? "You're back online. Sign in again to upload the changes saved on this phone."
@@ -132,7 +132,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     try {
       await OfflineCredentials.instance.remember(identifier: identifier, password: password, user: user.toJson());
     } catch (_) {
-      // offline sign-in just won't be available — never fail the real sign-in over it
+      // offline sign-in just won't be available - never fail the real sign-in over it
     }
   }
 
@@ -152,7 +152,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
   }
 
   // Re-triggers login with the original credentials so the backend can email a
-  // fresh OTP (subject to its own resend cooldown) — used by the "Resend code"
+  // fresh OTP (subject to its own resend cooldown) - used by the "Resend code"
   // action on the 2FA screen. Doesn't touch state the way login() does, since
   // the caller is already past the login screen and shouldn't flash a loading
   // state or have a RequiresTwoFactor "error" reappear in authProvider.
@@ -160,7 +160,7 @@ class AuthNotifier extends AsyncNotifier<UserModel?> {
     try {
       await _service.login(identifier, password);
     } on RequiresTwoFactor {
-      // Expected — this call exists purely for its email side effect.
+      // Expected - this call exists purely for its email side effect.
     }
   }
 

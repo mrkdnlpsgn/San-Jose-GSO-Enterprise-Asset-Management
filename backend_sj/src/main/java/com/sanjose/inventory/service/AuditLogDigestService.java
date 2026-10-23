@@ -88,7 +88,7 @@ public class AuditLogDigestService {
         return n != null ? n : 0;
     }
 
-    // "MTO: 12, GSO: 7" — the top few rows of a name/count query; "none" when empty.
+    // "MTO: 12, GSO: 7" - the top few rows of a name/count query; "none" when empty.
     private String top(String sql) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         if (rows.isEmpty()) return "none";
@@ -186,7 +186,7 @@ public class AuditLogDigestService {
         "Most assets are in good shape: 2,180 of 2,417 (90%) are working well."
         - Then 2 or 3 lines, each starting with "• ", each one specific thing to do, with its number and \
         the office or category when given, e.g. "• Approve 3 staff repair requests." or \
-        "• 12 broken items in MTO — start their disposal."
+        "• 12 broken items in MTO. Start their disposal."
         - Pick the lines in this order of urgency, skipping what is zero: broken items; items that need \
         repair (name the office with the most); items past their expected life (plan replacement); staff \
         requests waiting for approval; AI advice to review for disposal or budget.

@@ -116,7 +116,7 @@ class _OfficeFormScreenState extends State<OfficeFormScreen> {
                 ),
                 dropdownColor: context.colors.surface,
                 items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('— None —')),
+                  const DropdownMenuItem<int?>(value: null, child: Text('None')),
                   ..._users.map((u) => DropdownMenuItem<int?>(
                         value: u.id,
                         child: Text(u.fullName.isNotEmpty ? u.fullName : u.username, overflow: TextOverflow.ellipsis),

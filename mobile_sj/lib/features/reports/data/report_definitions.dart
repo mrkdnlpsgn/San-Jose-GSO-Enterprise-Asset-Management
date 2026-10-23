@@ -27,7 +27,7 @@ class _ConditionSummary {
 }
 
 // RPCPPE physical-count variance: quantity per records vs. quantity per physical count.
-// physicalCount is null until someone has actually counted the asset — don't assume a shortage.
+// physicalCount is null until someone has actually counted the asset - don't assume a shortage.
 int? _assetVariance(AssetModel a) {
   if (a.physicalCount == null) return null;
   return a.physicalCount! - a.quantity;
@@ -61,15 +61,15 @@ List<ReportDefinition> buildReportDefinitions() {
       load: () => assetService.getAll(size: _kAllRowsSize),
       columns: [
         ReportColumn('Property No.', (row) => (row as AssetModel).propertyNumber),
-        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? '—'),
+        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? 'N/A'),
         ReportColumn('Description', (row) => (row as AssetModel).description),
         ReportColumn('Category', (row) => (row as AssetModel).category.categoryName),
         ReportColumn('Condition', (row) => (row as AssetModel).condition),
         ReportColumn('Lifecycle', (row) => (row as AssetModel).lifecycleStatus.replaceAll('_', ' ')),
         ReportColumn('Office', (row) => (row as AssetModel).office.officeName),
         ReportColumn('Location', (row) => (row as AssetModel).location),
-        ReportColumn('Accountable', (row) => (row as AssetModel).accountablePerson?.fullName ?? '—'),
-        ReportColumn('Current User', (row) => (row as AssetModel).currentUser?.fullName ?? '—'),
+        ReportColumn('Accountable', (row) => (row as AssetModel).accountablePerson?.fullName ?? 'N/A'),
+        ReportColumn('Current User', (row) => (row as AssetModel).currentUser?.fullName ?? 'N/A'),
         ReportColumn('Qty', (row) => (row as AssetModel).quantity.toString()),
         ReportColumn('Unit Value', (row) => fmtMoney((row as AssetModel).unitValue)),
         ReportColumn('Acq. Date', (row) => fmtDate((row as AssetModel).acquisitionDate)),
@@ -78,7 +78,7 @@ List<ReportDefinition> buildReportDefinitions() {
     ReportDefinition(
       id: 'condition',
       title: 'Condition Report',
-      subtitle: 'Asset breakdown by condition — serviceable, repairable, and unserviceable counts.',
+      subtitle: 'Asset breakdown by condition: serviceable, repairable, and unserviceable counts.',
       icon: Icons.pie_chart_outline_rounded,
       color: AppTheme.info,
       load: () async {
@@ -101,30 +101,30 @@ List<ReportDefinition> buildReportDefinitions() {
         ReportColumn('Count', (row) => (row as _ConditionSummary).count.toString()),
         ReportColumn('Total Value', (row) {
           final r = row as _ConditionSummary;
-          return r.totalValue > 0 ? fmtMoney(r.totalValue) : '—';
+          return r.totalValue > 0 ? fmtMoney(r.totalValue) : 'N/A';
         }),
         ReportColumn('Offices', (row) {
           final offices = (row as _ConditionSummary).offices;
-          return offices.isEmpty ? '—' : offices;
+          return offices.isEmpty ? 'N/A' : offices;
         }),
       ],
     ),
     ReportDefinition(
       id: 'history',
       title: 'Asset History',
-      subtitle: 'Full log of all asset events — assignments, transfers, maintenance, and disposals.',
+      subtitle: 'Full log of all asset events: assignments, transfers, maintenance, and disposals.',
       icon: Icons.history_rounded,
       color: AppTheme.statusTransferred,
       load: () => historyService.getAll(),
       columns: [
         ReportColumn('Asset', (row) => row.asset.description as String),
         ReportColumn('Property No.', (row) => row.asset.propertyNumber as String),
-        ReportColumn('PAR No.', (row) => row.asset.parNumber ?? '—'),
+        ReportColumn('PAR No.', (row) => row.asset.parNumber ?? 'N/A'),
         ReportColumn('Event Type', (row) => row.eventType as String),
-        ReportColumn('From Office', (row) => row.fromOffice?.officeName ?? '—'),
-        ReportColumn('To Office', (row) => row.toOffice?.officeName ?? '—'),
+        ReportColumn('From Office', (row) => row.fromOffice?.officeName ?? 'N/A'),
+        ReportColumn('To Office', (row) => row.toOffice?.officeName ?? 'N/A'),
         ReportColumn('Performed By', (row) => row.performedBy.fullName as String),
-        ReportColumn('Notes', (row) => row.notes ?? '—'),
+        ReportColumn('Notes', (row) => row.notes ?? 'N/A'),
         ReportColumn('Date', (row) => fmtDate(row.eventDate as String)),
       ],
     ),
@@ -146,7 +146,7 @@ List<ReportDefinition> buildReportDefinitions() {
       },
       columns: [
         ReportColumn('Property No.', (row) => row is Map ? row['label'] as String : (row as AssetModel).propertyNumber),
-        ReportColumn('PAR No.', (row) => row is Map ? '' : (row as AssetModel).parNumber ?? '—'),
+        ReportColumn('PAR No.', (row) => row is Map ? '' : (row as AssetModel).parNumber ?? 'N/A'),
         ReportColumn('Description', (row) => _cell(row, (a) => a.description)),
         ReportColumn('Category', (row) => _cell(row, (a) => a.category.categoryName)),
         ReportColumn('Condition', (row) => _cell(row, (a) => a.condition)),
@@ -170,7 +170,7 @@ List<ReportDefinition> buildReportDefinitions() {
         ReportColumn('Type', (row) => row.maintenanceType as String),
         ReportColumn('Findings', (row) => row.findings as String),
         ReportColumn('Status', (row) => row.status as String),
-        ReportColumn('Assigned To', (row) => row.assignedTo ?? '—'),
+        ReportColumn('Assigned To', (row) => row.assignedTo ?? 'N/A'),
         ReportColumn('Cost', (row) => fmtMoney(row.cost)),
         ReportColumn('Date', (row) => fmtDate(row.maintenanceDate as String)),
         ReportColumn('Recorded By', (row) => row.recordedBy.fullName as String),
@@ -179,7 +179,7 @@ List<ReportDefinition> buildReportDefinitions() {
     ReportDefinition(
       id: 'rpcppe',
       title: 'RPCPPE (Physical Count)',
-      subtitle: 'COA-format Report on the Physical Count of Property, Plant and Equipment — '
+      subtitle: 'COA-format Report on the Physical Count of Property, Plant and Equipment: '
           'records vs. physical count variance.',
       icon: Icons.fact_check_outlined,
       color: AppTheme.brandDark,
@@ -188,18 +188,18 @@ List<ReportDefinition> buildReportDefinitions() {
         ReportColumn('Article', (row) => (row as AssetModel).category.categoryName),
         ReportColumn('Description', (row) => (row as AssetModel).description),
         ReportColumn('Property No.', (row) => (row as AssetModel).propertyNumber),
-        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? '—'),
+        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? 'N/A'),
         ReportColumn('Unit Value', (row) => fmtMoney((row as AssetModel).unitValue)),
         ReportColumn('Qty per Records', (row) => (row as AssetModel).quantity.toString()),
-        ReportColumn('Qty per Phys. Count', (row) => (row as AssetModel).physicalCount?.toString() ?? '—'),
+        ReportColumn('Qty per Phys. Count', (row) => (row as AssetModel).physicalCount?.toString() ?? 'N/A'),
         ReportColumn('Shortage/Overage', (row) => _fmtVariance(row as AssetModel)),
         ReportColumn('Value of Variance', (row) {
           final v = _varianceValue(row as AssetModel);
-          return v != 0 ? fmtMoney(v) : '—';
+          return v != 0 ? fmtMoney(v) : 'N/A';
         }),
         ReportColumn('Location', (row) => (row as AssetModel).location),
         ReportColumn('Condition', (row) => (row as AssetModel).condition),
-        ReportColumn('Remarks', (row) => (row as AssetModel).remarks ?? '—'),
+        ReportColumn('Remarks', (row) => (row as AssetModel).remarks ?? 'N/A'),
       ],
       certification: const [
         'Prepared by: Property Custodian / GSO Staff',
@@ -221,7 +221,7 @@ List<ReportDefinition> buildReportDefinitions() {
         ReportColumn('Date Acquired', (row) => fmtDate((row as DisposalModel).asset.acquisitionDate)),
         ReportColumn('Particulars/Article', (row) => (row as DisposalModel).asset.description),
         ReportColumn('Property No.', (row) => (row as DisposalModel).asset.propertyNumber),
-        ReportColumn('PAR No.', (row) => (row as DisposalModel).asset.parNumber ?? '—'),
+        ReportColumn('PAR No.', (row) => (row as DisposalModel).asset.parNumber ?? 'N/A'),
         ReportColumn('Qty.', (row) => (row as DisposalModel).asset.quantity.toString()),
         ReportColumn('Unit Cost', (row) => fmtMoney((row as DisposalModel).asset.unitValue)),
         ReportColumn('Total Cost', (row) {
@@ -231,23 +231,23 @@ List<ReportDefinition> buildReportDefinitions() {
         ReportColumn('Remarks', (row) => (row as DisposalModel).inspectionFindings),
         ReportColumn('Sale', (row) {
           final d = row as DisposalModel;
-          return d.recommendedMethod == 'SALE' ? d.asset.quantity.toString() : '—';
+          return d.recommendedMethod == 'SALE' ? d.asset.quantity.toString() : 'N/A';
         }),
         ReportColumn('Transfer', (row) {
           final d = row as DisposalModel;
-          return d.recommendedMethod == 'TRANSFER' ? d.asset.quantity.toString() : '—';
+          return d.recommendedMethod == 'TRANSFER' ? d.asset.quantity.toString() : 'N/A';
         }),
         ReportColumn('Destruction', (row) {
           final d = row as DisposalModel;
-          return d.recommendedMethod == 'DESTRUCTION' ? d.asset.quantity.toString() : '—';
+          return d.recommendedMethod == 'DESTRUCTION' ? d.asset.quantity.toString() : 'N/A';
         }),
         ReportColumn('Others (Specify)', (row) {
           final d = row as DisposalModel;
-          return d.recommendedMethod == 'OTHERS' ? d.asset.quantity.toString() : '—';
+          return d.recommendedMethod == 'OTHERS' ? d.asset.quantity.toString() : 'N/A';
         }),
         ReportColumn('Total', (row) => (row as DisposalModel).asset.quantity.toString()),
         ReportColumn('Appraised Value', (row) => fmtMoney((row as DisposalModel).appraisedValue)),
-        ReportColumn('OR No.', (row) => (row as DisposalModel).orNumber ?? '—'),
+        ReportColumn('OR No.', (row) => (row as DisposalModel).orNumber ?? 'N/A'),
         ReportColumn('Amount', (row) => fmtMoney((row as DisposalModel).amount)),
       ],
       certification: const [

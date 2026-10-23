@@ -58,7 +58,7 @@ public class DisposalLedger {
     @Column(precision = 12, scale = 2)
     private BigDecimal amount;
 
-    // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED — see AccessService
+    // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED - see AccessService
     @Column(name = "approval_status", length = 20)
     private String approvalStatus;
 

@@ -1,7 +1,7 @@
 // xlsx is ~400 KB; load it only when a user actually imports or exports
 const loadXlsx = () => import('xlsx')
 
-// Import columns — keys must match backend AssetImportRow fields exactly
+// Import columns - keys must match backend AssetImportRow fields exactly
 // (see backend_sj/.../dto/AssetImportRow.java). propertyNumber is deliberately
 // excluded: import is create-only, and AssetService auto-generates it. parNumber
 // can't be generated (its serial is entered by hand), so it is a required column.
@@ -122,7 +122,7 @@ export async function parseImportFile(file) {
   })
 }
 
-// Full-fidelity backup/export — includes the manually entered shortage/overage
+// Full-fidelity backup/export - includes the manually entered shortage/overage
 // columns shown in the Assets table, plus fields (accountable person, lifecycle
 // status, remarks) not shown there but still worth having in an export.
 export async function exportAssetsToExcel(assets) {

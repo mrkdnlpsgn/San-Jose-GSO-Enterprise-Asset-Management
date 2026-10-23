@@ -29,7 +29,7 @@ class EvidencePhoto {
         uploadedAt: json['uploadedAt'] as String?,
       );
 
-  /// Full URL for Image.network — uploads are served from the backend root, outside /api.
+  /// Full URL for Image.network - uploads are served from the backend root, outside /api.
   String get fullUrl {
     final base = ApiClient.instance.dio.options.baseUrl.replaceFirst(RegExp(r'/api/?$'), '');
     return '$base$url';

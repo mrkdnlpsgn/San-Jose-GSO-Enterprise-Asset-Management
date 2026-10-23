@@ -5,7 +5,7 @@ services:
     container_name: sj_gso_db
     # gso_inventory.sql's tables (and every stored procedure in stored_procedures.sql
     # that compares strings, e.g. login's username lookup) are explicitly
-    # utf8mb4_general_ci — MySQL 8's own server default is utf8mb4_0900_ai_ci. Without
+    # utf8mb4_general_ci - MySQL 8's own server default is utf8mb4_0900_ai_ci. Without
     # this, MYSQL_DATABASE gets created with the mismatched default, every stored
     # procedure that does a string comparison bakes that default in at CREATE TIME,
     # and every call fails with "Illegal mix of collations" (this bit login specifically:
@@ -42,7 +42,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      # Evidence photos (assets, disposal, maintenance) are stored as files under /app/uploads —
+      # Evidence photos (assets, disposal, maintenance) are stored as files under /app/uploads -
       # without a volume they would vanish every time the container is rebuilt while their
       # database rows stayed behind.
       - uploads_data:/app/uploads
@@ -57,12 +57,12 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${HIBERNATE_DDL:-validate}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE:-prod}
       # JwtUtil has no default for either property (unlike AuthController's
-      # jwt.expiration, which defaults to 28800000) — startup fails without these.
+      # jwt.expiration, which defaults to 28800000) - startup fails without these.
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-28800000}
       # EmailService requires a JavaMailSender bean unconditionally (constructor
       # injection, not Optional<>) even though actual sending is separately gated
-      # behind notifications.enabled=false by default — Spring only creates that
+      # behind notifications.enabled=false by default - Spring only creates that
       # bean when spring.mail.host is present, so a host must always be set or the
       # app fails to start regardless of whether notifications are wanted.
       SPRING_MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
@@ -75,12 +75,12 @@ services:
       # Actuator's default health check does a live SMTP connectivity probe to
       # SPRING_MAIL_HOST. That probe is unrelated to whether the API itself is
       # serving requests, and over slower/less reliable upstream connections
-      # (e.g. a mobile hotspot) it can take 10s+ — well past the Dockerfile
-      # HEALTHCHECK's 3s timeout — flipping the container to "unhealthy" while
+      # (e.g. a mobile hotspot) it can take 10s+ - well past the Dockerfile
+      # HEALTHCHECK's 3s timeout - flipping the container to "unhealthy" while
       # the app is functioning normally the whole time.
       MANAGEMENT_HEALTH_MAIL_ENABLED: false
       NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
-      # Login rate limit — shared per source IP across every account attempted
+      # Login rate limit - shared per source IP across every account attempted
       # from it, not per-username. Raise this if testing multiple accounts from
       # one machine keeps tripping the "too many login attempts" lockout.
       AUTH_RATE_LIMIT_MAX_ATTEMPTS: ${AUTH_RATE_LIMIT_MAX_ATTEMPTS:-20}
@@ -90,7 +90,7 @@ services:
       # Never turn this on for a real deployment.
       AUTH_LOG_ACTION_OTP: ${AUTH_LOG_ACTION_OTP:-false}
       # AI Insight tab (asset lifecycle recommendations) needs a free key from
-      # aistudio.google.com/apikey — set GEMINI_API_KEY and AI_RECOMMENDATIONS_ENABLED=true in .env to enable it.
+      # aistudio.google.com/apikey - set GEMINI_API_KEY and AI_RECOMMENDATIONS_ENABLED=true in .env to enable it.
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       AI_RECOMMENDATIONS_ENABLED: ${AI_RECOMMENDATIONS_ENABLED:-false}
       GEMINI_MODEL_FAST: ${GEMINI_MODEL_FAST:-gemini-3.5-flash-lite}
@@ -107,7 +107,7 @@ services:
       context: ./frontend_sj
       dockerfile: Dockerfile
       # api.js reads import.meta.env.VITE_API_BASE_URL, and Vite only bakes
-      # VITE_* vars in at build time — a runtime `environment:` entry here does
+      # VITE_* vars in at build time - a runtime `environment:` entry here does
       # nothing (this is a static file server, not a Node process reading env).
       # Frontend and backend are separate origins (different ports), so this
       # must be the full absolute URL including /api, not just the host.

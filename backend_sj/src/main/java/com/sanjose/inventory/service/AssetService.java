@@ -135,7 +135,7 @@ public class AssetService {
     }
 
     // Registers exactly one asset. Property Number, PAR Number, and Serial Number
-    // (when given) must each be unique across every other asset — see resolveDevices.
+    // (when given) must each be unique across every other asset - see resolveDevices.
     public List<Asset> createAll(AssetRequest req) {
         List<AssetRequest> devices = resolveDevices(req, null);
         List<Asset> created = new ArrayList<>();
@@ -179,7 +179,7 @@ public class AssetService {
     private static final Set<String> VALID_CONDITIONS = Set.of("SERVICEABLE", "REPAIRABLE", "UNSERVICEABLE");
 
     // Create-only bulk import (spreadsheet → assets). Each row is validated and
-    // saved independently — one bad row (unknown category, bad date, etc.) is
+    // saved independently - one bad row (unknown category, bad date, etc.) is
     // reported as a failure without aborting the rest of the batch. Runs inside
     // this service's class-level @Transactional, but since every failure is
     // caught here rather than propagated, a partial batch commits normally
@@ -212,7 +212,7 @@ public class AssetService {
                 .map(String::trim).filter(x -> !x.isEmpty()).toList();
         if (parNumbers.isEmpty()) throw new IllegalArgumentException("PAR Number is required.");
         if (parNumbers.size() > 1) throw new IllegalArgumentException(
-            "Only one PAR Number is allowed per row — give each device its own row.");
+            "Only one PAR Number is allowed per row. Give each device its own row.");
         if (isBlank(row.getCategoryName())) throw new IllegalArgumentException("Category is required.");
         if (isBlank(row.getOfficeName())) throw new IllegalArgumentException("Location is required.");
         if (isBlank(row.getAccountablePerson())) throw new IllegalArgumentException("Accountable person is required.");
@@ -225,7 +225,7 @@ public class AssetService {
         String condition = row.getCondition().trim().toUpperCase();
         if (!VALID_CONDITIONS.contains(condition)) {
             throw new IllegalArgumentException(
-                "Unknown condition \"" + row.getCondition() + "\" — must be SERVICEABLE, REPAIRABLE, or UNSERVICEABLE.");
+                "Unknown condition \"" + row.getCondition() + "\". It must be SERVICEABLE, REPAIRABLE, or UNSERVICEABLE.");
         }
 
         Long categoryId = resolveCategoryId(row.getCategoryName());
@@ -243,7 +243,7 @@ public class AssetService {
         AssetRequest req = new AssetRequest();
         int quantity = isBlank(row.getQuantity()) ? 1 : parseInt(row.getQuantity(), "Qty (Property Card)");
         if (quantity != 1) throw new IllegalArgumentException(
-            "Qty (Property Card) must be 1 — give each device its own row.");
+            "Qty (Property Card) must be 1. Give each device its own row.");
         // Property Number is left blank so it auto-generates.
         AssetUnitRequest unit = new AssetUnitRequest();
         unit.setParNumber(parNumbers.get(0));
@@ -299,14 +299,14 @@ public class AssetService {
     }
 
     // Turns a create/update request into one fully-resolved AssetRequest for the single
-    // device it registers. Qty (Property Card) and Qty (Physical Count) are always 1 —
+    // device it registers. Qty (Property Card) and Qty (Physical Count) are always 1 -
     // one asset row is always exactly one physical item. Property Number, PAR Number,
     // and (when given) Serial Number are its unique identifiers: each must differ from
     // every other asset, though the same Description/Category can be reused freely
     // (registering another unit of the same model is normal).
     private List<AssetRequest> resolveDevices(AssetRequest req, Asset before) {
         int quantity = req.getQuantity() != null ? req.getQuantity() : 1;
-        if (quantity != 1) throw new IllegalArgumentException("Qty (Property Card) is always 1 — register each device as its own asset.");
+        if (quantity != 1) throw new IllegalArgumentException("Qty (Property Card) is always 1. Register each device as its own asset.");
         if (req.getPhysicalCount() == null || req.getPhysicalCount() != 1) {
             throw new IllegalArgumentException("Qty (Physical Count) is always 1.");
         }
@@ -334,13 +334,13 @@ public class AssetService {
         String par = keepsNoPar ? null : normalizeParNumber(in.getParNumber(), d.getAcquisitionDate());
         if (par != null && existsElsewhere("par_number", par, excludeId)) {
             throw new IllegalArgumentException(
-                "PAR Number \"" + par + "\" is already used by another asset — each asset needs its own.");
+                "PAR Number \"" + par + "\" is already used by another asset. Each asset needs its own.");
         }
         d.setParNumber(par);
 
         if (!isBlank(d.getSerialNumber()) && existsElsewhere("serial_number", d.getSerialNumber().trim(), excludeId)) {
             throw new IllegalArgumentException(
-                "Serial Number \"" + d.getSerialNumber().trim() + "\" is already used by another asset — each asset needs its own.");
+                "Serial Number \"" + d.getSerialNumber().trim() + "\" is already used by another asset. Each asset needs its own.");
         }
 
         String prop = blankToNull(in.getPropertyNumber());
@@ -460,7 +460,7 @@ public class AssetService {
     }
 
     // Changes only condition/lifecycle status (QR scanner). Deliberately bypasses update()'s
-    // full-record validation, which requires a PAR Number and one entry per unit — neither of
+    // full-record validation, which requires a PAR Number and one entry per unit - neither of
     // which older assets have.
     public Asset updateStatus(Long id, String condition, String lifecycleStatus) {
         Asset before = findById(id);
@@ -551,7 +551,7 @@ public class AssetService {
         Long deleterId = getUserIdByUsername(username);
         int deleterIdInt = deleterId != null ? deleterId.intValue() : 0;
         // An asset under maintenance/disposal has an active ledger record tied to
-        // it — archive that too (not just the asset), so it shows up in its own
+        // it - archive that too (not just the asset), so it shows up in its own
         // Recycle Bin section instead of only being reachable via the asset's.
         // No-ops for a serviceable asset, which has no active record to match.
         jdbcTemplate.update("CALL sp_maintenance_soft_delete_by_asset(?, ?, ?, ?)",
@@ -574,7 +574,7 @@ public class AssetService {
         if (!accessService.isAdmin()
                 && (asset.getCondition() == Asset.AssetCondition.REPAIRABLE
                     || asset.getCondition() == Asset.AssetCondition.UNSERVICEABLE)) {
-            // Staff can't put an asset under maintenance or up for disposal directly —
+            // Staff can't put an asset under maintenance or up for disposal directly -
             // it goes in as a request and the lifecycle moves once an admin approves.
             requestLifecycleChange(asset.getId(),
                 asset.getCondition() == Asset.AssetCondition.REPAIRABLE ? "UNDER_MAINTENANCE" : "DISPOSED", null);
@@ -587,14 +587,14 @@ public class AssetService {
         // longer applies is cancelled (soft-deleted with the reason, so it stays traceable);
         // finished and rejected records are left alone.
         if (asset.getCondition() == Asset.AssetCondition.REPAIRABLE) {
-            cancelOpenDisposal(asset.getId(), recId, "Cancelled — asset marked repairable");
+            cancelOpenDisposal(asset.getId(), recId, "Cancelled, asset marked repairable");
             // the admin has done what a waiting staff maintenance request asked for
             withdrawPendingRequests("maintenance_ledger", asset.getId(), recId, "an administrator marked the asset repairable");
             if (!hasOpenMaintenance(asset.getId())) {
                 SpHelper.callWithOutLong(jdbcTemplate,
                     "CALL sp_maintenance_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     asset.getId(), "REPAIR",
-                    "Asset flagged as repairable — requires maintenance",
+                    "Asset flagged as repairable, requires maintenance",
                     "Pending review and assignment",
                     null, AppTime.today(), null, "ONGOING", recId);
             }
@@ -606,7 +606,7 @@ public class AssetService {
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
 
         } else if (asset.getCondition() == Asset.AssetCondition.UNSERVICEABLE) {
-            closeOpenMaintenance(asset.getId(), recId, "Closed — asset found unserviceable and sent for disposal");
+            closeOpenMaintenance(asset.getId(), recId, "Closed, asset found unserviceable and sent for disposal");
             withdrawPendingRequests("disposal_ledger", asset.getId(), recId, "an administrator marked the asset unserviceable");
             if (!hasOpenDisposal(asset.getId())) {
                 SpHelper.callWithOutLong(jdbcTemplate,
@@ -626,13 +626,13 @@ public class AssetService {
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
 
         } else if (asset.getCondition() == Asset.AssetCondition.SERVICEABLE) {
-            boolean repaired = closeOpenMaintenance(asset.getId(), recId, "Closed — asset back in service");
-            cancelOpenDisposal(asset.getId(), recId, "Cancelled — asset marked serviceable");
+            boolean repaired = closeOpenMaintenance(asset.getId(), recId, "Closed, asset back in service");
+            cancelOpenDisposal(asset.getId(), recId, "Cancelled, asset marked serviceable");
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
                 asset.getId(), "ASSIGNED");
             if (repaired) {
                 assetHistoryService.logEvent(asset.getId(), "MAINTENANCE", null, null, recorderId,
-                    "Repair finished — asset back in service, maintenance record closed");
+                    "Repair finished, asset back in service, maintenance record closed");
             }
             sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
@@ -679,13 +679,13 @@ public class AssetService {
         jdbcTemplate.update(
             "UPDATE " + table + " SET is_deleted = 1, deleted_at = NOW(), deleted_by = ?, delete_reason = ? "
                 + "WHERE asset_id = ? AND is_deleted = 0 AND approval_status = 'PENDING_APPROVAL'",
-            byUserId == 0 ? null : byUserId, "Request withdrawn — " + reason, assetId);
+            byUserId == 0 ? null : byUserId, "Request withdrawn: " + reason, assetId);
     }
 
     // A staff account's change of an asset to UNDER_MAINTENANCE / DISPOSED: files a
     // maintenance or disposal request (PENDING_APPROVAL) instead of changing the asset.
     // requestedCondition (REPAIRABLE / UNSERVICEABLE, or null) is the condition the staff
-    // asked for — held on the request too. The admin's approve() then applies both.
+    // asked for - held on the request too. The admin's approve() then applies both.
     // No-op if one is already waiting.
     public void requestLifecycleChange(Long assetId, String target, String requestedCondition) {
         boolean maintenance = "UNDER_MAINTENANCE".equals(target);
@@ -710,7 +710,7 @@ public class AssetService {
                 "CALL sp_disposal_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 assetId,
                 "Disposal requested by " + username,
-                "Requested from the asset's status — awaiting administrator review",
+                "Requested from the asset's status, awaiting administrator review",
                 "OTHERS", "PENDING",
                 AppTime.today(), null, recId,
                 null, null, null);

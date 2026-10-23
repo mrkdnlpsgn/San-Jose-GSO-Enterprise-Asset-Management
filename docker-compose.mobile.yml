@@ -1,6 +1,6 @@
 services:
   # Flutter dev container for `flutter run` against a physical Android device
-  # over wireless debugging (adb over Wi-Fi) — no local Flutter/Android SDK
+  # over wireless debugging (adb over Wi-Fi) - no local Flutter/Android SDK
   # install needed. Separate from docker-compose.yml so everyday web dev
   # (`docker compose up`) doesn't pull/build this multi-GB image.
   #

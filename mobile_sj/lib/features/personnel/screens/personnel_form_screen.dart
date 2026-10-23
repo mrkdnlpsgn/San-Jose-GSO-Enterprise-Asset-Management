@@ -6,7 +6,7 @@ import '../../../shared/provider/reference_provider.dart';
 import '../../../shared/widgets/ui.dart';
 import '../data/personnel_service.dart';
 
-/// "Assign Offices" — the web's PersonnelModal. An account can be assigned several offices;
+/// "Assign Offices" - the web's PersonnelModal. An account can be assigned several offices;
 /// staff see the assets they're accountable for in all of them. Pops with the saved record.
 class PersonnelFormScreen extends ConsumerStatefulWidget {
   final PersonnelRecord person;
@@ -80,7 +80,7 @@ class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // who this is for — name and role come from the account, not edited here
+            // who this is for - name and role come from the account, not edited here
             Text(p.fullName, style: TextStyle(color: c.heading, fontSize: 20, fontWeight: FontWeight.w700)),
             if (p.username != null) ...[
               const SizedBox(height: 2),

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Input from '../../components/common/Input'
 import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
 
-// Shown in place of the login form when the backend reports mustChangePassword —
+// Shown in place of the login form when the backend reports mustChangePassword -
 // a fresh account or an admin-mediated reset. Re-collects the temp password
 // (never persisted client-side) alongside the new one, then hands both to the
 // caller, which exchanges them for a real session via /auth/force-change-password.

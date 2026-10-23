@@ -149,7 +149,7 @@ class _DetailsTab extends ConsumerWidget {
       // outside the tab-bar shell (opened from History, Maintenance, Reports…): clear only the phone's own inset
       padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + MediaQuery.of(context).padding.bottom),
       children: [
-        // Summary: property no., name, status, location — then the everyday actions as worded buttons
+        // Summary: property no., name, status, location - then the everyday actions as worded buttons
         Card(
           margin: EdgeInsets.zero,
           child: Padding(
@@ -205,7 +205,7 @@ class _DetailsTab extends ConsumerWidget {
                           context,
                           path: '/assets/${asset.id}/evidence',
                           title: 'Asset Evidence',
-                          subtitle: '${asset.propertyNumber} — ${asset.description}',
+                          subtitle: '${asset.propertyNumber}: ${asset.description}',
                         ),
                       ),
                     ),
@@ -241,7 +241,7 @@ class _DetailsTab extends ConsumerWidget {
         _AiRecommendationCard(assetId: asset.id),
         const SizedBox(height: 12),
         _card(context, 'Asset Details', [
-          _row(context, 'PAR Number', asset.parNumber ?? '—'),
+          _row(context, 'PAR Number', asset.parNumber ?? 'N/A'),
           if (asset.serialNumber != null && asset.serialNumber!.isNotEmpty)
             _row(context, 'Serial Number', asset.serialNumber!),
           _row(context, 'Category', asset.category.categoryName),
@@ -281,7 +281,7 @@ class _DetailsTab extends ConsumerWidget {
     );
   }
 
-  // A label/value list in a section card, each row divided by a hairline — easy to scan
+  // A label/value list in a section card, each row divided by a hairline - easy to scan
   Widget _card(BuildContext context, String title, List<Widget> rows) => SectionCard(
         title: title,
         padding: EdgeInsets.zero,
@@ -319,7 +319,7 @@ class _DetailsTab extends ConsumerWidget {
       );
 
   // Manually entered, independent of Qty/Physical Count (both always 1). Negative =
-  // shortage (red), positive = overage (green) — same convention as the web app.
+  // shortage (red), positive = overage (green) - same convention as the web app.
   List<Widget> _shortageOverageRows(BuildContext context, AssetModel asset) {
     final diff = asset.shortageOverageQty;
     final value = asset.shortageOverageValue;
@@ -389,7 +389,7 @@ class _LifecycleEntry {
   // Distinct from [date]: what's actually used to order the merged timeline.
   // maintenanceDate/inspectionDate are date-only (no time-of-day), so same-day
   // entries always lose a naive tie-break against history's full-timestamp
-  // eventDate regardless of true recency — sortDate uses updatedAt/createdAt
+  // eventDate regardless of true recency - sortDate uses updatedAt/createdAt
   // instead, which carry real time-of-day and reflect when the record was
   // actually last touched, while [date] still displays the record's own date.
   final DateTime sortDate;
@@ -650,7 +650,7 @@ class _AiRecommendationCardState extends ConsumerState<_AiRecommendationCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Any role can generate — web's asset drawer doesn't gate it either.
+    // Any role can generate - web's asset drawer doesn't gate it either.
     final recAsync = ref.watch(aiRecommendationProvider(widget.assetId));
 
     ref.listen<AsyncValue<AiRecommendationModel?>>(

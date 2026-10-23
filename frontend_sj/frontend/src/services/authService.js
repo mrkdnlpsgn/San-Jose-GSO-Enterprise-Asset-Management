@@ -2,16 +2,16 @@ import api from './api'
 
 export const login          = (credentials)              => api.post('/auth/login',  credentials)
 export const logout         = ()                         => api.post('/auth/logout')
-// Who the server says is signed in (the JWT cookie is shared by every tab) — see SessionGuard
+// Who the server says is signed in (the JWT cookie is shared by every tab) - see SessionGuard
 export const getMe          = ()                         => api.get('/auth/me')
 
 // Completes a login that was interrupted by a mandatory password change (fresh
-// account or admin-mediated reset) — proves the temp password, then swaps it.
+// account or admin-mediated reset) - proves the temp password, then swaps it.
 export const forceChangePassword = ({ identifier, currentPassword, newPassword }) =>
   api.post('/auth/force-change-password', { identifier, currentPassword, newPassword })
 
 // Completes a login that was interrupted by 2FA (every account except admin and
-// ict_staff) — proves the emailed code, then issues the session.
+// ict_staff) - proves the emailed code, then issues the session.
 // rememberDevice: skip the code on this browser for 30 days (password still required)
 export const verifyLoginOtp = (identifier, otp, rememberDevice = false) =>
   api.post('/auth/login/verify-otp', { identifier, otp, rememberDevice })

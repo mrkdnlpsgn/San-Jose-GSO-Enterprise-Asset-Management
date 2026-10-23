@@ -24,14 +24,14 @@ class Ios {
   static Color groupedBg(BuildContext context) =>
       context.isLight ? const Color(0xFFF2F2F7) : const Color(0xFF000000);
 
-  /// secondarySystemGroupedBackground — the inset section ("card") fill
+  /// secondarySystemGroupedBackground - the inset section ("card") fill
   static Color cell(BuildContext context) => context.isLight ? Colors.white : const Color(0xFF1C1C1E);
 
   /// separator (opaque variant)
   static Color separator(BuildContext context) =>
       context.isLight ? const Color(0xFFE5E5EA) : const Color(0xFF38383A);
 
-  /// tertiaryLabel — chevrons
+  /// tertiaryLabel - chevrons
   static Color chevron(BuildContext context) =>
       context.isLight ? const Color(0xFFC4C4C7) : const Color(0xFF5A5A5E);
 

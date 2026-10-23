@@ -2,7 +2,7 @@ import Flutter
 import UIKit
 
 // iOS has no API to block screenshots or screen recording outright (unlike
-// Android's FLAG_SECURE) — an app can only react after the fact. This is the
+// Android's FLAG_SECURE) - an app can only react after the fact. This is the
 // standard mitigation: blur the window for as long as UIScreen.isCaptured is
 // true (active recording/AirPlay mirroring), and warn the user after a
 // screenshot is taken. Applies regardless of account role.

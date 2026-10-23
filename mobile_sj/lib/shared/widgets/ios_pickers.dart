@@ -40,8 +40,8 @@ String _labelOf(DropdownMenuItem item) {
   return item.value?.toString() ?? '';
 }
 
-/// A form field that opens an iOS-style selection sheet — a checkmarked list, with a search
-/// box when the list is long (offices, personnel) — instead of Material's drop-down menu.
+/// A form field that opens an iOS-style selection sheet - a checkmarked list, with a search
+/// box when the list is long (offices, personnel) - instead of Material's drop-down menu.
 /// Takes the same arguments as [DropdownButtonFormField], so screens only swap the name;
 /// [isExpanded], [dropdownColor] and [style] are accepted for compatibility.
 class IosSelectFormField<T> extends StatefulWidget {

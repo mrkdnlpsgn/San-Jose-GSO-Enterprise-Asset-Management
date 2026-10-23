@@ -1,5 +1,5 @@
 -- =============================================================
--- migrate_nuque.sql — brings an EXISTING database up to the schema
+-- migrate_nuque.sql - brings an EXISTING database up to the schema
 -- Branch-Nuque expects (PAR numbers, asset grouping, specifications,
 -- current user, evidence photos, delete-OTP, new disposal methods).
 --
@@ -8,7 +8,7 @@
 -- ddl-auto=validate, so without this the backend refuses to start.
 --
 -- Idempotent: every step checks information_schema first, so it is safe
--- to run more than once. Not reversible — restore from a mysqldump backup
+-- to run more than once. Not reversible - restore from a mysqldump backup
 -- to roll back. After this, the AUCTION/DONATION disposal rows become
 -- SALE/TRANSFER, which older branches' DisposalMethod enum cannot read.
 --

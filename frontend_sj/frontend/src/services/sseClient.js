@@ -1,7 +1,7 @@
 // Single shared EventSource for real-time asset/maintenance/disposal updates.
 // Multiple pages subscribe through this module instead of each opening their
 // own connection (browsers cap concurrent HTTP/1.1 connections per origin).
-// 'ai': a background AI result is ready — { id, data: { kind } } (see AiAutoGenerator).
+// 'ai': a background AI result is ready - { id, data: { kind } } (see AiAutoGenerator).
 const EVENT_TYPES = ['asset', 'maintenance', 'disposal', 'presence', 'ai']
 
 let eventSource = null

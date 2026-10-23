@@ -38,7 +38,7 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
   List<AccountModel> _users = const [];
   Object? _error;
   bool _loading = true;
-  int? _performerId; // admin only — null = everyone
+  int? _performerId; // admin only - null = everyone
   String? _requestStatus; // null = all
 
   bool get _isAdmin => ref.read(authProvider).valueOrNull?.isAdmin ?? false;
@@ -238,7 +238,7 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
 
 String _fmtDate(String? iso) {
   final d = iso != null ? DateTime.tryParse(iso)?.toLocal() : null;
-  if (d == null) return '—';
+  if (d == null) return 'N/A';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return '${months[d.month - 1]} ${d.day}, ${d.year}';
 }
@@ -343,11 +343,11 @@ class _RequestCard extends StatelessWidget {
             MetaLine(Icons.swap_horiz_rounded, item.detail!),
           ],
           const SizedBox(height: 6),
-          MetaLine(Icons.person_rounded, 'Requested by ${item.requestedByName ?? '—'}'),
+          MetaLine(Icons.person_rounded, 'Requested by ${item.requestedByName ?? 'N/A'}'),
           if (item.approvalStatus != 'PENDING_APPROVAL') ...[
             const SizedBox(height: 4),
             MetaLine(Icons.how_to_reg_rounded,
-                'Reviewed by ${item.reviewedByName ?? '—'} · ${_fmtDate(item.reviewedAt)}'),
+                'Reviewed by ${item.reviewedByName ?? 'N/A'} · ${_fmtDate(item.reviewedAt)}'),
           ],
           if (item.reviewNote != null && item.reviewNote!.isNotEmpty) ...[
             const SizedBox(height: 10),

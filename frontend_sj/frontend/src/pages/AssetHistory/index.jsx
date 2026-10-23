@@ -93,7 +93,7 @@ function AssetHistory() {
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState(() => (REQUEST_STATUS[linked.get('status')] ? linked.get('status') : ''))
   const [dateFilter, setDateFilter] = useState('')
-  // Admin can narrow to one person ('' = everyone). Staff aren't filtered here — the backend
+  // Admin can narrow to one person ('' = everyone). Staff aren't filtered here - the backend
   // already limits them to their accountable assets' history and their own requests.
   const [performer, setPerformer] = useState('')
   const [moreFilters, setMoreFilters] = useState(false)
@@ -145,7 +145,7 @@ function AssetHistory() {
   const handleApprove = async (r) => {
     try {
       await REQUEST_KIND[r.kind].approve(r.recordId)
-      toast.show(`Request approved — ${r.propertyNumber} ${REQUEST_KIND[r.kind].done}.`, 'success')
+      toast.show(`Request approved: ${r.propertyNumber} ${REQUEST_KIND[r.kind].done}.`, 'success')
       setViewing(null)
       fetchRequests(performer || null)
     } catch (err) {
@@ -244,7 +244,7 @@ function AssetHistory() {
           onClose={() => setViewing(null)}
           subtitle={<>
             <span className="text-slate-600 dark:text-zinc-400">Property No.</span>
-            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{viewing.asset?.propertyNumber || '—'}</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{viewing.asset?.propertyNumber || 'N/A'}</span>
             <span className="text-slate-300 dark:text-zinc-600" aria-hidden="true">·</span>
             <MappedBadge map={EVENT} value={viewing.eventType} />
           </>}
@@ -276,7 +276,7 @@ function AssetHistory() {
           onClose={() => setViewing(null)}
           subtitle={<>
             <span className="text-slate-600 dark:text-zinc-400">Property No.</span>
-            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{viewing.propertyNumber || '—'}</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{viewing.propertyNumber || 'N/A'}</span>
             <span className="text-slate-300 dark:text-zinc-600" aria-hidden="true">·</span>
             <MappedBadge map={REQUEST_KIND} value={viewing.kind} />
             <MappedBadge map={REQUEST_STATUS} value={viewing.approvalStatus} />
@@ -300,7 +300,7 @@ function AssetHistory() {
             <DetailSection title="Review">
               <DetailField label="Status" value={REQUEST_STATUS[viewing.approvalStatus]?.label} />
               <DetailField label="Reviewed by" value={viewing.approvalStatus === 'PENDING_APPROVAL' ? 'Not yet reviewed' : viewing.reviewedByName} />
-              <DetailField label="Reviewed" value={viewing.reviewedAt ? fmtDate(viewing.reviewedAt) : '—'} />
+              <DetailField label="Reviewed" value={viewing.reviewedAt ? fmtDate(viewing.reviewedAt) : 'N/A'} />
               {viewing.reviewNote && <DetailField label="Reason given" value={viewing.reviewNote} />}
             </DetailSection>
             <DetailSection title="Details" wide>
@@ -313,7 +313,7 @@ function AssetHistory() {
       {rejecting && (
         <RejectRequestModal
           record={{ ...rejecting, kind: rejecting.kind.toLowerCase(), id: rejecting.recordId }}
-          describe={() => `${rejecting.propertyNumber} — ${rejecting.assetDescription}`}
+          describe={() => `${rejecting.propertyNumber}: ${rejecting.assetDescription}`}
           onClose={() => setRejecting(null)}
           onConfirm={handleReject}
         />

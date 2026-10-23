@@ -21,7 +21,7 @@ import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices
 const LIVE_READER_ID = 'qr-reader-viewport'
 
 // Desktop webcam choice. Virtual cameras (OBS and the like) are listed like real ones, often
-// first, and show nothing unless their app is running — so by default the first real camera is
+// first, and show nothing unless their app is running - so by default the first real camera is
 // used, and the person can switch. Their pick is remembered in this browser.
 const CAMERA_KEY = 'transfer.cameraId'
 const VIRTUAL_CAMERA = /obs|virtual|snap camera|manycam|xsplit|splitcam|nvidia broadcast/i
@@ -76,15 +76,15 @@ const LABEL = 'block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1.
 const CARD = 'bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800'
 
 function fmt(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 function fmtDateTime(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 function php(v) {
-  if (v == null) return '—'
+  if (v == null) return 'N/A'
   return '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 }
 const isTouchDevice = () => window.matchMedia?.('(pointer: coarse)').matches
@@ -181,7 +181,7 @@ function TransferAsset() {
     )
     if (asset) { setResult(asset); setNotFound(false) }
     else        { setNotFound(true); setResult(null) }
-    // On phones the result sits below the search card — bring it into view.
+    // On phones the result sits below the search card - bring it into view.
     if (window.matchMedia?.('(max-width: 1023px)').matches) {
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
     }
@@ -320,7 +320,7 @@ function TransferAsset() {
         applyAssetUpdate(data.asset)
         show(`Asset transferred to ${data.asset.office?.officeName || 'the new office'}.`, 'success')
       } else {
-        show('Transfer request sent — an administrator needs to approve it.', 'success')
+        show('Transfer request sent. An administrator needs to approve it.', 'success')
       }
       setTransfer({ toOfficeId: '', toPersonnelId: '', reason: '' })
       loadRequests()
@@ -342,7 +342,7 @@ function TransferAsset() {
       const { data } = await approveTransfer(r.id)
       dispatch(updateAssetInStore(data))
       if (result?.id === data.id) setResult(data)
-      show(`Approved — ${r.propertyNumber} moved to ${r.toOfficeName}.`, 'success')
+      show(`Approved: ${r.propertyNumber} moved to ${r.toOfficeName}.`, 'success')
       loadRequests()
     } catch (err) {
       show(err.response?.data?.message || 'Failed to approve the request.', 'error')
@@ -384,7 +384,7 @@ function TransferAsset() {
     setStatusForm((p) => ({ ...p, lifecycleStatus: value }))
     const kind = !isAdmin && value !== result.lifecycleStatus ? REQUEST_FOR_STATUS[value] : null
     if (kind) {
-      setStatusHint(`Saving sends a ${kind} request to an administrator — the asset stays ${result.lifecycleStatus.replace('_', ' ')} until it's approved.`)
+      setStatusHint(`Saving sends a ${kind} request to an administrator. The asset stays ${result.lifecycleStatus.replace('_', ' ')} until it's approved.`)
     }
   }
 
@@ -395,7 +395,7 @@ function TransferAsset() {
   const saveStatus = async () => {
     if (!isAdmin && statusForm.lifecycleStatus === 'DISPOSED' && statusForm.lifecycleStatus !== result.lifecycleStatus
         && !DISPOSABLE_CONDITIONS.includes(statusForm.condition)) {
-      setStatusHint('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.')
+      setStatusHint('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed. Set the condition first.')
       return
     }
     setSavingStatus(true)
@@ -405,7 +405,7 @@ function TransferAsset() {
       setEditingStatus(false)
       setStatusHint('')
       show(data.pendingRequest
-        ? `${data.pendingRequest === 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent — an administrator needs to approve it.`
+        ? `${data.pendingRequest === 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent. An administrator needs to approve it.`
         : 'Asset status updated.', 'success')
     } catch (err) {
       show(err.response?.data?.message || 'Failed to update status.', 'error')
@@ -423,7 +423,7 @@ function TransferAsset() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
-        {/* Find the asset — on phones the found asset comes right after this, then the requests */}
+        {/* Find the asset - on phones the found asset comes right after this, then the requests */}
         <div className="lg:col-start-1 lg:row-start-1">
           <section className={`${CARD} overflow-hidden`} aria-label="Find an asset">
             <div className="p-5 space-y-4">
@@ -576,7 +576,7 @@ function TransferAsset() {
                     ].map(([label, value]) => (
                       <div key={label}>
                         <p className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">{label}</p>
-                        <p className="text-sm text-slate-800 dark:text-zinc-100 mt-0.5">{value || '—'}</p>
+                        <p className="text-sm text-slate-800 dark:text-zinc-100 mt-0.5">{value || 'N/A'}</p>
                       </div>
                     ))}
                   </div>
@@ -603,7 +603,7 @@ function TransferAsset() {
                     <div>
                       <label htmlFor="to-office" className={LABEL}>Move to office<span className="text-red-500 ml-0.5">*</span></label>
                       <select id="to-office" value={transfer.toOfficeId} onChange={setT('toOfficeId')} className={INPUT}>
-                        <option value="">— Select office —</option>
+                        <option value="">Select office</option>
                         {offices.map((o) => (
                           <option key={o.id} value={o.id}>{o.officeName}{o.id === result.office?.id ? ' (current)' : ''}</option>
                         ))}
@@ -619,7 +619,7 @@ function TransferAsset() {
                           : <span className="text-slate-400 font-normal"> (optional)</span>}
                       </label>
                       <select id="to-person" value={transfer.toPersonnelId} onChange={setT('toPersonnelId')} disabled={!transfer.toOfficeId} aria-required={personRequired} className={`${INPUT} disabled:opacity-60`}>
-                        <option value="">{!transfer.toOfficeId ? '— Choose the office first —' : personRequired ? '— Select person —' : '— None —'}</option>
+                        <option value="">{!transfer.toOfficeId ? 'Choose the office first' : personRequired ? 'Select person' : 'None'}</option>
                         {officePersonnel.map((p) => <option key={p.id} value={p.id}>{p.fullName}{p.id === result.accountablePerson?.id ? ' (current)' : ''}</option>)}
                       </select>
                       {transferErrors.toPersonnelId && <p className="text-xs text-red-500 mt-1">{transferErrors.toPersonnelId}</p>}
@@ -733,7 +733,7 @@ function TransferAsset() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">
-                          <span className="font-mono">{r.propertyNumber}</span> — {r.assetDescription}
+                          <span className="font-mono">{r.propertyNumber}</span>: {r.assetDescription}
                         </p>
                         <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5">
                           {r.fromOfficeName || 'Unassigned'} <span aria-hidden="true">→</span><span className="sr-only">to</span> <strong>{r.toOfficeName}</strong>{r.toLocation && r.toLocation !== r.toOfficeName ? ` · ${r.toLocation}` : ''}

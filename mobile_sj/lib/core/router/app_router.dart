@@ -105,7 +105,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       // Asset detail/edit live outside the shell (unlike /assets/new and /assets/import
-      // above) because they're also pushed from screens that sit above the shell —
+      // above) because they're also pushed from screens that sit above the shell -
       // Asset History, Maintenance, Disposal, Reports. Pushing a shell sub-route from
       // there stacks a second copy of the shell page with the same key onto the root
       // navigator (go_router asserts "!keyReservation.contains(key)"; release builds
@@ -200,7 +200,7 @@ class _RouterNotifier extends ChangeNotifier {
     final authAsync = _ref.read(authProvider);
     if (authAsync.isLoading) return null;
     // valueOrNull, not value: on a failed session check `value` rethrows the error, which
-    // crashed every screen red — any auth error should simply mean "go to sign-in".
+    // crashed every screen red - any auth error should simply mean "go to sign-in".
     final user = authAsync.valueOrNull;
     final isLoggedIn = user != null;
     final onLogin = state.matchedLocation == '/login';
@@ -217,7 +217,7 @@ class _RouterNotifier extends ChangeNotifier {
     if (!isLoggedIn && !onLogin && !onForgotPassword) return '/login';
     if (isLoggedIn && (onLogin || onForgotPassword)) return '/dashboard';
 
-    // Every logged-in user is bounced here until they acknowledge — mirrors
+    // Every logged-in user is bounced here until they acknowledge - mirrors
     // web's MainLayout + PrivacyAcknowledgmentModal gate. /legal stays reachable
     // (not redirected away from) so "Read the full..." works from within it.
     final onAcknowledge = state.matchedLocation == '/acknowledge-privacy';
@@ -226,7 +226,7 @@ class _RouterNotifier extends ChangeNotifier {
     if (needsAck && !onAcknowledge && !onLegal) return '/acknowledge-privacy';
     if (!needsAck && onAcknowledge) return '/dashboard';
 
-    // Mirrors web's AdminRoute — staff are bounced to the dashboard. (The backend
+    // Mirrors web's AdminRoute - staff are bounced to the dashboard. (The backend
     // enforces the same rules; this just keeps staff off screens that would fail.)
     if (isLoggedIn && !user.isAdmin && _isAdminOnly(state.matchedLocation)) return '/dashboard';
 

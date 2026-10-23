@@ -75,7 +75,7 @@ public class AccessService {
         return current().admin();
     }
 
-    // Office filter for list queries: null = every office (admin, or staff in several offices —
+    // Office filter for list queries: null = every office (admin, or staff in several offices -
     // the queries take one office). For staff this only narrows the query; what they may actually
     // see is staffScope() / visibleAssetIds().
     public Long scopeOfficeId() {
@@ -157,7 +157,7 @@ public class AccessService {
 
     private void requireOwnAsset(CurrentUser u, Long assetId) {
         if (u.officeIds().isEmpty()) {
-            throw new ForbiddenException("Your account has no office assigned yet — ask an administrator to assign one.");
+            throw new ForbiddenException("Your account has no office assigned yet. Ask an administrator to assign one.");
         }
         if (!isVisible(new StaffScope(u.officeIds(), u.id()), assetId)) {
             throw new ForbiddenException("This asset isn't assigned to you.");

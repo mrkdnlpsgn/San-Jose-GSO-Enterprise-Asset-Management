@@ -22,7 +22,7 @@ import java.util.Set;
 // Reads a photo of either a physical asset tag/sticker (affixed to a laptop,
 // monitor, printer, etc.) or a property document (e.g. a Property
 // Acknowledgment Receipt / PAR listing technical specifications) via Gemini
-// vision, and extracts whatever's legibly printed — device name, serial
+// vision, and extracts whatever's legibly printed - device name, serial
 // number, and technical specifications. Purely a pre-fill aid for the Add
 // Asset form; the image is never persisted, and every extracted field is
 // reviewed/editable by the user before anything is saved.
@@ -104,7 +104,7 @@ public class AssetOcrService {
                 "specifications", Schema.builder()
                     .type(Type.Known.STRING)
                     .nullable(true)
-                    .description("The technical specifications section, if present — one spec per line "
+                    .description("The technical specifications section, if present, one spec per line "
                         + "as \"Label: Value\" exactly as printed (e.g. \"Processor: Core i7\", "
                         + "\"Engine Type: V6\"), preserving the document's own labels and order. Null if "
                         + "the photo has no such section.")
@@ -124,7 +124,7 @@ public class AssetOcrService {
         String json = response.text();
         if (json == null || json.isBlank()) {
             throw new IllegalStateException(
-                "Couldn't read that photo clearly — try a closer, well-lit photo, or enter details manually.");
+                "Couldn't read that photo clearly. Try a closer, well-lit photo, or enter details manually.");
         }
         try {
             return OBJECT_MAPPER.readValue(json, AssetOcrResult.class);

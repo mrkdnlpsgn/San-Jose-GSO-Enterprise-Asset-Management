@@ -1,7 +1,7 @@
 -- =============================================================
 -- SEED DATA: 2000 demo assets with maintenance / disposal / history
 --
--- This script does NOT hardcode a database name — CI/Docker use
+-- This script does NOT hardcode a database name - CI/Docker use
 -- sj_gso_inventory while the app's own default (application.properties)
 -- is gso_inventory. Select your target database on the command line
 -- instead, e.g.:
@@ -13,10 +13,10 @@
 -- rename_seed_property_numbers.sql next to convert them to the app's
 -- real 'COA-YEAR-###' format (it also snapshots the asset_ids into a
 -- `seed_batch_assets` marker table first, so the batch stays fully
--- reversible afterward — see cleanup_seed_2000_assets.sql to remove it).
+-- reversible afterward - see cleanup_seed_2000_assets.sql to remove it).
 -- =============================================================
 
--- Categories (idempotent — safe to re-run)
+-- Categories (idempotent - safe to re-run)
 INSERT INTO categories (category_name, `description`) VALUES
   ('Appliances', 'Electric fans, refrigerators, water dispensers, and similar equipment'),
   ('ICT Equipment', 'Computers, printers, and networking equipment'),

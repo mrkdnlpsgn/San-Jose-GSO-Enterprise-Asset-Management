@@ -204,7 +204,7 @@ class MetaLine extends StatelessWidget {
       );
 }
 
-/// Label/value rows inside a [SectionCard], divided by hairlines — the web drawer's detail list.
+/// Label/value rows inside a [SectionCard], divided by hairlines - the web drawer's detail list.
 class DetailSection extends StatelessWidget {
   final String title;
   final List<DetailItem> items;
@@ -379,7 +379,7 @@ class FormActionBar extends StatelessWidget {
   final Widget child;
   const FormActionBar({super.key, required this.child});
 
-  // iOS toolbar material: translucent and frosted, with a hairline top edge — the form
+  // iOS toolbar material: translucent and frosted, with a hairline top edge - the form
   // scrolls under it and blurs through, like the tab bar.
   @override
   Widget build(BuildContext context) => ClipRect(
@@ -397,7 +397,7 @@ class FormActionBar extends StatelessWidget {
       );
 }
 
-/// "UNDER_MAINTENANCE" → "Under Maintenance" — for showing backend codes to people.
+/// "UNDER_MAINTENANCE" → "Under Maintenance" - for showing backend codes to people.
 String titleCaseCode(String raw) => raw
     .split('_')
     .where((w) => w.isNotEmpty)

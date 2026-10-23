@@ -31,7 +31,7 @@ class OutboxItem {
   Map<String, dynamic>? body;
   final String? idempotencyKey;
 
-  /// The record's `updatedAt` when it was opened for editing — compared before uploading an edit.
+  /// The record's `updatedAt` when it was opened for editing - compared before uploading an edit.
   final String? baseUpdatedAt;
 
   /// For a create: the negative id it stands in for until the server gives the real one.
@@ -208,7 +208,7 @@ class Outbox extends ChangeNotifier {
       method: method,
       path: path,
       body: body,
-      // a retried POST must not create the record twice — the server remembers this key
+      // a retried POST must not create the record twice - the server remembers this key
       idempotencyKey: method == 'POST' ? (idempotencyKey ?? newIdempotencyKey()) : null,
       baseUpdatedAt: baseUpdatedAt,
       tempId: kind.endsWith('.create') && !kind.startsWith('transfer') ? nextTempId() : null,

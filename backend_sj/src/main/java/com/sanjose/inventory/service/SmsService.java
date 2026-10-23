@@ -33,22 +33,22 @@ public class SmsService {
     @Async
     public void send(String mobileNumber, String message) {
         if (!notificationsEnabled) {
-            log.debug("SMS notifications disabled (notifications.enabled=false) — skipping.");
+            log.debug("SMS notifications disabled (notifications.enabled=false), skipping.");
             return;
         }
         apiKey = apiKey.trim();
         if (apiKey.isBlank()) {
-            log.warn("PhilSMS API key not configured — SMS not sent.");
+            log.warn("PhilSMS API key not configured: SMS not sent.");
             return;
         }
 
         String normalized = normalizePhone(mobileNumber);
         if (normalized == null) {
-            log.warn("Invalid phone number format — SMS not sent: {}", mobileNumber);
+            log.warn("Invalid phone number format: SMS not sent: {}", mobileNumber);
             return;
         }
 
-        log.debug("PhilSMS API key configured — sending SMS.");
+        log.debug("PhilSMS API key configured, sending SMS.");
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

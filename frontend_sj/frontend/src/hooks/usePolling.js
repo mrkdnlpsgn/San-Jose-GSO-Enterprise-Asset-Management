@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 // Periodically calls `callback` in the background so lists stay in sync
-// without a manual refresh — pauses while the tab isn't visible (no point
+// without a manual refresh - pauses while the tab isn't visible (no point
 // paying for requests nobody can see) and fires once immediately when the
 // tab becomes visible again, so data doesn't look stale coming back.
 export function usePolling(callback, intervalMs) {

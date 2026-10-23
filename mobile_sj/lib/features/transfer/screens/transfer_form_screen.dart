@@ -16,7 +16,7 @@ import '../../../core/offline/outbox.dart';
 import '../../../shared/utils/idempotency.dart';
 import '../../outbox/sync_engine.dart';
 
-/// "Transfer this asset" — the web Transfer Asset page's form: move to office (required), new
+/// "Transfer this asset" - the web Transfer Asset page's form: move to office (required), new
 /// accountable person and reason. The asset's location follows the office. An admin's transfer
 /// is applied at once; a staff member's becomes a request an admin approves.
 class TransferFormScreen extends ConsumerStatefulWidget {
@@ -94,7 +94,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(status == 'APPLIED'
-            ? 'Transferred — ${widget.asset.propertyNumber} has been moved.'
+            ? 'Transferred: ${widget.asset.propertyNumber} has been moved.'
             : 'Request sent. An administrator will review the transfer.'),
       ));
       context.pop(true);
@@ -215,13 +215,13 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
                             : null,
                   ),
                   items: [
-                    // the backend sets exactly this — null clears the accountable person (web: "— None —")
+                    // the backend sets exactly this - null clears the accountable person (web: "- None -")
                     DropdownMenuItem<int?>(value: null, child: Text(required ? 'Select person' : 'None')),
                     for (final p in inOffice)
                       DropdownMenuItem<int?>(
                         value: p.id,
                         child: Text(
-                            '${p.position != null ? '${p.fullName} — ${p.position}' : p.fullName}'
+                            '${p.position != null ? '${p.fullName}: ${p.position}' : p.fullName}'
                             '${p.id == asset.accountablePerson?.id ? ' (current)' : ''}',
                             overflow: TextOverflow.ellipsis),
                       ),

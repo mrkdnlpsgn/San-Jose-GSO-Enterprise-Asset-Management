@@ -24,7 +24,7 @@ public class DataInitializer implements CommandLineRunner {
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
     private final com.sanjose.inventory.service.UserService userService;
 
-    // Resets admin/ict_staff to their fixture passwords on every boot — dev only.
+    // Resets admin/ict_staff to their fixture passwords on every boot - dev only.
     // Set SEED_DEFAULT_ACCOUNTS=false on any public deployment. The env var is read here
     // directly: application.properties is gitignored, so a mapping there never reaches Render.
     @Value("${app.seed-default-accounts:${SEED_DEFAULT_ACCOUNTS:true}}")
@@ -63,7 +63,7 @@ public class DataInitializer implements CommandLineRunner {
         log.info("DataInitializer: seeding default offices...");
         DEFAULT_OFFICES.forEach(this::seedOffice);
 
-        // every account (seeded ones included) needs its personnel record — see sp_personnel_sync_accounts
+        // every account (seeded ones included) needs its personnel record - see sp_personnel_sync_accounts
         jdbcTemplate.update("CALL sp_personnel_sync_accounts()");
         userService.assignDefaultAdminOffice();
 
@@ -79,7 +79,7 @@ public class DataInitializer implements CommandLineRunner {
                 existing.setFailedLoginAttempts(0);
                 existing.setAccountLockedUntil(null);
                 existing.setIsActive(true);
-                // these are known fixture credentials, not a real temp password — never force a change
+                // these are known fixture credentials, not a real temp password - never force a change
                 existing.setMustChangePassword(false);
                 if (existing.getEmail() == null) existing.setEmail(email);
                 userRepository.saveAndFlush(existing);

@@ -1,5 +1,5 @@
 -- =============================================================
--- migrate_request_condition.sql — a staff maintenance/disposal request can carry the
+-- migrate_request_condition.sql - a staff maintenance/disposal request can carry the
 -- asset condition the staff asked for (REPAIRABLE / UNSERVICEABLE). The asset keeps its
 -- current condition until an admin approves; approve() then applies this value.
 --

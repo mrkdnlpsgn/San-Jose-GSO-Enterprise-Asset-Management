@@ -27,7 +27,7 @@ function AssetQrModal({ asset, onClose }) {
       dispatch(updateAsset(data))
       setImgUrl(null)
       setQrVersion((v) => v + 1)
-      show('New QR code issued. Print it and replace the old sticker — the old one no longer verifies.', 'success')
+      show('New QR code issued. Print it and replace the old sticker. The old one no longer verifies.', 'success')
     } catch (err) {
       show(err.response?.data?.message || 'Failed to reissue the QR code.', 'error')
     } finally {

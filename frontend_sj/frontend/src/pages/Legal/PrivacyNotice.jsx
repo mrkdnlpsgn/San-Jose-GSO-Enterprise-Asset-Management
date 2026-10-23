@@ -9,7 +9,7 @@ const TERMS_SECTIONS = [
     body: 'By logging into the San Jose GSO Enterprise Asset Management System ("the System"), you agree to these Terms and Conditions, the Data Privacy Notice, and the User Consent below. If you do not agree, do not use the System and contact the General Services Office.',
   },
   {
-    title: '2. Restricted system — authorized government use only',
+    title: '2. Restricted system, authorized government use only',
     body: 'This is a private, internal government inventory system operated by the General Services Office (GSO) of the San Jose Municipal Hall, Batangas. It is not a public service and has no public-facing features. Access is limited exclusively to GSO personnel who have been issued an account by an administrator. Attempting to access, scan, or probe this System without an authorized account is prohibited and may be referred for investigation and prosecution under the Cybercrime Prevention Act of 2012 (RA 10175) and other applicable law.',
   },
   {
@@ -41,11 +41,11 @@ const TERMS_SECTIONS = [
 const PRIVACY_SECTIONS = [
   {
     title: '1. Who we are',
-    body: 'This Data Privacy Notice covers the San Jose GSO Enterprise Asset Management System, operated by the General Services Office of the San Jose Municipal Hall, Batangas, for the purpose of tracking municipal government property. This is a private internal system — it is not accessible to the public.',
+    body: 'This Data Privacy Notice covers the San Jose GSO Enterprise Asset Management System, operated by the General Services Office of the San Jose Municipal Hall, Batangas, for the purpose of tracking municipal government property. This is a private internal system. It is not accessible to the public.',
   },
   {
     title: '2. What information we collect',
-    body: 'The system collects and stores: (a) user account information for staff who operate the system — username, full name, role, office assignment, and email address (used only for password-reset delivery); (b) asset records — descriptions, acquisition values, locations, and the names of accountable persons responsible for government property; (c) activity records — every asset registration, transfer, maintenance action, and disposal is logged with the acting user, timestamp, and a description of the action; (d) technical/audit data — IP address, timestamp, and action type for security-relevant events such as logins and record changes.',
+    body: 'The system collects and stores: (a) user account information for staff who operate the system: username, full name, role, office assignment, and email address (used only for password-reset delivery); (b) asset records, descriptions, acquisition values, locations, and the names of accountable persons responsible for government property; (c) activity records. Every asset registration, transfer, maintenance action, and disposal is logged with the acting user, timestamp, and a description of the action; (d) technical/audit data: IP address, timestamp, and action type for security-relevant events such as logins and record changes.',
   },
   {
     title: '3. Why we collect it',
@@ -53,7 +53,7 @@ const PRIVACY_SECTIONS = [
   },
   {
     title: '4. Who can access it',
-    body: 'Access is restricted to authorized GSO staff accounts, gated by role (Admin or Staff). Every account holder can see their own recorded activity via the Audit Logs module. Data is not shared with third parties except where required by law — for example, COA audits or a lawful government request. The System has no public login, no public API, and no anonymous access of any kind.',
+    body: 'Access is restricted to authorized GSO staff accounts, gated by role (Admin or Staff). Every account holder can see their own recorded activity via the Audit Logs module. Data is not shared with third parties except where required by law, for example, COA audits or a lawful government request. The System has no public login, no public API, and no anonymous access of any kind.',
   },
   {
     title: '5. How long we keep it',
@@ -71,22 +71,22 @@ const PRIVACY_SECTIONS = [
     title: '8. How this System implements the Data Privacy Act',
     body: null,
     list: [
-      'Passwords are never stored in readable form — they are hashed with BCrypt before being saved.',
+      'Passwords are never stored in readable form. They are hashed with BCrypt before being saved.',
       'Sessions use signed JWT tokens delivered in an HttpOnly cookie, so they cannot be read or stolen by page scripts, and are automatically invalidated on password change.',
-      'Access is role-gated (Admin / Staff) — account management is restricted to Admins, matching the principle of least privilege.',
+      'Access is role-gated (Admin / Staff): account management is restricted to Admins, matching the principle of least privilege.',
       'Every create, update, delete, and login action is written to an immutable audit trail, identifying the acting user, timestamp, and action.',
       'Login attempts are rate-limited and accounts lock out after repeated failures, to resist brute-force and credential-stuffing attacks.',
       'Deleting a record archives it (soft delete) rather than erasing it outright, preserving the accountability trail COA requires.',
       'The mobile app blocks screenshots and screen recording at the operating-system level (Android FLAG_SECURE) and blurs its content during active screen mirroring/recording on iOS, since property and personal data must not leave the device as a captured image.',
-      'This notice itself, and the acknowledgment you gave before using the System, exist to satisfy RA 10173\'s transparency requirement — you were informed before your data was processed.',
+      'This notice itself, and the acknowledgment you gave before using the System, exist to satisfy RA 10173\'s transparency requirement. You were informed before your data was processed.',
     ],
   },
   {
     title: '9. References',
     body: null,
     links: [
-      { label: 'Republic Act No. 10173 — Data Privacy Act of 2012 (Official Gazette)', href: 'https://www.officialgazette.gov.ph/2012/08/15/republic-act-no-10173/' },
-      { label: 'National Privacy Commission — Data Privacy Act overview', href: 'https://privacy.gov.ph/data-privacy-act/' },
+      { label: 'Republic Act No. 10173: Data Privacy Act of 2012 (Official Gazette)', href: 'https://www.officialgazette.gov.ph/2012/08/15/republic-act-no-10173/' },
+      { label: 'National Privacy Commission: Data Privacy Act overview', href: 'https://privacy.gov.ph/data-privacy-act/' },
     ],
   },
 ]
@@ -106,7 +106,7 @@ const CONSENT_SECTIONS = [
   },
   {
     title: '4. Withdrawing consent / exercising your rights',
-    body: 'Because this processing fulfills a public authority\'s mandate (COA property accountability), full withdrawal of consent is not possible while you hold an active account — the System cannot function without your account activity being logged. You may still exercise your rights to access, correct, or ask questions about your own data at any time by contacting the General Services Office. Deactivating your account (on separation from GSO duties) stops further collection.',
+    body: 'Because this processing fulfills a public authority\'s mandate (COA property accountability), full withdrawal of consent is not possible while you hold an active account. The System cannot function without your account activity being logged. You may still exercise your rights to access, correct, or ask questions about your own data at any time by contacting the General Services Office. Deactivating your account (on separation from GSO duties) stops further collection.',
   },
   {
     title: '5. Questions or concerns',
@@ -181,7 +181,7 @@ function PrivacyNotice() {
 
         <p className="text-sm text-slate-500 dark:text-zinc-400 mb-6 leading-relaxed">
           This page explains the terms under which the San Jose GSO Enterprise Asset Management System may be used, what
-          personal data it collects and why, and what your acknowledgment/consent covers — in compliance with Republic Act
+          personal data it collects and why, and what your acknowledgment/consent covers, in compliance with Republic Act
           No. 10173 (the Data Privacy Act of 2012).
         </p>
 

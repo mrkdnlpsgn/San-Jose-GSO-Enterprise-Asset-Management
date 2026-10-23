@@ -32,7 +32,7 @@ public class SecurityConfig {
     private final WebhookVerificationFilter webhookVerificationFilter;
     private final IdempotencyFilter idempotencyFilter;
 
-    // Comma-separated list of allowed CORS origins — override via env var in production
+    // Comma-separated list of allowed CORS origins - override via env var in production
     @Value("${cors.allowed-origins:http://localhost:3000}")
     private String allowedOriginsConfig;
 
@@ -49,7 +49,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // CSRF: disabled intentionally — JWT stored in HttpOnly cookie, not in Authorization header.
+            // CSRF: disabled intentionally - JWT stored in HttpOnly cookie, not in Authorization header.
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -70,7 +70,7 @@ public class SecurityConfig {
                     .includeSubDomains(true)
                     .maxAgeInSeconds(31_536_000)
                     .preload(true))
-                // Content Security Policy — strict; no inline scripts, no external resources
+                // Content Security Policy - strict; no inline scripts, no external resources
                 .contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; " +
                     "script-src 'self'; " +
@@ -91,7 +91,7 @@ public class SecurityConfig {
                     "Permissions-Policy",
                     "camera=(), microphone=(), geolocation=(), payment=(), " +
                     "usb=(), fullscreen=(self), display-capture=()"))
-                // DNS prefetch leaks visited URLs — disable
+                // DNS prefetch leaks visited URLs - disable
                 .addHeaderWriter(new StaticHeadersWriter("X-DNS-Prefetch-Control", "off"))
             )
             .authorizeHttpRequests(auth -> auth
@@ -170,7 +170,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Parse comma-separated origins — reject wildcard which is incompatible with credentials
+        // Parse comma-separated origins - reject wildcard which is incompatible with credentials
         List<String> origins = Arrays.stream(allowedOriginsConfig.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
@@ -186,11 +186,11 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
             "Content-Type", "Authorization", "X-Requested-With", "Accept",
-            // Webhook headers — needed when frontend simulates scanner hardware
+            // Webhook headers - needed when frontend simulates scanner hardware
             "X-Webhook-Signature-256", "X-Webhook-Timestamp", "X-Webhook-Id",
             // Lets clients opt individual create requests into duplicate-submission protection
             "Idempotency-Key",
-            "X-Action-Otp" // emailed confirmation code — see ActionOtpService
+            "X-Action-Otp" // emailed confirmation code - see ActionOtpService
         ));
         // Expose rate-limit headers so clients can handle back-pressure gracefully
         config.setExposedHeaders(List.of("Retry-After", "X-RateLimit-Reset"));

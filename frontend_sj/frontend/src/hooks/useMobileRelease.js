@@ -9,7 +9,7 @@ function fetchRelease() {
   if (!releaseRequest) {
     releaseRequest = api.get('/app/version')
       .then((res) => (res.data?.downloadUrl ? res.data : null))
-      .catch(() => { releaseRequest = null; return null }) // server asleep — try again next mount
+      .catch(() => { releaseRequest = null; return null }) // server asleep - try again next mount
   }
   return releaseRequest
 }

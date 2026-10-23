@@ -17,7 +17,7 @@ const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-7
 
 const officeNames = (p) => personOffices(p).map((o) => o.officeName).join(', ')
 
-// Personnel are the accounts — each is created on the Accounts page. This is the only
+// Personnel are the accounts - each is created on the Accounts page. This is the only
 // place an admin assigns an account's offices (one or more); name and role come from the account.
 function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
   const [form, setForm]     = useState({
@@ -126,7 +126,7 @@ const roleBadge = (p) => (<>
 const officeText = (p) => p.officeName ?? officeNames(p)
 const NOT_ASSIGNED = <span className="italic text-amber-800 dark:text-amber-300">Not assigned</span>
 
-// A row opens the person's "Assign Offices" form — the one thing this page changes.
+// A row opens the person's "Assign Offices" form - the one thing this page changes.
 const COLUMNS = [
   { key: 'name', label: 'Person', cell: (p, open) => (
     <PrimaryCell code={`@${p.username}`} title={p.fullName} open={open}
@@ -214,7 +214,7 @@ function Personnel() {
         actions={<RefreshButton onClick={() => fetchPersonnel(debouncedSearch)} />}
         footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
         {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 && drafts.length === 0 ? (
-          <ListEmpty>{activeFilters > 0 ? 'No personnel match your search.' : 'No accounts yet — create one on the Accounts page.'}</ListEmpty>
+          <ListEmpty>{activeFilters > 0 ? 'No personnel match your search.' : 'No accounts yet. Create one on the Accounts page.'}</ListEmpty>
         ) : (
           <DataTable columns={COLUMNS} rows={paged} rowKey={(p) => p.id} onOpen={setEditing} wideEnd={drafts.length > 0}
             caption="Personnel. Select a person to assign their offices."

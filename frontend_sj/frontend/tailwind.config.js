@@ -1,5 +1,5 @@
-const EASE_ENTER = 'cubic-bezier(0.16, 1, 0.3, 1)' // strong ease-out — used for every entrance animation
-const EASE_EXIT  = 'cubic-bezier(0.25, 1, 0.5, 1)' // slightly softer ease-out — used for exits and a couple of fades
+const EASE_ENTER = 'cubic-bezier(0.16, 1, 0.3, 1)' // strong ease-out - used for every entrance animation
+const EASE_EXIT  = 'cubic-bezier(0.25, 1, 0.5, 1)' // slightly softer ease-out - used for exits and a couple of fades
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -23,7 +23,7 @@ export default {
           800: '#11572c',
           900: '#0e4824',
         },
-        // Structural/official-document navy — used for primary headings and the
+        // Structural/official-document navy - used for primary headings and the
         // government masthead bar, kept separate from `brand` (interactive green)
         // so the two never compete for the same job.
         gov: {
@@ -56,7 +56,7 @@ export default {
         'slide-in-drawer':   `slideInDrawer 0.32s ${EASE_ENTER} both`,
         'slide-out-drawer':  `slideOutDrawer 0.22s ${EASE_EXIT} both`,
         'fade-out':          `fadeOut 0.2s ${EASE_EXIT} both`,
-        // Login side panel entrance — `both` so delayed (staggered) items stay hidden until their turn
+        // Login side panel entrance - `both` so delayed (staggered) items stay hidden until their turn
         'rise-in':           `fadeSlide 0.6s ${EASE_ENTER} both`,
         'seal-in':           `sealIn 0.7s ${EASE_ENTER} both`,
         'draw-x':            `drawX 0.8s ${EASE_ENTER} both`,

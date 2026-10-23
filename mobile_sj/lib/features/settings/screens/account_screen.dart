@@ -24,11 +24,11 @@ const _months = [
 // Server timestamps are UTC ("…Z"); show them in the phone's time zone.
 String _fmtDate(String? raw) {
   final dt = raw == null ? null : DateTime.tryParse(raw)?.toLocal();
-  if (dt == null) return '—';
+  if (dt == null) return 'N/A';
   return '${_months[dt.month - 1]} ${dt.day}, ${dt.year}';
 }
 
-// "3 minutes ago", "yesterday", "2 weeks ago" — the date after a month, like the web.
+// "3 minutes ago", "yesterday", "2 weeks ago" - the date after a month, like the web.
 String _timeAgo(String? raw) {
   final dt = raw == null ? null : DateTime.tryParse(raw)?.toLocal();
   if (dt == null) return '';
@@ -59,7 +59,7 @@ String _actionLabel(String action) {
   return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }
 
-/// My Account — mirrors the web's Accounts → My Account tab: profile picture, quick facts,
+/// My Account - mirrors the web's Accounts → My Account tab: profile picture, quick facts,
 /// change password, account details, 2-step verification, recent activity, and sign out.
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -528,7 +528,7 @@ class _ChangePasswordCardState extends ConsumerState<_ChangePasswordCard> {
     try {
       await AccountService().changePassword(_current.text, _new.text);
       if (!mounted) return;
-      // The change ends every session, this one included — sign out cleanly now
+      // The change ends every session, this one included - sign out cleanly now
       // instead of letting the next request fail.
       final messenger = ScaffoldMessenger.of(context);
       await ref.read(authProvider.notifier).logout();
@@ -648,7 +648,7 @@ class _ChangePasswordCardState extends ConsumerState<_ChangePasswordCard> {
             ),
           ],
           const SizedBox(height: 16),
-          // Requirements — always visible, so the rules are known before typing
+          // Requirements - always visible, so the rules are known before typing
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -772,7 +772,7 @@ class _DetailsCard extends StatelessWidget {
                 : overview?.email != null && overview!.email!.isNotEmpty
                     ? Text(overview!.email!, style: valueStyle)
                     : const Text(
-                        "None on file — you can't reset a forgotten password by email. "
+                        "None on file. You can't reset a forgotten password by email. "
                         'Ask the system administrator to add one.',
                         style: TextStyle(color: AppTheme.statusMaintenance, fontSize: 15, height: 1.4),
                       ),

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 
-// Deactivating an account (e.g. staff retired or left GSO) — accounts are never deleted, so
+// Deactivating an account (e.g. staff retired or left GSO) - accounts are never deleted, so
 // their audit logs and history stay intact. If it still has assets (as accountable person or
 // current user) the admin picks which active account takes them over.
 function DeactivateAccountModal({ user, accounts, onClose, onConfirm }) {
@@ -44,10 +44,10 @@ function DeactivateAccountModal({ user, accounts, onClose, onConfirm }) {
               onChange={(e) => { setTransferTo(e.target.value); setError('') }}
               className="w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">— Select an account —</option>
+              <option value="">Select an account</option>
               {candidates.map((a) => (
                 <option key={a.id} value={String(a.id)}>
-                  {a.fullName || a.username} (@{a.username}){a.officeName ? ` — ${a.officeName}` : ''}
+                  {a.fullName || a.username} (@{a.username}){a.officeName ? `: ${a.officeName}` : ''}
                 </option>
               ))}
             </select>

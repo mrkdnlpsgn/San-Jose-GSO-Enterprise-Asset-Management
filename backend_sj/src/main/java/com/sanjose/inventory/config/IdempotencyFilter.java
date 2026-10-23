@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 // Guards create endpoints against duplicate submission (double-tap, client retry after
-// a dropped response) — purely opt-in via the client-supplied Idempotency-Key header,
+// a dropped response) - purely opt-in via the client-supplied Idempotency-Key header,
 // so requests without it (and non-POST requests) are entirely unaffected.
 @Slf4j
 @Component

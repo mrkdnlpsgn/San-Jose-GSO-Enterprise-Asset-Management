@@ -10,7 +10,7 @@ import '../model/audit_log_model.dart';
 
 final auditLogServiceProvider = Provider<AuditLogService>((ref) => AuditLogService());
 
-/// The live audit log (the last year — older entries are archived), newest first.
+/// The live audit log (the last year - older entries are archived), newest first.
 final auditLogsProvider =
     FutureProvider.autoDispose<List<AuditLogModel>>((ref) => ref.watch(auditLogServiceProvider).list());
 
@@ -27,7 +27,7 @@ String _time(DateTime d) {
 
 DateTime? _local(String? iso) => iso == null ? null : DateTime.tryParse(iso)?.toLocal();
 
-/// Admin: who did what, when — the web Audit Logs tab. Search and module filters work on the
+/// Admin: who did what, when - the web Audit Logs tab. Search and module filters work on the
 /// loaded list; the Archive button exports or moves entries older than the retention limit.
 class AuditLogScreen extends ConsumerStatefulWidget {
   const AuditLogScreen({super.key});
@@ -377,7 +377,7 @@ class _ArchiveSheetState extends ConsumerState<_ArchiveSheet> {
       final moved = s.moved ?? 0;
       _toast(moved > 0
           ? 'Moved $moved old ${moved == 1 ? 'entry' : 'entries'} to the archive.'
-          : 'Nothing to archive — no entries are older than ${s.retentionLabel}.');
+          : 'Nothing to archive. No entries are older than ${s.retentionLabel}.');
       if (moved > 0) widget.onArchived();
     } on ApiException catch (e) {
       _toast(e.message, error: true);

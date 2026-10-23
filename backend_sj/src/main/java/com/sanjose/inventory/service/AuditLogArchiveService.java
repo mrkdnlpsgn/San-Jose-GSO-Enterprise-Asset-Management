@@ -22,7 +22,7 @@ import java.util.Map;
 
 // Keeps the live audit_logs table small: entries older than the retention period (default one
 // year, AUDIT_RETENTION_DAYS) are moved to audit_logs_archive once a day and at startup. Nothing
-// is deleted — archived entries stay in the database and admins can export them as CSV from the
+// is deleted - archived entries stay in the database and admins can export them as CSV from the
 // Audit Logs page. The archive table is created here (CREATE TABLE IF NOT EXISTS, like
 // asset_transfer_requests) so no migration has to be run on each database.
 @Slf4j
@@ -48,7 +48,7 @@ public class AuditLogArchiveService {
     }
 
     private void ensureTable() {
-        // Same columns as audit_logs plus archived_at. log_id keeps the original id (primary key —
+        // Same columns as audit_logs plus archived_at. log_id keeps the original id (primary key -
         // Aiven requires one). No foreign key to users, so the archive never blocks account changes.
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS audit_logs_archive (

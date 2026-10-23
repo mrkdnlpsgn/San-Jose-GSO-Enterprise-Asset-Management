@@ -9,7 +9,7 @@ const SECTIONS = [
   },
   {
     term: 'Why we collect it',
-    desc: 'Republic Act No. 10173 (Data Privacy Act of 2012) requires you be informed of this, since you are both a data subject — your own account and activity are logged — and, in daily use, a handler of other people\'s data (accountable persons, other staff).',
+    desc: 'Republic Act No. 10173 (Data Privacy Act of 2012) requires you be informed of this, since you are both a data subject (your own account and activity are logged) and, in daily use, a handler of other people\'s data (accountable persons, other staff).',
   },
   {
     term: 'Your responsibilities',

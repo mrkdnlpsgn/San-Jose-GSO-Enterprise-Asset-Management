@@ -4,11 +4,11 @@ import lombok.Data;
 
 // Mirrors the columns of the Excel export/import template. Everything comes in
 // as a raw string (spreadsheet cells, same as the client-side parsing the
-// existing Equipment import already does) — AssetService.bulkImport() parses
+// existing Equipment import already does) - AssetService.bulkImport() parses
 // and validates each field per row, so one bad row can't abort the batch.
 @Data
 public class AssetImportRow {
-    private String parNumber;       // YYYY-MM:SERIAL — one per row; each row registers exactly one asset
+    private String parNumber;       // YYYY-MM:SERIAL - one per row; each row registers exactly one asset
     private String description;
     private String categoryName;
     private String quantity;
@@ -17,7 +17,7 @@ public class AssetImportRow {
     private String unitValue;
     private String officeName;
     private String accountablePerson;
-    private String currentUser; // optional — who currently has the asset, if different from accountablePerson
+    private String currentUser; // optional - who currently has the asset, if different from accountablePerson
     private String location;
     private String condition;       // SERVICEABLE | REPAIRABLE | UNSERVICEABLE
     private String specifications;

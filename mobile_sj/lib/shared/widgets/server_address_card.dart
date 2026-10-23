@@ -44,7 +44,7 @@ class _ServerAddressCardState extends ConsumerState<ServerAddressCard> {
       _testError = null;
     });
     try {
-      // generous timeout — the live server may need a minute to wake up
+      // generous timeout - the live server may need a minute to wake up
       final res = await Dio().get(
         '${ApiClient.originFor(address)}/actuator/health',
         options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)),
@@ -133,7 +133,7 @@ class _ServerAddressCardState extends ConsumerState<ServerAddressCard> {
               selected: onLocal,
               icon: Icons.computer_rounded,
               title: 'This computer (for testing)',
-              detail: '${ApiClient.localAddress} — the local Docker backend',
+              detail: '${ApiClient.localAddress} (the local Docker backend)',
               onTap: () => _use(ApiClient.localAddress, 'Connected to this computer.'),
             ),
             const SizedBox(height: 18),

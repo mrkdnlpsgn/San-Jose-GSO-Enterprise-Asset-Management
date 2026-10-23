@@ -323,7 +323,7 @@ class _ConflictSheet extends ConsumerWidget {
     return words[0].toUpperCase() + words.substring(1);
   }
 
-  static String _show(Object? v) => v == null || '$v'.isEmpty ? '—' : '$v';
+  static String _show(Object? v) => v == null || '$v'.isEmpty ? 'N/A' : '$v';
 
   List<(String, String, String)> _differences() {
     final mine = item.body ?? const {};
@@ -374,7 +374,7 @@ class _ConflictSheet extends ConsumerWidget {
           const SizedBox(height: 16),
           Flexible(
             child: diffs.isEmpty
-                ? Text('The fields you edited match the server — keeping yours changes nothing else.',
+                ? Text('The fields you edited match the server, keeping yours changes nothing else.',
                     style: TextStyle(color: c.textTertiary, fontSize: 14))
                 : SingleChildScrollView(
                     child: Table(

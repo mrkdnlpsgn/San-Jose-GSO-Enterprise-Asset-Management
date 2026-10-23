@@ -28,18 +28,18 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.1
   share_plus: ^13.2.0
-  # Pinned to this exact prerelease — 11.0.2 (latest stable) still requires
+  # Pinned to this exact prerelease - 11.0.2 (latest stable) still requires
   # win32 ^5.9.0, which conflicts with share_plus/package_info_plus's win32
   # ^6.0.1. 12.0.0-beta.7 is the first release that moved off the old win32
   # constraint (Windows-desktop-only; doesn't affect our Android build).
   file_picker: 12.0.0-beta.7
 
-  # QR scan-to-status lookup (camera scanning; Android/iOS/web — falls back to manual
+  # QR scan-to-status lookup (camera scanning; Android/iOS/web - falls back to manual
   # entry on desktop platforms mobile_scanner doesn't support, e.g. Windows)
   mobile_scanner: ^7.3.0
   # QR code generation for per-asset labels (on-screen + printable)
   qr_flutter: ^4.1.0
-  # Camera/gallery capture for the "Scan Label" OCR feature on Add Asset — no
+  # Camera/gallery capture for the "Scan Label" OCR feature on Add Asset - no
   # Windows implementation, so that button is gated the same way mobile_scanner's
   # camera path already is (kIsWeb || Android || iOS || macOS)
   image_picker: ^1.1.2
@@ -83,10 +83,10 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  # Full-bleed seal — correct for the plain/legacy icon and iOS (no masking).
+  # Full-bleed seal - correct for the plain/legacy icon and iOS (no masking).
   image_path: assets/images/images.png
   # Android's adaptive-icon foreground gets circle/squircle-masked depending on
-  # the launcher, and the seal fills its frame edge-to-edge — using it directly
+  # the launcher, and the seal fills its frame edge-to-edge - using it directly
   # here would clip the outer ring. logo_adaptive_foreground.png is the same
   # seal pre-padded to sit inside the adaptive-icon safe zone instead.
   adaptive_icon_background: "#FFFFFF"

@@ -8,7 +8,7 @@ import 'ios_touch.dart';
 const double kMainShellBarHeight = 60;
 
 /// How far a shell tab's scrollable content needs to pad its bottom so the
-/// last item clears the bottom bar instead of sitting behind it —
+/// last item clears the bottom bar instead of sitting behind it -
 /// [MainShell] uses `extendBody`, so each tab's own body is responsible for
 /// its own clearance under the bar.
 extension MainShellClearanceX on BuildContext {
@@ -32,8 +32,8 @@ const _tabs = [
 ];
 const _scanIndex = 2;
 
-/// iOS tab bar: a translucent, frosted strip — the content scrolls underneath and blurs
-/// through it — with a hairline top edge, glyph + small label, the selected tab in the
+/// iOS tab bar: a translucent, frosted strip - the content scrolls underneath and blurs
+/// through it - with a hairline top edge, glyph + small label, the selected tab in the
 /// tint colour (no pill). Scan, the main thing people do in the field, is eGovPH's raised
 /// round button sitting on the bar's top edge, under the thumb.
 class MainShell extends StatelessWidget {
@@ -57,7 +57,7 @@ class MainShell extends StatelessWidget {
       extendBody: true,
       body: navigationShell,
       // The scan circle rises above the bar, but the frosted blur must be clipped to the bar
-      // itself — so the circle is its own layer on top. The strip above the bar is see-through
+      // itself - so the circle is its own layer on top. The strip above the bar is see-through
       // and lets taps fall through to the page (only the circle catches them).
       bottomNavigationBar: Stack(
         children: [
@@ -105,7 +105,7 @@ class MainShell extends StatelessWidget {
   }
 }
 
-const _inactive = Color(0xFF8E8E93); // iOS systemGray — unselected tab items
+const _inactive = Color(0xFF8E8E93); // iOS systemGray - unselected tab items
 
 class _TabButton extends StatelessWidget {
   final _Tab tab;

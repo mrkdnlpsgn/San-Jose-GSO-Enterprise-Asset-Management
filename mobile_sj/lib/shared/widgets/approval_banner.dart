@@ -3,7 +3,7 @@ import '../../core/theme/app_theme.dart';
 import 'ui.dart';
 
 // Maintenance / disposal records a STAFF account adds are requests: they wait for an
-// admin to approve (then staff can edit them) or reject them with a reason — mirrors
+// admin to approve (then staff can edit them) or reject them with a reason - mirrors
 // web's ApprovalControls.
 class ApprovalBanner extends StatelessWidget {
   final String? approvalStatus;
@@ -32,7 +32,7 @@ class ApprovalBanner extends StatelessWidget {
   }
 }
 
-// Approve / Reject for an admin looking at a pending staff request — mirrors web's
+// Approve / Reject for an admin looking at a pending staff request - mirrors web's
 // ApprovalActions. Reject asks for a reason, which the requester sees.
 class ApprovalActionsBar extends StatefulWidget {
   final Future<void> Function() onApprove;

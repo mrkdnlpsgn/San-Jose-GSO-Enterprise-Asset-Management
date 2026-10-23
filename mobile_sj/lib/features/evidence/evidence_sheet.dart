@@ -120,7 +120,7 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
     }
   }
 
-  // The picker's file may be temporary — copy it somewhere it survives until upload.
+  // The picker's file may be temporary - copy it somewhere it survives until upload.
   Future<void> _keepOnPhone(XFile f) async {
     final dir = OfflineStore.instance.accountDir('photos')!;
     await dir.create(recursive: true);
@@ -291,7 +291,7 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
           const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator(color: AppTheme.brand)),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-          child: Text('JPEG, PNG, WEBP, or HEIC — up to 10 MB each',
+          child: Text('JPEG, PNG, WEBP, or HEIC, up to 10 MB each',
               style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
         ),
         if (_error != null)

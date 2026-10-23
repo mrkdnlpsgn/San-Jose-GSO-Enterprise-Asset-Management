@@ -14,7 +14,7 @@ import '../data/transfer_service.dart';
 import '../model/transfer_model.dart';
 import '../provider/transfer_provider.dart';
 
-/// Transfer Asset — the web page's "Transfer requests" list. Admins see every request and
+/// Transfer Asset - the web page's "Transfer requests" list. Admins see every request and
 /// approve or reject the pending ones; staff see the ones they sent. "New Transfer" picks
 /// an asset and opens the transfer form.
 class TransferListScreen extends ConsumerStatefulWidget {
@@ -198,10 +198,10 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
                 Text('Reason: ${t.reason}', style: TextStyle(color: c.textSecondary, fontSize: 14, height: 1.4)),
               ],
               const SizedBox(height: 8),
-              MetaLine(Icons.person_rounded, 'Requested by ${t.requestedByName ?? '—'}'),
+              MetaLine(Icons.person_rounded, 'Requested by ${t.requestedByName ?? 'N/A'}'),
               if (!t.isPending) ...[
                 const SizedBox(height: 4),
-                MetaLine(Icons.how_to_reg_rounded, 'Reviewed by ${t.reviewedByName ?? '—'} · ${fmtDate(t.reviewedAt)}'),
+                MetaLine(Icons.how_to_reg_rounded, 'Reviewed by ${t.reviewedByName ?? 'N/A'} · ${fmtDate(t.reviewedAt)}'),
               ],
               if (t.reviewNote != null && t.reviewNote!.isNotEmpty) ...[
                 const SizedBox(height: 10),
@@ -230,7 +230,7 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
                         onPressed: _busy
                             ? null
                             : () => _review(() => TransferService().approve(t.id),
-                                'Approved — ${t.propertyNumber} moved to ${t.toOfficeName ?? 'the new office'}.'),
+                                'Approved: ${t.propertyNumber} moved to ${t.toOfficeName ?? 'the new office'}.'),
                         icon: _busy
                             ? const SizedBox(
                                 width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -276,7 +276,7 @@ class _Move extends StatelessWidget {
   }
 }
 
-/// Reject with an optional reason — the web's "Reason for rejecting (optional)".
+/// Reject with an optional reason - the web's "Reason for rejecting (optional)".
 class _RejectDialog extends StatefulWidget {
   const _RejectDialog();
 

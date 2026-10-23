@@ -36,7 +36,7 @@ public class CategorySuggestionService {
         You classify equipment assets into one of a fixed set of categories for a \
         Philippine municipal government inventory system. Pick exactly one category from the provided \
         list that best matches the asset description. If nothing fits well, pick the closest reasonable \
-        match — you must always choose one of the listed categories. Respond only with JSON matching the \
+        match. You must always choose one of the listed categories. Respond only with JSON matching the \
         given schema.""";
 
     public Category suggest(String description) {

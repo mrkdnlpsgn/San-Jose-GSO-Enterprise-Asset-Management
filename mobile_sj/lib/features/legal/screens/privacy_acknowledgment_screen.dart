@@ -15,7 +15,7 @@ const _summaryPoints = [
   (
     'Why we collect it',
     'Republic Act No. 10173 (Data Privacy Act of 2012) requires you be informed of this, since you are both a '
-        'data subject — your own account and activity are logged — and, in daily use, a handler of other '
+        'data subject (your own account and activity are logged) and, in daily use, a handler of other '
         'people\'s data (accountable persons, other staff).',
   ),
   (
@@ -31,7 +31,7 @@ const _summaryPoints = [
 ];
 
 // Real route (not an overlay) that AppRouter's redirect sends every logged-in
-// user to until they acknowledge — mobile equivalent of web's MainLayout +
+// user to until they acknowledge - mobile equivalent of web's MainLayout +
 // PrivacyAcknowledgmentModal. Back navigation is blocked; the router keeps
 // bouncing them here until AuthNotifier.acknowledgePrivacy() succeeds.
 class PrivacyAcknowledgmentScreen extends ConsumerStatefulWidget {
@@ -54,7 +54,7 @@ class _PrivacyAcknowledgmentScreenState extends ConsumerState<PrivacyAcknowledgm
     _scrollCtrl.addListener(_checkBottom);
     // Neither a one-shot addPostFrameCallback nor ScrollMetricsNotification
     // reliably catches the "content already fits, nothing to scroll" case on
-    // this Flutter version — both raced or silently no-op'd on some
+    // this Flutter version - both raced or silently no-op'd on some
     // logins/devices, leaving the button stuck disabled forever. Retrying every
     // frame until ScrollController actually attaches removes the race: it's
     // cheap, stops the instant _reachedBottom flips true, and is guaranteed to
@@ -212,7 +212,7 @@ class _PrivacyAcknowledgmentScreenState extends ConsumerState<PrivacyAcknowledgm
                       onPressed: (_reachedBottom && !_loading) ? _acknowledge : null,
                       // The app's global ElevatedButtonTheme only sets vertical padding
                       // (relying on full-width buttons elsewhere to be stretched by an
-                      // outer SizedBox) — this button isn't stretched, so without its own
+                      // outer SizedBox) - this button isn't stretched, so without its own
                       // horizontal padding the text touches the button's edges.
                       style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20)),
                       child: _loading

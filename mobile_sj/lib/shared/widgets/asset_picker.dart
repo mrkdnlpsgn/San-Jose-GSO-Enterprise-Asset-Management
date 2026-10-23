@@ -28,7 +28,7 @@ class _AssetPickerSheet extends ConsumerStatefulWidget {
 
 class _AssetPickerSheetState extends ConsumerState<_AssetPickerSheet> {
   final _ctrl = TextEditingController();
-  // Deliberately local, not assetSearchProvider — sharing that provider with
+  // Deliberately local, not assetSearchProvider - sharing that provider with
   // the main Asset List screen meant typing here overwrote the search box
   // behind this sheet, and picking an asset cleared it too.
   String _search = '';

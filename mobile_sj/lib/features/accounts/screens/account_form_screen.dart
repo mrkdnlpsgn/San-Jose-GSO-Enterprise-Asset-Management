@@ -315,10 +315,10 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
                 itemLabel: roleLabel,
                 onChanged: (r) => setState(() => _role = r!),
               ),
-              // No office field here at all — matches the web app's account form,
+              // No office field here at all - matches the web app's account form,
               // which has never had one. Office assignment isn't part of an
               // account's identity in this app.
-              // No Active/Inactive control here — that's handled by the dedicated
+              // No Active/Inactive control here - that's handled by the dedicated
               // Deactivate/Reactivate button in the AppBar (edit mode only). New
               // accounts are always created active.
               const SizedBox(height: 24),

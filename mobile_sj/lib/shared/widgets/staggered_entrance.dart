@@ -18,7 +18,7 @@ class _StaggeredEntranceState extends State<StaggeredEntrance> {
   bool _scheduled = false;
 
   // MediaQuery isn't available yet in initState() (no InheritedWidget ancestor
-  // resolved that early) — didChangeDependencies() is the correct place to
+  // resolved that early) - didChangeDependencies() is the correct place to
   // read it once, guarded so it only schedules the entrance a single time.
   @override
   void didChangeDependencies() {

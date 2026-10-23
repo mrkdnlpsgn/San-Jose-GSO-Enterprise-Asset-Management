@@ -22,7 +22,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    // Used only for the forgot-password OTP flow (AuthService, via raw JDBC) — not
+    // Used only for the forgot-password OTP flow (AuthService, via raw JDBC) - not
     // used for login. Nullable: many accounts are admin-created before an email exists.
     @Column(unique = true, length = 255)
     private String email;
@@ -60,7 +60,7 @@ public class User {
     @Column(name = "token_version", nullable = false)
     private Integer tokenVersion = 0;
 
-    // Forces a password change on next login — set on account creation and
+    // Forces a password change on next login - set on account creation and
     // admin-mediated resets, cleared once the user picks their own password.
     @Builder.Default
     @Column(name = "must_change_password", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT TRUE")

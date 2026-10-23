@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
-/// A consistent full-body error state (icon + message + optional Retry) —
+/// A consistent full-body error state (icon + message + optional Retry) -
 /// used wherever a screen fails to load, instead of each screen picking its
 /// own plain-text-only or icon-only treatment.
 class ErrorState extends StatelessWidget {

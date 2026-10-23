@@ -9,7 +9,7 @@ import '../../../shared/widgets/ios_pickers.dart';
 const _conditions = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
 const _lifecycleStatuses = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED'];
 
-/// True if any asset filter is currently active — used to badge the filter icon.
+/// True if any asset filter is currently active - used to badge the filter icon.
 bool assetFiltersActive(WidgetRef ref) =>
     ref.watch(assetCategoryFilterProvider) != null ||
     ref.watch(assetOfficeFilterProvider) != null ||

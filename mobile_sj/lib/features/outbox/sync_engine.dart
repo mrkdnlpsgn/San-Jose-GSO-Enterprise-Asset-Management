@@ -37,7 +37,7 @@ class SyncState {
 ///
 /// An item the server can't take as-is (needs the emailed code, changed on the server
 /// meanwhile, refused) is set aside for the user, and anything else for the same record
-/// waits behind it — everything unrelated still goes.
+/// waits behind it - everything unrelated still goes.
 final syncEngineProvider = NotifierProvider<SyncEngine, SyncState>(SyncEngine.new);
 
 enum _Result { ok, setAside, stop }
@@ -79,7 +79,7 @@ class SyncEngine extends Notifier<SyncState> {
     });
   }
 
-  /// Called after something is saved to the outbox — uploads it right away if possible.
+  /// Called after something is saved to the outbox - uploads it right away if possible.
   void poke() => _soon(const Duration(milliseconds: 300));
 
   bool get _canSync => !ApiClient.instance.deviceOffline && ref.read(authProvider).valueOrNull != null;
@@ -209,9 +209,9 @@ class SyncEngine extends Notifier<SyncState> {
       return _Result.ok;
     } on DioException catch (e) {
       final status = e.response?.statusCode;
-      // offline, timed out, server asleep or restarting — try again later
+      // offline, timed out, server asleep or restarting - try again later
       if (e.response == null || const [502, 503, 504].contains(status)) return _Result.stop;
-      // signed out (the session-expiry handler takes the user to sign-in) — resume after
+      // signed out (the session-expiry handler takes the user to sign-in) - resume after
       if (status == 401 || ref.read(authProvider).valueOrNull == null) return _Result.stop;
       if (status == 428 || status == 499) {
         item
@@ -255,7 +255,7 @@ class SyncEngine extends Notifier<SyncState> {
     await Outbox.instance.update(item);
     await sync(onlyId: item.id);
     if (Outbox.instance.byId(item.id) != null) return;
-    await sync(); // it went through — anything waiting behind it can go too
+    await sync(); // it went through - anything waiting behind it can go too
   }
 
   /// Conflict: overwrite the server's version with this phone's.

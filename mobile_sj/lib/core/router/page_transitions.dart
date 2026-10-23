@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 
-/// Every route's page. iOS push — slides in from the right over a parallax-shifted
+/// Every route's page. iOS push - slides in from the right over a parallax-shifted
 /// previous page, and can be dismissed by swiping from the left edge, following the finger
 /// 1:1. With the phone's Reduce Motion on, a plain cross-fade instead (no sliding).
 /// (Named for the fade it used to be; callers didn't need to change.)

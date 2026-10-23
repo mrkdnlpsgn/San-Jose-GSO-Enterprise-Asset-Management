@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 // One device in a multi-device create/update. Property Number and PAR Number identify
-// the device; every other field is an optional override — null/blank means "same as
+// the device; every other field is an optional override - null/blank means "same as
 // the shared value on the parent AssetRequest".
 @Data
 public class AssetUnitRequest {

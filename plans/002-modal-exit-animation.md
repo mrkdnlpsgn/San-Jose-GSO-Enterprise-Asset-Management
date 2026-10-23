@@ -1,17 +1,17 @@
-# 002 — Add a real exit animation to the shared Modal component
+# 002 - Add a real exit animation to the shared Modal component
 
 - **Status**: TODO
 - **Commit**: de894c7
 - **Severity**: HIGH
 - **Category**: Interruptibility / Physicality
-- **Estimated scope**: 1 file (`frontend_sj/frontend/src/components/common/Modal.jsx`) — no call-site changes required if Steps 1-3 are followed exactly (the delayed-unmount lives entirely inside `Modal.jsx`).
+- **Estimated scope**: 1 file (`frontend_sj/frontend/src/components/common/Modal.jsx`). No call-site changes required if Steps 1-3 are followed exactly (the delayed-unmount lives entirely inside `Modal.jsx`).
 
 ## Problem
 
-`Modal.jsx` animates in with `animate-fade-slide` but has no exit path — every consumer conditionally renders it (`{show && <Modal .../>}`), so React unmounts the DOM node the instant `onClose` fires. This affects effectively every dialog in the app: `AddAssetModal`, `UserModal`, `ImportModal`, `QRModal`, `AddRecordModal`, `AddMaintenanceModal`, `AddDisposalModal`, `ResetPasswordModal`, `ForgotPasswordModal`, `LogEntryModal`, and more — all built on this one shared component.
+`Modal.jsx` animates in with `animate-fade-slide` but has no exit path. Every consumer conditionally renders it (`{show && <Modal .../>}`), so React unmounts the DOM node the instant `onClose` fires. This affects effectively every dialog in the app: `AddAssetModal`, `UserModal`, `ImportModal`, `QRModal`, `AddRecordModal`, `AddMaintenanceModal`, `AddDisposalModal`, `ResetPasswordModal`, `ForgotPasswordModal`, `LogEntryModal`, and more. All built on this one shared component.
 
 ```jsx
-// src/components/common/Modal.jsx:1-58 — current (full file)
+// src/components/common/Modal.jsx:1-58 - current (full file)
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -74,14 +74,14 @@ function Modal({ title, subtitle, children, onClose, size = 'lg' }) {
 export default Modal
 ```
 
-Note: `animate-fade-slide` is `fadeSlide 0.28s cubic-bezier(0.16, 1, 0.3, 1)` — `0% {opacity:0, translateY(10px)} → 100% {opacity:1, translateY(0)}` (from `tailwind.config.js`).
+Note: `animate-fade-slide` is `fadeSlide 0.28s cubic-bezier(0.16, 1, 0.3, 1)`: `0% {opacity:0, translateY(10px)} → 100% {opacity:1, translateY(0)}` (from `tailwind.config.js`).
 
 ## Target
 
-Make `Modal.jsx` own its own exit animation internally, so **every** consumer gets a proper close animation for free with zero call-site changes: on `onClose`, don't call the parent's close handler immediately — flip an internal `closing` state, play a ~180ms fade+scale-down exit, then call the real `onClose` after the transition completes.
+Make `Modal.jsx` own its own exit animation internally, so **every** consumer gets a proper close animation for free with zero call-site changes: on `onClose`, don't call the parent's close handler immediately, flip an internal `closing` state, play a ~180ms fade+scale-down exit, then call the real `onClose` after the transition completes.
 
 ```jsx
-// src/components/common/Modal.jsx — target (full file)
+// src/components/common/Modal.jsx - target (full file)
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -156,19 +156,19 @@ function Modal({ title, subtitle, children, onClose, size = 'lg' }) {
 export default Modal
 ```
 
-Note the entrance keeps `animate-fade-slide` — wait, it was removed from the outer `<div>` in the target above because the panel and backdrop now each own their own transition-based enter+exit. To preserve the existing entrance look and feel (`fadeSlide`'s `translateY(10px)→0` at 280ms cubic-bezier(0.16,1,0.3,1)), the panel needs an entering state too, otherwise it will pop in at full opacity/scale instead of animating in. Add that in Step 2 below rather than losing the entrance animation.
+Note the entrance keeps `animate-fade-slide`. Wait, it was removed from the outer `<div>` in the target above because the panel and backdrop now each own their own transition-based enter+exit. To preserve the existing entrance look and feel (`fadeSlide`'s `translateY(10px)→0` at 280ms cubic-bezier(0.16,1,0.3,1)), the panel needs an entering state too, otherwise it will pop in at full opacity/scale instead of animating in. Add that in Step 2 below rather than losing the entrance animation.
 
 ## Repo conventions to follow
 
-- Tailwind arbitrary-value syntax for one-off durations/eases (`duration-[180ms]`, `ease-[cubic-bezier(...)]`) — same pattern as plan 001.
-- `EXIT_MS` as a local const at the top of the file — mirrors how `ConfirmDialog.jsx` and other one-off components in this codebase keep small magic numbers local rather than in a shared config, since there's no shared token file yet (see plan 011 for consolidation).
-- Every existing call site already does `{show && <Modal onClose={() => setShow(false)} ...>}` (e.g. `src/pages/Assets/index.jsx:299-307`, `src/pages/Accounts/index.jsx` similar) — this plan must NOT require touching those call sites; the delay lives entirely inside `Modal.jsx`'s own `onClose` timing.
+- Tailwind arbitrary-value syntax for one-off durations/eases (`duration-[180ms]`, `ease-[cubic-bezier(...)]`), same pattern as plan 001.
+- `EXIT_MS` as a local const at the top of the file, mirrors how `ConfirmDialog.jsx` and other one-off components in this codebase keep small magic numbers local rather than in a shared config, since there's no shared token file yet (see plan 011 for consolidation).
+- Every existing call site already does `{show && <Modal onClose={() => setShow(false)} ...>}` (e.g. `src/pages/Assets/index.jsx:299-307`, `src/pages/Accounts/index.jsx` similar). This plan must NOT require touching those call sites; the delay lives entirely inside `Modal.jsx`'s own `onClose` timing.
 
 ## Steps
 
 1. Add `import { useEffect, useState } from 'react'` (add `useState` to the existing import) and the `const EXIT_MS = 180` constant at the top of the file.
 
-2. Add an **entering** state too, so the open animation is preserved (currently provided by `animate-fade-slide` on the outer wrapper, which this plan removes since the wrapper now needs to stay static — the backdrop and panel below it own the actual visible motion):
+2. Add an **entering** state too, so the open animation is preserved (currently provided by `animate-fade-slide` on the outer wrapper, which this plan removes since the wrapper now needs to stay static. The backdrop and panel below it own the actual visible motion):
    ```jsx
    const [entered, setEntered] = useState(false)
    useEffect(() => {
@@ -184,26 +184,26 @@ Note the entrance keeps `animate-fade-slide` — wait, it was removed from the o
    ```jsx
    ${!entered || closing ? 'opacity-0' : 'opacity-100'}
    ```
-   Use `transition-[opacity,transform] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]` for entry-matching duration/curve (220ms is close to the original 280ms `fadeSlide` — round to 220 as the plan's entry duration since exit is intentionally faster at 180ms per the asymmetric-timing rule in AUDIT.md #4; do not use two different transition declarations for the same element — one `transition-[...]` class covers both directions since duration/curve stay the same in and out here, which is an acceptable simplification for a first pass).
+   Use `transition-[opacity,transform] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]` for entry-matching duration/curve (220ms is close to the original 280ms `fadeSlide`, round to 220 as the plan's entry duration since exit is intentionally faster at 180ms per the asymmetric-timing rule in AUDIT.md #4; do not use two different transition declarations for the same element, one `transition-[...]` class covers both directions since duration/curve stay the same in and out here, which is an acceptable simplification for a first pass).
 
-3. Wire the `requestClose` function (shown in Target) into both the backdrop's `onClick` and the header close button's `onClick`, and into the existing `Escape` keydown handler — replacing all three former direct `onClose` calls.
+3. Wire the `requestClose` function (shown in Target) into both the backdrop's `onClick` and the header close button's `onClick`, and into the existing `Escape` keydown handler, replacing all three former direct `onClose` calls.
 
-4. Verify no other file imports `Modal` and calls `onClose` expecting synchronous unmount (grep `<Modal` and check nothing relies on the parent's state changing before ~180ms after the click) — if you find such a dependency, STOP and report rather than guessing at a fix.
+4. Verify no other file imports `Modal` and calls `onClose` expecting synchronous unmount (grep `<Modal` and check nothing relies on the parent's state changing before ~180ms after the click), if you find such a dependency, STOP and report rather than guessing at a fix.
 
 ## Boundaries
 
-- Do NOT touch any of the ~15 modal call sites (`AddAssetModal.jsx`, `UserModal.jsx`, `ImportModal.jsx`, `QRModal.jsx`, `AddRecordModal.jsx`, `AddMaintenanceModal.jsx`, `AddDisposalModal.jsx`, `ResetPasswordModal.jsx`, `ForgotPasswordModal.jsx`, `LogEntryModal.jsx`, etc.) — this plan is scoped to `Modal.jsx` only, and must work for all of them unmodified.
-- Do NOT touch `ConfirmDialog.jsx` — it's a visually similar but separate component; if it has the same problem, that's a follow-up finding, not part of this plan.
-- Do NOT add a new dependency (no Framer Motion, no `react-transition-group`) — plain React state + CSS transitions only.
-- If a consumer passes `onClose` as something other than a state setter (e.g. it triggers a navigation or has side effects that must happen synchronously), the ~180ms delay could visibly matter — check the call sites for anything beyond `setShowX(false)`/`setEditing(null)` patterns before finishing, and report anything unusual rather than silently changing behavior.
+- Do NOT touch any of the ~15 modal call sites (`AddAssetModal.jsx`, `UserModal.jsx`, `ImportModal.jsx`, `QRModal.jsx`, `AddRecordModal.jsx`, `AddMaintenanceModal.jsx`, `AddDisposalModal.jsx`, `ResetPasswordModal.jsx`, `ForgotPasswordModal.jsx`, `LogEntryModal.jsx`, etc.). This plan is scoped to `Modal.jsx` only, and must work for all of them unmodified.
+- Do NOT touch `ConfirmDialog.jsx`. It's a visually similar but separate component; if it has the same problem, that's a follow-up finding, not part of this plan.
+- Do NOT add a new dependency (no Framer Motion, no `react-transition-group`), plain React state + CSS transitions only.
+- If a consumer passes `onClose` as something other than a state setter (e.g. it triggers a navigation or has side effects that must happen synchronously), the ~180ms delay could visibly matter. Check the call sites for anything beyond `setShowX(false)`/`setEditing(null)` patterns before finishing, and report anything unusual rather than silently changing behavior.
 
 ## Verification
 
-- **Mechanical**: `cd frontend_sj/frontend && npm run build` — clean build.
+- **Mechanical**: `cd frontend_sj/frontend && npm run build`, clean build.
 - **Feel check**:
   - Open any modal (e.g. "Add Asset" on the Assets page), confirm it still fades/slides in the same as before.
-  - Close it via the × button — confirm it now fades and scales down slightly (not just a hard cut) before disappearing, matching timing across at least 3 different modals (AddAssetModal, ImportModal, ConfirmDialog-adjacent ResetPasswordModal) to confirm the fix applies uniformly since they all share `Modal.jsx`.
-  - Close via clicking the backdrop and via pressing Escape — confirm both trigger the same exit animation, not an instant unmount.
+  - Close it via the × button, confirm it now fades and scales down slightly (not just a hard cut) before disappearing, matching timing across at least 3 different modals (AddAssetModal, ImportModal, ConfirmDialog-adjacent ResetPasswordModal) to confirm the fix applies uniformly since they all share `Modal.jsx`.
+  - Close via clicking the backdrop and via pressing Escape, confirm both trigger the same exit animation, not an instant unmount.
   - In DevTools Animations panel, set playback to 25% and confirm the panel doesn't flash or double-render during the exit.
-  - Rapidly click the × button twice — confirm it doesn't fire `onClose` twice or restart the exit animation oddly (the `if (closing) return` guard in `requestClose` should prevent this).
+  - Rapidly click the × button twice, confirm it doesn't fire `onClose` twice or restart the exit animation oddly (the `if (closing) return` guard in `requestClose` should prevent this).
 - **Done when**: every modal built on `Modal.jsx` visibly animates out (fade + slight scale-down) before being removed from the DOM, with no call-site code changes required.

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// A single exportable column: how to read a value out of a report row.
 /// Rows are `dynamic` because a report's row type (AssetModel, DisposalModel,
-/// MaintenanceModel, AssetHistoryModel, or a plain summary map) varies per report —
+/// MaintenanceModel, AssetHistoryModel, or a plain summary map) varies per report -
 /// each ReportDefinition's own columns know how to cast their own rows.
 class ReportColumn {
   final String label;

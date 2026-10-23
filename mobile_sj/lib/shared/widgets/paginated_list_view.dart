@@ -12,7 +12,7 @@ class PaginatedListView<T> extends StatefulWidget {
   final VoidCallback onLoadMore;
   final Future<void> Function() onRefresh;
   final String emptyMessage;
-  // Additional bottom clearance beyond the list's own 80px breathing room —
+  // Additional bottom clearance beyond the list's own 80px breathing room -
   // e.g. context.mainShellBottomInset when this list sits inside the bottom
   // nav shell (MainShell.extendBody lets content scroll behind the bar).
   final double extraBottomPadding;
@@ -34,7 +34,7 @@ class PaginatedListView<T> extends StatefulWidget {
 class _PaginatedListViewState<T> extends State<PaginatedListView<T>> {
   // How many rows have already appeared once. A pull-to-refresh or a new
   // search reuses this same State (only `widget.state` changes), so rows
-  // below this mark skip the entrance stagger — only a true first load, or
+  // below this mark skip the entrance stagger - only a true first load, or
   // rows newly revealed by pagination/a wider result set, animate in.
   int _seenCount = 0;
 

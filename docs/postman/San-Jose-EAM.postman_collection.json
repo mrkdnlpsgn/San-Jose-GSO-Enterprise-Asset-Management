@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "San Jose GSO — Enterprise Asset Management API",
-    "description": "REST API for the Web-Based Inventory and Tracking Management System of ICT Devices (San Jose Municipal Hall). Auth is JWT stored in an HttpOnly cookie set by /api/auth/login — Postman's cookie jar attaches it automatically to subsequent requests in this collection, no manual token handling needed.",
+    "name": "San Jose GSO: Enterprise Asset Management API",
+    "description": "REST API for the Web-Based Inventory and Tracking Management System of ICT Devices (San Jose Municipal Hall). Auth is JWT stored in an HttpOnly cookie set by /api/auth/login: Postman's cookie jar attaches it automatically to subsequent requests in this collection, no manual token handling needed.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -49,7 +49,7 @@
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] },
-            "description": "Returns 401 if called without a valid jwt cookie — proves JwtAuthFilter is enforcing auth."
+            "description": "Returns 401 if called without a valid jwt cookie, proves JwtAuthFilter is enforcing auth."
           }
         },
         {

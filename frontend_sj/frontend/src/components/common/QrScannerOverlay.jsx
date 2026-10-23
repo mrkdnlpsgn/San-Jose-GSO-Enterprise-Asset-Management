@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import jsQR from 'jsqr'
 
 // Full-screen live QR scanner for phones and tablets: the camera fills the screen, a
-// square guide shows where to hold the code, and it reads on its own — no shutter
+// square guide shows where to hold the code, and it reads on its own - no shutter
 // button. Only the middle of the camera frame (around the guide) is decoded, shrunk to
 // DECODE_SIZE, which keeps each pass fast on older phones.
 const DECODE_SIZE = 800

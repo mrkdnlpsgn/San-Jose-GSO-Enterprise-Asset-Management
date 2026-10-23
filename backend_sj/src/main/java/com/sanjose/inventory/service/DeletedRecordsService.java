@@ -40,7 +40,7 @@ public class DeletedRecordsService {
     }
 
     // Restoring only ever un-flags the still-intact original row and drops the
-    // archive snapshot — assets/maintenance/disposal records are soft-deleted
+    // archive snapshot - assets/maintenance/disposal records are soft-deleted
     // in place, never physically removed, so there's nothing to reconstruct.
     public void restoreAsset(Long deletedAssetId) {
         DeletedAsset snapshot = deletedAssetRepository.findById(deletedAssetId).orElseThrow();
@@ -63,7 +63,7 @@ public class DeletedRecordsService {
             "Restored disposal record for asset: " + snapshot.getPropertyNumber());
     }
 
-    // Permanent delete requires the emailed OTP be verified first (step-up 2FA) —
+    // Permanent delete requires the emailed OTP be verified first (step-up 2FA) -
     // unlike restore, there is no going back after this: the underlying ledger row
     // and its Recycle Bin snapshot are both actually removed from the database.
     public void permanentDeleteAsset(Long deletedAssetId, String otp) {

@@ -24,7 +24,7 @@ import '../../outbox/sync_engine.dart';
 import '../../../shared/widgets/ios_pickers.dart';
 
 // image_picker has no live-camera implementation on Windows/Linux (only a
-// file/gallery picker) — mirrors the same gate qr_scanner_screen.dart already
+// file/gallery picker) - mirrors the same gate qr_scanner_screen.dart already
 // uses for mobile_scanner's camera path.
 bool get _cameraCaptureSupported =>
     kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
@@ -55,12 +55,12 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   int? _categoryId;
   int? _officeId;
   int? _personnelId;   // accountable person
-  int? _currentUserId; // who actually has the asset — may differ from accountable person
+  int? _currentUserId; // who actually has the asset - may differ from accountable person
   String _condition = 'SERVICEABLE';
   String _lifecycleStatus = 'REGISTERED';
   DateTime? _acquisitionDate;
 
-  // Null when creating a new asset — used to detect a genuine condition
+  // Null when creating a new asset - used to detect a genuine condition
   // transition (matches the backend's own transition check in AssetService).
   late final String? _originalCondition;
 
@@ -73,12 +73,12 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   bool get _isEdit => widget.asset != null;
 
   // A staff account can edit an asset of its own office, but can't move it to another
-  // office — mirrors the web app's AddAssetModal staffMode. Only an administrator can
+  // office - mirrors the web app's AddAssetModal staffMode. Only an administrator can
   // relocate an asset.
   bool get _staffMode => !(ref.read(authProvider).valueOrNull?.isAdmin ?? false);
 
-  // 'maintenance' / 'disposal' when staff picked a status — or marked the asset
-  // REPAIRABLE / UNSERVICEABLE — which has to be approved by an admin first.
+  // 'maintenance' / 'disposal' when staff picked a status - or marked the asset
+  // REPAIRABLE / UNSERVICEABLE - which has to be approved by an admin first.
   String? get _staffRequest {
     if (!_isEdit || !_staffMode) return null;
     final asset = widget.asset!;
@@ -176,7 +176,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
           setState(() => _suggestedCategory = suggestion);
         }
       } catch (_) {
-        // Best-effort convenience feature — stay silent on failure.
+        // Best-effort convenience feature - stay silent on failure.
       }
     });
   }
@@ -188,7 +188,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       return;
     }
     if (_staffRequest == 'disposal' && !const ['REPAIRABLE', 'UNSERVICEABLE'].contains(_condition)) {
-      _showError('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.');
+      _showError('Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed. Set the condition first.');
       return;
     }
     setState(() => _loading = true);
@@ -220,7 +220,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       final asset = widget.asset;
       final saved = await sendOrQueue<AssetModel>(
         ref,
-        // an asset added offline only exists on this phone — its edits join that upload
+        // an asset added offline only exists on this phone - its edits join that upload
         forceQueue: asset != null && asset.id < 0,
         send: () => asset != null
             ? service.update(asset.id, data)
@@ -251,7 +251,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       // The backend auto-creates a placeholder maintenance/disposal record the
       // moment an asset's condition transitions into REPAIRABLE/UNSERVICEABLE
       // (see AssetService.handleConditionLedger). Rather than sending the user
-      // to a blank "Add" form — which would create a second, duplicate record —
+      // to a blank "Add" form - which would create a second, duplicate record -
       // fetch that auto-created record and open it directly for completion.
       final becameRepairable = _condition == 'REPAIRABLE' && _originalCondition != 'REPAIRABLE';
       final becameUnserviceable = _condition == 'UNSERVICEABLE' && _originalCondition != 'UNSERVICEABLE';
@@ -260,7 +260,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       // record yet), so only an admin is taken straight to the auto-created record.
       if (saved.pendingRequest != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${saved.pendingRequest == 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent — '
+          content: Text('${saved.pendingRequest == 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent: '
               'an administrator needs to approve it.'),
           behavior: SnackBarBehavior.floating,
         ));
@@ -278,7 +278,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
         }
       }
 
-      // Completes the scan → review → QR flow — manual entry keeps today's behavior.
+      // Completes the scan → review → QR flow - manual entry keeps today's behavior.
       if (!_isEdit && _wasScanned && mounted) {
         await showAssetQrSheet(context, saved);
       }
@@ -303,15 +303,15 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       return p == null ? null : {'id': p.id, 'fullName': p.fullName, 'position': p.position};
     }
 
-    // A staff status change is only a request until an admin approves it — the asset keeps its status.
+    // A staff status change is only a request until an admin approves it - the asset keeps its status.
     final request = _staffRequest != null;
     return {
       ...?base,
       ...data,
       'id': asset?.id ?? 0,
       'propertyNumber': data['propertyNumber'] ?? asset?.propertyNumber ?? 'New asset',
-      'category': {'id': _categoryId ?? 0, 'categoryName': category?.categoryName ?? asset?.category.categoryName ?? '—'},
-      'office': {'id': _officeId ?? 0, 'officeName': office?.officeName ?? asset?.office.officeName ?? '—'},
+      'category': {'id': _categoryId ?? 0, 'categoryName': category?.categoryName ?? asset?.category.categoryName ?? 'N/A'},
+      'office': {'id': _officeId ?? 0, 'officeName': office?.officeName ?? asset?.office.officeName ?? 'N/A'},
       'accountablePerson': person(_personnelId),
       'currentUser': person(_currentUserId),
       if (request) 'condition': asset!.condition,
@@ -359,7 +359,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
               // Accountable Person lists only the chosen location's people (the person is
               // custodially tied to that office), and nobody until a location is picked.
               // Current User is who actually has the device right now, which can be anyone
-              // active — including someone from another office, or the admin — so it's
+              // active - including someone from another office, or the admin - so it's
               // never office-filtered.
               final personnelForOffice = _officeId == null
                   ? <PersonnelModel>[]
@@ -395,7 +395,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                     ),
                     const SizedBox(height: 10),
                     const SectionLabel('Quantity and value'),
-                    _fixedField('Qty (Property Card)', '1', helperText: 'Always 1 — each asset is its own Property Number.'),
+                    _fixedField('Qty (Property Card)', '1', helperText: 'Always 1. Each asset is its own Property Number.'),
                     _fixedField('Qty (Physical Count)', '1', helperText: 'Always 1.'),
                     _datePicker(),
                     _field(_unitValue, 'Unit Value (₱)', keyboardType: TextInputType.number, required: true),
@@ -425,10 +425,10 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         child: InputDecorator(
                           decoration: const InputDecoration(
                               labelText: 'Location',
-                              helperText: 'Automatically set to your assigned office — only an administrator can move an asset.',
+                              helperText: 'Automatically set to your assigned office. Only an administrator can move an asset.',
                               helperMaxLines: 2),
                           child: Text(
-                            offices.where((o) => o.id == _officeId).firstOrNull?.officeName ?? '—',
+                            offices.where((o) => o.id == _officeId).firstOrNull?.officeName ?? 'N/A',
                             style: TextStyle(color: context.colors.textPrimary),
                           ),
                         ),
@@ -441,7 +441,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         itemLabel: (o) => o.officeName,
                         onChanged: (o) => setState(() {
                           _officeId = o?.id;
-                          // the accountable person is tied to their office — drop one from another
+                          // the accountable person is tied to their office - drop one from another
                           if (!personnel.any((p) => p.id == _personnelId && p.inOffice(_officeId))) _personnelId = null;
                         }),
                       ),
@@ -453,7 +453,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                           decoration: const InputDecoration(
                               labelText: 'Accountable Person', helperText: "You are this asset's accountable person."),
                           child: Text(
-                            widget.asset?.accountablePerson?.fullName ?? '—',
+                            widget.asset?.accountablePerson?.fullName ?? 'N/A',
                             style: TextStyle(color: context.colors.textPrimary),
                           ),
                         ),
@@ -465,7 +465,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         label: 'Accountable Person',
                         value: personnelForOffice.where((p) => p.id == _personnelId).firstOrNull,
                         items: personnelForOffice,
-                        itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
+                        itemLabel: (p) => p.position != null ? '${p.fullName}: ${p.position}' : p.fullName,
                         onChanged: (p) => setState(() => _personnelId = p?.id),
                         enabled: _officeId != null,
                         hint: _officeId == null ? 'Select a location first' : null,
@@ -474,15 +474,15 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 14),
                         child: Text(
-                          'No personnel are assigned to this office yet — assign one from the web app\'s Personnel page.',
+                          'No personnel are assigned to this office yet. Assign one from the web app\'s Personnel page.',
                           style: TextStyle(fontSize: 14, color: context.colors.textTertiary),
                         ),
                       ),
                     _dropdown<PersonnelModel>(
-                      label: 'Current User (optional — can be anyone, from any office)',
+                      label: 'Current User (optional, can be anyone, from any office)',
                       value: personnel.where((p) => p.id == _currentUserId).firstOrNull,
                       items: personnel,
-                      itemLabel: (p) => p.position != null ? '${p.fullName} — ${p.position}' : p.fullName,
+                      itemLabel: (p) => p.position != null ? '${p.fullName}: ${p.position}' : p.fullName,
                       onChanged: (p) => setState(() => _currentUserId = p?.id),
                       required: false,
                     ),
@@ -493,7 +493,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       (v) => setState(() => _condition = v!)),
                     if (_staffRequest != null && _lifecycleStatus == widget.asset?.lifecycleStatus)
                       _requestNotice(),
-                    // Editing only — a new asset starts as Registered. Staff can't transfer
+                    // Editing only - a new asset starts as Registered. Staff can't transfer
                     // (an admin assigns), and Under Maintenance / Disposed become requests.
                     if (_isEdit) ...[
                       _enumDropdown('Lifecycle Status', _lifecycleStatus,
@@ -521,7 +521,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   }
 
   // Same as the web Add Asset form (commit deb07aa): a labelled green panel so staff notice
-  // they can fill the form from a photo instead of typing — explanation first, then solid
+  // they can fill the form from a photo instead of typing - explanation first, then solid
   // buttons, then a confirmation once fields have been filled in.
   Widget _autofillPanel(BuildContext context) {
     final c = context.colors;
@@ -554,7 +554,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Auto-fill from a photo — no typing needed',
+                    Text('Auto-fill from a photo. No typing needed',
                         style: TextStyle(color: c.textPrimary, fontSize: 16, height: 1.3, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
                     Text(
@@ -595,7 +595,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                 Icon(Icons.check_rounded, size: 20, color: accent),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text('Fields filled in from your photo — please check them below before saving.',
+                  child: Text('Fields filled in from your photo. Please check them below before saving.',
                       style: TextStyle(color: accent, fontSize: 14, height: 1.4, fontWeight: FontWeight.w600)),
                 ),
               ],
@@ -694,7 +694,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
         initialValue: value,
         isExpanded: true,
         decoration: InputDecoration(labelText: label),
-        // drawn by the picker itself — a decoration hintText would be painted a second time
+        // drawn by the picker itself - a decoration hintText would be painted a second time
         hint: hint == null ? null : Text(hint, style: TextStyle(fontSize: 16, color: context.colors.textTertiary)),
         dropdownColor: context.colors.surface,
         items: items.map((e) => DropdownMenuItem(
@@ -710,7 +710,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   Widget _requestNotice() => Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: Text(
-          'Saving sends a $_staffRequest request to an administrator — the asset keeps its '
+          'Saving sends a $_staffRequest request to an administrator. The asset keeps its '
           "current condition and status until it's approved.",
           style: const TextStyle(color: AppTheme.statusMaintenance, fontSize: 14),
         ),

@@ -3,7 +3,7 @@ import api from './api';
 export const getAssetHistory    = (search = '') => search.trim()
   ? api.get('/asset-history', { params: { search: search.trim() } })
   : api.get('/asset-history');
-// Asset History page — admin: everything; staff: every event on the assets they're the
+// Asset History page - admin: everything; staff: every event on the assets they're the
 // accountable person for.
 export const getAccountableHistory = (search = '') => search.trim()
   ? api.get('/asset-history/accountable', { params: { search: search.trim() } })

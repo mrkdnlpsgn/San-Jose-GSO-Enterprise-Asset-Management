@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 
-/// Wraps a screen body and periodically calls [onTick] — for silently
+/// Wraps a screen body and periodically calls [onTick] - for silently
 /// polling fresh data in the background instead of requiring a manual pull-
 /// to-refresh. Pauses while the app itself is backgrounded (no point paying
 /// for network requests nobody can see) and immediately ticks once on

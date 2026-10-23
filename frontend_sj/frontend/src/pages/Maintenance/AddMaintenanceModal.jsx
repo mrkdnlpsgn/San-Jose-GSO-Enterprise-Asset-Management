@@ -43,7 +43,7 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
       : { ...EMPTY }
   )
   const draft = useFormDraft(`maintenance:${initial?.id ?? 'new'}`, form, setForm, {
-    title: isEditing ? `${initial.asset?.propertyNumber || ''} — ${initial.asset?.description || 'Maintenance record'}` : 'Maintenance record',
+    title: isEditing ? `${initial.asset?.propertyNumber || ''}: ${initial.asset?.description || 'Maintenance record'}` : 'Maintenance record',
   })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -99,9 +99,9 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Asset<span className="text-red-400 ml-0.5">*</span></label>
           <SelectInput value={form.assetId} onChange={set('assetId')}>
-            <option value="">— Select asset —</option>
+            <option value="">Select asset</option>
             {assets.map((a) => (
-              <option key={a.id} value={String(a.id)}>{a.propertyNumber} — {a.description}</option>
+              <option key={a.id} value={String(a.id)}>{a.propertyNumber}: {a.description}</option>
             ))}
           </SelectInput>
           {errors.assetId && <p className="text-xs text-red-400">{errors.assetId}</p>}

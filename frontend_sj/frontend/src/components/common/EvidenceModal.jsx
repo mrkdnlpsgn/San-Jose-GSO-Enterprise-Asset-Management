@@ -14,7 +14,7 @@ function formatSize(bytes) {
 }
 
 // Evidence photos for any record. `path` is the record's photo endpoint, e.g. /maintenance/5/photos,
-// /assets/5/evidence or /disposal/5/evidence — GET lists, POST uploads a `file`, DELETE {path}/{photoId}.
+// /assets/5/evidence or /disposal/5/evidence - GET lists, POST uploads a `file`, DELETE {path}/{photoId}.
 function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
   const toast = useToast()
   const fileInputRef = useRef(null)
@@ -103,7 +103,7 @@ function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
             <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">
               {uploading ? 'Uploading…' : 'Click to upload evidence photos'}
             </span>
-            <span className="text-2xs text-slate-400 dark:text-zinc-600">JPEG, PNG, WEBP, or HEIC — up to 10 MB each</span>
+            <span className="text-2xs text-slate-400 dark:text-zinc-600">JPEG, PNG, WEBP, or HEIC, up to 10 MB each</span>
           </button>
         </div>
 

@@ -1,13 +1,13 @@
 import { useId } from 'react'
 
 // Shared pieces for every module's list page, so they all look and behave the same:
-//   SearchBox + FilterSelect / FilterBar  — one search box, a few plainly labelled filters,
+//   SearchBox + FilterSelect / FilterBar  - one search box, a few plainly labelled filters,
 //                                           extra ones behind "More filters", and "Clear all"
-//   ListCard + ListAction + Pager          — the card around the table: title, count, the
+//   ListCard + ListAction + Pager          - the card around the table: title, count, the
 //                                           list's own actions (Excel, Import, Refresh), paging
-//   DataTable                              — never scrolls sideways: columns drop away on narrow
+//   DataTable                              - never scrolls sideways: columns drop away on narrow
 //                                           screens; a row opens its details by click or keyboard
-//   StatusBadge / AssetCell                — readable badges and the usual "asset" cell
+//   StatusBadge / AssetCell                - readable badges and the usual "asset" cell
 // Colours are dark-on-light / light-on-dark so text passes WCAG AA in both themes.
 
 export const TONE = {
@@ -210,7 +210,7 @@ export const TD = 'px-4 py-3 align-top'
 
 // columns: [{ key, label, className (width / responsive visibility, applied to th and td),
 //             cell: (row, open) => node }]. The first column's cell gets `open`, so it can render
-// a button — the keyboard way into a row. `leading` renders before the rows (e.g. DraftRows);
+// a button - the keyboard way into a row. `leading` renders before the rows (e.g. DraftRows);
 // `wideEnd` makes the last column wide enough for DraftRows' Continue/Discard buttons.
 export function DataTable({ columns, rows, rowKey, onOpen, caption, leading, wideEnd = false, selectedKey }) {
   return (
@@ -255,10 +255,10 @@ export function PrimaryCell({ code, title, extra, open }) {
       {open ? (
         <button type="button" onClick={(e) => { e.stopPropagation(); open() }}
           className="block max-w-full text-left text-sm font-medium text-slate-900 dark:text-white truncate hover:underline rounded">
-          {title || '—'}
+          {title || 'N/A'}
         </button>
       ) : (
-        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{title || '—'}</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{title || 'N/A'}</p>
       )}
       {extra}
     </div>
@@ -268,19 +268,19 @@ export function PrimaryCell({ code, title, extra, open }) {
 export function MutedCell({ children, sub }) {
   return (
     <div className="min-w-0">
-      <p className="text-sm text-slate-700 dark:text-zinc-200 truncate">{children || '—'}</p>
+      <p className="text-sm text-slate-700 dark:text-zinc-200 truncate">{children || 'N/A'}</p>
       {sub && <p className={`text-xs ${MUTED} truncate mt-0.5`}>{sub}</p>}
     </div>
   )
 }
 
 export function fmtDate(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 export function fmtPeso(v) {
-  if (v == null || v === '') return '—'
+  if (v == null || v === '') return 'N/A'
   return '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 }
 

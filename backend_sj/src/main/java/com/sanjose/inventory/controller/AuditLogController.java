@@ -36,7 +36,7 @@ public class AuditLogController {
         return auditLogService.findAll(search);
     }
 
-    // None yet: a 404 that also says whether AI is paused (daily quota used up) — see
+    // None yet: a 404 that also says whether AI is paused (daily quota used up) - see
     // AiAutoGenerator.notReady. Nothing is generated just by viewing (Gemini free-plan quota).
     @GetMapping("/digest")
     public ResponseEntity<?> getLatestDigest() {

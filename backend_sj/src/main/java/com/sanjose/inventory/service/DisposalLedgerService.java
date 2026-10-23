@@ -140,7 +140,7 @@ public class DisposalLedgerService {
         String assetCondition = conditions.get(0);
         if (!"REPAIRABLE".equals(assetCondition) && !"UNSERVICEABLE".equals(assetCondition)) {
             throw new IllegalStateException(
-                "Asset cannot be disposed while its condition is SERVICEABLE — " +
+                "Asset cannot be disposed while its condition is SERVICEABLE: " +
                 "mark it REPAIRABLE or UNSERVICEABLE first (via a physical inspection).");
         }
 
@@ -162,7 +162,7 @@ public class DisposalLedgerService {
             req.getAmount());
 
         if (!accessService.isAdmin()) {
-            // Staff add records as a request — it waits for an admin to approve it before
+            // Staff add records as a request - it waits for an admin to approve it before
             // it counts (history entry) or can be edited.
             jdbcTemplate.update("UPDATE disposal_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ? WHERE disposal_id = ?",
                 recorderId, newId);
@@ -187,7 +187,7 @@ public class DisposalLedgerService {
         if (!accessService.isAdmin() && !"APPROVED".equals(current.getApprovalStatus())) {
             throw new IllegalStateException("REJECTED".equals(current.getApprovalStatus())
                 ? "This request was rejected by an administrator and can't be edited."
-                : "This request is waiting for an administrator's approval — it can be edited once approved.");
+                : "This request is waiting for an administrator's approval. It can be edited once approved.");
         }
         jdbcTemplate.update("CALL sp_disposal_update(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             id,
@@ -230,10 +230,10 @@ public class DisposalLedgerService {
         DisposalLedger saved = findById(id);
         if (saved.getAsset() != null) {
             assetHistoryService.logEvent(saved.getAsset().getId(), "DISPOSAL", null, null, reviewerId,
-            "Disposal logged (" + saved.getRecommendedMethod() + "): " + saved.getReason() + " — requested by " + saved.getRequestedByName());
+            "Disposal logged (" + saved.getRecommendedMethod() + "): " + saved.getReason() + ", requested by " + saved.getRequestedByName());
         }
         // a staff edit's condition change (REPAIRABLE / UNSERVICEABLE) was held on the
-        // request — the asset takes it only now
+        // request - the asset takes it only now
         if (saved.getAsset() != null) {
             String requestedCondition = jdbcTemplate.queryForObject(
                 "SELECT requested_condition FROM disposal_ledger WHERE disposal_id = ?", String.class, id);
@@ -242,7 +242,7 @@ public class DisposalLedgerService {
                     requestedCondition, saved.getAsset().getId());
             }
         }
-        // the request stood in for putting the asset up for disposal — do that now
+        // the request stood in for putting the asset up for disposal - do that now
         if (saved.getAsset() != null && true) {
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)", saved.getAsset().getId(), "DISPOSED");
             sseEmitterService.emitAsset("UPDATED", saved.getAsset().getId(), null);
@@ -261,7 +261,7 @@ public class DisposalLedgerService {
             reviewerId, note.trim(), id);
         DisposalLedger saved = findById(id);
         auditLogService.log("DISPOSAL_REJECTED", "Disposal", id, "disposal",
-            "Rejected disposal request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + " — " + note.trim());
+            "Rejected disposal request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + ": " + note.trim());
         sseEmitterService.emitDisposal("REJECTED", saved.getId(), saved);
         return saved;
     }

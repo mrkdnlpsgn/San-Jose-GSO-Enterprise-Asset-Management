@@ -12,7 +12,7 @@ const _kCountdownSeconds = 60;
 /// automatic sign-out). Wraps the whole app so any tap/drag anywhere resets
 /// the timer; a `Listener` at the root catches pointer events regardless of
 /// which screen is on top, mirroring web's window-level activity listeners.
-/// Inert while logged out — no timers run on the login/legal screens.
+/// Inert while logged out - no timers run on the login/legal screens.
 class IdleTimeoutGuard extends ConsumerStatefulWidget {
   final Widget child;
   const IdleTimeoutGuard({super.key, required this.child});
@@ -86,7 +86,7 @@ class _IdleTimeoutGuardState extends ConsumerState<IdleTimeoutGuard> {
   void _logout() {
     _stopAllTimers();
     if (mounted) setState(() => _dialogShowing = false);
-    // go_router's redirect listens to authProvider — clearing it here is
+    // go_router's redirect listens to authProvider - clearing it here is
     // enough to bounce back to /login, no manual navigation needed.
     ref.read(authProvider.notifier).logout();
   }
@@ -139,7 +139,7 @@ class _IdleWarningDialogState extends State<_IdleWarningDialog> {
   @override
   void initState() {
     super.initState();
-    // Own 1s ticker just to repaint the countdown text — the actual logout
+    // Own 1s ticker just to repaint the countdown text - the actual logout
     // timing is driven by the parent's _countdownTimer, not this one.
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});

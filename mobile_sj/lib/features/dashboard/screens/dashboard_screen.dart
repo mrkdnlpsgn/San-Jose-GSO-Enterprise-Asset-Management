@@ -57,7 +57,7 @@ class DashboardScreen extends ConsumerWidget {
               interval: const Duration(seconds: 30),
               onTick: refreshAll,
               child: CustomScrollView(
-                // elastic edges, like iOS — and always scrollable so pull-to-refresh works on short pages
+                // elastic edges, like iOS - and always scrollable so pull-to-refresh works on short pages
                 physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                 slivers: [
                   CupertinoSliverNavigationBar(
@@ -130,7 +130,7 @@ class _ModuleList extends StatelessWidget {
       const _ModuleItem(Icons.swap_horiz_rounded, 'Transfer', 'Move an asset to another office, and transfer requests', '/transfers', Ios.indigo),
       const _ModuleItem(Icons.bar_chart_rounded, 'Reports', 'Inventory reports, RPCPPE, IIRUP and more', '/reports', Ios.green),
       // Asset History is a bottom-bar tab (History), so it isn't repeated here.
-      // Reference data, account management and the recycle bin are ADMIN-only —
+      // Reference data, account management and the recycle bin are ADMIN-only -
       // staff work only with their office's assets, maintenance, disposal and reports.
       if (isAdmin) ...const [
         _ModuleItem(Icons.apartment_rounded, 'Offices', 'Offices and their head users', '/offices', Ios.blue),
@@ -153,7 +153,7 @@ class _ModuleList extends StatelessWidget {
       return OverflowBox(
         minWidth: fullWidth,
         maxWidth: fullWidth,
-        // inside Home's vertical list the height is unbounded — take it from the row
+        // inside Home's vertical list the height is unbounded - take it from the row
         fit: OverflowBoxFit.deferToChild,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -238,7 +238,7 @@ class _ModuleItem {
 const _conditionOrder = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
 // Registered+Assigned merged into one bucket (every asset has a location by
 // default); maintenance/disposal are ledger-record buckets, not asset
-// lifecycleStatus — see dashboard_provider.dart. Keep in sync with web's
+// lifecycleStatus - see dashboard_provider.dart. Keep in sync with web's
 // LIFECYCLE_CFG (frontend_sj/frontend/src/pages/Dashboard/index.jsx).
 const _lifecycleOrder = [
   'REGISTERED', 'TRANSFERRED',
@@ -311,17 +311,17 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
 
     if (statsAsync.hasValue) _lastStats = statsAsync.value;
     // Keep rendering the last snapshot while a refresh is in flight instead
-    // of dropping back to the skeleton — a pull-to-refresh would otherwise
+    // of dropping back to the skeleton - a pull-to-refresh would otherwise
     // tear down and recreate every card, replaying the stagger entrance and
     // restarting the count-up/ring animations from zero on data the user is
     // already looking at.
     final stats = _lastStats;
 
-    // The module list doesn't depend on the stats — show it straight away, even while loading.
+    // The module list doesn't depend on the stats - show it straight away, even while loading.
     Widget withModules(Widget overview, Widget charts) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // shortcuts first, as on eGovPH's home screen — getting around comes before the numbers
+            // shortcuts first, as on eGovPH's home screen - getting around comes before the numbers
             widget.modules,
             const SizedBox(height: 28),
             const IosSectionHeader('Overview'),
@@ -544,7 +544,7 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
   }
 }
 
-/// The web dashboard's stat cards — label, big number, one-line description — as a 2 × 2 grid.
+/// The web dashboard's stat cards - label, big number, one-line description - as a 2 × 2 grid.
 class _OverviewPanel extends StatelessWidget {
   final int totalAssets;
   final double totalValue;
@@ -561,7 +561,7 @@ class _OverviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    // Counts up once on first load; plain numbers, no icons — an official summary, not a promo.
+    // Counts up once on first load; plain numbers, no icons - an official summary, not a promo.
     // Reduce Motion: the final figure straight away (a rolling peso amount is hard to read).
     final still = context.prefersReducedMotion;
     Widget counter(double end, String Function(double) fmt, TextStyle style) => TweenAnimationBuilder<double>(
@@ -581,7 +581,7 @@ class _OverviewPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Headline: the full peso amount (not "₱12.3M") — officials read and quote the exact figure.
+          // Headline: the full peso amount (not "₱12.3M") - officials read and quote the exact figure.
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
             child: Column(
@@ -601,7 +601,7 @@ class _OverviewPanel extends StatelessWidget {
               ],
             ),
           ),
-          // One full-width row per count, so labels never wrap — not three squeezed columns.
+          // One full-width row per count, so labels never wrap - not three squeezed columns.
           const Divider(height: 1),
           _StatRow(
             label: 'Registered assets',
@@ -1122,7 +1122,7 @@ class _LifecycleRingPainter extends CustomPainter {
 
     const gapRadians = _gapDegrees * math.pi / 180;
     // Start angles are computed from the un-animated (full) sweep so every
-    // segment's position is fixed and correct throughout — only each arc's
+    // segment's position is fixed and correct throughout - only each arc's
     // own length grows with `progress`, so the ring fills in place rather
     // than sliding segments around as they animate.
     var startAngle = -math.pi / 2;

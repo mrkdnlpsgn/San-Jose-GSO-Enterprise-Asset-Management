@@ -3,7 +3,7 @@ name: Keep backend awake
 # Render's free tier puts the backend to sleep after ~15 minutes without traffic, and the
 # first sign-in afterwards waits a minute or more while it starts. Pinging the health
 # endpoint every 10 minutes keeps it awake. If it still isn't answering after a few
-# minutes of retries the run fails, and GitHub emails the repo owner — a basic outage alert.
+# minutes of retries the run fails, and GitHub emails the repo owner - a basic outage alert.
 # GitHub may start scheduled runs a few minutes late, and turns schedules off after 60 days
 # with no commits (re-enable under Actions → Keep backend awake).
 on:

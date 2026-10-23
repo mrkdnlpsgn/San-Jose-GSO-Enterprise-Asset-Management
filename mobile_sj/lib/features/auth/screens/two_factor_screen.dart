@@ -5,7 +5,7 @@ import '../../../core/api/api_exception.dart';
 import '../../../core/theme/app_theme.dart';
 import '../provider/auth_provider.dart';
 
-// Shown in place of the login screen when the backend reports requiresTwoFactor —
+// Shown in place of the login screen when the backend reports requiresTwoFactor -
 // correct credentials, but this account needs the emailed code before a session
 // is issued. Mirrors the web app's TwoFactorForm.
 class TwoFactorScreen extends ConsumerStatefulWidget {
@@ -27,7 +27,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
   bool _loading = false;
   bool _resending = false;
   bool _resent = false;
-  // Skip the code (not the password) on this phone for 30 days — see TrustedDeviceService.
+  // Skip the code (not the password) on this phone for 30 days - see TrustedDeviceService.
   bool _remember = false;
   String? _error;
 
@@ -54,7 +54,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
         setState(() => _error = error is ApiException ? error.message : 'Invalid or expired code. Please try again.');
         return;
       }
-      // authProvider now holds the logged-in user — pop back so go_router's
+      // authProvider now holds the logged-in user - pop back so go_router's
       // redirect (listening to authProvider) takes it from here to the dashboard.
       Navigator.of(context).pop();
     } finally {

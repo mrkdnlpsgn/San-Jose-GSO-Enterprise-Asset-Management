@@ -11,7 +11,7 @@ const STATUSES  = ['PENDING', 'APPROVED', 'COMPLETED']
 const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
 
 function fmtMoney(n) {
-  if (n == null) return '—'
+  if (n == null) return 'N/A'
   return `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
@@ -32,7 +32,7 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
     amount:             initial?.amount != null      ? String(initial.amount) : '',
   })
   const draft = useFormDraft(`disposal:${initial?.id ?? 'new'}`, form, setForm, {
-    title: isEditing ? `${initial.asset?.propertyNumber || ''} — ${initial.asset?.description || 'Disposal record'}` : 'Disposal record',
+    title: isEditing ? `${initial.asset?.propertyNumber || ''}: ${initial.asset?.description || 'Disposal record'}` : 'Disposal record',
   })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -43,7 +43,7 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
     setErrors((p) => { const n = { ...p }; delete n[key]; return n })
   }
 
-  // Disposal is gated on physical condition, not book value — a SERVICEABLE
+  // Disposal is gated on physical condition, not book value - a SERVICEABLE
   // asset shouldn't even be selectable here. The currently-selected asset (when
   // editing) is always kept so its condition can still be displayed.
   const selectableAssets = assets.filter((a) =>
@@ -96,8 +96,8 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Asset<span className="text-red-400 ml-0.5">*</span></label>
           <div className="relative">
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.assetId} onChange={set('assetId')} disabled={isEditing}>
-              <option value="">— Select asset —</option>
-              {selectableAssets.map((a) => <option key={a.id} value={String(a.id)}>{a.propertyNumber} — {a.description} ({a.condition})</option>)}
+              <option value="">Select asset</option>
+              {selectableAssets.map((a) => <option key={a.id} value={String(a.id)}>{a.propertyNumber}: {a.description} ({a.condition})</option>)}
             </select>
             <Chevron />
           </div>

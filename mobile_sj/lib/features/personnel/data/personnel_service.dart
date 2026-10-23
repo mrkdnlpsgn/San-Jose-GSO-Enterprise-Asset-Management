@@ -39,11 +39,11 @@ class PersonnelRecord {
     if (offices.isEmpty && office != null) offices.add(office);
     return PersonnelRecord(
       id: (json['id'] as num).toInt(),
-      fullName: json['fullName'] as String? ?? '—',
+      fullName: json['fullName'] as String? ?? 'N/A',
       username: json['username'] as String?,
       position: json['position'] as String?,
       officeId: (office?['id'] as num?)?.toInt(),
-      officeName: offices.isEmpty ? null : offices.map((o) => o['officeName'] as String? ?? '—').join(', '),
+      officeName: offices.isEmpty ? null : offices.map((o) => o['officeName'] as String? ?? 'N/A').join(', '),
       officeIds: [for (final o in offices) (o['id'] as num).toInt()],
       contactInfo: json['contactInfo'] as String?,
       userRole: json['userRole'] as String?,
@@ -67,7 +67,7 @@ class PersonnelService {
     }
   }
 
-  /// PUT /api/personnel/{id} — at least one office is required (the first is the primary);
+  /// PUT /api/personnel/{id} - at least one office is required (the first is the primary);
   /// position and contact info are optional.
   Future<PersonnelRecord> update(int id, {required List<int> officeIds, String? position, String? contactInfo}) async {
     try {

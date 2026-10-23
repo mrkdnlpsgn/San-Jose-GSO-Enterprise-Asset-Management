@@ -41,7 +41,7 @@ function useCountUp(target, active) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   const diff = Date.now() - new Date(dt).getTime()
   const m = Math.floor(diff / 60000)
   if (m < 1)  return 'Just now'
@@ -120,7 +120,7 @@ function Sk({ className, style }) {
 function StatStrip({ stats, loading }) {
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
-      {/* Four across when there's room for 14rem each, otherwise two — measured in rem, so it
+      {/* Four across when there's room for 14rem each, otherwise two - measured in rem, so it
           follows the Text Size setting. The 1px gap over a tinted background draws the dividers. */}
       <div className="flex flex-wrap gap-px bg-slate-200 dark:bg-zinc-800">
         {stats.map(({ label, value, sub, delta, href, icon }) => (
@@ -185,7 +185,7 @@ function AttentionRow({ tone, text, link, assets }) {
             <li key={a.id} className="text-xs truncate">
               <Link to={assetLink(a.propertyNumber)} className="text-slate-600 dark:text-zinc-300 hover:text-brand-600 dark:hover:text-brand-400">
                 <span className="font-mono text-slate-600 dark:text-zinc-400 mr-1.5">{a.propertyNumber}</span>
-                {a.description || '—'}
+                {a.description || 'N/A'}
               </Link>
             </li>
           ))}
@@ -491,7 +491,7 @@ function ActivityFeed({ events, loading }) {
         ) : (
           events.map((ev, i) => {
             const cfg = EVENT_CFG[ev.eventType] || { label: ev.eventType, color: 'text-zinc-400', bg: 'bg-zinc-400/10' }
-            const performer = ev.performedBy?.fullName || ev.performedBy?.username || '—'
+            const performer = ev.performedBy?.fullName || ev.performedBy?.username || 'N/A'
             return (
               <Link key={ev.id ?? i} to={assetLink(ev.asset?.propertyNumber)}
                 className="px-5 py-3 flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
@@ -499,7 +499,7 @@ function ActivityFeed({ events, loading }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-700 dark:text-zinc-200 leading-snug truncate font-medium">
                     {ev.asset?.propertyNumber && <span className="font-mono text-xs text-slate-600 dark:text-zinc-400 mr-1.5">{ev.asset.propertyNumber}</span>}
-                    {ev.asset?.description || '—'}
+                    {ev.asset?.description || 'N/A'}
                   </p>
                   <p className="text-xs text-slate-600 dark:text-zinc-400 mt-0.5 leading-snug truncate">By: {performer}</p>
                 </div>
@@ -534,7 +534,7 @@ function UnassignedOffices({ accounts }) {
           {count === 1 ? '1 staff account has no office assigned' : `${count} staff accounts have no office assigned`}
         </p>
         <p className="text-sm text-slate-600 dark:text-zinc-400 mt-0.5">
-          {names.join(', ')}{more > 0 ? ` and ${more} more` : ''} — {count === 1 ? 'this account' : 'these accounts'} can't see any assets until an office is assigned.
+          {names.join(', ')}{more > 0 ? ` and ${more} more` : ''}: {count === 1 ? 'this account' : 'these accounts'} can't see any assets until an office is assigned.
         </p>
       </div>
       <Link
@@ -600,10 +600,10 @@ function PendingApprovals({ requests, loading, failed, onRetry, onApprove, onRej
                 <Link to={assetLink(r.propertyNumber)} className="flex-1 min-w-0 group">
                   <p className="text-sm text-slate-700 dark:text-zinc-200 leading-snug truncate font-medium group-hover:text-slate-900 dark:group-hover:text-white">
                     <span className="font-mono text-xs text-slate-600 dark:text-zinc-400 mr-1.5">{r.propertyNumber}</span>
-                    {r.assetDescription || '—'}
+                    {r.assetDescription || 'N/A'}
                   </p>
                   <p className="text-xs text-slate-600 dark:text-zinc-400 mt-0.5 leading-snug truncate">
-                    {r.detail}{r.requestedByName ? ` — requested by ${r.requestedByName}` : ''}
+                    {r.detail}{r.requestedByName ? `, requested by ${r.requestedByName}` : ''}
                   </p>
                 </Link>
                 <time className="hidden sm:block flex-shrink-0 text-xs text-slate-600 dark:text-zinc-400 whitespace-nowrap tabular-nums">{timeAgo(r.requestedAt)}</time>
@@ -907,7 +907,7 @@ function Dashboard() {
       {rejecting && (
         <RejectRequestModal
           record={{ ...rejecting, kind: rejecting.kind.toLowerCase(), id: rejecting.recordId }}
-          describe={(r) => `${REQUEST_KIND[rejecting.kind].label} — ${r.propertyNumber || ''} ${r.assetDescription || ''}`}
+          describe={(r) => `${REQUEST_KIND[rejecting.kind].label}: ${r.propertyNumber || ''} ${r.assetDescription || ''}`}
           onClose={() => setRejecting(null)}
           onConfirm={rejectRequest}
         />

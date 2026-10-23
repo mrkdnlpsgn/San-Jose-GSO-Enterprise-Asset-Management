@@ -81,7 +81,7 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
                     m.findings,
                     m.status,
                     m.maintenanceDate,
-                    m.assignedTo ?? '—',
+                    m.assignedTo ?? 'N/A',
                     fmtMoney(m.cost),
                   ],
                   summary: Text(

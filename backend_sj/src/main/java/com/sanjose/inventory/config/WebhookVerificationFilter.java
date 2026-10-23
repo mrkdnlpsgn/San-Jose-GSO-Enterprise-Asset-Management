@@ -26,9 +26,9 @@ import java.util.HexFormat;
  * Validates inbound webhook requests to /api/scanner/** using HMAC-SHA256.
  *
  * Required request headers:
- *   X-Webhook-Signature-256  — "sha256=<hex(HMAC-SHA256(timestamp.body, secret))>"
- *   X-Webhook-Timestamp      — Unix epoch seconds (request is rejected if > 5 min old)
- *   X-Webhook-Id             — Unique ID per delivery (for idempotency / log correlation)
+ *   X-Webhook-Signature-256  - "sha256=<hex(HMAC-SHA256(timestamp.body, secret))>"
+ *   X-Webhook-Timestamp      - Unix epoch seconds (request is rejected if > 5 min old)
+ *   X-Webhook-Id             - Unique ID per delivery (for idempotency / log correlation)
  *
  * Set webhook.verification.enabled=false in application.properties to skip
  * signature checks during local development / Postman testing.
@@ -64,7 +64,7 @@ public class WebhookVerificationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Authenticated frontend users (JWT cookie) bypass webhook HMAC — hardware devices must sign
+        // Authenticated frontend users (JWT cookie) bypass webhook HMAC - hardware devices must sign
         if (hasJwtCookie(request)) {
             chain.doFilter(request, response);
             return;
@@ -80,7 +80,7 @@ public class WebhookVerificationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Replay-attack prevention — reject requests with a timestamp outside the 5-min window
+        // Replay-attack prevention - reject requests with a timestamp outside the 5-min window
         try {
             long requestEpochMs = Long.parseLong(timestamp) * 1000L;
             if (Math.abs(System.currentTimeMillis() - requestEpochMs) > MAX_AGE_MS) {

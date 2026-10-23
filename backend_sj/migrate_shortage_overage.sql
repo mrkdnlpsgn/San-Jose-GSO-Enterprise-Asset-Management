@@ -1,5 +1,5 @@
 -- =============================================================
--- migrate_shortage_overage.sql — manually recorded shortage (negative) / overage
+-- migrate_shortage_overage.sql - manually recorded shortage (negative) / overage
 -- (positive) found during physical inventory, independent of quantity/physicalCount.
 -- Matches the column definitions in gso_inventory.sql; sp_assets_create/update/list
 -- in stored_procedures.sql read and write these.

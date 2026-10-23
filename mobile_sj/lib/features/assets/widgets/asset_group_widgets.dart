@@ -15,8 +15,8 @@ import '../../../shared/widgets/ios_touch.dart';
 
 // Widgets for a group of same-model devices (assets added together that share a groupId).
 // Every device is still its own complete asset; these are the roll-up views:
-//   GroupDevicesTable — every device in a table (same columns as the web asset table) + search
-//   showAssetGroupSheet — Details (overview + "View Devices"), a Lifecycle tab that can be filtered
+//   GroupDevicesTable - every device in a table (same columns as the web asset table) + search
+//   showAssetGroupSheet - Details (overview + "View Devices"), a Lifecycle tab that can be filtered
 //                         by device and by lifecycle event, and an AI Insight tab (per device)
 
 String _money(double v) => '₱${v.toStringAsFixed(2)}';
@@ -111,7 +111,7 @@ class _GroupDevicesTableState extends State<GroupDevicesTable> {
                     onSelectChanged: (_) => widget.onOpen(m),
                     cells: [
                       DataCell(Text(m.propertyNumber, style: mono)),
-                      DataCell(Text(m.parNumber ?? '—', style: mono)),
+                      DataCell(Text(m.parNumber ?? 'N/A', style: mono)),
                       DataCell(Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,10 +131,10 @@ class _GroupDevicesTableState extends State<GroupDevicesTable> {
                       )),
                       DataCell(Text(m.category.categoryName)),
                       DataCell(Text('${m.quantity}')),
-                      DataCell(Text(m.physicalCount?.toString() ?? '—')),
-                      DataCell(Text(m.physicalCount == null ? '—' : '${m.physicalCount! - m.quantity}')),
+                      DataCell(Text(m.physicalCount?.toString() ?? 'N/A')),
+                      DataCell(Text(m.physicalCount == null ? 'N/A' : '${m.physicalCount! - m.quantity}')),
                       DataCell(Text(m.physicalCount == null
-                          ? '—'
+                          ? 'N/A'
                           : _money((m.physicalCount! - m.quantity) * m.unitValue))),
                       DataCell(Text(m.office.officeName)),
                       DataCell(Text(_money(m.unitValue))),
@@ -340,7 +340,7 @@ class _GroupSheetState extends State<_GroupSheet> {
     }
   }
 
-  // One after another — each call asks the AI model, so they aren't fired all at once.
+  // One after another - each call asks the AI model, so they aren't fired all at once.
   Future<void> _generateMissing(List<AssetModel> members) async {
     for (final m in members) {
       if (_recs[m.id] == null && !_generating.contains(m.id)) await _generate(m.id);
@@ -455,14 +455,14 @@ class _GroupSheetState extends State<_GroupSheet> {
           ),
         ),
         const SizedBox(height: 8),
-        Text('Every device with its own Property No., PAR No., people, price and condition — searchable.',
+        Text('Every device with its own Property No., PAR No., people, price and condition, searchable.',
             textAlign: TextAlign.center, style: TextStyle(color: context.colors.textTertiary, fontSize: 14)),
       ],
     );
   }
 
   Widget _aiInsight(BuildContext context, List<AssetModel> members) {
-    // Any role can generate — web's group drawer doesn't gate it either.
+    // Any role can generate - web's group drawer doesn't gate it either.
     final anyGenerating = _generating.isNotEmpty;
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -541,7 +541,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                 ),
               ),
             ),
-        Text('Advisory only — not a final decision.',
+        Text('Advisory only, not a final decision.',
             textAlign: TextAlign.center, style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
       ],
     );
@@ -684,7 +684,7 @@ PaginatedListState<RecordEntry<T>> groupRecordsState<T>(
   );
 }
 
-/// Multi-line cell text for the device a record belongs to — includes the serial number and
+/// Multi-line cell text for the device a record belongs to - includes the serial number and
 /// people so a search hit is explainable.
 String assetCellText(AssetModel a) => [
       a.propertyAndPar,

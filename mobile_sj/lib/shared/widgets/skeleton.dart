@@ -17,7 +17,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
       AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
   late final Animation<double> _opacity = Tween<double>(begin: 0.4, end: 1.0).animate(_controller);
 
-  // Reduce Motion: no endless pulse (a slow looping oscillation) — hold a still, dimmed
+  // Reduce Motion: no endless pulse (a slow looping oscillation) - hold a still, dimmed
   // placeholder instead. Re-checked when the setting changes.
   @override
   void didChangeDependencies() {
@@ -40,7 +40,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) => FadeTransition(opacity: _opacity, child: widget.child);
 }
 
-/// A single skeleton "bone" — a tinted rounded rect standing in for text,
+/// A single skeleton "bone" - a tinted rounded rect standing in for text,
 /// an icon, or any other content shape while it loads.
 class Bone extends StatelessWidget {
   final double width;
@@ -63,7 +63,7 @@ class Bone extends StatelessWidget {
 }
 
 /// Matches the common list-row card shape shared by Assets, Maintenance, and
-/// Disposal (header row + badge, 2-line description, footer row) — used as a
+/// Disposal (header row + badge, 2-line description, footer row) - used as a
 /// generic loading placeholder anywhere those lists are still fetching.
 class ListCardSkeleton extends StatelessWidget {
   const ListCardSkeleton({super.key});

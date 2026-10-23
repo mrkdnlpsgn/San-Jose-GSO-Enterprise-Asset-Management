@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
-// Evidence photo attached to an inventory record — the same idea as MaintenancePhoto, but for
+// Evidence photo attached to an inventory record - the same idea as MaintenancePhoto, but for
 // the other modules (an asset, a disposal record). `targetType` says which table `targetId`
 // points into; there is no FK because the target varies.
 @Entity
@@ -27,7 +27,7 @@ public class EvidencePhoto {
     @Column(name = "target_id", nullable = false)
     private Long targetId;
 
-    // Path relative to the upload root, e.g. "assets/<uuid>.jpg" — never the client-supplied name
+    // Path relative to the upload root, e.g. "assets/<uuid>.jpg" - never the client-supplied name
     @Column(name = "file_path", nullable = false, length = 255)
     private String filePath;
 

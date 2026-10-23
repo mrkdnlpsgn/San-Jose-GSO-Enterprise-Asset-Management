@@ -7,8 +7,8 @@ import java.time.LocalDate;
 @Data
 public class AssetRequest {
     private String propertyNumber;
-    private String parNumber;       // YYYY-MM:SERIAL, e.g. 2026-07:H78JD80 — must match acquisitionDate's year-month
-    // One entry per device — size must equal quantity, and quantity must equal
+    private String parNumber;       // YYYY-MM:SERIAL, e.g. 2026-07:H78JD80 - must match acquisitionDate's year-month
+    // One entry per device - size must equal quantity, and quantity must equal
     // physicalCount. Every field on the request above is shared by all devices; an
     // entry may override any of them for that device. Each device is created as its
     // own asset. For quantity 1 this may be omitted (propertyNumber/parNumber above
@@ -24,7 +24,7 @@ public class AssetRequest {
     private Long personnelId;
     private Long currentUserId;
     private Integer physicalCount;
-    // Optional, defaults to 0 — a manually recorded shortage (negative) or overage
+    // Optional, defaults to 0 - a manually recorded shortage (negative) or overage
     // (positive) found during physical inventory, independent of quantity/physicalCount.
     private Integer shortageOverageQty;
     private BigDecimal shortageOverageValue;

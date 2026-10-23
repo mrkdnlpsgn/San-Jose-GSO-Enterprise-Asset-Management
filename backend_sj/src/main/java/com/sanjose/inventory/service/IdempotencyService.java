@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 // Backs IdempotencyFilter. Plain JdbcTemplate (not a stored proc, unlike the domain
-// services) since this is cross-cutting infra, not business data — a generic
+// services) since this is cross-cutting infra, not business data - a generic
 // (key, method, path, username) claim table with no domain-specific shape.
 @Service
 @RequiredArgsConstructor
@@ -27,7 +27,7 @@ public class IdempotencyService {
     private record Row(Integer status, String body, LocalDateTime createdAt) {}
 
     // Present only if a PRIOR request with this key already finished successfully
-    // within the TTL window — replay its response instead of reprocessing. Expired
+    // within the TTL window - replay its response instead of reprocessing. Expired
     // rows are deleted here so the key becomes reusable again.
     public Optional<CachedResponse> findCompleted(String key, String method, String path, String username) {
         List<Row> rows = jdbcTemplate.query(
@@ -53,7 +53,7 @@ public class IdempotencyService {
     }
 
     // True if this call is now the sole owner of the key and should proceed to execute
-    // the request; false if another request already holds it (in progress or done —
+    // the request; false if another request already holds it (in progress or done -
     // callers should check findCompleted() first to distinguish "done" from this).
     // Relies on the table's primary key for atomicity under concurrent requests.
     public boolean tryClaim(String key, String method, String path, String username) {
@@ -69,7 +69,7 @@ public class IdempotencyService {
 
     // Successful (2xx) responses are cached so a retried request replays the exact
     // same outcome instead of creating a second record. Failed responses release the
-    // claim instead — nothing was actually created, so the same key should be usable
+    // claim instead - nothing was actually created, so the same key should be usable
     // again immediately once the client fixes and resubmits.
     public void complete(String key, String method, String path, String username, int status, String body) {
         if (status >= 200 && status < 300) {

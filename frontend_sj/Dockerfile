@@ -13,7 +13,7 @@ RUN npm ci
 COPY frontend/ ./
 
 # Vite bakes import.meta.env.VITE_* values into the bundle at build time, not
-# runtime — a docker-compose `environment:` entry on the final container has no
+# runtime - a docker-compose `environment:` entry on the final container has no
 # effect (the static files are already built). Must come in as a build ARG.
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL

@@ -8,7 +8,7 @@ class StatusBadge extends StatelessWidget {
 
   const StatusBadge({super.key, required this.label, required this.color, this.dense = false});
 
-  // Staff-requested maintenance/disposal awaiting (or refused) admin review — mirrors
+  // Staff-requested maintenance/disposal awaiting (or refused) admin review - mirrors
   // web's ApprovalBadge. Null for approved records, which show no badge.
   static StatusBadge? approval(String? value) => switch (value) {
         'PENDING_APPROVAL' => const StatusBadge(label: 'Awaiting approval', color: AppTheme.statusMaintenance, dense: true),
@@ -102,7 +102,7 @@ class StatusBadge extends StatelessWidget {
     final textColor = light
         ? hsl.withLightness((hsl.lightness * 0.62).clamp(0.0, 1.0)).toColor()
         : hsl.withLightness((hsl.lightness + 0.12).clamp(0.0, 1.0)).toColor();
-    // iOS tag: a soft tinted capsule — no outline, no dot. The colour (and so the meaning)
+    // iOS tag: a soft tinted capsule - no outline, no dot. The colour (and so the meaning)
     // matches the web's badges; the darkened text keeps it readable on the tint.
     return Container(
       padding: EdgeInsets.symmetric(horizontal: dense ? 8 : 10, vertical: dense ? 3 : 4),

@@ -7,7 +7,7 @@ class CategoryModel {
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) => CategoryModel(
         id: json['id'] as int,
-        categoryName: json['categoryName'] as String? ?? '—',
+        categoryName: json['categoryName'] as String? ?? 'N/A',
         description: json['description'] as String?,
       );
 }
@@ -30,7 +30,7 @@ class PersonnelModel {
     final ids = [for (final o in offices) ((o as Map<String, dynamic>)['id'] as num).toInt()];
     return PersonnelModel(
       id: json['id'] as int,
-      fullName: json['fullName'] as String? ?? '—',
+      fullName: json['fullName'] as String? ?? 'N/A',
       position: json['position'] as String?,
       officeId: officeId,
       officeIds: ids.isNotEmpty ? ids : [if (officeId != null) officeId],
@@ -62,13 +62,13 @@ class OfficeModel {
 class AssetModel {
   final int id;
   final String propertyNumber;
-  // Property Acknowledgment Receipt no. (YYYY-MM:SERIAL) — distinct from propertyNumber.
+  // Property Acknowledgment Receipt no. (YYYY-MM:SERIAL) - distinct from propertyNumber.
   // Null only for assets that predate the field.
   final String? parNumber;
-  // Devices added together share a groupId — each is still its own complete asset.
+  // Devices added together share a groupId - each is still its own complete asset.
   final String? groupId;
   // Roll-up for a grouped asset, from the server: how many devices are in its group and their
-  // combined value — true totals even when only some of them are loaded in a list.
+  // combined value - true totals even when only some of them are loaded in a list.
   final int? groupSize;
   final double? groupTotalValue;
   final String? serialNumber;
@@ -82,7 +82,7 @@ class AssetModel {
   final PersonnelModel? currentUser;
   final int? physicalCount;
   // Manually recorded shortage (negative) or overage (positive) found during physical
-  // inventory — independent of quantity/physicalCount, which are always 1. Defaults to 0.
+  // inventory - independent of quantity/physicalCount, which are always 1. Defaults to 0.
   final int shortageOverageQty;
   final double shortageOverageValue;
   final String location;
@@ -135,7 +135,7 @@ class AssetModel {
       : propertyNumber;
 
   // Nested inside Disposal/Maintenance/AssetHistory responses, the backend serializes a
-  // partial asset (only id/propertyNumber/description populated — category, office, and
+  // partial asset (only id/propertyNumber/description populated - category, office, and
   // most other fields are absent or null). Fall back to placeholders for those so parsing
   // doesn't crash; callers in that context never read the placeholder fields.
   factory AssetModel.fromJson(Map<String, dynamic> json) => AssetModel(
@@ -149,13 +149,13 @@ class AssetModel {
         description: json['description'] as String,
         category: json['category'] != null
             ? CategoryModel.fromJson(json['category'] as Map<String, dynamic>)
-            : const CategoryModel(id: 0, categoryName: '—'),
+            : const CategoryModel(id: 0, categoryName: 'N/A'),
         quantity: json['quantity'] as int? ?? 1,
         acquisitionDate: json['acquisitionDate'] as String? ?? '',
         unitValue: json['unitValue'] != null ? (json['unitValue'] as num).toDouble() : 0,
         office: json['office'] != null
             ? OfficeModel.fromJson(json['office'] as Map<String, dynamic>)
-            : const OfficeModel(id: 0, officeName: '—'),
+            : const OfficeModel(id: 0, officeName: 'N/A'),
         accountablePerson: json['accountablePerson'] != null
             ? PersonnelModel.fromJson(json['accountablePerson'] as Map<String, dynamic>)
             : null,

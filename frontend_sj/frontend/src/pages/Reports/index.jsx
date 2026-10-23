@@ -11,7 +11,7 @@ import { getPropertyCards } from '../../services/propertyCardService'
 import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 
 // Reports need the full dataset, not a paginated page. getAssets()/getDisposal()/getMaintenance()
-// default to the backend's page size of 20 — fine for list pages, wrong here, so fetch directly
+// default to the backend's page size of 20 - fine for list pages, wrong here, so fetch directly
 // with a size large enough to always cover a single municipal office's inventory in one page.
 const getAllAssets     = () => api.get('/assets', { params: { size: 100000 } })
 const getAllDisposal   = () => api.get('/disposal', { params: { size: 100000 } })
@@ -19,15 +19,15 @@ const getAllMaintenance = () => api.get('/maintenance', { params: { size: 100000
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
+  d ? new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'
 const fmtMoney = (v) =>
-  v != null && v !== '' ? '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 }) : '—'
+  v != null && v !== '' ? '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 }) : 'N/A'
 const fmtDateTime = (dt) =>
-  dt ? new Date(dt).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+  dt ? new Date(dt).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'
 const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 // ── Date filtering ────────────────────────────────────────────────────────────
-// With thousands of assets, reports default to unbounded — this lets a user
+// With thousands of assets, reports default to unbounded - this lets a user
 // scope a report down to a specific day/week/month/year (or a custom range)
 // before previewing or exporting it.
 const localDateStr = (d) => {
@@ -76,7 +76,7 @@ const lineAmount = (r) => (Number(r.unitValue) || 0) * (Number(r.quantity) || 1)
 const uniqueJoined = (rows, pick) => [...new Set(rows.map(pick).filter(Boolean))].join(', ')
 
 // RPCPPE physical-count variance: quantity per records vs. quantity per physical count.
-// physicalCount is null until someone has actually counted the asset — don't assume a shortage.
+// physicalCount is null until someone has actually counted the asset - don't assume a shortage.
 const assetVariance = (r) => {
   if (r.physicalCount == null) return null
   return Number(r.physicalCount) - Number(r.quantity ?? 1)
@@ -96,9 +96,9 @@ const varianceValue = (r) => {
 // PAR items: the PAR report's columns, also listed under an expanded PAR row.
 const PAR_HEADERS = [
   { label: 'Qty',            display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
-  { label: 'Description',    display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || '—'}</span>,              raw: (r) => r.description || '' },
-  { label: 'Serial No.',     display: (r) => <span className="font-mono text-xs">{r.serialNumber || '—'}</span>,                                     raw: (r) => r.serialNumber || '' },
-  { label: 'Property No.',   display: (r) => <span className="font-mono text-xs">{r.propertyNumber || '—'}</span>,                                   raw: (r) => r.propertyNumber || '' },
+  { label: 'Description',    display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,              raw: (r) => r.description || '' },
+  { label: 'Serial No.',     display: (r) => <span className="font-mono text-xs">{r.serialNumber || 'N/A'}</span>,                                     raw: (r) => r.serialNumber || '' },
+  { label: 'Property No.',   display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                   raw: (r) => r.propertyNumber || '' },
   { label: 'Date Acquired',  display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
   { label: 'Unit Cost',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
   { label: 'Amount',         display: (r) => fmtMoney(lineAmount(r)),                                                                                raw: (r) => lineAmount(r).toFixed(2) },
@@ -107,11 +107,11 @@ const PAR_HEADERS = [
 // One Property Card line, as listed under an expanded card row.
 const CARD_ENTRY_HEADERS = [
   { label: 'Date',                 display: (e) => fmtDate(e.date) },
-  { label: 'Reference Property #', display: (e) => <span className="font-mono">{e.reference || '—'}</span> },
-  { label: 'Description',          display: (e) => e.description || '—' },
+  { label: 'Reference Property #', display: (e) => <span className="font-mono">{e.reference || 'N/A'}</span> },
+  { label: 'Description',          display: (e) => e.description || 'N/A' },
   { label: 'Receipt Qty',          display: (e) => e.receiptQty ?? '' },
-  { label: 'Transfer',             display: (e) => e.transferTo || '—' },
-  { label: 'Office',               display: (e) => e.office || '—' },
+  { label: 'Transfer',             display: (e) => e.transferTo || 'N/A' },
+  { label: 'Office',               display: (e) => e.office || 'N/A' },
   { label: 'Balance Qty',          display: (e) => e.balanceQty },
 ]
 
@@ -146,15 +146,15 @@ const REPORTS = [
     },
     dateField: 'acquisitionDate',
     headers: [
-      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.propertyNumber || '—'}</span>,                                   raw: (r) => r.propertyNumber || '' },
-      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.parNumber || '—'}</span>,                                   raw: (r) => r.parNumber || '' },
-      { label: 'Description',     display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || '—'}</span>,              raw: (r) => r.description || '' },
-      { label: 'Category',        display: (r) => r.category?.categoryName || '—',                                                                        raw: (r) => r.category?.categoryName || '' },
-      { label: 'Condition',       display: (r) => r.condition || '—',                                                                                     raw: (r) => r.condition || '' },
-      { label: 'Lifecycle',       display: (r) => (r.lifecycleStatus || '').replace('_', ' ') || '—',                                                     raw: (r) => r.lifecycleStatus || '' },
-      { label: 'Office',          display: (r) => r.office?.officeName || '—',                                                                            raw: (r) => r.office?.officeName || '' },
-      { label: 'Location',        display: (r) => r.location || '—',                                                                                      raw: (r) => r.location || '' },
-      { label: 'Accountable',     display: (r) => r.accountablePerson?.fullName || '—',                                                               raw: (r) => r.accountablePerson?.fullName || '' },
+      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                   raw: (r) => r.propertyNumber || '' },
+      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.parNumber || 'N/A'}</span>,                                   raw: (r) => r.parNumber || '' },
+      { label: 'Description',     display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,              raw: (r) => r.description || '' },
+      { label: 'Category',        display: (r) => r.category?.categoryName || 'N/A',                                                                        raw: (r) => r.category?.categoryName || '' },
+      { label: 'Condition',       display: (r) => r.condition || 'N/A',                                                                                     raw: (r) => r.condition || '' },
+      { label: 'Lifecycle',       display: (r) => (r.lifecycleStatus || '').replace('_', ' ') || 'N/A',                                                     raw: (r) => r.lifecycleStatus || '' },
+      { label: 'Office',          display: (r) => r.office?.officeName || 'N/A',                                                                            raw: (r) => r.office?.officeName || '' },
+      { label: 'Location',        display: (r) => r.location || 'N/A',                                                                                      raw: (r) => r.location || '' },
+      { label: 'Accountable',     display: (r) => r.accountablePerson?.fullName || 'N/A',                                                               raw: (r) => r.accountablePerson?.fullName || '' },
       { label: 'Qty',             display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
       { label: 'Unit Value',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
       { label: 'Acq. Date',       display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
@@ -163,7 +163,7 @@ const REPORTS = [
   {
     id: 'condition',
     title: 'Condition Report',
-    description: 'Asset breakdown by condition — serviceable, repairable, and unserviceable counts.',
+    description: 'Asset breakdown by condition: serviceable, repairable, and unserviceable counts.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
@@ -189,19 +189,19 @@ const REPORTS = [
       })
       return Object.values(map)
         .sort((a, b) => b.count - a.count)
-        .map((r) => ({ ...r, offices: [...r.offices].join(', ') || '—' }))
+        .map((r) => ({ ...r, offices: [...r.offices].join(', ') || 'N/A' }))
     },
     headers: [
       { label: 'Condition',       display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.condition}</span>,                      raw: (r) => r.condition },
       { label: 'Count',           display: (r) => <span className="font-semibold text-brand-400">{r.count}</span>,                                        raw: (r) => r.count },
-      { label: 'Total Value (₱)', display: (r) => r.totalValue > 0 ? fmtMoney(r.totalValue) : '—',                                                       raw: (r) => r.totalValue > 0 ? r.totalValue.toFixed(2) : '' },
+      { label: 'Total Value (₱)', display: (r) => r.totalValue > 0 ? fmtMoney(r.totalValue) : 'N/A',                                                       raw: (r) => r.totalValue > 0 ? r.totalValue.toFixed(2) : '' },
       { label: 'Offices',         display: (r) => <span className="text-slate-400 dark:text-zinc-400 text-xs">{r.offices}</span>,                         raw: (r) => r.offices },
     ],
   },
   {
     id: 'history',
     title: 'Asset History',
-    description: 'Full log of all asset events — assignments, transfers, maintenance, and disposals.',
+    description: 'Full log of all asset events: assignments, transfers, maintenance, and disposals.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
@@ -212,14 +212,14 @@ const REPORTS = [
     },
     dateField: 'eventDate',
     headers: [
-      { label: 'Asset',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || '—'}</span>,       raw: (r) => r.asset?.description || '' },
-      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.asset?.propertyNumber || '—'}</span>,                             raw: (r) => r.asset?.propertyNumber || '' },
-      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.asset?.parNumber || '—'}</span>,                             raw: (r) => r.asset?.parNumber || '' },
-      { label: 'Event Type',      display: (r) => r.eventType || '—',                                                                                     raw: (r) => r.eventType || '' },
-      { label: 'From Office',     display: (r) => r.fromOffice?.officeName || '—',                                                                        raw: (r) => r.fromOffice?.officeName || '' },
-      { label: 'To Office',       display: (r) => r.toOffice?.officeName || '—',                                                                          raw: (r) => r.toOffice?.officeName || '' },
-      { label: 'Performed By',    display: (r) => r.performedBy?.fullName || r.performedBy?.username || '—',                                              raw: (r) => r.performedBy?.fullName || r.performedBy?.username || '' },
-      { label: 'Notes',           display: (r) => r.notes ? <span className="max-w-[10rem] truncate block" title={r.notes}>{r.notes}</span> : '—',        raw: (r) => r.notes || '' },
+      { label: 'Asset',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || 'N/A'}</span>,       raw: (r) => r.asset?.description || '' },
+      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.asset?.propertyNumber || 'N/A'}</span>,                             raw: (r) => r.asset?.propertyNumber || '' },
+      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.asset?.parNumber || 'N/A'}</span>,                             raw: (r) => r.asset?.parNumber || '' },
+      { label: 'Event Type',      display: (r) => r.eventType || 'N/A',                                                                                     raw: (r) => r.eventType || '' },
+      { label: 'From Office',     display: (r) => r.fromOffice?.officeName || 'N/A',                                                                        raw: (r) => r.fromOffice?.officeName || '' },
+      { label: 'To Office',       display: (r) => r.toOffice?.officeName || 'N/A',                                                                          raw: (r) => r.toOffice?.officeName || '' },
+      { label: 'Performed By',    display: (r) => r.performedBy?.fullName || r.performedBy?.username || 'N/A',                                              raw: (r) => r.performedBy?.fullName || r.performedBy?.username || '' },
+      { label: 'Notes',           display: (r) => r.notes ? <span className="max-w-[10rem] truncate block" title={r.notes}>{r.notes}</span> : 'N/A',        raw: (r) => r.notes || '' },
       { label: 'Date',            display: (r) => <span className="text-xs whitespace-nowrap">{fmtDate(r.eventDate)}</span>,                              raw: (r) => manilaDateTime(r.eventDate) },
     ],
   },
@@ -254,16 +254,16 @@ const REPORTS = [
       ]
     },
     headers: [
-      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.propertyNumber || '—'}</span>,                                   raw: (r) => r.propertyNumber || '' },
-      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.parNumber || '—'}</span>,                                   raw: (r) => r.parNumber || '' },
-      { label: 'Description',     display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || '—'}</span>,              raw: (r) => r.description || '' },
-      { label: 'Category',        display: (r) => r.category?.categoryName || '—',                                                                        raw: (r) => r.category?.categoryName || '' },
-      { label: 'Condition',       display: (r) => r.condition || '—',                                                                                     raw: (r) => r.condition || '' },
+      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                   raw: (r) => r.propertyNumber || '' },
+      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.parNumber || 'N/A'}</span>,                                   raw: (r) => r.parNumber || '' },
+      { label: 'Description',     display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,              raw: (r) => r.description || '' },
+      { label: 'Category',        display: (r) => r.category?.categoryName || 'N/A',                                                                        raw: (r) => r.category?.categoryName || '' },
+      { label: 'Condition',       display: (r) => r.condition || 'N/A',                                                                                     raw: (r) => r.condition || '' },
       { label: 'Unit Value',      display: (r) => <span className="font-semibold text-amber-400">{fmtMoney(r.unitValue)}</span>,                          raw: (r) => Number(r.unitValue).toFixed(2) },
       { label: 'Quantity',        display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
       { label: 'Total Value',     display: (r) => fmtMoney((Number(r.unitValue) || 0) * (Number(r.quantity) || 1)),                                       raw: (r) => ((Number(r.unitValue) || 0) * (Number(r.quantity) || 1)).toFixed(2) },
       { label: 'Acq. Date',       display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
-      { label: 'Office',          display: (r) => r.office?.officeName || '—',                                                                            raw: (r) => r.office?.officeName || '' },
+      { label: 'Office',          display: (r) => r.office?.officeName || 'N/A',                                                                            raw: (r) => r.office?.officeName || '' },
     ],
   },
   {
@@ -280,14 +280,14 @@ const REPORTS = [
     },
     dateField: 'maintenanceDate',
     headers: [
-      { label: 'Asset',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || '—'}</span>,       raw: (r) => r.asset?.description || '' },
-      { label: 'Type',            display: (r) => r.maintenanceType || '—',                                                                               raw: (r) => r.maintenanceType || '' },
-      { label: 'Findings',        display: (r) => r.findings ? <span className="max-w-[11.25rem] truncate block" title={r.findings}>{r.findings}</span> : '—', raw: (r) => r.findings || '' },
-      { label: 'Status',          display: (r) => r.status || '—',                                                                                        raw: (r) => r.status || '' },
-      { label: 'Assigned To',     display: (r) => r.assignedTo?.fullName || r.assignedTo?.username || '—',                                                raw: (r) => r.assignedTo?.fullName || r.assignedTo?.username || '' },
-      { label: 'Cost',            display: (r) => r.cost != null ? fmtMoney(r.cost) : '—',                                                               raw: (r) => r.cost != null ? Number(r.cost).toFixed(2) : '' },
+      { label: 'Asset',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || 'N/A'}</span>,       raw: (r) => r.asset?.description || '' },
+      { label: 'Type',            display: (r) => r.maintenanceType || 'N/A',                                                                               raw: (r) => r.maintenanceType || '' },
+      { label: 'Findings',        display: (r) => r.findings ? <span className="max-w-[11.25rem] truncate block" title={r.findings}>{r.findings}</span> : 'N/A', raw: (r) => r.findings || '' },
+      { label: 'Status',          display: (r) => r.status || 'N/A',                                                                                        raw: (r) => r.status || '' },
+      { label: 'Assigned To',     display: (r) => r.assignedTo?.fullName || r.assignedTo?.username || 'N/A',                                                raw: (r) => r.assignedTo?.fullName || r.assignedTo?.username || '' },
+      { label: 'Cost',            display: (r) => r.cost != null ? fmtMoney(r.cost) : 'N/A',                                                               raw: (r) => r.cost != null ? Number(r.cost).toFixed(2) : '' },
       { label: 'Date',            display: (r) => fmtDate(r.maintenanceDate),                                                                             raw: (r) => r.maintenanceDate || '' },
-      { label: 'Recorded By',     display: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '—',                                               raw: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '' },
+      { label: 'Recorded By',     display: (r) => r.recordedBy?.fullName || r.recordedBy?.username || 'N/A',                                               raw: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '' },
     ],
   },
   {
@@ -316,8 +316,8 @@ const REPORTS = [
       label: (g) => `PAR No. ${g.par}`,
       columns: [
         { label: 'PAR No.',            cell: (g) => <span className="font-mono text-xs text-slate-900 dark:text-white whitespace-nowrap">{g.par}</span> },
-        { label: 'Office',             cell: (g) => g.office || '—' },
-        { label: 'Accountable Person', cell: (g) => g.receivedBy || '—' },
+        { label: 'Office',             cell: (g) => g.office || 'N/A' },
+        { label: 'Accountable Person', cell: (g) => g.receivedBy || 'N/A' },
         { label: 'Items',              cell: (g) => g.rows.length, right: true },
         { label: 'Total Amount',       cell: (g) => fmtMoney(g.total), right: true },
       ],
@@ -354,9 +354,9 @@ const REPORTS = [
       label: (c) => `property card ${c.propertyNumber}`,
       columns: [
         { label: 'Property No.',       cell: (c) => <span className="font-mono text-xs text-slate-900 dark:text-white whitespace-nowrap">{c.propertyNumber}</span> },
-        { label: 'Description',        cell: (c) => c.description || '—' },
-        { label: 'Current Office',     cell: (c) => c.currentOffice || '—' },
-        { label: 'Accountable Person', cell: (c) => c.currentAccountable || '—' },
+        { label: 'Description',        cell: (c) => c.description || 'N/A' },
+        { label: 'Current Office',     cell: (c) => c.currentOffice || 'N/A' },
+        { label: 'Accountable Person', cell: (c) => c.currentAccountable || 'N/A' },
         { label: 'Transfers',          cell: (c) => c.transferCount, right: true },
         { label: 'Last Transfer',      cell: (c) => <span className="whitespace-nowrap">{fmtDate(c.lastTransferDate)}</span> },
       ],
@@ -371,7 +371,7 @@ const REPORTS = [
   {
     id: 'rpcppe',
     title: 'RPCPPE (Physical Count)',
-    description: 'COA-format Report on the Physical Count of Property, Plant and Equipment — records vs. physical count variance.',
+    description: 'COA-format Report on the Physical Count of Property, Plant and Equipment: records vs. physical count variance.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.914a2 2 0 00-.586-1.414l-3.914-3.914A2 2 0 0010.086 2H6zm.5 8a.5.5 0 000 1h7a.5.5 0 000-1h-7zm0 3a.5.5 0 000 1h4a.5.5 0 000-1h-4z" clipRule="evenodd" />
@@ -382,18 +382,18 @@ const REPORTS = [
     },
     dateField: 'acquisitionDate',
     headers: [
-      { label: 'Article',             display: (r) => r.category?.categoryName || '—',                                                                    raw: (r) => r.category?.categoryName || '' },
-      { label: 'Description',         display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || '—'}</span>,          raw: (r) => r.description || '' },
-      { label: 'Property No.',        display: (r) => <span className="font-mono text-xs">{r.propertyNumber || '—'}</span>,                                raw: (r) => r.propertyNumber || '' },
-      { label: 'PAR No.',           display: (r) => <span className="font-mono text-xs">{r.parNumber || '—'}</span>,                                raw: (r) => r.parNumber || '' },
+      { label: 'Article',             display: (r) => r.category?.categoryName || 'N/A',                                                                    raw: (r) => r.category?.categoryName || '' },
+      { label: 'Description',         display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,          raw: (r) => r.description || '' },
+      { label: 'Property No.',        display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                raw: (r) => r.propertyNumber || '' },
+      { label: 'PAR No.',           display: (r) => <span className="font-mono text-xs">{r.parNumber || 'N/A'}</span>,                                raw: (r) => r.parNumber || '' },
       { label: 'Unit Value',          display: (r) => fmtMoney(r.unitValue),                                                                              raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
       { label: 'Qty per Records',     display: (r) => r.quantity ?? 1,                                                                                    raw: (r) => r.quantity ?? 1 },
-      { label: 'Qty per Phys. Count', display: (r) => r.physicalCount ?? '—',                                                                             raw: (r) => r.physicalCount ?? '' },
+      { label: 'Qty per Phys. Count', display: (r) => r.physicalCount ?? 'N/A',                                                                             raw: (r) => r.physicalCount ?? '' },
       { label: 'Shortage/Overage',    display: (r) => fmtVariance(r),                                                                                      raw: (r) => fmtVariance(r) },
-      { label: 'Value of Variance',   display: (r) => varianceValue(r) !== 0 ? fmtMoney(varianceValue(r)) : '—',                                           raw: (r) => varianceValue(r).toFixed(2) },
-      { label: 'Location',            display: (r) => r.location || '—',                                                                                  raw: (r) => r.location || '' },
-      { label: 'Condition',           display: (r) => r.condition || '—',                                                                                 raw: (r) => r.condition || '' },
-      { label: 'Remarks',             display: (r) => r.remarks || '—',                                                                                   raw: (r) => r.remarks || '' },
+      { label: 'Value of Variance',   display: (r) => varianceValue(r) !== 0 ? fmtMoney(varianceValue(r)) : 'N/A',                                           raw: (r) => varianceValue(r).toFixed(2) },
+      { label: 'Location',            display: (r) => r.location || 'N/A',                                                                                  raw: (r) => r.location || '' },
+      { label: 'Condition',           display: (r) => r.condition || 'N/A',                                                                                 raw: (r) => r.condition || '' },
+      { label: 'Remarks',             display: (r) => r.remarks || 'N/A',                                                                                   raw: (r) => r.remarks || '' },
     ],
     certification: [
       'Prepared by: Property Custodian / GSO Staff',
@@ -418,20 +418,20 @@ const REPORTS = [
     dateField: 'inspectionDate',
     headers: [
       { label: 'Date Acquired',                 display: (r) => fmtDate(r.asset?.acquisitionDate),                                                                raw: (r) => r.asset?.acquisitionDate || '' },
-      { label: 'Particulars/Article',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || '—'}</span>, raw: (r) => r.asset?.description || '' },
-      { label: 'Property No.',                  display: (r) => <span className="font-mono text-xs">{r.asset?.propertyNumber || '—'}</span>,                     raw: (r) => r.asset?.propertyNumber || '' },
-      { label: 'PAR No.',                     display: (r) => <span className="font-mono text-xs">{r.asset?.parNumber || '—'}</span>,                     raw: (r) => r.asset?.parNumber || '' },
+      { label: 'Particulars/Article',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || 'N/A'}</span>, raw: (r) => r.asset?.description || '' },
+      { label: 'Property No.',                  display: (r) => <span className="font-mono text-xs">{r.asset?.propertyNumber || 'N/A'}</span>,                     raw: (r) => r.asset?.propertyNumber || '' },
+      { label: 'PAR No.',                     display: (r) => <span className="font-mono text-xs">{r.asset?.parNumber || 'N/A'}</span>,                     raw: (r) => r.asset?.parNumber || '' },
       { label: 'Qty.',                          display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
       { label: 'Unit Cost',                     display: (r) => fmtMoney(r.asset?.unitValue),                                                                     raw: (r) => r.asset?.unitValue != null ? Number(r.asset.unitValue).toFixed(2) : '' },
       { label: 'Total Cost',                    display: (r) => fmtMoney((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)),                   raw: (r) => ((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)).toFixed(2) },
-      { label: 'Remarks',                       display: (r) => r.inspectionFindings ? <span className="max-w-[11.25rem] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : '—', raw: (r) => r.inspectionFindings || '' },
-      { label: 'Sale',                          display: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '' },
-      { label: 'Transfer',                      display: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '' },
-      { label: 'Destruction',                   display: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : '' },
-      { label: 'Others (Specify)',              display: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : '—',                           raw: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Remarks',                       display: (r) => r.inspectionFindings ? <span className="max-w-[11.25rem] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : 'N/A', raw: (r) => r.inspectionFindings || '' },
+      { label: 'Sale',                          display: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Transfer',                      display: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Destruction',                   display: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Others (Specify)',              display: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : '' },
       { label: 'Total',                         display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
       { label: 'Appraised Value',               display: (r) => fmtMoney(r.appraisedValue),                                                                       raw: (r) => r.appraisedValue != null ? Number(r.appraisedValue).toFixed(2) : '' },
-      { label: 'OR No.',                        display: (r) => r.orNumber || '—',                                                                                raw: (r) => r.orNumber || '' },
+      { label: 'OR No.',                        display: (r) => r.orNumber || 'N/A',                                                                                raw: (r) => r.orNumber || '' },
       { label: 'Amount',                        display: (r) => fmtMoney(r.amount),                                                                               raw: (r) => r.amount != null ? Number(r.amount).toFixed(2) : '' },
     ],
     certification: [
@@ -444,7 +444,7 @@ const REPORTS = [
 ]
 
 // ── Export helpers ────────────────────────────────────────────────────────────
-// File and sheet names can't contain : \ / ? * [ ] — PAR numbers like 2026-09:GA21231 do.
+// File and sheet names can't contain : \ / ? * [ ] - PAR numbers like 2026-09:GA21231 do.
 const safeName = (s) => s.replace(/[:\\/?*[\]]/g, '-')
 // xlsx is ~400 KB; load it only when someone exports
 const loadXlsx = () => import('xlsx')
@@ -469,7 +469,7 @@ async function exportExcel(rows, headers, title) {
 function exportPDF(rows, headers, title, certification) {
   const headerCells = headers.map((h) => `<th>${esc(h.label)}</th>`).join('')
   const bodyRows = rows.map((row) =>
-    `<tr>${headers.map(({ raw }) => `<td>${esc(raw(row)) || '—'}</td>`).join('')}</tr>`
+    `<tr>${headers.map(({ raw }) => `<td>${esc(raw(row)) || 'N/A'}</td>`).join('')}</tr>`
   ).join('')
 
   const certifyBlock = certification?.length ? `
@@ -525,7 +525,7 @@ function exportPDF(rows, headers, title, certification) {
 
 // ── PAR form export ───────────────────────────────────────────────────────────
 // Follows the LGU's printed Property Acknowledgment Receipt: one block per item, where
-// the Description cell runs down several rows — item name, Brand/Model, S/N, then
+// the Description cell runs down several rows - item name, Brand/Model, S/N, then
 // "Technical Specifications:" and one spec per row (from the asset's free-text specs).
 const PAR_ENTITY = 'San Jose, Batangas'
 const PAR_FUND   = 'General Fund'
@@ -534,7 +534,7 @@ function parDescriptionLines(a) {
   const specs = String(a.specifications || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const ident = specs.filter((l) => /^(brand|model)\s*:/i.test(l))
   const rest  = specs.filter((l) => !/^(brand|model)\s*:/i.test(l))
-  const lines = [a.description || '—', ...ident]
+  const lines = [a.description || 'N/A', ...ident]
   if (a.serialNumber) lines.push(`S/N: ${a.serialNumber}`)
   if (rest.length) lines.push('', 'Technical Specifications:', ...rest)
   return lines
@@ -893,7 +893,7 @@ function Reports() {
 
   // Date filter runs on the raw loaded rows first, then any per-report
   // aggregation (`transform`, e.g. the Condition Report's grouping) runs on
-  // top of that — so filtering a range re-aggregates instead of just hiding rows.
+  // top of that - so filtering a range re-aggregates instead of just hiding rows.
   const pick = activeReport?.selectable
   const pickItems = useMemo(() => (pick ? pick.toItems(reportData) : []), [reportData, pick])
 
@@ -927,7 +927,7 @@ function Reports() {
     return next
   })
 
-  // Every asset is its own row, same as the Assets table — no grouping by model.
+  // Every asset is its own row, same as the Assets table - no grouping by model.
   // Pick-and-export reports page through their items (PARs, cards) instead.
   const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE))
   const pagedRows = displayRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)

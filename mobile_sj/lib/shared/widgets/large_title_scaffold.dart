@@ -6,7 +6,7 @@ import '../../core/theme/app_theme.dart';
 /// iOS tab-root page: a large bold centred title that shrinks into a centred title in a frosted bar
 /// as the content scrolls, with an optional [bottom] (search, filters, tabs) pinned under it.
 ///
-/// The [body]'s scroll view must not have its own ScrollController — it rides the
+/// The [body]'s scroll view must not have its own ScrollController - it rides the
 /// NestedScrollView's, which is what lets scrolling the list collapse the title.
 class LargeTitleScaffold extends StatelessWidget {
   final String title;
@@ -75,7 +75,7 @@ class _PinnedBottom extends SliverPersistentHeaderDelegate {
   double get maxExtent => _h;
 
   // A pinned header must paint exactly its declared extent, so the content is forced to that
-  // height — and clipped rather than erroring if a large text size makes it taller.
+  // height - and clipped rather than erroring if a large text size makes it taller.
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => SizedBox.expand(
         child: DecoratedBox(

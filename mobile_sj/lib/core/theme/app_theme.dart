@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 /// Theme-aware neutrals. Registered as a [ThemeExtension] so every screen that
 /// reads them via `context.colors.X` rebuilds automatically when the theme
-/// changes — a plain static constant can't do that, since Dart consts are
+/// changes - a plain static constant can't do that, since Dart consts are
 /// fixed at compile time.
 class AppColors extends ThemeExtension<AppColors> {
   final Color bg;
@@ -104,15 +104,15 @@ extension AppColorsX on BuildContext {
 class AppTheme {
   static const String fontFamily = 'Inter';   // same typeface as the web app
 
-  // Brand identity — the app's tint colour (iOS apps keep their own accent).
+  // Brand identity - the app's tint colour (iOS apps keep their own accent).
   static const Color brand = Color(0xFF1FAD55);       // web brand-500
   static const Color brandDark = Color(0xFF178A44);
-  static const Color brandButton = Color(0xFF126E36); // web brand-700 — 6.3:1 with white text
+  static const Color brandButton = Color(0xFF126E36); // web brand-700 - 6.3:1 with white text
   static const Color brandTint = Color(0xFFEDFCF2);   // web brand-50
   // Official-document navy (web gov-700).
   static const Color gov = Color(0xFF1C3355);
 
-  // Lifecycle status colors — the same mapping as the web app's asset drawer.
+  // Lifecycle status colors - the same mapping as the web app's asset drawer.
   static const Color statusRegistered = Color(0xFF3B82F6);     // blue
   static const Color statusAssigned = Color(0xFF10B981);       // emerald
   static const Color statusTransferred = Color(0xFFF97316);    // orange
@@ -131,14 +131,14 @@ class AppTheme {
   static ThemeData _themeFor(AppColors colors, Brightness brightness) {
     final light = brightness == Brightness.light;
     final accent = light ? brandButton : brand;
-    // iOS fill for fields, chips and the grey segmented track (tertiarySystemFill made opaque) —
+    // iOS fill for fields, chips and the grey segmented track (tertiarySystemFill made opaque) -
     // visible both on the grey page and inside white sections.
     final fill = light ? const Color(0xFFE9E9EE) : const Color(0xFF2C2C2E);
     // hairline edge for form fields (iOS opaqueSeparator-ish, a touch stronger for older eyes)
     final fieldEdge = light ? const Color(0xFFD1D1D6) : const Color(0xFF3A3A3C);
     const red = Color(0xFFFF3B30);
     final base = ThemeData(useMaterial3: true, brightness: brightness, fontFamily: fontFamily);
-    // Slightly larger body text than Material's default — many users are older staff.
+    // Slightly larger body text than Material's default - many users are older staff.
     final text = base.textTheme
         .copyWith(
           bodyLarge: base.textTheme.bodyLarge?.copyWith(fontSize: 17, height: 1.4, letterSpacing: -0.2),
@@ -163,7 +163,7 @@ class AppTheme {
       }),
       textTheme: text.copyWith(
         titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4, color: colors.heading),
-        // also the text inside dropdown fields — plain field text, not a heading
+        // also the text inside dropdown fields - plain field text, not a heading
         titleMedium: text.titleMedium
             ?.copyWith(fontSize: 17, fontWeight: FontWeight.w400, letterSpacing: -0.2, color: colors.textPrimary),
         headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5, color: colors.heading),
@@ -209,7 +209,7 @@ class AppTheme {
       ),
       // iOS grouped-form field: a white row on the grey page (dark: #1C1C1E on black), with a
       // faint hairline so it still reads inside white cards; a tint ring while focused (kept
-      // for accessibility — older staff need to see which field they're typing in).
+      // for accessibility - older staff need to see which field they're typing in).
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.surface,
@@ -405,7 +405,7 @@ class AppTheme {
 }
 
 /// Reflects the OS-level "Reduce Motion" accessibility setting. Reduced motion
-/// means fewer/gentler animations, not zero — consumers should drop
+/// means fewer/gentler animations, not zero - consumers should drop
 /// position-based movement (slides, staggers) while keeping opacity fades.
 extension ReducedMotionX on BuildContext {
   bool get prefersReducedMotion => MediaQuery.of(this).disableAnimations;

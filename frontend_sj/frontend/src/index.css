@@ -20,7 +20,7 @@ button:focus-visible,
 }
 
 /* ── Hide scrollbars app-wide ────────────────────────────────────────────────
-   Scrolling still works via wheel/trackpad/keyboard — just no visible track,
+   Scrolling still works via wheel/trackpad/keyboard, just no visible track,
    thumb, or arrow buttons, in either theme.
    ─────────────────────────────────────────────────────────────────────────── */
 * {
@@ -34,7 +34,7 @@ button:focus-visible,
 
 /* ── ...except horizontally-scrollable data tables ───────────────────────────
    The rule above makes wide tables look identical whether they're scrollable
-   or clipped — nothing hints there's more to the right, so the scroll never
+   or clipped. Nothing hints there's more to the right, so the scroll never
    gets discovered. Give `.overflow-x-auto` containers (every data table
    wrapper in the app) a slim, always-visible horizontal scrollbar; this
    selector's specificity already wins over the universal one above.
@@ -86,7 +86,7 @@ table .text-2xs { font-size: 0.8125rem; line-height: 1.25rem; }  /* 11px → 13p
     scroll-behavior: auto !important;
   }
 
-  /* Reduced motion means gentler, not zero — keep short opacity/color
+  /* Reduced motion means gentler, not zero - keep short opacity/color
      transitions that aid comprehension (hover, focus, toast fade-in);
      only movement (transform/position) is fully suppressed above. */
   *[class*="transition-opacity"],

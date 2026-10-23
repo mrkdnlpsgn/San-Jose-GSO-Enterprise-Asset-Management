@@ -56,7 +56,7 @@ function AssetImportModal({ onClose, onImport }) {
 
   const previewCols = IMPORT_COLUMNS.filter((col) => rows.some((r) => r[col.key])).map((c) => ({ key: c.key, label: c.label }))
 
-  // Rows missing a required field — backend will reject these too, but flagging
+  // Rows missing a required field - backend will reject these too, but flagging
   // here up front saves a round trip.
   const invalidRowNumbers = rows.reduce((acc, row, i) => {
     if (REQUIRED_KEYS.some((k) => !row[k]?.trim())) acc.push(i + 1)
@@ -68,7 +68,7 @@ function AssetImportModal({ onClose, onImport }) {
       title="Bulk Import Assets"
       subtitle={
         stage === 'preview'
-          ? `${rows.length} record${rows.length !== 1 ? 's' : ''} detected — review before importing`
+          ? `${rows.length} record${rows.length !== 1 ? 's' : ''} detected. Review before importing`
           : stage === 'done'
           ? `${saved.length} imported${failed.length > 0 ? `, ${failed.length} failed` : ''}`
           : 'Upload a CSV or XLSX file to create multiple assets at once'
@@ -90,7 +90,7 @@ function AssetImportModal({ onClose, onImport }) {
                 <p className="text-sm font-medium text-slate-800 dark:text-zinc-200">Download Import Template</p>
                 <p className="text-xs text-slate-500 dark:text-zinc-500 mt-px">
                   Category and Office must match existing names exactly (case-insensitive). PAR Number is required, one
-                  per row — each row registers exactly one device (Qty is always 1) with its Property Number auto-generated.
+                  per row. Each row registers exactly one device (Qty is always 1) with its Property Number auto-generated.
                 </p>
               </div>
             </div>
@@ -207,7 +207,7 @@ function AssetImportModal({ onClose, onImport }) {
                 </p>
                 <p className="text-xs text-zinc-400 mt-0.5">
                   Row{invalidRowNumbers.length !== 1 ? 's' : ''} {invalidRowNumbers.slice(0, 8).join(', ')}
-                  {invalidRowNumbers.length > 8 ? ` and ${invalidRowNumbers.length - 8} more` : ''} will fail — Description,
+                  {invalidRowNumbers.length > 8 ? ` and ${invalidRowNumbers.length - 8} more` : ''} will fail: Description,
                   Category, Office, Accountable Person, Qty (Physical Count), Acquisition Date, Unit Value, Location, and
                   Condition are all required.
                 </p>
@@ -217,7 +217,7 @@ function AssetImportModal({ onClose, onImport }) {
 
           <div>
             <p className="text-xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-wider mb-2">
-              Preview — first {Math.min(rows.length, 5)} of {rows.length} row{rows.length !== 1 ? 's' : ''}
+              Preview: first {Math.min(rows.length, 5)} of {rows.length} row{rows.length !== 1 ? 's' : ''}
             </p>
             <Table columns={previewCols} data={rows.slice(0, 5)} />
             {rows.length > 5 && (

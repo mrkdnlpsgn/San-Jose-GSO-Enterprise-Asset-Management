@@ -43,7 +43,7 @@ public class AuthController {
         String password   = body.get("password");
         Map<String, Object> result = authService.login(identifier, password, trustedDevices);
 
-        // Correct credentials, but a temp password — no session yet, frontend must
+        // Correct credentials, but a temp password - no session yet, frontend must
         // collect a new password via /force-change-password before one is issued.
         if (Boolean.TRUE.equals(result.get("mustChangePassword"))) {
             return ResponseEntity.ok(Map.of(
@@ -51,7 +51,7 @@ public class AuthController {
                 "username", result.get("username")));
         }
 
-        // Correct credentials, but 2FA is enabled on this account — no session yet,
+        // Correct credentials, but 2FA is enabled on this account - no session yet,
         // frontend must collect the emailed code via /login/verify-otp.
         if (Boolean.TRUE.equals(result.get("requiresTwoFactor"))) {
             return ResponseEntity.ok(Map.of(
@@ -137,7 +137,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("privacyAcknowledgedAt", ack));
     }
 
-    // Step-up 2FA before a permanent (unrecoverable) delete from the Recycle Bin —
+    // Step-up 2FA before a permanent (unrecoverable) delete from the Recycle Bin -
     // see DeletedRecordsController's permanent-delete endpoints, which verify the
     // code inline via authService.verifyDeleteOtp() rather than exposing a
     // separate verify endpoint here.

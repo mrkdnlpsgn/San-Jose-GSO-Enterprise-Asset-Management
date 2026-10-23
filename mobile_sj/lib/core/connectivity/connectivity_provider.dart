@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// True when the device has an active network interface. Note this only
 /// confirms a connection exists (Wi-Fi/cellular/ethernet up), not that the
-/// backend is actually reachable — same limitation every "offline banner"
+/// backend is actually reachable - same limitation every "offline banner"
 /// implementation has without pinging a server on every tick.
 final isOnlineProvider = StreamProvider<bool>((ref) async* {
   final connectivity = Connectivity();

@@ -9,9 +9,9 @@ import { useEventStream } from '../../hooks/useEventStream'
 
 // Drawer for a group of same-model devices (assets that were added together and share
 // a groupId). Every device is still its own complete asset; this is the roll-up view:
-//   Details   — an overview of the group, and a "View Devices" button that opens every device in a searchable table
-//   Lifecycle — every device's events together, filterable by device and by lifecycle type
-//   AI Insight — each device's AI lifecycle recommendation, with generate / regenerate per device
+//   Details   - an overview of the group, and a "View Devices" button that opens every device in a searchable table
+//   Lifecycle - every device's events together, filterable by device and by lifecycle type
+//   AI Insight - each device's AI lifecycle recommendation, with generate / regenerate per device
 
 const TAB_LABELS = { details: 'Details', history: 'Lifecycle', ai: 'AI Insight' }
 
@@ -40,11 +40,11 @@ const LIFECYCLE_BADGE = {
 const SELECT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-2.5 py-2 text-xs bg-white dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500'
 
 function fmt(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 function php(v) {
-  if (v == null) return '—'
+  if (v == null) return 'N/A'
   return '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 }
 
@@ -85,7 +85,7 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
         items.push({
           id: `h-${h.id}`, device: i, type: 'history', kind: String(h.eventType || '').toUpperCase(),
           title: h.eventType, date: h.eventDate, sortKey: h.eventDate,
-          meta: `By: ${h.performedBy?.fullName || h.performedBy?.username || '—'}`, note: h.notes,
+          meta: `By: ${h.performedBy?.fullName || h.performedBy?.username || 'N/A'}`, note: h.notes,
         })
       })
       maintenance.forEach((m) => {
@@ -161,7 +161,7 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
     }
   }
 
-  // One after another — each call asks the AI model, so don't fire them all at once.
+  // One after another - each call asks the AI model, so don't fire them all at once.
   const generateMissing = async () => {
     for (const m of members) {
       if (!recs[m.id]) await generateFor(m.id)
@@ -245,7 +245,7 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
                 View Devices ({members.length})
               </button>
               <p className="text-2xs text-slate-400 dark:text-zinc-500 text-center -mt-1">
-                Every device with its own Property No., PAR No., people, price and condition — searchable.
+                Every device with its own Property No., PAR No., people, price and condition, searchable.
               </p>
             </div>
           )}
@@ -372,7 +372,7 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
                   </div>
                 )
               })}
-              <p className="text-2xs text-slate-400 dark:text-zinc-600 text-center">Advisory only — not a final decision.</p>
+              <p className="text-2xs text-slate-400 dark:text-zinc-600 text-center">Advisory only, not a final decision.</p>
             </div>
           )}
         </div>
@@ -381,7 +381,7 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
       {showDevices && (
         <Modal
           title="Devices"
-          subtitle={`${first.description} — ${members.length} devices`}
+          subtitle={`${first.description}: ${members.length} devices`}
           size="2xl"
           onClose={() => setShowDevices(false)}
         >
@@ -396,12 +396,12 @@ function Field({ label, value }) {
   return (
     <div className="flex items-start gap-2 px-3.5 py-2">
       <span className="text-xs text-slate-400 dark:text-zinc-500 w-24 flex-shrink-0 pt-0.5">{label}</span>
-      <span className="text-sm text-slate-900 dark:text-zinc-200 font-medium break-words">{value ?? '—'}</span>
+      <span className="text-sm text-slate-900 dark:text-zinc-200 font-medium break-words">{value ?? 'N/A'}</span>
     </div>
   )
 }
 
-// Loads a group's devices from the server, then shows the drawer — for pages (Maintenance,
+// Loads a group's devices from the server, then shows the drawer - for pages (Maintenance,
 // Disposal, Reports) that only know a group's id, not all its devices.
 export function AssetGroupDrawerById({ groupId, exiting, onClose, renderDeviceRow }) {
   const [members, setMembers] = useState(null)

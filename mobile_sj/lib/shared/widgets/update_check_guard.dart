@@ -11,7 +11,7 @@ import '../../core/theme/app_theme.dart';
 
 // Once per app launch, asks the server for the newest release (GET /api/app/version) and, when
 // this install is older, offers the download. Below the server's minimum version the update is
-// required: the dialog can't be dismissed. Android only — the update is an APK. Any failure
+// required: the dialog can't be dismissed. Android only - the update is an APK. Any failure
 // (offline, server asleep) is ignored; the app works the same without the check.
 class UpdateCheckGuard extends StatefulWidget {
   final Widget child;
@@ -48,7 +48,7 @@ class _UpdateCheckGuardState extends State<UpdateCheckGuard> {
           current: info.version, latest: latest, url: url,
           notes: data['releaseNotes']?.toString(), required: required);
     } catch (_) {
-      // no answer — try again next launch
+      // no answer - try again next launch
     }
   }
 

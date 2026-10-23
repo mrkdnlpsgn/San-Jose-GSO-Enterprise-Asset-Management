@@ -154,7 +154,7 @@ class _Body extends StatelessWidget {
                           context,
                           path: '/disposal/${item.id}/evidence',
                           title: 'Disposal Evidence',
-                          subtitle: '${item.asset.propertyNumber} — ${item.asset.description}',
+                          subtitle: '${item.asset.propertyNumber}: ${item.asset.description}',
                         ),
                       ),
                     ),
@@ -261,7 +261,7 @@ class _AiJustificationCardState extends ConsumerState<_AiJustificationCard> {
               return Text(
                 key: const ValueKey('empty'),
                 isAdmin
-                    ? 'No justification drafted yet. New records get one automatically — tap Generate to draft one now.'
+                    ? 'No justification drafted yet. New records get one automatically. Tap Generate to draft one now.'
                     : 'No justification drafted yet.',
                 style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45),
               );

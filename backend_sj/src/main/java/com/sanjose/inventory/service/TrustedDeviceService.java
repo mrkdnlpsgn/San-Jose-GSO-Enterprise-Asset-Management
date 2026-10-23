@@ -17,11 +17,11 @@ import java.util.Map;
 
 // "Don't ask for a code on this computer for 30 days": after a successful 2-step sign-in the
 // browser keeps a signed token (HttpOnly cookie, only sent to /api/auth), and later sign-ins on
-// that browser skip the emailed code — the password is still required.
+// that browser skip the emailed code - the password is still required.
 //
 // Token = "<userId>.<tokenVersion>.<expiresEpochSeconds>.<HMAC>". No table: it is checked
 // against the account's current token_version, which already goes up on a password change or
-// reset, deactivation, and "Forget remembered devices" — any of those invalidates every
+// reset, deactivation, and "Forget remembered devices" - any of those invalidates every
 // remembered device at once. One cookie holds tokens for up to MAX_PER_BROWSER accounts (shared
 // office PCs), separated by '|'.
 @Service

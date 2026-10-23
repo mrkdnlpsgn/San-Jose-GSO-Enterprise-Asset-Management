@@ -87,7 +87,7 @@ public class PersonnelService {
     }
 
     // Personnel records are the accounts (created/removed on the Accounts page). An admin
-    // assigns each one's office here — it's the only place an account's office is set,
+    // assigns each one's office here - it's the only place an account's office is set,
     // and sp_personnel_update copies it onto the account. The name always follows the account.
     public Personnel update(Long id, PersonnelRequest req) {
         Personnel existing = findById(id);
@@ -115,14 +115,14 @@ public class PersonnelService {
         Personnel saved = findById(id);
         String names = saved.getOffices().stream().map(Office::getOfficeName).collect(Collectors.joining(", "));
         auditLogService.log("PERSONNEL_UPDATED", "Personnel", id, "personnel",
-            "Updated: " + saved.getFullName() + " — office" + (saved.getOffices().size() > 1 ? "s " : " ") + (names.isEmpty() ? "none" : names));
+            "Updated: " + saved.getFullName() + ", office" + (saved.getOffices().size() > 1 ? "s " : " ") + (names.isEmpty() ? "none" : names));
         if (!saved.getOffices().isEmpty() && !new HashSet<>(officeIds(existing)).equals(new HashSet<>(officeIds(saved)))) {
             notifyOfficeAssigned(saved, existing.getOffices());
         }
         return saved;
     }
 
-    // Only on an actual office change — re-saving the same offices or editing contact info sends nothing.
+    // Only on an actual office change - re-saving the same offices or editing contact info sends nothing.
     private void notifyOfficeAssigned(Personnel saved, List<Office> previous) {
         UserResponse user = userService.findById(saved.getUserId());
         if (!Boolean.TRUE.equals(user.getIsActive()) || user.getEmail() == null || user.getEmail().isBlank()) return;

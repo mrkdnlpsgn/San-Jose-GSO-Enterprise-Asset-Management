@@ -3,9 +3,9 @@ const _months = [
 ];
 
 /// Formats an ISO date/date-time string as e.g. "Jan 15, 2026". Falls back to the raw
-/// string (or '—') if it isn't parseable — reports show partial data over a crash.
+/// string (or '-') if it isn't parseable - reports show partial data over a crash.
 String fmtDate(String? iso) {
-  if (iso == null || iso.isEmpty) return '—';
+  if (iso == null || iso.isEmpty) return 'N/A';
   final d = DateTime.tryParse(iso)?.toLocal();
   if (d == null) return iso;
   return '${_months[d.month - 1]} ${d.day}, ${d.year}';
@@ -15,7 +15,7 @@ String rawDate(String? iso) => iso ?? '';
 
 /// Formats a number as PHP currency with thousands separators, e.g. "₱52,000.00".
 String fmtMoney(num? v) {
-  if (v == null) return '—';
+  if (v == null) return 'N/A';
   final fixed = v.toStringAsFixed(2);
   final parts = fixed.split('.');
   final intPart = parts[0];

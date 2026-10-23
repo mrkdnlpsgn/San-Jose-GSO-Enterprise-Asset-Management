@@ -6,7 +6,7 @@ const INPUT_CLASS =
   'dark:placeholder:text-zinc-600 hover:border-slate-400 dark:hover:border-zinc-600 ' +
   'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
-// Shown in place of the login form when the backend reports requiresTwoFactor —
+// Shown in place of the login form when the backend reports requiresTwoFactor -
 // correct credentials, but this account needs the emailed code before a session
 // is issued. onResend re-submits the original password so the backend can email
 // a fresh code (subject to its own resend cooldown); it's a no-op from this
@@ -40,7 +40,7 @@ function TwoFactorForm({ identifier, onSubmit, onResend, onBack }) {
       await onResend()
       setResent(true)
     } catch {
-      // Same-shape failure either way — the account may already have a valid
+      // Same-shape failure either way - the account may already have a valid
       // code within its resend cooldown, which isn't an error from here.
       setResent(true)
     } finally {
@@ -89,7 +89,7 @@ function TwoFactorForm({ identifier, onSubmit, onResend, onBack }) {
           <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1.5">Code expires 10 minutes after it's sent.</p>
         </div>
 
-        {/* Skips this code (not the password) on this browser for 30 days — see TrustedDeviceService */}
+        {/* Skips this code (not the password) on this browser for 30 days - see TrustedDeviceService */}
         <label className="flex items-start gap-3 mb-6 cursor-pointer select-none rounded-lg border border-slate-200 dark:border-zinc-800 px-3.5 py-3 hover:bg-slate-50 dark:hover:bg-zinc-900 transition-colors duration-150">
           <input
             type="checkbox"

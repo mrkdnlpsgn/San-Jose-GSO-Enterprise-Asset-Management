@@ -129,7 +129,7 @@ public class MaintenanceLedgerService {
             recorderId != null ? recorderId.intValue() : 0);
 
         if (!accessService.isAdmin()) {
-            // Staff add records as a request — it waits for an admin to approve it before
+            // Staff add records as a request - it waits for an admin to approve it before
             // it counts (history entry) or can be edited.
             jdbcTemplate.update("UPDATE maintenance_ledger SET approval_status = 'PENDING_APPROVAL', requested_by = ? WHERE maintenance_id = ?",
                 recorderId, newId);
@@ -154,7 +154,7 @@ public class MaintenanceLedgerService {
         if (!accessService.isAdmin() && !"APPROVED".equals(current.getApprovalStatus())) {
             throw new IllegalStateException("REJECTED".equals(current.getApprovalStatus())
                 ? "This request was rejected by an administrator and can't be edited."
-                : "This request is waiting for an administrator's approval — it can be edited once approved.");
+                : "This request is waiting for an administrator's approval. It can be edited once approved.");
         }
         jdbcTemplate.update("CALL sp_maintenance_update(?, ?, ?, ?, ?, ?, ?, ?)",
             id,
@@ -195,10 +195,10 @@ public class MaintenanceLedgerService {
         MaintenanceLedger saved = findById(id);
         if (saved.getAsset() != null) {
             assetHistoryService.logEvent(saved.getAsset().getId(), "MAINTENANCE", null, null, reviewerId,
-            "Maintenance logged (" + saved.getMaintenanceType() + "): " + saved.getFindings() + " — requested by " + saved.getRequestedByName());
+            "Maintenance logged (" + saved.getMaintenanceType() + "): " + saved.getFindings() + ", requested by " + saved.getRequestedByName());
         }
         // a staff edit's condition change (REPAIRABLE / UNSERVICEABLE) was held on the
-        // request — the asset takes it only now
+        // request - the asset takes it only now
         if (saved.getAsset() != null) {
             String requestedCondition = jdbcTemplate.queryForObject(
                 "SELECT requested_condition FROM maintenance_ledger WHERE maintenance_id = ?", String.class, id);
@@ -207,7 +207,7 @@ public class MaintenanceLedgerService {
                     requestedCondition, saved.getAsset().getId());
             }
         }
-        // the request stood in for putting the asset under maintenance — do that now
+        // the request stood in for putting the asset under maintenance - do that now
         if (saved.getAsset() != null && !"COMPLETED".equals(String.valueOf(saved.getStatus()))) {
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)", saved.getAsset().getId(), "UNDER_MAINTENANCE");
             sseEmitterService.emitAsset("UPDATED", saved.getAsset().getId(), null);
@@ -226,7 +226,7 @@ public class MaintenanceLedgerService {
             reviewerId, note.trim(), id);
         MaintenanceLedger saved = findById(id);
         auditLogService.log("MAINTENANCE_REJECTED", "Maintenance", id, "maintenance",
-            "Rejected maintenance request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + " — " + note.trim());
+            "Rejected maintenance request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + ": " + note.trim());
         sseEmitterService.emitMaintenance("REJECTED", saved.getId(), saved);
         return saved;
     }

@@ -72,7 +72,7 @@ public class LifecycleInsightService {
     private record CachedSummary(String statsJson, String summary) {}
     private final Map<String, CachedSummary> summaryCache = new ConcurrentHashMap<>();
 
-    // The numbers, plus the last AI summary when it was written from exactly these numbers — so
+    // The numbers, plus the last AI summary when it was written from exactly these numbers - so
     // the dashboard shows it on load without asking Gemini (free-plan quota); new numbers mean
     // someone presses Generate.
     public Map<String, Object> statsWithCachedSummary(Range range, AccessService.StaffScope scope) {
@@ -214,7 +214,7 @@ public class LifecycleInsightService {
     private static final String SYSTEM_PROMPT = """
         You write a short plain-English summary for the General Services Office of a Philippine \
         municipal government, describing how many government assets were maintained \
-        and disposed of during a reporting period. You are given pre-computed statistics (JSON) — use \
+        and disposed of during a reporting period. You are given pre-computed statistics (JSON). Use \
         only those numbers, never invent figures. In 3-5 short sentences: state how many assets were \
         maintained and how many disposed of, compare each with the previous period of the same length \
         (say whether it went up, down or stayed the same), point out the busiest period in the series \
@@ -236,7 +236,7 @@ public class LifecycleInsightService {
         return text.trim();
     }
 
-    // Small hand-rolled JSON writer — the stats are only maps, lists, strings and numbers.
+    // Small hand-rolled JSON writer - the stats are only maps, lists, strings and numbers.
     private static String toJson(Object v) {
         if (v == null) return "null";
         if (v instanceof Map<?, ?> m) {

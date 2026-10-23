@@ -102,7 +102,7 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={value}>
       {children}
 
-      {/* Toast container — fixed top-right, stacked */}
+      {/* Toast container - fixed top-right, stacked */}
       <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 pointer-events-none">
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onDismiss={dismiss} />

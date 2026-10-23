@@ -8,7 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../model/asset_model.dart';
 
 /// The signed sticker text from the server (`asset:{id}:{propertyNumber}:{tag}`, see the
-/// backend's AssetQrService) — the same text the web prints, so stickers from either match.
+/// backend's AssetQrService) - the same text the web prints, so stickers from either match.
 /// Falls back to the old unsigned form only when talking to a server older than QR signing.
 String qrPayloadFor(AssetModel asset) => asset.qrPayload ?? 'asset:${asset.id}:${asset.propertyNumber}';
 
@@ -16,7 +16,7 @@ String qrPayloadFor(AssetModel asset) => asset.qrPayload ?? 'asset:${asset.id}:$
 const _kSealAsset = 'assets/images/logo_qr.png';
 
 /// The seal covers 24% of the QR's width (~6% of its area). With error-correction
-/// level H (≈30% recoverable) the code still scans — the same ratio as the web sticker.
+/// level H (≈30% recoverable) the code still scans - the same ratio as the web sticker.
 const _kSealRatio = 0.24;
 
 Future<void> showAssetQrSheet(BuildContext context, AssetModel asset) {
@@ -42,7 +42,7 @@ class _AssetQrSheet extends StatefulWidget {
 class _AssetQrSheetState extends State<_AssetQrSheet> {
   bool _printing = false;
 
-  // Matches the web's printQrSticker: one 30 × 30 mm sticker — the QR (22.5 mm) with the
+  // Matches the web's printQrSticker: one 30 × 30 mm sticker - the QR (22.5 mm) with the
   // municipal seal in the middle and the property number under it. The page size is the
   // sticker itself, so a label printer puts one tag per label.
   Future<void> _print() async {

@@ -16,7 +16,7 @@ import '../provider/qr_lookup_provider.dart';
 import '../widgets/qr_scanner_overlay.dart';
 import '../../assets/widgets/asset_history_sheet.dart';
 
-// mobile_scanner only ships Android/iOS/macOS/web implementations — desktop platforms
+// mobile_scanner only ships Android/iOS/macOS/web implementations - desktop platforms
 // like Windows and Linux fall back to manual property-number entry (still fully usable,
 // mirrors the web QR Scanner page's manual-entry path).
 bool get _cameraScanSupported =>
@@ -53,7 +53,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     final code = rawCode.trim();
     _lastCode = code;
     if (code.startsWith('asset:')) _verify(code);
-    // Close the loop on the moment of detection — same frame as the visual
+    // Close the loop on the moment of detection - same frame as the visual
     // result, per the causality/harmony rule for combining feedback senses.
     // Distinct weights so success and "not found" feel different, not just look different.
     if (match != null) {

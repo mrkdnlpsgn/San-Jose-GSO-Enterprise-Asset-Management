@@ -15,7 +15,7 @@ const CARD = 'bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:
 const CARD_TITLE = 'text-base font-semibold text-gov-700 dark:text-white'
 
 // The server's clock (and MySQL NOW()) run in UTC and send timestamps without a zone, e.g.
-// "2026-10-07T04:12:00" — read them as UTC, or every time shows 8 hours early in Manila.
+// "2026-10-07T04:12:00" - read them as UTC, or every time shows 8 hours early in Manila.
 function serverTime(value) {
   if (!value) return null
   const s = String(value)
@@ -23,11 +23,11 @@ function serverTime(value) {
 }
 
 function fmtDate(value) {
-  if (!value) return '—'
+  if (!value) return 'N/A'
   return serverTime(value).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'long', day: 'numeric' })
 }
 
-// "3 minutes ago", "yesterday", "2 weeks ago" — falls back to the date after a month.
+// "3 minutes ago", "yesterday", "2 weeks ago" - falls back to the date after a month.
 function timeAgo(value) {
   if (!value) return ''
   const then = serverTime(value)
@@ -306,7 +306,7 @@ function MyAccountTab({ user }) {
     setSaving(true)
     try {
       await changePassword({ currentPassword: current, newPassword: newPass })
-      // The change ends every session (token version bump), this one included — sign out
+      // The change ends every session (token version bump), this one included - sign out
       // cleanly now instead of letting the next request fail.
       await signOut({ reason: 'password-changed' })
     } catch (err) {
@@ -469,7 +469,7 @@ function MyAccountTab({ user }) {
               </div>
             </div>
 
-            {/* Requirements — always visible, so the rules are known before typing */}
+            {/* Requirements - always visible, so the rules are known before typing */}
             <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/40 px-4 py-3.5">
               <div className="flex items-center justify-between gap-3 mb-2.5">
                 <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Password requirements</p>
@@ -520,7 +520,7 @@ function MyAccountTab({ user }) {
                 {overview === null ? <span className="inline-block h-4 w-40 rounded bg-slate-200 dark:bg-zinc-700 animate-pulse" />
                   : overview?.email || (
                     <span className="text-amber-700 dark:text-amber-400">
-                      None on file — you can't reset a forgotten password by email. Ask the system administrator to add one.
+                      None on file. You can't reset a forgotten password by email. Ask the system administrator to add one.
                     </span>
                   )}
               </DetailRow>

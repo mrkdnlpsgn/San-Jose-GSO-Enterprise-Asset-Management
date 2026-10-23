@@ -6,7 +6,7 @@ const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
 // /uploads lives one level up from /api on that same backend origin, so strip
 // the /api suffix to get a prefix for non-API static paths like photo.url.
 // In dev, VITE_API_BASE_URL is unset, apiBase is the relative '/api', and this
-// resolves to '' — paths stay relative and go through Vite's own proxy.
+// resolves to '' - paths stay relative and go through Vite's own proxy.
 const backendOrigin = apiBase.replace(/\/api\/?$/, '')
 
 // Resolves a backend-relative path (e.g. "/uploads/maintenance/xxx.jpg") to a URL
@@ -53,7 +53,7 @@ export const isServerAsleep = (err) => {
   return res.status >= 500 && (typeof res.data !== 'object' || res.data === null)
 }
 
-// Resolves once the backend answers at all (a 401 from /auth/me counts — it's awake).
+// Resolves once the backend answers at all (a 401 from /auth/me counts - it's awake).
 // Calls onWaiting() the first time a check fails. Gives up (rejects) after maxWaitMs.
 export async function waitForServer({ onWaiting, maxWaitMs = 5 * 60 * 1000 } = {}) {
   const deadline = Date.now() + maxWaitMs

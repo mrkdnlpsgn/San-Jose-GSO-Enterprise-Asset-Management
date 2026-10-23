@@ -17,8 +17,8 @@ import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from
 const RESEND_COOLDOWN_SECONDS = 60
 
 // Step-up 2FA before an irreversible delete: emails a one-time code on open,
-// then requires it back before calling permanentDeleteFn. Two states — the
-// code is either in flight (sending/sent/cooldown) or being verified — kept
+// then requires it back before calling permanentDeleteFn. Two states - the
+// code is either in flight (sending/sent/cooldown) or being verified - kept
 // separate from ConfirmDialog since neither its single-button flow nor its
 // styling fit a two-step, form-carrying confirmation.
 function PermanentDeleteModal({ recordLabel, onClose, onConfirm }) {
@@ -89,7 +89,7 @@ function PermanentDeleteModal({ recordLabel, onClose, onConfirm }) {
           Permanently delete this {recordLabel.toLowerCase()}?
         </h2>
         <p className="text-xs text-slate-500 dark:text-zinc-400 text-center mt-2 leading-relaxed">
-          This cannot be undone — the record will be completely removed, not just moved out of the Recycle Bin.
+          This cannot be undone. The record will be completely removed, not just moved out of the Recycle Bin.
           {sending ? ' Sending a verification code to your email…' :
             sent ? ' Enter the verification code we emailed you to confirm.' : ''}
         </p>
@@ -155,7 +155,7 @@ const DISPOSAL_METHOD = {
 const PAGE_SIZE = 25
 
 function fmtDateTime(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleString('en-PH', {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
@@ -163,7 +163,7 @@ function fmtDateTime(dt) {
 
 // One shared shape for all three tabs: fetch on mount, filter by a search predicate, a compact
 // table (record, kind, who deleted it, when), and a details window with the reason and the two
-// actions — Restore, or Permanently delete (which asks for an emailed code first).
+// actions - Restore, or Permanently delete (which asks for an emailed code first).
 function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, details, emptyMessage, recordLabel, searchHint }) {
   const toast = useToast()
   const [rows, setRows]       = useState([])
@@ -186,7 +186,7 @@ function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, d
     return () => { alive = false }
   }, [fetcher])
 
-  // Background poll — never touches `loading`, so a silent refresh can't
+  // Background poll - never touches `loading`, so a silent refresh can't
   // flash the skeleton back in over rows already on screen.
   usePolling(load, 30000)
 
@@ -248,7 +248,7 @@ function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, d
           onClose={() => setViewing(null)}
           subtitle={<>
             <span className="text-slate-600 dark:text-zinc-400">Property No.</span>
-            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{v.propertyNumber || '—'}</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{v.propertyNumber || 'N/A'}</span>
           </>}
           footer={<>
             <ModalAction label={`Restore ${recordLabel.toLowerCase()}`} icon={ICON.restore} tone="primary" onClick={() => setRestoring(v)} />

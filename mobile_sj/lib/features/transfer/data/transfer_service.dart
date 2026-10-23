@@ -36,7 +36,7 @@ class TransferService {
     }
   }
 
-  /// The request body — also what the outbox saves when the phone is offline.
+  /// The request body - also what the outbox saves when the phone is offline.
   static Map<String, dynamic> body({required int assetId, required int toOfficeId, int? toPersonnelId, String? reason}) => {
         'assetId': assetId,
         'toOfficeId': toOfficeId,

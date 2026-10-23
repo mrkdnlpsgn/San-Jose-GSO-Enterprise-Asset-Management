@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
 
-/// One line of "Your recent activity" — the caller's own audit log rows.
+/// One line of "Your recent activity" - the caller's own audit log rows.
 class MyActivity {
   final String action;
   final String? details;
@@ -16,7 +16,7 @@ class MyActivity {
       );
 }
 
-/// GET /api/users/me/overview — what the web's My Account tab shows beyond the login payload.
+/// GET /api/users/me/overview - what the web's My Account tab shows beyond the login payload.
 class MyOverview {
   final String? email;
   final String? memberSince;
@@ -51,7 +51,7 @@ class MyOverview {
       );
 }
 
-/// The signed-in user's own account — same endpoints as the web's userService.
+/// The signed-in user's own account - same endpoints as the web's userService.
 class MyAccountService {
   final Dio _dio = ApiClient.instance.dio;
 
@@ -104,7 +104,7 @@ class MyAccountService {
     }
   }
 
-  /// Forgets every device remembered for 2-step — and ends every session, this one included.
+  /// Forgets every device remembered for 2-step - and ends every session, this one included.
   Future<void> forgetDevices() async {
     try {
       await _dio.post('/users/me/forget-devices');

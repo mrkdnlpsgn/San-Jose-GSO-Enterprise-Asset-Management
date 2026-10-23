@@ -14,7 +14,7 @@ import DatePicker from '../../components/common/DatePicker'
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 // The status (Assigned / Under maintenance / Disposed) isn't edited here: it follows the
 // condition (Repairable starts maintenance, Unserviceable starts disposal) and the Transfer page.
-const CONDITIONS  = [['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable — needs repair'], ['UNSERVICEABLE', 'Unserviceable — for disposal']]
+const CONDITIONS  = [['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable (needs repair)'], ['UNSERVICEABLE', 'Unserviceable (for disposal)']]
 const PAR_SERIAL_RE = /^[A-Za-z0-9-]+$/
 
 // PAR number = acquisition year-month + ':' + a serial typed by hand,
@@ -24,12 +24,12 @@ const parPrefix = (acquisitionDate) => (acquisitionDate ? acquisitionDate.slice(
 
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
-// Every asset is exactly one physical item — Qty (Property Card) and Qty (Physical
+// Every asset is exactly one physical item - Qty (Property Card) and Qty (Physical
 // Count) are always 1 and can't be changed. Property Number, PAR Number, and (if
-// given) Serial Number must each be unique across every other asset — the backend
+// given) Serial Number must each be unique across every other asset - the backend
 // enforces this and returns a friendly message if one collides.
 //
-// staffMode: a STAFF account editing an asset of its office — it can't move the asset to
+// staffMode: a STAFF account editing an asset of its office - it can't move the asset to
 // another office or create categories (all admin-only).
 export default function AddAssetModal({ onClose, onSave, initial = null, categories = [], offices = [], personnel = [], onCategoryCreated, staffMode = false }) {
   const isEditing = !!initial
@@ -40,7 +40,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const toast = useToast()
   const uploadInputRef = useRef(null)
   // Phones/tablets: a capture input hands off to the device's own camera app, which is
-  // full-screen and familiar — far easier for older staff than an in-page webcam preview.
+  // full-screen and familiar - far easier for older staff than an in-page webcam preview.
   // Desktops have no camera app, so they keep CameraCaptureModal.
   const cameraInputRef = useRef(null)
   // The form is long: a problem can sit far above or below the button, so after a failed save
@@ -71,7 +71,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     remarks:          initial?.remarks                || '',
   })
   const draft = useFormDraft(`asset:${initial?.id ?? 'new'}`, form, setForm, {
-    title: (f) => isEditing ? `${initial.propertyNumber || 'Asset'} — ${f.description || initial.description || ''}` : (f.description.trim() || 'Untitled asset'),
+    title: (f) => isEditing ? `${initial.propertyNumber || 'Asset'}: ${f.description || initial.description || ''}` : (f.description.trim() || 'Untitled asset'),
   })
   const [errors, setErrors]         = useState({})
   const [saving, setSaving]         = useState(false)
@@ -90,12 +90,12 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   ).map((name) => ({ id: `pre:${name}`, categoryName: name, _predefined: true }))
   const allCategories = [...extraPredefined, ...categories]
 
-  // deactivated accounts can't take on assets (an asset already assigned to one still shows it — see keepSelected)
+  // deactivated accounts can't take on assets (an asset already assigned to one still shows it - see keepSelected)
   const activePersonnel = personnel.filter((p) => p.userActive !== false)
   // Accountable Person lists only the chosen location's people (the person is custodially
   // tied to that office), and nobody until a location is picked. Current User is who
-  // actually has the device right now, which can be anyone active — including someone from
-  // another office, or the admin — so it's never office-filtered.
+  // actually has the device right now, which can be anyone active - including someone from
+  // another office, or the admin - so it's never office-filtered.
   const personnelForOffice = form.officeId
     ? activePersonnel.filter((p) => inOffice(p, form.officeId))
     : []
@@ -175,7 +175,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         specifications: data.specifications || p.specifications,
       }))
       setWasScanned(true)
-      toast.show('Scanned — review the details below.', 'success')
+      toast.show('Scanned. Review the details below.', 'success')
     } catch (err) {
       toast.show(err.response?.data?.message || 'Failed to scan label.', 'error')
     } finally {
@@ -210,7 +210,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
     const par = form.parSerial.trim()
     if (!par && !parRequired)         { /* an older asset that never had a PAR may stay without one */ }
-    else if (!form.acquisitionDate)   e.parSerial = 'Pick the Acquisition Date first — the PAR Number starts with its year-month.'
+    else if (!form.acquisitionDate)   e.parSerial = 'Pick the Acquisition Date first. The PAR Number starts with its year-month.'
     else if (!par)                    e.parSerial = 'PAR serial is required.'
     else if (!PAR_SERIAL_RE.test(par)) e.parSerial = 'PAR serial: letters, numbers, and hyphens only.'
     return e
@@ -222,7 +222,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     if (Object.keys(errs).length) { setErrors(errs); showFirstError(); return }
     setSaving(true)
     try {
-      // Resolve category ID — predefined-only entries need to be created first
+      // Resolve category ID - predefined-only entries need to be created first
       let resolvedCategoryId = Number(form.categoryId)
       if (form.categoryId.startsWith?.('pre:')) {
         const name = form.categoryId.replace('pre:', '')
@@ -268,11 +268,11 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const conditionNote = !conditionChanged ? null
     : form.condition === 'REPAIRABLE'
     ? { color: 'amber', text: staffMode
-        ? 'A maintenance request will be sent to an administrator — the asset keeps its current condition and status until approved.'
+        ? 'A maintenance request will be sent to an administrator. The asset keeps its current condition and status until approved.'
         : 'A maintenance ledger record will be automatically created.' }
     : form.condition === 'UNSERVICEABLE'
     ? { color: 'red',   text: staffMode
-        ? 'A disposal request will be sent to an administrator — the asset keeps its current condition and status until approved.'
+        ? 'A disposal request will be sent to an administrator. The asset keeps its current condition and status until approved.'
         : 'A disposal ledger record will be automatically created.' }
     : null
 
@@ -317,7 +317,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               </span>
               <div>
                 <h3 id="autofill-heading" className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Auto-fill from a photo — no typing needed
+                  Auto-fill from a photo. No typing needed
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-zinc-300 mt-0.5 leading-relaxed">
                   Take a photo of the device label/sticker or the PAR document. The system reads the
@@ -357,7 +357,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                Fields filled in from your photo — please check them below before saving.
+                Fields filled in from your photo. Please check them below before saving.
               </p>
             ) : (
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-3">
@@ -413,7 +413,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                   value={form.categoryId}
                   onChange={handleCategoryChange}
                 >
-                  <option value="">— Select category —</option>
+                  <option value="">Select category</option>
                   {allCategories.map((c) => (
                     <option key={c.id} value={String(c.id)}>{c.categoryName}</option>
                   ))}
@@ -432,8 +432,8 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           {errors.description && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.description}</p>}
         </div>
 
-        {/* Acq Date + Unit Value. Qty (Property Card) and Physical Count are always 1 — each asset
-            is one item — so they aren't asked for. */}
+        {/* Acq Date + Unit Value. Qty (Property Card) and Physical Count are always 1 - each asset
+            is one item, so they aren't asked for. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Acquisition Date<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
@@ -447,10 +447,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           </div>
         </div>
 
-        {/* Shortage/Overage — optional, defaults to 0. Independent of Qty/Physical Count
+        {/* Shortage/Overage - optional, defaults to 0. Independent of Qty/Physical Count
             (both fixed at 1); a positive number is overage, negative is shortage. */}
         <details className="rounded-lg border border-slate-200 dark:border-zinc-700 px-4 py-3" open={Number(form.shortageOverageQty) !== 0 || Number(form.shortageOverageValue) !== 0}>
-          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-zinc-300">Physical count adjustments <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional — only if the count found a shortage or overage)</span></summary>
+          <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-zinc-300">Physical count adjustments <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional. Only if the count found a shortage or overage)</span></summary>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Shortage/Overage Qty <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
@@ -482,7 +482,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               <input className={INPUT_CLASS} placeholder="Leave blank to auto-generate" value={form.propertyNumber} onChange={set('propertyNumber')} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">PAR Number{parRequired ? <span className="text-red-600 dark:text-red-400 ml-0.5">*</span> : <span className="font-normal"> (optional — this asset has none yet)</span>}</label>
+              <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">PAR Number{parRequired ? <span className="text-red-600 dark:text-red-400 ml-0.5">*</span> : <span className="font-normal"> (optional. This asset has none yet)</span>}</label>
               <div className="flex items-stretch">
                 <span className={`flex items-center whitespace-nowrap rounded-l-md border border-r-0 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/60 px-3 text-sm font-mono ${form.acquisitionDate ? 'text-slate-700 dark:text-zinc-300' : 'text-slate-600 dark:text-zinc-400'}`}>
                   {parPrefix(form.acquisitionDate) || 'YYYY-MM'}:
@@ -506,14 +506,14 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             {staffMode ? (
               <>
                 <div className={INPUT_CLASS + ' bg-slate-50 dark:bg-zinc-800/60 cursor-default'}>
-                  {offices.find((o) => String(o.id) === String(form.officeId))?.officeName || '—'}
+                  {offices.find((o) => String(o.id) === String(form.officeId))?.officeName || 'N/A'}
                 </div>
-                <p className="text-xs text-slate-600 dark:text-zinc-400">Automatically set to your assigned office — only an administrator can move an asset.</p>
+                <p className="text-xs text-slate-600 dark:text-zinc-400">Automatically set to your assigned office. Only an administrator can move an asset.</p>
               </>
             ) : (
               <div className="relative">
                 <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.officeId} onChange={handleOfficeChange}>
-                  <option value="">— Select office —</option>
+                  <option value="">Select office</option>
                   {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
                 </select>
                 <ChevronIcon />
@@ -527,16 +527,16 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               // the accountable person decides who can see the asset, so staff can't change it
               <>
                 <div className={INPUT_CLASS + ' bg-slate-50 dark:bg-zinc-800/60 cursor-default'}>
-                  {initial?.accountablePerson?.fullName || '—'}
+                  {initial?.accountablePerson?.fullName || 'N/A'}
                 </div>
                 <p className="text-xs text-slate-600 dark:text-zinc-400">You are this asset&apos;s accountable person.</p>
               </>
             ) : (
               <div className="relative">
                 <select className={INPUT_CLASS + ' appearance-none pr-9 disabled:opacity-60 disabled:cursor-not-allowed'} value={form.personnelId} onChange={handlePersonnelChange} disabled={!form.officeId}>
-                  <option value="">{form.officeId ? '— Select accountable person —' : '— Select an office first —'}</option>
+                  <option value="">{form.officeId ? 'Select accountable person' : 'Select an office first'}</option>
                   {accountableOptions.map((p) => (
-                    <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
+                    <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? `: ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
                   ))}
                 </select>
                 <ChevronIcon />
@@ -544,7 +544,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             )}
             {errors.personnelId && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.personnelId}</p>}
             {!staffMode && form.officeId && personnelForOffice.length === 0 && (
-              <p className="text-xs text-amber-800 dark:text-amber-300">No accounts are assigned to this office yet — assign one on the Personnel page.</p>
+              <p className="text-xs text-amber-800 dark:text-amber-300">No accounts are assigned to this office yet. Assign one on the Personnel page.</p>
             )}
           </div>
         </div>
@@ -560,13 +560,13 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         {/* Current User */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-            Current User <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional — who actually has the asset, if different from the accountable person; can be anyone, from any office)</span>
+            Current User <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional, who actually has the asset, if different from the accountable person; can be anyone, from any office)</span>
           </label>
           <div className="relative">
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.currentUserId} onChange={set('currentUserId')}>
-              <option value="">— Same as accountable person / unspecified —</option>
+              <option value="">Same as accountable person / unspecified</option>
               {currentUserOptions.map((p) => (
-                <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? ` — ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
+                <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? `: ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
               ))}
             </select>
             <ChevronIcon />
@@ -608,7 +608,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             onChange={set('specifications')}
           />
           <p className="text-xs text-slate-600 dark:text-zinc-400">
-            Free-form — enter whatever specs apply to this device type (processor/memory/storage for a computer, engine/plate no. for a vehicle, etc.), one per line. Auto-filled by Take Photo/Upload Image when available.
+            Free-form. Enter whatever specs apply to this device type (processor/memory/storage for a computer, engine/plate no. for a vehicle, etc.), one per line. Auto-filled by Take Photo/Upload Image when available.
           </p>
         </div>
 

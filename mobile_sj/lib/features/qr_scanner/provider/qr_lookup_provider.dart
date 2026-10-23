@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../assets/data/asset_service.dart';
 import '../../assets/model/asset_model.dart';
 
-/// All assets, fetched once for client-side scan/manual-code lookup — mirrors the
+/// All assets, fetched once for client-side scan/manual-code lookup - mirrors the
 /// web QR Scanner page, which also matches scanned codes against an in-memory list
 /// rather than a dedicated backend lookup endpoint.
 final qrLookupAssetsProvider = FutureProvider.autoDispose<List<AssetModel>>((ref) {

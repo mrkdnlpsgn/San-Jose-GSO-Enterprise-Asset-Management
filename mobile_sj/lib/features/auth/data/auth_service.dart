@@ -4,7 +4,7 @@ import '../../../core/api/api_exception.dart';
 import '../model/user_model.dart';
 
 // Thrown by [AuthService.login] when the account has a temporary password
-// (fresh account or admin-mediated reset) — the backend withholds the session
+// (fresh account or admin-mediated reset) - the backend withholds the session
 // until the caller collects a new password via [AuthService.forceChangePassword].
 class MustChangePasswordRequired implements Exception {
   final String username;
@@ -12,7 +12,7 @@ class MustChangePasswordRequired implements Exception {
 }
 
 // Thrown by [AuthService.login] when the account has 2FA enabled (every account
-// except admin and ict_staff) — the backend emails a code and withholds the
+// except admin and ict_staff) - the backend emails a code and withholds the
 // session until the caller verifies it via [AuthService.verifyLoginOtp].
 class RequiresTwoFactor implements Exception {
   final String username;
@@ -22,19 +22,19 @@ class RequiresTwoFactor implements Exception {
 class AuthService {
   final Dio _dio = ApiClient.instance.dio;
 
-  // POST /api/auth/login — body uses "identifier" (username or email), not "email"
+  // POST /api/auth/login - body uses "identifier" (username or email), not "email"
   Future<UserModel> login(String identifier, String password) async {
     try {
       final res = await _dio.post('/auth/login', data: {
         'identifier': identifier,
         'password': password,
       });
-      // Correct credentials, but a temp password — no session/cookie yet, backend
+      // Correct credentials, but a temp password - no session/cookie yet, backend
       // returns { mustChangePassword: true, username } instead of { user: {...} }.
       if (res.data['mustChangePassword'] == true) {
         throw MustChangePasswordRequired(res.data['username'] as String);
       }
-      // Correct credentials, but 2FA is enabled on this account — no session/cookie
+      // Correct credentials, but 2FA is enabled on this account - no session/cookie
       // yet, backend returns { requiresTwoFactor: true, username } instead.
       if (res.data['requiresTwoFactor'] == true) {
         throw RequiresTwoFactor(res.data['username'] as String);
@@ -51,7 +51,7 @@ class AuthService {
     }
   }
 
-  // POST /api/auth/login/verify-otp — completes a login that was interrupted by
+  // POST /api/auth/login/verify-otp - completes a login that was interrupted by
   // 2FA: proves the emailed code and returns a real session, same shape as a
   // normal login response.
   // rememberDevice: skip the code on this phone for 30 days (the backend sets a cookie that the
@@ -69,7 +69,7 @@ class AuthService {
     }
   }
 
-  // POST /api/auth/force-change-password — completes a login that was interrupted
+  // POST /api/auth/force-change-password - completes a login that was interrupted
   // by a mandatory password change: proves the temp password, then swaps it and
   // returns a real session, same shape as a normal login response.
   Future<UserModel> forceChangePassword(String identifier, String currentPassword, String newPassword) async {
@@ -85,14 +85,14 @@ class AuthService {
     }
   }
 
-  // GET /api/auth/me — returns null on 401 (not logged in), throws on other errors
+  // GET /api/auth/me - returns null on 401 (not logged in), throws on other errors
   Future<UserModel?> fetchCurrentUser() async {
     try {
       final res = await _dio.get('/auth/me');
       return UserModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
       // A stale or revoked session cookie (password changed, "forget devices", account
-      // updated) comes back 401 — or 403, since Spring Security answers unauthenticated
+      // updated) comes back 401 - or 403, since Spring Security answers unauthenticated
       // requests with 403 by default. Either way: not signed in. Drop the dead cookie.
       final status = e.response?.statusCode;
       if (status == 401 || status == 403) {
@@ -110,7 +110,7 @@ class AuthService {
     await ApiClient.instance.clearCookies();
   }
 
-  // POST /api/auth/acknowledge-privacy — records that the current user has
+  // POST /api/auth/acknowledge-privacy - records that the current user has
   // reviewed the Privacy, Terms & Conditions. Returns the new timestamp.
   Future<String> acknowledgePrivacy() async {
     try {
@@ -121,7 +121,7 @@ class AuthService {
     }
   }
 
-  // POST /api/auth/forgot-password/request — step 1: emails a one-time code to the
+  // POST /api/auth/forgot-password/request - step 1: emails a one-time code to the
   // account's registered address. Requiring possession of the inbox (not just the
   // username) is what prevents anyone who merely knows/guesses a username from
   // taking over the account. Rate-limited server-side to once every 15 minutes.
@@ -133,7 +133,7 @@ class AuthService {
     }
   }
 
-  // POST /api/auth/forgot-password/confirm — step 2: verify the emailed code and
+  // POST /api/auth/forgot-password/confirm - step 2: verify the emailed code and
   // set the new password in one call.
   Future<void> confirmPasswordReset(String username, String otp, String newPassword) async {
     try {

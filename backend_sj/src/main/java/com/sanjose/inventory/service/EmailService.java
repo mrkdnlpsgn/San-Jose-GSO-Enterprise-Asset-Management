@@ -50,11 +50,11 @@ public class EmailService {
     @Async
     public void send(String to, String subject, String htmlBody) {
         if (!notificationsEnabled) {
-            log.debug("Email notifications disabled (notifications.enabled=false) — skipping.");
+            log.debug("Email notifications disabled (notifications.enabled=false), skipping.");
             return;
         }
         if (from == null || from.isBlank()) {
-            log.warn("Gmail not configured (mail.from is empty) — email not sent.");
+            log.warn("Gmail not configured (mail.from is empty), email not sent.");
             return;
         }
         if (!relayUrl.isBlank()) {
@@ -89,7 +89,7 @@ public class EmailService {
 
         try {
             // Apps Script sends the mail while handling the POST, then answers with a 302 to
-            // its result page — that redirect is success, not something to follow.
+            // its result page - that redirect is success, not something to follow.
             ResponseEntity<String> response =
                 restTemplate.postForEntity(relayUrl.trim(), new HttpEntity<>(body, headers), String.class);
             if (response.getStatusCode().is2xxSuccessful() || response.getStatusCode().is3xxRedirection()) {

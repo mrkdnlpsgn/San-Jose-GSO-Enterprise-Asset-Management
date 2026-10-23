@@ -22,7 +22,7 @@ import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatDateTime(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleString('en-PH', {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -131,7 +131,7 @@ function AccountsTab() {
     const { data } = await createUser(form, idempotencyKey)
     setUsers((prev) => [...prev, data])
     const message = form.generatePassword
-      ? `Account for ${data.fullName || data.username} created — credentials emailed to ${data.email}.`
+      ? `Account for ${data.fullName || data.username} created. Credentials emailed to ${data.email}.`
       : `Account for ${data.fullName || data.username} created.`
     toast.show(message, 'success')
   }
@@ -151,7 +151,7 @@ function AccountsTab() {
     setViewing(null)
     if (transferToUserId) {
       const to = users.find((u) => u.id === transferToUserId)
-      toast.show(`"${name}" deactivated — assets transferred to ${to?.fullName || to?.username || 'the selected account'}.`, 'warning')
+      toast.show(`"${name}" deactivated. Assets transferred to ${to?.fullName || to?.username || 'the selected account'}.`, 'warning')
     } else {
       toast.show(`"${name}" deactivated.`, 'warning')
     }
@@ -226,12 +226,12 @@ function AccountsTab() {
             <DetailSection title="Account">
               <DetailField label="Full name" value={v.fullName} />
               <DetailField label="Username" value={`@${v.username}`} mono />
-              <DetailField label="Email" value={v.email || 'No email on file — "Forgot password" won\'t work for this account'} />
+              <DetailField label="Email" value={v.email || 'No email on file: "Forgot password" won\'t work for this account'} />
             </DetailSection>
             <DetailSection title="Work">
-              <DetailField label="Office" value={v.officeName || 'Not assigned — set it on the Personnel page'} />
+              <DetailField label="Office" value={v.officeName || 'Not assigned. Set it on the Personnel page'} />
               <DetailField label="Role" value={v.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'} />
-              <DetailField label="2-step sign-in" value={v.twoFactorEnabled ? 'On — a code is emailed at sign-in' : 'Off'} />
+              <DetailField label="2-step sign-in" value={v.twoFactorEnabled ? 'On (a code is emailed at sign-in)' : 'Off'} />
             </DetailSection>
           </DetailGrid>
         </DetailModal>
@@ -251,7 +251,7 @@ function AccountsTab() {
 // Old entries leave the live list (keeps it fast) but are kept in an archive that can be
 // downloaded as a spreadsheet-friendly CSV, optionally for a date range.
 function formatDate(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
@@ -306,7 +306,7 @@ function AuditArchivePanel({ onArchived }) {
       setSummary(data)
       toast.show(data.moved > 0
         ? `Moved ${data.moved} old ${data.moved === 1 ? 'entry' : 'entries'} to the archive.`
-        : 'Nothing to archive — no entries are older than the limit.', 'success')
+        : 'Nothing to archive. No entries are older than the limit.', 'success')
       if (data.moved > 0) onArchived?.()
     } catch {
       toast.show('Failed to archive old entries.', 'error')

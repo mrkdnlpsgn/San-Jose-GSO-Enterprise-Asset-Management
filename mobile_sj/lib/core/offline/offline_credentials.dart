@@ -12,7 +12,7 @@ enum OfflineSignInProblem {
   notOnThisPhone,
   /// The last online sign-in was more than [OfflineCredentials.validFor] ago.
   expired,
-  /// Too many wrong passwords offline — the next sign-in must be online.
+  /// Too many wrong passwords offline - the next sign-in must be online.
   locked,
   wrongPassword,
 }
@@ -25,7 +25,7 @@ class OfflineSignInException implements Exception {
         OfflineSignInProblem.notOnThisPhone =>
           "You're offline, and this account hasn't signed in on this phone before. "
               'Connect to Wi-Fi or mobile data to sign in.',
-        OfflineSignInProblem.expired => "You're offline, and offline sign-in has expired — it lasts "
+        OfflineSignInProblem.expired => "You're offline, and offline sign-in has expired. It lasts "
             '${OfflineCredentials.validFor.inDays} days after you last signed in online. Connect to sign in.',
         OfflineSignInProblem.locked => 'Too many wrong passwords. Connect to Wi-Fi or mobile data to sign in.',
         OfflineSignInProblem.wrongPassword => 'The username or password is incorrect. Please check and try again.',
@@ -39,7 +39,7 @@ class OfflineSignInException implements Exception {
 /// code) sign in again with the same password while offline, for [validFor] after that.
 ///
 /// The password itself is never stored: only a salted PBKDF2-HMAC-SHA256 hash, in the app's
-/// private folder (`<documents>/offline/credentials.json`). The server is not involved — an
+/// private folder (`<documents>/offline/credentials.json`). The server is not involved - an
 /// offline session has no server session, so once back online the user signs in normally
 /// before anything uploads.
 class OfflineCredentials {

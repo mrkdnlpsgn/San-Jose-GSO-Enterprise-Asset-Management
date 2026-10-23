@@ -2,7 +2,7 @@ import api from './api';
 
 // Same reasoning as assetService.js's getAssets(): the Maintenance page expects
 // the full list for client-side filtering/pagination, but the backend defaults
-// to a 20-row page — request an effectively-unlimited page explicitly.
+// to a 20-row page - request an effectively-unlimited page explicitly.
 export const getMaintenance        = (search = '') => api.get('/maintenance', {
   params: { size: 100000, ...(search.trim() ? { search: search.trim() } : {}) },
 });

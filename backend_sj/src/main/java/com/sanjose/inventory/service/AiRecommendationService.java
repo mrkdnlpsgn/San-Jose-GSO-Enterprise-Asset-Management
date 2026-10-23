@@ -277,7 +277,7 @@ public class AiRecommendationService {
             : "unit value unknown";
 
         String prompt = """
-            Asset: %s — %s
+            Asset: %s, %s
             Category: %s
             Office: %s
             Specifications: %s

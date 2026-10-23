@@ -80,7 +80,7 @@ class _DisposalListScreenState extends ConsumerState<DisposalListScreen> {
                     d.recommendedMethod,
                     d.disposalStatus,
                     d.inspectionDate,
-                    d.approvedBy ?? '—',
+                    d.approvedBy ?? 'N/A',
                     d.recordedBy.fullName,
                   ],
                   onOpenRecord: (d) => context.push('/disposal/${d.id}'),

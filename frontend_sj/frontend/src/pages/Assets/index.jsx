@@ -67,10 +67,10 @@ function assetCell(i, r, onOpen) {
         <div className="sm:hidden mt-1"><Badge map={CONDITION_BADGE} value={r.condition} /></div>
       </div>
     )
-    case 1: return <p className={`text-sm ${muted} truncate`}>{r.categoryName || '—'}</p>
+    case 1: return <p className={`text-sm ${muted} truncate`}>{r.categoryName || 'N/A'}</p>
     case 2: return (
       <div className="min-w-0">
-        <p className="text-sm text-slate-700 dark:text-zinc-200 truncate">{r.officeName || '—'}</p>
+        <p className="text-sm text-slate-700 dark:text-zinc-200 truncate">{r.officeName || 'N/A'}</p>
         <p className={`text-xs truncate mt-0.5 ${r.accountableName ? muted : 'italic text-amber-800 dark:text-amber-300'}`}>
           {r.accountableName || 'No accountable person'}
         </p>
@@ -216,14 +216,14 @@ function Assets() {
   const handleCreate = async (payload, idempotencyKey, wasScanned) => {
     const { data } = await createAsset(payload, idempotencyKey)
     // The SSE 'asset' CREATED event (emitted server-side before this response
-    // returns) can already have added this asset via the listener above —
+    // returns) can already have added this asset via the listener above -
     // check first so a fast round-trip doesn't insert it a second time.
     setItems((prev) => (prev.some((a) => a.id === data.id) ? prev.map((a) => (a.id === data.id ? data : a)) : [data, ...prev]))
     dispatch(addAsset(data))
     toast.show('Asset created.', 'success')
     if (data.condition === 'REPAIRABLE')    toast.show('Maintenance record auto-created.', 'info')
     if (data.condition === 'UNSERVICEABLE') toast.show('Disposal record auto-created.', 'info')
-    // Completes the scan → review → QR flow — manual entry keeps today's behavior.
+    // Completes the scan → review → QR flow - manual entry keeps today's behavior.
     if (wasScanned) setQrAsset(data)
   }
 
@@ -234,7 +234,7 @@ function Assets() {
     if (selected?.id === data.id) setSelected(data)
     setEditing(null)
     toast.show(data.pendingRequest
-      ? `Asset updated. ${data.pendingRequest === 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent — an administrator needs to approve it.`
+      ? `Asset updated. ${data.pendingRequest === 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent. An administrator needs to approve it.`
       : 'Asset updated.', 'success')
   }
 
@@ -482,7 +482,7 @@ function Assets() {
           message={
             <div className="space-y-3">
               <p className="text-sm text-slate-600 dark:text-zinc-300">
-                <span className="font-semibold">{deleting.propertyNumber}</span> — {deleting.description} will be archived and removed from the active list.
+                <span className="font-semibold">{deleting.propertyNumber}</span>: {deleting.description} will be archived and removed from the active list.
               </p>
               <div>
                 <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">Reason (optional)</label>

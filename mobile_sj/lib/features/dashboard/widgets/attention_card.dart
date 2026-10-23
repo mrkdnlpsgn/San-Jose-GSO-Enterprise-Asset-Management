@@ -8,7 +8,7 @@ import '../../asset_history/data/asset_history_service.dart';
 import '../../asset_history/model/edit_request_model.dart';
 import '../../auth/provider/auth_provider.dart';
 
-/// Things on Home that someone has to act on — the web dashboard's "Pending Approvals"
+/// Things on Home that someone has to act on - the web dashboard's "Pending Approvals"
 /// and "staff account has no office" alerts. Shown only when there is something.
 class AttentionItem {
   final IconData icon;
@@ -56,7 +56,7 @@ final attentionProvider = FutureProvider.autoDispose<List<AttentionItem>>((ref) 
         ));
       }
     } catch (_) {
-      // the accounts list is a nice-to-have here — never block Home on it
+      // the accounts list is a nice-to-have here - never block Home on it
     }
   } else {
     // Staff: their own requests that were refused in the last two weeks, so they can fix and resend.
@@ -97,7 +97,7 @@ class AttentionCard extends ConsumerWidget {
     if (items.isEmpty) return const SizedBox.shrink();
     final c = context.colors;
 
-    // iOS grouped section: Settings-style rows — a solid system-colour icon tile, the text,
+    // iOS grouped section: Settings-style rows - a solid system-colour icon tile, the text,
     // and a thin grey chevron; hairline separators inset to the text.
     return Padding(
       padding: const EdgeInsets.only(top: 22),

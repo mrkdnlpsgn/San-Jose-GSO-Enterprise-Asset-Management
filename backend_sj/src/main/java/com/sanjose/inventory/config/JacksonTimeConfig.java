@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter;
 
 // Every DATETIME in this app is UTC: the JVM and MySQL run in UTC, so LocalDateTime.now() and
 // NOW() both produce UTC clock times. LocalDateTime carries no zone, though, so it used to go
-// out as "2026-10-07T05:43:05" and browsers / the mobile app read it as Philippine time —
+// out as "2026-10-07T05:43:05" and browsers / the mobile app read it as Philippine time -
 // every timestamp showed 8 hours early. This writes them as UTC instants ("…05:43:05Z") so
 // clients convert to local time correctly. Plain dates (LocalDate) are calendar dates and
 // are left alone.

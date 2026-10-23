@@ -25,7 +25,7 @@ class OfflineStore {
 
   void useAccount(String? username) => _account = username;
 
-  /// The shared folder (not tied to an account) — the outbox lives here, tagged per item.
+  /// The shared folder (not tied to an account) - the outbox lives here, tagged per item.
   Directory get rootDir => _root!;
 
   /// This account's folder, or null when nobody is signed in.
@@ -41,7 +41,7 @@ class OfflineStore {
       if (!await f.exists()) return null;
       return jsonDecode(await f.readAsString());
     } catch (_) {
-      return null; // unreadable (half-written by an older build) — treat as missing
+      return null; // unreadable (half-written by an older build) - treat as missing
     }
   }
 

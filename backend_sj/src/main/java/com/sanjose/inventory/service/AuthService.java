@@ -85,12 +85,12 @@ public class AuthService {
     private final PlatformTransactionManager transactionManager;
 
     // A failed-attempt counter (login lockout, OTP attempts) must survive even
-    // though the caller immediately throws right after recording it — under the
+    // though the caller immediately throws right after recording it - under the
     // enclosing @Transactional method, Spring's default rollback-on-RuntimeException
     // would otherwise silently undo the increment along with everything else,
     // defeating the attempt limit entirely (confirmed happening in practice before
     // this fix: failed_login_attempts and both *_otp_attempts columns stayed at 0
-    // no matter how many wrong passwords/codes were submitted — lockout and OTP
+    // no matter how many wrong passwords/codes were submitted - lockout and OTP
     // brute-force limits never actually engaged). Running it in its own
     // REQUIRES_NEW transaction makes it durable regardless of what the caller
     // does next.
@@ -113,7 +113,7 @@ public class AuthService {
     }
 
     // Wrong password for an existing (not currently locked) account: count it, and say how many
-    // tries are left — or, on the last one, that the account is now locked.
+    // tries are left - or, on the last one, that the account is now locked.
     private RuntimeException failedAttempt(LoginUserData user) {
         // A lockout that has run out starts a fresh count; otherwise the counter is still at the
         // limit and the very next mistake would lock the account again straight away.
@@ -167,7 +167,7 @@ public class AuthService {
         return login(identifier, password, null);
     }
 
-    // trustedDevices: the browser's remembered-device cookie (TrustedDeviceService), if any —
+    // trustedDevices: the browser's remembered-device cookie (TrustedDeviceService), if any -
     // a remembered account skips the emailed code; the password is still checked first.
     @Transactional
     public Map<String, Object> login(String identifier, String password, String trustedDevices) {
@@ -187,7 +187,7 @@ public class AuthService {
         jdbcTemplate.update("CALL sp_auth_login_success(?)", user.id());
 
         // Correct credentials, but this is a temp password (fresh account or admin
-        // reset) — withhold the session token until the user picks their own password.
+        // reset) - withhold the session token until the user picks their own password.
         // Takes priority over 2FA: finish the forced change first, then 2FA applies
         // on the next real login.
         if (Boolean.TRUE.equals(user.mustChangePassword())) {
@@ -195,7 +195,7 @@ public class AuthService {
         }
 
         // Correct credentials, 2FA enabled on this account (everyone except admin
-        // and ict_staff, who are trusted fixture/service accounts) — withhold the
+        // and ict_staff, who are trusted fixture/service accounts) - withhold the
         // session token until the emailed code is verified via verifyLoginOtp().
         if (Boolean.TRUE.equals(user.twoFactorEnabled()) && !trustedDeviceService.isTrusted(
                 user.id(), user.tokenVersion() != null ? user.tokenVersion() : 0, trustedDevices)) {
@@ -216,7 +216,7 @@ public class AuthService {
         return Map.of("token", token, "user", userMap);
     }
 
-    // Shared by login()'s first hit and any resubmission before the code is verified —
+    // Shared by login()'s first hit and any resubmission before the code is verified -
     // avoids re-emailing a fresh code (and restarting the attempt counter) if the user
     // just resubmits the login form within the cooldown window.
     private void issueOrReuseLoginOtp(LoginUserData user) {
@@ -229,7 +229,7 @@ public class AuthService {
             if (LocalDateTime.now().isBefore(issuedAt.plusSeconds(loginOtpResendCooldownSeconds))) return;
         }
 
-        // No email on file: nothing to send. Fails closed — the account stays
+        // No email on file: nothing to send. Fails closed - the account stays
         // permanently unable to complete login rather than silently skipping 2FA.
         List<ForgotPasswordUserData> emailRows = jdbcTemplate.query(
             "CALL sp_auth_get_user_for_forgot_password_request(?)",
@@ -238,7 +238,7 @@ public class AuthService {
                 rs.getObject("isActive", Boolean.class), null, null),
             user.username());
         if (emailRows.isEmpty() || emailRows.get(0).email() == null || emailRows.get(0).email().isBlank()) {
-            log.warn("2FA enabled for {} but no email on file — login cannot complete.", user.username());
+            log.warn("2FA enabled for {} but no email on file. Login cannot complete.", user.username());
             return;
         }
 
@@ -280,7 +280,7 @@ public class AuthService {
 
         List<LoginOtpData> rows = jdbcTemplate.query("CALL sp_auth_get_login_otp(?)", LOGIN_OTP_MAPPER, identifier);
 
-        // Every failure path throws the identical message — unknown username, no
+        // Every failure path throws the identical message - unknown username, no
         // pending code, expired code, wrong code, and too-many-attempts are all
         // indistinguishable to the caller (mirrors confirmPasswordReset).
         if (rows.isEmpty()) throw new IllegalArgumentException("Invalid or expired code.");
@@ -337,7 +337,7 @@ public class AuthService {
         auditLogService.log("USER_PASSWORD_CHANGED", "Users", user.id(), "user",
             "Password changed to complete mandatory first login: " + user.username());
 
-        // token_version was just bumped by the proc above — the value on `user` predates
+        // token_version was just bumped by the proc above - the value on `user` predates
         // that, so start from it and add the +1 the proc applied rather than re-querying.
         int newTokenVersion = (user.tokenVersion() != null ? user.tokenVersion() : 0) + 1;
         String token = jwtUtil.generateToken(user.username(), newTokenVersion);
@@ -353,7 +353,7 @@ public class AuthService {
         return Map.of("token", token, "user", userMap);
     }
 
-    // Backs GET /api/auth/me — same user-map shape as login()/forceChangePassword()
+    // Backs GET /api/auth/me - same user-map shape as login()/forceChangePassword()
     // (in particular, privacyAcknowledgedAt) so a client rehydrating its session
     // from an existing cookie sees the same fields it would have gotten at login.
     public Map<String, Object> getCurrentUserMap(String username) {
@@ -418,7 +418,7 @@ public class AuthService {
 
         // An unknown username is told so (the GSO asked for this, so people don't wait for a
         // code that will never come). Inactive account, no email on file, or still in cooldown:
-        // no-op — the controller returns the same generic message for those.
+        // no-op - the controller returns the same generic message for those.
         if (rows.isEmpty()) throw new ResourceNotFoundException(
             "No account with that username was found. Check the spelling, or ask the system administrator.");
         ForgotPasswordUserData user = rows.get(0);
@@ -430,7 +430,7 @@ public class AuthService {
             if (LocalDateTime.now().isBefore(nextAllowed)) return;
         }
 
-        // Don't spam a fresh code/email if one was just requested — a pending OTP's
+        // Don't spam a fresh code/email if one was just requested - a pending OTP's
         // issued-at time is derivable from its expiry (expiry = issuedAt + otpExpiryMinutes).
         if (user.otpExpiresAt() != null) {
             LocalDateTime issuedAt = user.otpExpiresAt().minusMinutes(otpExpiryMinutes);
@@ -466,7 +466,7 @@ public class AuthService {
             },
             username);
 
-        // Every failure path below throws the exact same message — unknown username,
+        // Every failure path below throws the exact same message - unknown username,
         // no pending code, expired code, wrong code, and too-many-attempts are all
         // indistinguishable to the caller.
         if (rows.isEmpty()) throw new IllegalArgumentException("Invalid or expired code.");
@@ -519,7 +519,7 @@ public class AuthService {
     }
 
     // The same one-time code (with the same expiry and attempt limits) confirms a change to an
-    // asset's status and an admin's decision on a staff request — see ActionOtpService. Returns
+    // asset's status and an admin's decision on a staff request - see ActionOtpService. Returns
     // the address it went to, masked, for the client's "we emailed a code to ..." prompt.
     @Transactional
     public String requestActionOtp(String username, String action) {
@@ -539,7 +539,7 @@ public class AuthService {
             throw new LockedException("Account is deactivated");
         if (user.email() == null || user.email().isBlank())
             throw new IllegalStateException(
-                "No email is on file for your account — contact an administrator before performing this action.");
+                "No email is on file for your account. Contact an administrator before performing this action.");
 
         // Don't spam a fresh code/email if one was just requested.
         if (user.otpExpiresAt() != null) {
@@ -557,7 +557,7 @@ public class AuthService {
         String html = intro
             + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;\">" + otp + "</p>"
             + "<p>This code expires in " + deleteOtpExpiryMinutes + " minutes. "
-            + "If you didn't request this, you can safely ignore this email — " + ignoreNote + "</p>";
+            + "If you didn't request this, you can safely ignore this email: " + ignoreNote + "</p>";
         if (logCode) log.warn("[local testing] confirmation code for {}: {}", username, otp);
         emailService.send(user.email(), subject, html);
         return maskEmail(user.email());
@@ -596,7 +596,7 @@ public class AuthService {
     }
 
     // Records that the currently-authenticated user has read the Data Privacy Notice.
-    // Identity comes from the JWT-backed SecurityContext, not a request body — no
+    // Identity comes from the JWT-backed SecurityContext, not a request body - no
     // separate credential check needed since the caller already holds a valid session.
     @Transactional
     public LocalDateTime acknowledgePrivacy(String username) {

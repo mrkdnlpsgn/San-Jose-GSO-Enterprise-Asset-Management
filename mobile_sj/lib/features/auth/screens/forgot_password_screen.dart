@@ -8,7 +8,7 @@ import '../data/auth_service.dart';
 enum _Step { request, confirm, done }
 
 // 3-step flow: request (enter username, email a code) -> confirm (enter code + new
-// password) -> done. Requiring the emailed code — not just the username — is what
+// password) -> done. Requiring the emailed code - not just the username - is what
 // stops anyone who merely knows/guesses a username from taking over the account.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -241,7 +241,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Widget _buildDone(BuildContext context) {
     // Deliberately not CrossAxisAlignment.stretch like the rest of this file's
-    // Columns — that would also stretch the fixed-size 64x64 icon circle below
+    // Columns - that would also stretch the fixed-size 64x64 icon circle below
     // into a full-width bar. Only the button needs to be full width, via its
     // own SizedBox instead.
     return Column(

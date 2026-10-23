@@ -232,7 +232,7 @@ function Maintenance() {
           onClose={() => setViewing(null)}
           subtitle={<>
             <span className="text-slate-600 dark:text-zinc-400">Property No.</span>
-            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{v.asset?.propertyNumber || '—'}</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{v.asset?.propertyNumber || 'N/A'}</span>
             <span className="text-slate-300 dark:text-zinc-600" aria-hidden="true">·</span>
             <MappedBadge map={TYPE} value={v.maintenanceType} />
             <MappedBadge map={STATUS} value={v.status} />
@@ -285,7 +285,7 @@ function Maintenance() {
       {rejecting && (
         <RejectRequestModal
           record={rejecting}
-          describe={(r) => `${r.asset?.propertyNumber || ''} — ${r.asset?.description || ''}`}
+          describe={(r) => `${r.asset?.propertyNumber || ''}: ${r.asset?.description || ''}`}
           onClose={() => setRejecting(null)}
           onConfirm={handleReject}
         />

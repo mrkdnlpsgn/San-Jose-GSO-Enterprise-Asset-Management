@@ -1,4 +1,4 @@
-// A plain (read-only) asset row with the same columns as the main Assets table — used where a
+// A plain (read-only) asset row with the same columns as the main Assets table - used where a
 // group's devices are shown outside the Assets page (e.g. from the Maintenance / Disposal
 // group drawer). `onOpen` opens the device on the Assets page.
 
@@ -9,15 +9,15 @@ const CONDITION_BADGE = {
 }
 
 function fmt(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 function php(v) {
-  if (v == null) return '—'
+  if (v == null) return 'N/A'
   return '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 }
 
-const dash = <span className="text-slate-400 dark:text-zinc-600">—</span>
+const dash = <span className="text-slate-400 dark:text-zinc-600">N/A</span>
 
 export default function DeviceRow({ asset: a, onOpen }) {
   const diff = a.physicalCount != null ? a.physicalCount - (a.quantity ?? 0) : null
@@ -35,14 +35,14 @@ export default function DeviceRow({ asset: a, onOpen }) {
           {a.currentUser?.fullName && <p>Using: {a.currentUser.fullName}</p>}
         </div>
       </td>
-      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{a.category?.categoryName || '—'}</td>
-      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap text-center">{a.quantity ?? '—'}</td>
+      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{a.category?.categoryName || 'N/A'}</td>
+      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap text-center">{a.quantity ?? 'N/A'}</td>
       <td className="px-5 py-3.5 text-xs whitespace-nowrap text-center">{a.physicalCount != null ? a.physicalCount : dash}</td>
       <td className={`px-5 py-3.5 text-xs whitespace-nowrap text-center font-medium ${color}`}>{diff == null ? dash : diff > 0 ? `+${diff}` : diff}</td>
       <td className={`px-5 py-3.5 text-xs whitespace-nowrap text-center font-medium ${color}`}>
         {val == null ? dash : (val > 0 ? '+' : '') + '₱' + Math.abs(val).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
       </td>
-      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{a.office?.officeName || '—'}</td>
+      <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{a.office?.officeName || 'N/A'}</td>
       <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{php(a.unitValue)}</td>
       <td className="px-5 py-3.5 text-slate-500 dark:text-zinc-400 text-xs whitespace-nowrap">{fmt(a.acquisitionDate)}</td>
       <td className="px-5 py-3.5 text-xs max-w-[12.5rem]">

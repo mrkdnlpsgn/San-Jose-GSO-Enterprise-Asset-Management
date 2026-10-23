@@ -18,7 +18,7 @@ class AssetHistoryService {
     }
   }
 
-  // Asset History screen — admin: everything; staff: every event (by anyone) on the assets
+  // Asset History screen - admin: everything; staff: every event (by anyone) on the assets
   // they're the accountable person for.
   Future<List<AssetHistoryModel>> getAccountable() async {
     try {

@@ -12,7 +12,7 @@ import { waitForServer, isServerAsleep } from '../../services/api'
 const MAX_ATTEMPTS = 3
 const LOCKOUT_MINUTES = 15
 
-// Backend messages are terse ("Invalid credentials") — say what happened in plain words.
+// Backend messages are terse ("Invalid credentials") - say what happened in plain words.
 // Returns { message, lockedUntil? } (lockedUntil: ms timestamp when the account unlocks).
 function describeLoginError(err) {
   const res = err?.response
@@ -37,12 +37,12 @@ function describeLoginError(err) {
     }
     return { message: `The username or password is incorrect. Please check and try again. After ${MAX_ATTEMPTS} incorrect tries, the account is locked for ${LOCKOUT_MINUTES} minutes.` }
   }
-  // only the login check's own "Account is deactivated" — not other messages that mention it
+  // only the login check's own "Account is deactivated" - not other messages that mention it
   if (/^account is deactivated/i.test(msg)) return { message: 'This account has been deactivated. Please contact the GSO system administrator.' }
   return { message: msg }
 }
 
-// "14 minutes" / "1 minute" / "45 seconds" — rounded up so it never says 0 too early.
+// "14 minutes" / "1 minute" / "45 seconds" - rounded up so it never says 0 too early.
 function timeLeft(ms) {
   const secs = Math.max(1, Math.ceil(ms / 1000))
   if (secs < 60) return `${secs} second${secs === 1 ? '' : 's'}`
@@ -61,7 +61,7 @@ function PhilippineTime({ className = '' }) {
   const time = now.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit', second: '2-digit' })
   const date = now.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   return (
-    // Never hidden: on a short panel (large text) it gets more compact instead — tighter padding
+    // Never hidden: on a short panel (large text) it gets more compact instead - tighter padding
     // and a smaller time first, then the label goes, then the date.
     <div className={`w-full max-w-[17rem] rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-5 py-4 [@container(max-height:44rem)]:py-2.5 ${className}`}>
       <p className="text-2xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 [@container(max-height:33.5rem)]:hidden">Philippine Standard Time</p>
@@ -100,7 +100,7 @@ function Login() {
   const serverReady = useRef(null)
   const wakeServer = () => {
     serverReady.current = waitForServer({ onWaiting: () => setServerWaking(true) })
-      .catch(() => {})   // still down after 5 minutes — let the sign-in itself show the error
+      .catch(() => {})   // still down after 5 minutes - let the sign-in itself show the error
       .finally(() => setServerWaking(false))
     return serverReady.current
   }
@@ -137,7 +137,7 @@ function Login() {
       try {
         result = await login(form)
       } catch (err) {
-        // went to sleep again, or was mid-restart — wait for it once more, then retry
+        // went to sleep again, or was mid-restart - wait for it once more, then retry
         if (!isServerAsleep(err)) throw err
         await wakeServer()
         result = await login(form)
@@ -168,7 +168,7 @@ function Login() {
     navigate('/dashboard')
   }
 
-  // Typing again clears the old error — it no longer describes what's on screen. A lockout
+  // Typing again clears the old error - it no longer describes what's on screen. A lockout
   // belongs to one account, so it stays until the countdown ends or the username changes.
   const setField = (key) => (e) => {
     setForm((f) => ({ ...f, [key]: e.target.value }))
@@ -181,13 +181,13 @@ function Login() {
   }
 
   // Re-submits the original credentials so the backend can email a fresh code
-  // (subject to its own resend cooldown) — the password never left this screen.
+  // (subject to its own resend cooldown) - the password never left this screen.
   const handleOtpResend = () => login(form)
 
   return (
     // Exactly the window's height, never taller: the side panel's height-based steps (clock, seal
     // size) must not depend on content, or showing the clock can add a page scrollbar that rewraps
-    // the form, changes the height and hides the clock again — a loop that restarted its animation
+    // the form, changes the height and hides the clock again - a loop that restarted its animation
     // every tick. If the form ever needs more room, only the form side scrolls.
     <div className="h-dvh flex flex-col overflow-hidden bg-white dark:bg-zinc-950">
       <div className="flex-1 min-h-0 flex relative">
@@ -195,7 +195,7 @@ function Login() {
 
       {/* Left panel. With larger text (Settings → Text size scales the whole UI) it would grow
           taller than the screen, so it is a size container: it takes the window's height, and its
-          contents step down as the room shrinks — a smaller seal, tighter spacing and a compact
+          contents step down as the room shrinks. A smaller seal, tighter spacing and a compact
           clock, then the divider and secondary lines go. The clock itself always stays. The
           thresholds are in rem, so they scale with the text size too. */}
       <div className="hidden lg:flex lg:w-5/12 xl:w-[27.5rem] flex-col flex-shrink-0 relative overflow-hidden [container-type:size] border-r border-slate-100 dark:border-zinc-800 bg-gradient-to-b from-brand-500/5 via-white to-white dark:from-brand-500/8 dark:via-zinc-900 dark:to-zinc-900">
@@ -235,7 +235,7 @@ function Login() {
         </p>
       </div>
 
-      {/* Right panel — form */}
+      {/* Right panel - form */}
       <div className="flex-1 min-w-0 flex overflow-y-auto px-6 py-6 [&>*]:m-auto">
         {forcedChange ? (
           <ForceChangePasswordForm
@@ -316,7 +316,7 @@ function Login() {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
-              Remembered computers were forgotten and you were signed out everywhere. Sign in again — you'll be asked for a code.
+              Remembered computers were forgotten and you were signed out everywhere. Sign in again. You'll be asked for a code.
             </div>
           )}
 
@@ -327,7 +327,7 @@ function Login() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
-              <span>The system is starting up after a quiet period. This can take up to 3 minutes. You can enter your username and password now — you will be signed in as soon as it is ready.</span>
+              <span>The system is starting up after a quiet period. This can take up to 3 minutes. You can enter your username and password now. You will be signed in as soon as it is ready.</span>
             </div>
           )}
 
@@ -426,7 +426,7 @@ function Login() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
-                  Caps Lock is on — passwords are case-sensitive.
+                  Caps Lock is on. Passwords are case-sensitive.
                 </p>
               )}
             </div>
@@ -444,7 +444,7 @@ function Login() {
                   </svg>
                   {serverWaking ? 'Waiting for the system to start…' : 'Signing in…'}
                 </span>
-              ) : locked ? `Locked — try again in ${timeLeft(lockedUntil - now)}` : 'Sign In'}
+              ) : locked ? `Locked. Try again in ${timeLeft(lockedUntil - now)}` : 'Sign In'}
             </button>
           </form>
           </div>

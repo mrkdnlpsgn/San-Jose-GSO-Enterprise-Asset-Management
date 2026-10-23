@@ -23,7 +23,7 @@ public class MaintenancePhoto {
     @JoinColumn(name = "maintenance_id", nullable = false)
     private MaintenanceLedger maintenance;
 
-    // Path relative to the upload root, e.g. "maintenance/<uuid>.jpg" — never the client-supplied name
+    // Path relative to the upload root, e.g. "maintenance/<uuid>.jpg" - never the client-supplied name
     @Column(name = "file_path", nullable = false, length = 255)
     private String filePath;
 

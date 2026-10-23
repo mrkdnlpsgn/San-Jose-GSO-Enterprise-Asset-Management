@@ -12,7 +12,7 @@ class UserModel {
   final List<int> officeIds;
   final String role; // ADMIN | STAFF
   final String? privacyAcknowledgedAt;
-  /// Root-relative, e.g. /uploads/avatars/3-<uuid>.jpg — null when no picture is set.
+  /// Root-relative, e.g. /uploads/avatars/3-<uuid>.jpg - null when no picture is set.
   final String? avatarUrl;
 
   const UserModel({
@@ -66,7 +66,7 @@ class UserModel {
     );
   }
 
-  // Same shape fromJson reads — used to remember the signed-in user on the phone.
+  // Same shape fromJson reads - used to remember the signed-in user on the phone.
   Map<String, dynamic> toJson() => {
         'id': id,
         'username': username,

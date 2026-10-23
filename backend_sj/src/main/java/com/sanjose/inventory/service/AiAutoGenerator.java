@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 //   - the summary of a maintenance record / justification of a disposal record, when the record
 //     is created, edited or approved;
 //   - the asset's recommendation, when one of its maintenance or disposal records changes or the
-//     asset is edited in a way that matters (condition, repairs) — see refreshIfChanged.
+//     asset is edited in a way that matters (condition, repairs) - see refreshIfChanged.
 // These run on the FAST model (Flash-Lite, about 1,000 free requests a day; GeminiConfig).
 // The dashboard period summary, the audit digest and anything for records saved before this
 // existed are still made when someone presses Generate.
@@ -101,7 +101,7 @@ public class AiAutoGenerator {
         }
     }
 
-    // The 404 body when nothing exists yet, plus — if AI is paused (quota used up) — the message
+    // The 404 body when nothing exists yet, plus - if AI is paused (quota used up) - the message
     // to show next to the Generate button.
     public java.util.Map<String, Object> notReady(String message) {
         java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();

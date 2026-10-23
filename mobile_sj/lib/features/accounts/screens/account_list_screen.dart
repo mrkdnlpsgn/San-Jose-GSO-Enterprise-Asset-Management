@@ -122,7 +122,7 @@ class _AccountCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 account.email != null
                     ? MetaLine(Icons.mail_rounded, account.email!)
-                    : Text('No email on file — forgot-password won\'t work',
+                    : Text('No email on file, forgot-password won\'t work',
                         style: TextStyle(
                             color: context.isLight ? const Color(0xFFB45309) : const Color(0xFFFBBF24), fontSize: 14)),
               ],

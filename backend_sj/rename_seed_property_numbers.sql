@@ -5,13 +5,13 @@
 --
 -- Run this ONCE, right after seed_2000_assets.sql, before any real
 -- COA-numbered assets are created for the affected years (otherwise
--- their per-year sequence continues from whatever's already there —
+-- their per-year sequence continues from whatever's already there -
 -- which is safe, just first-run-only by design since a second run
 -- would find no more 'SEED-%' rows left to rename).
 --
 -- Step 1 records which asset_ids belong to the seed batch into a
 -- permanent marker table (`seed_batch_assets`) BEFORE renaming, since
--- the 'SEED-' prefix — the only other way to identify this batch — is
+-- the 'SEED-' prefix - the only other way to identify this batch - is
 -- about to be overwritten. cleanup_seed_2000_assets.sql depends on
 -- this table to know what to remove later.
 --

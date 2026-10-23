@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
-// Single-button, informational counterpart to showDeleteDialog — for telling
+// Single-button, informational counterpart to showDeleteDialog - for telling
 // the user an action can't proceed (e.g. "this category has assets assigned
 // to it"), not asking them to confirm one.
 Future<void> showInfoDialog(BuildContext context, {required String title, required String message}) {

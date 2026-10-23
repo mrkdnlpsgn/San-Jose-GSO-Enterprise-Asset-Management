@@ -14,18 +14,18 @@ function recordMessage(kind, action, data, actor, isAdmin) {
   const suffix = propertyNumber ? ` (${propertyNumber})` : ''
   if (action === 'DELETED') return `${actor} deleted a ${kind} record${suffix}`
   if (!data) return null
-  // Staff requests (see ApprovalControls) — admins are asked to act, staff hear the outcome
+  // Staff requests (see ApprovalControls) - admins are asked to act, staff hear the outcome
   if (action === 'CREATED' && data.approvalStatus === 'PENDING_APPROVAL') {
     return isAdmin
-      ? `${actor} requested ${kind}${suffix} — waiting for your approval`
+      ? `${actor} requested ${kind}${suffix}, waiting for your approval`
       : `${actor} requested ${kind}${suffix}`
   }
   if (action === 'APPROVED') return `${actor} approved the ${kind} request${suffix}`
-  if (action === 'REJECTED') return `${actor} rejected the ${kind} request${suffix}${data.reviewNote ? ` — ${data.reviewNote}` : ''}`
+  if (action === 'REJECTED') return `${actor} rejected the ${kind} request${suffix}${data.reviewNote ? `: ${data.reviewNote}` : ''}`
   return `${actor} ${action === 'CREATED' ? 'added' : 'updated'} a ${kind} record${suffix}`
 }
 
-// Mounted once for the whole authenticated app (see App.jsx) — turns the SSE
+// Mounted once for the whole authenticated app (see App.jsx) - turns the SSE
 // stream already wired up for list-syncing into user-visible toasts for other
 // users' actions, and keeps the online-users list (Sidebar) in sync. Skips
 // "CHANGED" cascade events (no descriptive data, always paired with an asset

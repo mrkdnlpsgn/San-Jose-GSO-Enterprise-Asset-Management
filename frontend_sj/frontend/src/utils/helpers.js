@@ -9,7 +9,7 @@ export function escapeHtml(str) {
 }
 
 export const formatDate = (dateString) => {
-  if (!dateString) return '—'
+  if (!dateString) return 'N/A'
   return new Date(dateString).toLocaleDateString('en-PH', {
     year: 'numeric',
     month: 'short',
@@ -29,7 +29,7 @@ export function manilaDateKey(value) {
   return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })   // en-CA formats as YYYY-MM-DD
 }
 
-// "2026-10-07 13:43" in Philippine time — for spreadsheet exports, where a readable local
+// "2026-10-07 13:43" in Philippine time - for spreadsheet exports, where a readable local
 // date-time is wanted rather than a UTC instant.
 export function manilaDateTime(value) {
   if (!value) return ''

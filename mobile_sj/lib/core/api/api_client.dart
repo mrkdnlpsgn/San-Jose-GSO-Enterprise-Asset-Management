@@ -22,11 +22,11 @@ class ApiClient {
   /// Answers GETs from the phone when the server can't be reached (see [ResponseCacheInterceptor]).
   final ResponseCacheInterceptor _cache = ResponseCacheInterceptor();
 
-  /// True while the phone has no network at all — set from the connectivity provider.
+  /// True while the phone has no network at all - set from the connectivity provider.
   bool get deviceOffline => _cache.deviceOffline;
   set deviceOffline(bool value) => _cache.deviceOffline = value;
 
-  /// The live deployment (Render, HTTPS) — the default, so a phone works anywhere.
+  /// The live deployment (Render, HTTPS) - the default, so a phone works anywhere.
   static const String liveAddress = 'https://sjgso.onrender.com';
 
   /// The local Docker backend as seen from the Android emulator (10.0.2.2 is the
@@ -69,10 +69,10 @@ class ApiClient {
         final code = res.statusCode ?? 0;
         if (code > 0 && code < 500) return true; // any real answer means it's up
       } catch (_) {
-        // no answer yet — still starting
+        // no answer yet - still starting
       }
       if (DateTime.now().isAfter(deadline)) return false;
-      // no network on the phone isn't the server starting up — don't say it is
+      // no network on the phone isn't the server starting up - don't say it is
       if (!notified && !deviceOffline) {
         notified = true;
         onWaiting?.call();
@@ -91,7 +91,7 @@ class ApiClient {
 
     dio = Dio(BaseOptions(
       baseUrl: _urlFor(effectiveAddress),
-      // a little longer than a LAN needs — the live server is on the internet
+      // a little longer than a LAN needs - the live server is on the internet
       connectTimeout: const Duration(seconds: 20),
       receiveTimeout: const Duration(seconds: 30),
       contentType: 'application/json',
@@ -164,7 +164,7 @@ class ApiClient {
     return false;
   }
 
-  // Applies immediately (no app restart needed) — pass null/empty to clear the
+  // Applies immediately (no app restart needed) - pass null/empty to clear the
   // override and fall back to defaultAddress.
   Future<void> updateServerAddress(String? address) async {
     final trimmed = address?.trim();

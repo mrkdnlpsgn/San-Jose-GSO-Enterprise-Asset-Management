@@ -17,8 +17,8 @@ import java.util.Objects;
 // Moving an asset to another office / accountable person (Transfer Asset page); its location
 // follows the office.
 // An admin's transfer applies immediately; a staff member's becomes a request that an admin
-// approves or rejects, like staff maintenance/disposal requests. Every transfer — direct or
-// requested — is kept as a row in asset_transfer_requests, so the page can list them.
+// approves or rejects, like staff maintenance/disposal requests. Every transfer - direct or
+// requested - is kept as a row in asset_transfer_requests, so the page can list them.
 @Service
 @RequiredArgsConstructor
 public class TransferService {
@@ -90,12 +90,12 @@ public class TransferService {
         // transfer sets the accountable person to exactly this, so none would leave it with nobody.
         boolean leavesOffice = !me.inOffice(req.toOfficeId()) && !Objects.equals(req.toOfficeId(), fromOfficeId);
         if (!me.admin() && leavesOffice && req.toPersonnelId() == null) {
-            throw new IllegalArgumentException("Choose the new accountable person — the asset is leaving your office.");
+            throw new IllegalArgumentException("Choose the new accountable person. The asset is leaving your office.");
         }
         Long fromPersonnelId = asset.getAccountablePerson() != null ? asset.getAccountablePerson().getId() : null;
         if (Objects.equals(fromOfficeId, req.toOfficeId()) && Objects.equals(fromPersonnelId, req.toPersonnelId())
                 && (typedLocation.isEmpty() || location.equalsIgnoreCase(asset.getLocation() == null ? "" : asset.getLocation().trim()))) {
-            throw new IllegalArgumentException("Nothing to transfer — the office and accountable person are unchanged.");
+            throw new IllegalArgumentException("Nothing to transfer. The office and accountable person are unchanged.");
         }
 
         if (!me.admin()) {
@@ -120,7 +120,7 @@ public class TransferService {
         }
         auditLogService.log("TRANSFER_REQUESTED", "Assets", req.assetId(), "asset",
             "Requested transfer of " + asset.getPropertyNumber() + " to " + officeName(req.toOfficeId()));
-        // no asset change yet — "CHANGED" with no data just tells open dashboards to refresh
+        // no asset change yet - "CHANGED" with no data just tells open dashboards to refresh
         sseEmitterService.emitAsset("CHANGED", req.assetId(), null);
         return Map.of("status", "PENDING_APPROVAL", "transfer", findView(transferId));
     }

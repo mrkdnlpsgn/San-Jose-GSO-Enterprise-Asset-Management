@@ -10,7 +10,7 @@ frontend_sj/frontend/dist/
 backend_sj/target/
 backend_sj/bin/
 
-# Uploaded evidence photos — local dev storage, not versioned
+# Uploaded evidence photos - local dev storage, not versioned
 backend_sj/uploads/
 
 # Environment files
@@ -18,7 +18,7 @@ backend_sj/uploads/
 .env.local
 .env.*.local
 
-# Backend credentials — keep secrets off GitHub
+# Backend credentials - keep secrets off GitHub
 backend_sj/src/main/resources/application.properties
 
 # Logs
@@ -38,12 +38,12 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Personal source material used to build the bulk asset import — the resulting
+# Personal source material used to build the bulk asset import - the resulting
 # data lives in backend_sj/gso_inventory.sql, this folder is not needed to run
 # the project (also contains the grading rubric PDF, not for a public repo)
 more_data_and_criteria/
 
 # Personal test photos for the asset-label scan feature, and one dev's local
-# setup notes — neither is needed to run the project
+# setup notes - neither is needed to run the project
 Sample Data/
 San Jose GSO Opening.txt

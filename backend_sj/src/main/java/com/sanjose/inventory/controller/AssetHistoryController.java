@@ -24,7 +24,7 @@ public class AssetHistoryController {
     }
 
     // Asset History page. Admin: everything. Staff: every event (by anyone) on the assets they
-    // may see — in their office AND with them as the accountable person (see AccessService).
+    // may see - in their office AND with them as the accountable person (see AccessService).
     @GetMapping("/accountable")
     public List<AssetHistory> getAccountable(@RequestParam(required = false) String search) {
         return assetHistoryService.findAll(search, accessService.staffScope());

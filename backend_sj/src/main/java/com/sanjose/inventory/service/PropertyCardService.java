@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
 
 // The LGU's Property Card: one card per asset that has been transferred at least once, listing
 // its receipt and then every transfer (to whom, and to which office). Built from the asset,
-// its TRANSFERRED history events, and completed disposals — nothing extra is stored.
+// its TRANSFERRED history events, and completed disposals - nothing extra is stored.
 @Service
 @Transactional(readOnly = true)
 public class PropertyCardService {
@@ -84,7 +84,7 @@ public class PropertyCardService {
         accessService.requireAssetAccess(assetId);
         List<AssetRow> assets = jdbcTemplate.query(ASSET_SQL + " AND a.asset_id = ?", (rs, rn) -> assetRow(rs), assetId);
         if (assets.isEmpty()) {
-            throw new ResourceNotFoundException("This asset has no Property Card yet — it has never been transferred.");
+            throw new ResourceNotFoundException("This asset has no Property Card yet. It has never been transferred.");
         }
         return build(assets).get(0);
     }

@@ -34,7 +34,7 @@ function SettingsMenu({ className = '', compact = false }) {
   )
 
   return (
-    // `className` may position it (e.g. absolute) — either way it anchors the menu
+    // `className` may position it (e.g. absolute) - either way it anchors the menu
     <div ref={ref} className={className || 'relative'}>
       <button
         type="button"

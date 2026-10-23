@@ -1,6 +1,6 @@
 name: CI
 
-# Runs on every push and every PR into main — build + boot-test the backend
+# Runs on every push and every PR into main - build + boot-test the backend
 # against a real MySQL schema, and build the frontend. No deployment step yet;
 # this is CI only.
 on:
@@ -39,7 +39,7 @@ jobs:
           cache-dependency-path: backend_sj/pom.xml
 
       # Server's own default collation (utf8mb4_0900_ai_ci) doesn't match this
-      # schema (utf8mb4_general_ci throughout) — create the DB with the matching
+      # schema (utf8mb4_general_ci throughout) - create the DB with the matching
       # collation up front rather than hit "Illegal mix of collations" on every
       # stored-procedure string comparison (see backend_sj/rename_seed_property_numbers.sql
       # and cleanup_seed_2000_assets.sql for the same issue hit and fixed manually).
@@ -52,7 +52,7 @@ jobs:
           mysql -h127.0.0.1 -P3306 -uroot -proot sj_gso_inventory < backend_sj/stored_procedures.sql
 
       # mvnw is committed with CRLF line endings and non-executable mode (authored
-      # on Windows) — same fix backend_sj/Dockerfile already applies for its build.
+      # on Windows) - same fix backend_sj/Dockerfile already applies for its build.
       - name: Fix mvnw line endings and permissions
         working-directory: backend_sj
         run: |
@@ -60,7 +60,7 @@ jobs:
           chmod +x mvnw
 
       # Using SPRING_DATASOURCE_* (same vars docker-compose.yml already relies on)
-      # instead of the app's custom DB_URL/${DB_URL:default} placeholder — these
+      # instead of the app's custom DB_URL/${DB_URL:default} placeholder - these
       # bind directly to spring.datasource.* via Spring Boot's relaxed env
       # binding, no indirection through application.properties' nested
       # placeholder resolution to go wrong.

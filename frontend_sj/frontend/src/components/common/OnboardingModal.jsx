@@ -6,7 +6,7 @@ const STORAGE_KEY = 'ict-inv-onboarded'
 const CONCEPTS = [
   {
     term: 'Equipment Records and Devices',
-    desc: 'An Equipment Record is one category item, such as "HP Laptop 14-inch". Individual units — each with their own serial number and acquisition value — are registered as Devices under that record.',
+    desc: 'An Equipment Record is one category item, such as "HP Laptop 14-inch". Individual units, each with their own serial number and acquisition value, are registered as Devices under that record.',
   },
   {
     term: 'Accountable Person',
@@ -18,7 +18,7 @@ const CONCEPTS = [
   },
   {
     term: 'Smart Suggestions',
-    desc: 'The Dashboard automatically flags items that need attention — overdue returns, aging equipment, high-value missing assets, devices with no maintenance record, and equipment that has never been tracked. Click any suggestion to log an action directly.',
+    desc: 'The Dashboard automatically flags items that need attention: overdue returns, aging equipment, high-value missing assets, devices with no maintenance record, and equipment that has never been tracked. Click any suggestion to log an action directly.',
   },
   {
     term: 'Item Code and QR Code',
@@ -66,7 +66,7 @@ function OnboardingModal({ onDismiss }) {
           </p>
         </div>
 
-        {/* Concepts — numbered list */}
+        {/* Concepts - numbered list */}
         <ol ref={listRef} onScroll={checkBottom} className="px-7 py-5 space-y-5 overflow-y-auto flex-1">
           {CONCEPTS.map((c, i) => (
             <li key={i} className="flex items-start gap-4">

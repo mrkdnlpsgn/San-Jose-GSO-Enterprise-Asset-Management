@@ -3,7 +3,7 @@ package com.sanjose.inventory.exception;
 import lombok.Getter;
 import org.springframework.security.authentication.LockedException;
 
-// Too many wrong passwords — carries the seconds until the account unlocks, so the login
+// Too many wrong passwords - carries the seconds until the account unlocks, so the login
 // screen can count down instead of guessing.
 @Getter
 public class AccountLockedException extends LockedException {

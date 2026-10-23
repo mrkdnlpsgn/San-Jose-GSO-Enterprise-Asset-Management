@@ -141,7 +141,7 @@ class _AboutCard extends StatelessWidget {
               builder: (context, snapshot) {
                 final version = snapshot.hasData
                     ? 'Version ${snapshot.data!.version} (${snapshot.data!.buildNumber})'
-                    : 'Version —';
+                    : 'Version unknown';
                 return Text(version, style: TextStyle(color: context.colors.textTertiary, fontSize: 14));
               },
             ),

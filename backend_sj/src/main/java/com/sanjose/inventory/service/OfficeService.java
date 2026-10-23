@@ -77,13 +77,13 @@ public class OfficeService {
     public void delete(Long id) {
         Office office = findById(id);
         // assets.office_id is a NO ACTION FK (unlike users.office_id / asset_history's
-        // office columns, which SET NULL) — deleting while assets are still assigned
+        // office columns, which SET NULL) - deleting while assets are still assigned
         // to this office would otherwise fail as a raw SQL constraint error.
         Integer assetCount = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM assets WHERE office_id = ?", Integer.class, id);
         if (assetCount != null && assetCount > 0) {
             throw new ResourceInUseException(
-                "Cannot delete \"" + office.getOfficeName() + "\" — " + assetCount +
+                "Cannot delete \"" + office.getOfficeName() + "\": " + assetCount +
                 " asset(s) are still assigned to it. Reassign or remove those assets first.");
         }
         jdbcTemplate.update("CALL sp_offices_delete(?)", id);

@@ -26,10 +26,10 @@ public class Asset {
     @Column(name = "property_number", nullable = false, unique = true, length = 50)
     private String propertyNumber;
 
-    // Property Acknowledgment Receipt number — distinct from propertyNumber (the
+    // Property Acknowledgment Receipt number - distinct from propertyNumber (the
     // COA-assigned one). Format is YYYY-MM:SERIAL: the acquisition year-month plus
     // a serial the user types in by hand, e.g. "2026-07:H78JD80". Unique, like
-    // propertyNumber — together they tell identical devices apart. Nullable at the
+    // propertyNumber - together they tell identical devices apart. Nullable at the
     // column level only so rows that predate this field survive the schema
     // update; AssetService requires it on every create/update.
     @Column(name = "par_number", unique = true, length = 50)
@@ -66,7 +66,7 @@ public class Asset {
     @JsonIgnoreProperties({"office"})
     private Personnel accountablePerson;
 
-    // The person who currently has physical possession/use of the asset — can
+    // The person who currently has physical possession/use of the asset - can
     // differ from accountablePerson, who is formally responsible for it on paper.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_user_personnel_id", columnDefinition = "INT")
@@ -80,7 +80,7 @@ public class Asset {
     private String groupId;
 
     // Read-only roll-up for a grouped asset (0/absent when standalone): how many devices are in
-    // its group, and their combined value — so a list showing only some of them can still
+    // its group, and their combined value - so a list showing only some of them can still
     // display the true totals.
     @Transient
     private Integer groupSize;
@@ -101,7 +101,7 @@ public class Asset {
     private Integer physicalCount;
 
     // Manually recorded shortage (negative) or overage (positive) found during physical
-    // inventory — independent of quantity/physicalCount, which are always 1. Optional,
+    // inventory - independent of quantity/physicalCount, which are always 1. Optional,
     // defaults to 0.
     @Builder.Default
     @Column(name = "shortage_overage_qty", nullable = false)
@@ -131,7 +131,7 @@ public class Asset {
     @Column(columnDefinition = "TEXT")
     private String remarks;
 
-    // Free-form — the fields that matter vary entirely by device type (CPU/RAM/storage
+    // Free-form - the fields that matter vary entirely by device type (CPU/RAM/storage
     // for a computer, engine/plate no. for a vehicle, BTU/voltage for an aircon, etc.),
     // matching how these are recorded on the paper Property Acknowledgment Receipt.
     @Column(columnDefinition = "TEXT")

@@ -143,7 +143,7 @@ public class UserService {
             }
             if (!emailService.isEnabled()) {
                 throw new IllegalArgumentException(
-                    "Email notifications aren't configured — set a password manually instead.");
+                    "Email notifications aren't configured. Set a password manually instead.");
             }
             plainPassword = generatePassword();
         } else {
@@ -154,7 +154,7 @@ public class UserService {
         }
         requireFreePersonnelName(req.getFullName(), null);
         if (Boolean.TRUE.equals(req.getTwoFactorEnabled()) && !hasText(req.getEmail())) {
-            throw new IllegalArgumentException("2-step verification sends a code by email — add an email address first.");
+            throw new IllegalArgumentException("2-step verification sends a code by email. Add an email address first.");
         }
         String hash = passwordEncoder.encode(plainPassword);
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
@@ -207,12 +207,12 @@ public class UserService {
             ? req.getTwoFactorEnabled() : Boolean.TRUE.equals(existing.getTwoFactorEnabled());
         if (twoFactor && !hasText(newEmail)) {
             throw new IllegalArgumentException(req.getTwoFactorEnabled() != null
-                ? "2-step verification sends a code by email — add an email address first."
+                ? "2-step verification sends a code by email. Add an email address first."
                 : "This account uses 2-step verification, which needs an email address. Turn 2-step verification off before removing the email.");
         }
         String hash = (req.getPassword() != null && !req.getPassword().isBlank())
             ? passwordEncoder.encode(req.getPassword()) : null;
-        // officeId on the request is ignored — offices are assigned on the Personnel module
+        // officeId on the request is ignored - offices are assigned on the Personnel module
         jdbcTemplate.update("CALL sp_users_update(?, ?, ?, ?, ?, ?)",
             id,
             newEmail,
@@ -237,7 +237,7 @@ public class UserService {
 
     // Admins without an office belong to the General Services Office: their account and its
     // personnel record. Only fills a missing office; an admin moved to another office on the
-    // Personnel page keeps it. An admin sees every office regardless — this is who they are, not
+    // Personnel page keeps it. An admin sees every office regardless - this is who they are, not
     // what they can see.
     public static final String ADMIN_DEFAULT_OFFICE = "General Services Office";
 
@@ -252,7 +252,7 @@ public class UserService {
             WHERE u.role = 'ADMIN' AND p.office_id IS NULL AND u.office_id IS NOT NULL""");
     }
 
-    // Each account's personnel record carries its name, so two accounts can't share one —
+    // Each account's personnel record carries its name, so two accounts can't share one -
     // and a rename can't take the name of another existing personnel record.
     private void requireFreePersonnelName(String fullName, Long ownUserId) {
         if (fullName == null || fullName.isBlank()) return;
@@ -328,7 +328,7 @@ public class UserService {
         jdbcTemplate.update("CALL sp_users_change_password(?, ?)",
             id, passwordEncoder.encode(newPassword));
         jdbcTemplate.update("CALL sp_auth_login_success(?)", id);
-        // admin-set password is a temp password too — force the user to pick their own
+        // admin-set password is a temp password too - force the user to pick their own
         jdbcTemplate.update("UPDATE users SET must_change_password = TRUE WHERE user_id = ?", id);
         auditLogService.log("USER_PASSWORD_RESET", "Users", id, "user",
             "Password reset by administrator: " + user.getUsername());

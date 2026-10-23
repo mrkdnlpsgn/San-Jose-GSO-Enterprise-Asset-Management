@@ -106,7 +106,7 @@ const navItems = [
   },
 ]
 
-// Open to every authenticated user — offices, categories, and the audit trail are
+// Open to every authenticated user - offices, categories, and the audit trail are
 // shared operational data, not account-management functions.
 const systemNavItems = [
   {
@@ -313,7 +313,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
             <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight">System</p>
           </div>
         </div>
-        {/* Collapse toggle — desktop only */}
+        {/* Collapse toggle - desktop only */}
         <button
           onClick={onToggle}
           className="hidden lg:flex p-1.5 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150 flex-shrink-0"
@@ -329,7 +329,7 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
             </svg>
           )}
         </button>
-        {/* Close button — mobile only */}
+        {/* Close button - mobile only */}
         <button
           onClick={onMobileClose}
           className="lg:hidden p-2.5 -mr-2 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150 flex-shrink-0"

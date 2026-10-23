@@ -26,11 +26,11 @@ const RECOMMENDATION_BADGE = {
 
 
 function fmt(dt) {
-  if (!dt) return '—'
+  if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 function php(v) {
-  if (v == null) return '—'
+  if (v == null) return 'N/A'
   return '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 }
 
@@ -46,7 +46,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
   const [aiError, setAiError]         = useState('')
   // The server makes one in the background when there is none yet (see AiAutoGenerator)
   const [aiGenerating, setAiGenerating] = useState(false)
-  // Why nothing is coming (e.g. the AI's daily limit is used up) — shown instead of waiting
+  // Why nothing is coming (e.g. the AI's daily limit is used up) - shown instead of waiting
   const [aiNotice, setAiNotice]       = useState('')
   const [showQr, setShowQr]           = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
@@ -84,7 +84,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
       loadRecommendation(asset.id)
     }
 
-    // Only the drawer's very first render (its entrance) needs to wait — a
+    // Only the drawer's very first render (its entrance) needs to wait - a
     // subsequent asset swap while it's already open doesn't replay the
     // slide-in/fade-in, so there's no animation for the fetch's re-renders
     // to compete with and no reason to add latency there.
@@ -100,7 +100,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
     fetchAssetData()
   }, [asset])
 
-  // Esc closes the drawer — but not while one of its own dialogs (QR, photos) is open on top.
+  // Esc closes the drawer - but not while one of its own dialogs (QR, photos) is open on top.
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !showQr && !showEvidence) onClose() }
     document.addEventListener('keydown', onKey)
@@ -149,7 +149,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
 
   return (
     <>
-      {/* Blur is static — animating opacity on the same element that carries
+      {/* Blur is static - animating opacity on the same element that carries
           backdrop-blur forces the browser to resample the (busy) table behind
           it every frame. It snaps in instantly; only the tint below fades. */}
       <div className="fixed inset-0 z-30 backdrop-blur-sm pointer-events-none" style={{ top: HEADER_OFFSET }} />
@@ -226,7 +226,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
                 <section aria-labelledby="sec-value">
                   <h3 id="sec-value" className={SECTION}>Acquisition &amp; count</h3>
                   <Field label="Acquired"          value={`${fmt(asset.acquisitionDate)} · ${php(asset.unitValue)}`} />
-                  <Field label="Quantity"          value={`${asset.quantity ?? 1} on Property Card · ${asset.physicalCount ?? '—'} counted`} />
+                  <Field label="Quantity"          value={`${asset.quantity ?? 1} on Property Card · ${asset.physicalCount ?? 'N/A'} counted`} />
                   <Field label="Shortage/Overage"  value={`${so(Number(asset.shortageOverageQty ?? 0))} · ${php(asset.shortageOverageValue ?? 0)}`} />
                 </section>
               </div>
@@ -278,7 +278,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
               sortKey: h.eventDate,
               type: 'history',
               title: h.eventType,
-              meta: `By: ${h.performedBy?.fullName || h.performedBy?.username || '—'}`,
+              meta: `By: ${h.performedBy?.fullName || h.performedBy?.username || 'N/A'}`,
               note: h.notes,
             }))
             const disposalItems = disposal.map((d) => ({
@@ -286,7 +286,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
               date: d.inspectionDate,
               // inspectionDate is a date-only field (no time-of-day), so it can't be
               // reliably compared against history's full-timestamp eventDate when both
-              // fall on the same day — updatedAt/createdAt carry real time-of-day and
+              // fall on the same day - updatedAt/createdAt carry real time-of-day and
               // reflect when the record was actually last touched.
               sortKey: d.updatedAt || d.createdAt || d.inspectionDate,
               type: 'disposal',
@@ -403,7 +403,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
 
                   <p className="text-sm text-slate-600 dark:text-zinc-300 leading-relaxed">{recommendation.rationale}</p>
 
-                  {/* Label above value in small tiles — side-by-side label/value rows overlapped on phones */}
+                  {/* Label above value in small tiles - side-by-side label/value rows overlapped on phones */}
                   <dl className="grid grid-cols-2 gap-2 pt-1">
                     {[
                       ['Asset Age', `${recommendation.assetAgeYears} yrs`],
@@ -413,7 +413,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
                     ].map(([label, value]) => (
                       <div key={label} className="min-w-0 rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-800 px-3 py-2">
                         <dt className="text-xs text-slate-500 dark:text-zinc-400">{label}</dt>
-                        <dd className="text-sm font-semibold text-slate-900 dark:text-zinc-100 mt-0.5 break-words">{value ?? '—'}</dd>
+                        <dd className="text-sm font-semibold text-slate-900 dark:text-zinc-100 mt-0.5 break-words">{value ?? 'N/A'}</dd>
                       </div>
                     ))}
                   </dl>
@@ -481,7 +481,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
         <EvidenceModal
           path={`/assets/${asset.id}/evidence`}
           title="Asset Evidence"
-          subtitle={`${asset.propertyNumber || ''} — ${asset.description || ''}`}
+          subtitle={`${asset.propertyNumber || ''}: ${asset.description || ''}`}
           onClose={() => setShowEvidence(false)}
         />
       )}
@@ -495,7 +495,7 @@ function Field({ label, value, mono = false }) {
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-slate-100 dark:border-zinc-800/60 last:border-0">
       <span className="text-xs text-slate-600 dark:text-zinc-400 w-36 flex-shrink-0 pt-0.5">{label}</span>
-      <span className={`text-sm text-slate-900 dark:text-zinc-100 font-medium break-words min-w-0 ${mono ? 'font-mono' : ''}`}>{value === '' || value == null ? '—' : value}</span>
+      <span className={`text-sm text-slate-900 dark:text-zinc-100 font-medium break-words min-w-0 ${mono ? 'font-mono' : ''}`}>{value === '' || value == null ? 'N/A' : value}</span>
     </div>
   )
 }

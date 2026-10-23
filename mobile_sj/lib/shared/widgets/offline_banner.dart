@@ -65,7 +65,7 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> with SingleTicker
     if (MediaQuery.of(context).disableAnimations) {
       _controller.animateTo(target, duration: const Duration(milliseconds: 200), curve: Curves.linear);
     } else {
-      // From the live value and velocity — interruptible, no seam on reversal.
+      // From the live value and velocity - interruptible, no seam on reversal.
       _controller.animateWith(SpringSimulation(_spring, _controller.value, target, _controller.velocity));
     }
   }
@@ -218,7 +218,7 @@ class _Bar extends StatelessWidget {
       height: 1.0,
       decoration: TextDecoration.none,
     );
-    // Sits above the Navigator, outside any page's Material, so it needs its own —
+    // Sits above the Navigator, outside any page's Material, so it needs its own -
     // without one Flutter draws text with the yellow double-underline debug style.
     return Material(
       type: MaterialType.transparency,

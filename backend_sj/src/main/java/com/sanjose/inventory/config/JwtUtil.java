@@ -40,7 +40,7 @@ public class JwtUtil {
                 .getSubject();
     }
 
-    // Tokens issued before this claim existed have no "tv" claim — treated as version
+    // Tokens issued before this claim existed have no "tv" claim - treated as version
     // 0, which matches the DEFAULT 0 on the token_version column, so pre-existing
     // sessions aren't force-logged-out by this feature shipping.
     public int extractTokenVersion(String token) {

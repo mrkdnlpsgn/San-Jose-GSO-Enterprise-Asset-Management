@@ -33,7 +33,7 @@ public class ActionOtpService {
     public void require(String action) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         if (!emailService.isEnabled()) {
-            log.warn("Email is not configured (notifications.enabled / mail.from) — no confirmation code asked for: {} by {}",
+            log.warn("Email is not configured (notifications.enabled / mail.from). No confirmation code asked for: {} by {}",
                 action, username);
             return;
         }

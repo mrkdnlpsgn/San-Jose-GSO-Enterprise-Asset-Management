@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 class ApiException implements Exception {
   final int? statusCode;
   final String message;
-  /// No answer, a timeout, or a 502/503/504 from Render's proxy — the server is asleep or
+  /// No answer, a timeout, or a 502/503/504 from Render's proxy - the server is asleep or
   /// restarting, not refusing. Callers can wait for it and retry instead of failing.
   final bool serverAsleep;
 

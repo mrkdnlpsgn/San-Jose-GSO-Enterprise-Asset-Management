@@ -33,7 +33,7 @@ const CHANGED = 'gso-drafts-changed'
 const announce = () => window.dispatchEvent(new Event(CHANGED))
 
 const write = (key, entry) => {
-  try { localStorage.setItem(key, JSON.stringify(entry)); announce() } catch { /* storage full or blocked — drafts are best-effort */ }
+  try { localStorage.setItem(key, JSON.stringify(entry)); announce() } catch { /* storage full or blocked. Drafts are best-effort */ }
 }
 const remove = (key) => {
   try {
@@ -93,7 +93,7 @@ export function useFormDraft(name, value, setValue, { omit = [], enabled = true,
   // …and immediately when the form closes, so a quick close doesn't lose the last keystrokes.
   useEffect(() => () => persist(latestRef.current), [persist])
 
-  // Call after a successful save — the form's contents are now the real record.
+  // Call after a successful save - the form's contents are now the real record.
   const clear = useCallback(() => {
     clearedRef.current = true
     if (storageKey) remove(storageKey)
@@ -125,7 +125,7 @@ export function useDraftList(namespace) {
         if (!entry || Date.now() - entry.savedAt > MAX_AGE_MS) continue
         out.push({ key, id: key.slice(prefix.length), title: entry.title, data: entry.data || {}, savedAt: entry.savedAt })
       }
-    } catch { /* storage blocked — no drafts to show */ }
+    } catch { /* storage blocked. No drafts to show */ }
     return out.sort((a, b) => b.savedAt - a.savedAt)
   }, [prefix])
 

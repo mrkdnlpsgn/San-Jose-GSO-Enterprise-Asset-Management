@@ -155,7 +155,7 @@ function UserModal({ onClose, onSave, initial = null }) {
       onClose={onClose}
     >
       {/* The admin types someone else's details here, so browser autofill (and password-manager
-          extensions) must stay out: they'd offer the admin's own name/email — and Chrome's
+          extensions) must stay out: they'd offer the admin's own name/email, and Chrome's
           name/address autofill popup was crashing the whole browser on the Full Name field. */}
       <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-4">
         <DraftNotice draft={draft} />
@@ -181,7 +181,7 @@ function UserModal({ onClose, onSave, initial = null }) {
             error={errors.email}
           />
           <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-            Needed for this user to use "Forgot password" — leave blank if unavailable.
+            Needed for this user to use "Forgot password". Leave blank if unavailable.
           </p>
         </Field>
 
@@ -302,7 +302,7 @@ function UserModal({ onClose, onSave, initial = null }) {
               <span className="block text-xs text-slate-400 dark:text-zinc-500 mt-0.5">
                 {emailValid
                   ? 'When on, signing in also needs a 6-digit code emailed to the address above.'
-                  : 'Needs an email address — the sign-in code is sent there.'}
+                  : 'Needs an email address. The sign-in code is sent there.'}
               </span>
             </span>
           </label>

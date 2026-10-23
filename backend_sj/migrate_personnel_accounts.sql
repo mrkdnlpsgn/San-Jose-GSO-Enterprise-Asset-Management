@@ -1,5 +1,5 @@
 -- =============================================================
--- migrate_personnel_accounts.sql — links personnel records to login
+-- migrate_personnel_accounts.sql - links personnel records to login
 -- accounts (personnel.user_id -> users.user_id, at most one account per
 -- person). For databases created before this column existed; fresh
 -- installs get it from gso_inventory.sql.
@@ -31,5 +31,5 @@ SET @sql := IF(@has_fk = 0,
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Every account gets its personnel record (needs sp_personnel_sync_accounts from
--- stored_procedures.sql — reload that file first, then run this one).
+-- stored_procedures.sql - reload that file first, then run this one).
 CALL sp_personnel_sync_accounts();

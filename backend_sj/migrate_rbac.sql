@@ -1,5 +1,5 @@
 -- =============================================================
--- migrate_rbac.sql — approval workflow for maintenance / disposal records.
+-- migrate_rbac.sql - approval workflow for maintenance / disposal records.
 -- Staff-created records start as PENDING_APPROVAL until an admin approves or
 -- rejects them; existing rows (and admin/system-created ones) are APPROVED.
 --

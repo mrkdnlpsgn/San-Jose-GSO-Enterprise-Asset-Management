@@ -74,7 +74,7 @@ function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Head User <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
           <div className="relative">
             <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.headUserId} onChange={set('headUserId')}>
-              <option value="">— None —</option>
+              <option value="">None</option>
               {users.map((u) => <option key={u.id} value={String(u.id)}>{u.fullName || u.username}</option>)}
             </select>
             <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -116,7 +116,7 @@ function Offices() {
   const draftRecord = (d) => {
     const base = d.id === 'new' ? {} : offices.find((o) => String(o.id) === d.id) || {}
     const sameHead = String(base.headUser?.id ?? '') === String(d.data.headUserId ?? '')
-    return { officeName: d.data.officeName, head: sameHead ? (base.headUser?.fullName || base.headUser?.username) : (d.data.headUserId ? 'Changed — open to review' : '') }
+    return { officeName: d.data.officeName, head: sameHead ? (base.headUser?.fullName || base.headUser?.username) : (d.data.headUserId ? 'Changed. Open to review' : '') }
   }
   const draftColumns = [
     { className: 'px-4 py-3 align-top', render: (o) => <PrimaryCell title={o.officeName || 'No name yet'} /> },

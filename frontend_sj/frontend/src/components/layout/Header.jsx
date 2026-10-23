@@ -40,7 +40,7 @@ function Header({ onMenuOpen }) {
 
   return (
     <header className="h-[3.75rem] bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 px-4 sm:px-6 flex items-center justify-between flex-shrink-0 gap-3">
-      {/* Hamburger — mobile only */}
+      {/* Hamburger - mobile only */}
       <button
         onClick={onMenuOpen}
         className="lg:hidden p-2 -ml-2 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all duration-150 flex-shrink-0"

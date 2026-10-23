@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 
-/// Shrinks a little the instant a finger lands (not on release), springs back on lift —
+/// Shrinks a little the instant a finger lands (not on release), springs back on lift -
 /// Apple's "respond on touch-down". Off when the phone asks for reduced motion.
 class PressScale extends StatefulWidget {
   final Widget child;
@@ -29,7 +29,7 @@ class _PressScaleState extends State<PressScale> {
         _origin = e.position;
         _set(true);
       },
-      // A finger that starts moving is scrolling, not pressing — let go at once, like iOS
+      // A finger that starts moving is scrolling, not pressing - let go at once, like iOS
       // cancelling a cell's highlight, instead of holding the card shrunk for the whole drag.
       onPointerMove: (e) {
         final o = _origin;
@@ -39,7 +39,7 @@ class _PressScaleState extends State<PressScale> {
       onPointerCancel: (_) => _set(false),
       child: AnimatedScale(
         scale: _down ? widget.scale : 1,
-        // quick in on touch-down; back out on the app's strong ease-out — no overshoot, since
+        // quick in on touch-down; back out on the app's strong ease-out - no overshoot, since
         // bounce belongs to flung gestures, not taps
         duration: Duration(milliseconds: _down ? 90 : 200),
         curve: _down ? Curves.easeOut : AppTheme.motionCurve,

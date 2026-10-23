@@ -27,7 +27,7 @@ final dashboardStatsProvider = FutureProvider.autoDispose<DashboardStats>((ref) 
   final service = ref.watch(assetServiceProvider);
   final maintenanceService = ref.watch(maintenanceServiceProvider);
   final disposalService = ref.watch(disposalServiceProvider);
-  // Stats need the full dataset, not a page — matches web's assetService.js
+  // Stats need the full dataset, not a page - matches web's assetService.js
   // getAssets(), which requests size: 100000 for the same reason. A capped
   // size here silently undercounts totalAssets once the table grows past it.
   final assets = await service.getAll(size: 100000);
@@ -51,7 +51,7 @@ final dashboardStatsProvider = FutureProvider.autoDispose<DashboardStats>((ref) 
   // asset is further split into its 3 sub-buckets by looking up that asset's
   // own active maintenance/disposal ledger record (there's at most one, per
   // handleConditionLedger's delete-on-transition design) rather than counting
-  // ledger rows independently — a ledger record for an asset that's since
+  // ledger rows independently - a ledger record for an asset that's since
   // moved on (e.g. repaired and now SERVICEABLE again) isn't double-counted.
   // Keep keys in sync with the web dashboard's LIFECYCLE_CFG
   // (frontend_sj/frontend/src/pages/Dashboard/index.jsx).

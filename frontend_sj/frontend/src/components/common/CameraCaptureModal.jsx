@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import Modal from './Modal'
 import Button from './Button'
 
-// `<input capture>` only opens a live camera on mobile browsers — desktop
+// `<input capture>` only opens a live camera on mobile browsers - desktop
 // Chrome/Firefox/Edge silently ignore the `capture` attribute and fall back
 // to the plain file picker, which is indistinguishable from "Upload Image".
 // getUserMedia gives a real live preview + shutter on every platform
 // (desktop webcam included) as long as the page is served over a secure
-// context (https, or http://localhost — which is what docker-compose maps
+// context (https, or http://localhost - which is what docker-compose maps
 // the frontend to).
 export default function CameraCaptureModal({ onCapture, onClose }) {
   const videoRef = useRef(null)

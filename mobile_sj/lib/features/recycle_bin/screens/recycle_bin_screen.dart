@@ -63,7 +63,7 @@ class RecycleBinScreen extends ConsumerWidget {
 // loading/error/empty/list states, with the item widget supplied per-type.
 // Keeps the last successful snapshot on screen while a background poll
 // (AutoRefreshTicker invalidating the provider every 30s) refetches, instead
-// of dropping back to the skeleton — the same "don't flicker on silent
+// of dropping back to the skeleton - the same "don't flicker on silent
 // refresh" approach as the Dashboard's stats section.
 class _RecycleBinTab<T> extends ConsumerStatefulWidget {
   final AutoDisposeFutureProvider<List<T>> provider;
@@ -154,7 +154,7 @@ class _RecycleBinTabState<T> extends ConsumerState<_RecycleBinTab<T>> {
   }
 }
 
-// A simple yes/no prompt — restoring isn't destructive, but it does modify
+// A simple yes/no prompt - restoring isn't destructive, but it does modify
 // live data, so a lightweight confirmation avoids accidental taps.
 Future<bool> _confirmRestore(BuildContext context, String label) async {
   final confirmed = await showDialog<bool>(
@@ -283,7 +283,7 @@ class _PermanentDeleteDialogState extends State<_PermanentDeleteDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'This cannot be undone — the record will be completely removed, not just moved out of the '
+            'This cannot be undone. The record will be completely removed, not just moved out of the '
             'Recycle Bin.${_sending ? ' Sending a verification code to your email…' : _sent ? ' Enter the verification code we emailed you to confirm.' : ''}',
             style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
           ),

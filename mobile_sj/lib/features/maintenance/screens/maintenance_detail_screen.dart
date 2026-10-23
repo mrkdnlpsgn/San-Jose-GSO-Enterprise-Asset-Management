@@ -147,7 +147,7 @@ class _Body extends StatelessWidget {
                           context,
                           path: '/maintenance/${item.id}/photos',
                           title: 'Inspection Evidence',
-                          subtitle: '${item.asset.propertyNumber} — ${item.asset.description}',
+                          subtitle: '${item.asset.propertyNumber}: ${item.asset.description}',
                         ),
                       ),
                     ),
@@ -255,7 +255,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
               return Text(
                 key: const ValueKey('empty'),
                 isAdmin
-                    ? 'No summary yet. New records get one automatically — tap Generate to write one now.'
+                    ? 'No summary yet. New records get one automatically. Tap Generate to write one now.'
                     : 'No summary generated yet.',
                 style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45),
               );

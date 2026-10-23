@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/server_address_card.dart';
 
-// Reachable from the login screen, before authentication — if the saved
+// Reachable from the login screen, before authentication - if the saved
 // server address is wrong (new network, different Wi-Fi than the backend),
 // login fails before the user can ever reach the authenticated Settings
 // screen to fix it. This is the same ServerAddressCard shown there, just

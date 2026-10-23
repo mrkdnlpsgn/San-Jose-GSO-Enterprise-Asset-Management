@@ -57,7 +57,7 @@ public class DeletedRecordsController {
     }
 
     // Each permanent-delete call requires the OTP requested via
-    // POST /api/auth/delete-otp/request — verified inline (see
+    // POST /api/auth/delete-otp/request - verified inline (see
     // DeletedRecordsService), not via a separate standalone verify endpoint.
     @PostMapping("/assets/{id}/permanent-delete")
     public ResponseEntity<Void> permanentDeleteAsset(@PathVariable Long id, @RequestBody Map<String, String> body) {

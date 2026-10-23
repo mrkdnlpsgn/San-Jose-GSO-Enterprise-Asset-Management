@@ -18,7 +18,7 @@ const _termsSections = [
         'the System and contact the ICT Division.',
   ),
   _Section(
-    title: '2. Restricted system — authorized government use only',
+    title: '2. Restricted system, authorized government use only',
     body: 'This is a private, internal government inventory system operated by the General Services Office (GSO) of '
         'the San Jose Municipal Hall, Batangas. It is not a public service and has no public-facing features. Access '
         'is limited exclusively to GSO and ICT personnel who have been issued an account by an administrator. '
@@ -69,14 +69,14 @@ const _privacySections = [
   _Section(
     title: '1. Who we are',
     body: 'This Data Privacy Notice covers the San Jose GSO Enterprise Asset Management System, operated by the '
-        'General Services Office of the San Jose Municipal Hall, Batangas. This is a private internal system — it '
+        'General Services Office of the San Jose Municipal Hall, Batangas. This is a private internal system. It '
         'is not accessible to the public.',
   ),
   _Section(
     title: '2. What information we collect',
-    body: '(a) User account info — username, full name, role, office, email; (b) asset records — descriptions, '
-        'values, locations, and accountable-person names; (c) activity records — every registration, transfer, '
-        'maintenance action, and disposal, with the acting user and timestamp; (d) technical/audit data — IP '
+    body: '(a) User account info: username, full name, role, office, email; (b) asset records: descriptions, '
+        'values, locations, and accountable-person names; (c) activity records: every registration, transfer, '
+        'maintenance action, and disposal, with the acting user and timestamp; (d) technical/audit data: IP '
         'address, timestamp, and action type for security-relevant events.',
   ),
   _Section(
@@ -92,7 +92,7 @@ const _privacySections = [
   ),
   _Section(
     title: '5. How long we keep it',
-    body: 'Records are retained per COA rules on government property and accountability — generally the asset\'s '
+    body: 'Records are retained per COA rules on government property and accountability, generally the asset\'s '
         'useful life plus the applicable audit/retention period. Activity logs are kept as long as reasonably '
         'necessary for security and audit purposes.',
   ),
@@ -110,7 +110,7 @@ const _privacySections = [
   _Section(
     title: '8. How this System implements the Data Privacy Act',
     bullets: [
-      'Passwords are hashed with BCrypt — never stored in readable form.',
+      'Passwords are hashed with BCrypt, never stored in readable form.',
       'Sessions use signed JWT tokens in an HttpOnly cookie, invalidated automatically on password change.',
       'Access is role-gated (Admin / Staff), matching the principle of least privilege.',
       'Every create, update, delete, and login is written to an immutable audit trail.',
@@ -124,9 +124,9 @@ const _privacySections = [
   _Section(
     title: '9. References',
     links: [
-      ('Republic Act No. 10173 — Data Privacy Act of 2012 (Official Gazette)',
+      ('Republic Act No. 10173: Data Privacy Act of 2012 (Official Gazette)',
           'https://www.officialgazette.gov.ph/2012/08/15/republic-act-no-10173/'),
-      ('National Privacy Commission — Data Privacy Act overview', 'https://privacy.gov.ph/data-privacy-act/'),
+      ('National Privacy Commission: Data Privacy Act overview', 'https://privacy.gov.ph/data-privacy-act/'),
     ],
   ),
 ];

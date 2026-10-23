@@ -19,7 +19,7 @@ public class AiRecommendationController {
     private final AccessService accessService;
     private final AiAutoGenerator aiAutoGenerator;
 
-    // None yet: a 404 that also says whether AI is paused (daily quota used up) — see
+    // None yet: a 404 that also says whether AI is paused (daily quota used up) - see
     // AiAutoGenerator.notReady. Nothing is generated just by viewing (Gemini free-plan quota).
     @GetMapping
     public ResponseEntity<?> getLatest(@PathVariable Long assetId) {

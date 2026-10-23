@@ -78,7 +78,7 @@ export function DetailField({ label, value, mono = false }) {
     <div className="flex items-start gap-2 py-1.5 border-b border-slate-100 dark:border-zinc-800/60 last:border-0">
       <span className="text-xs text-slate-600 dark:text-zinc-400 w-36 flex-shrink-0 pt-0.5">{label}</span>
       <span className={`text-sm text-slate-900 dark:text-zinc-100 font-medium break-words min-w-0 whitespace-pre-line ${mono ? 'font-mono' : ''}`}>
-        {value === '' || value == null ? '—' : value}
+        {value === '' || value == null ? 'N/A' : value}
       </span>
     </div>
   )

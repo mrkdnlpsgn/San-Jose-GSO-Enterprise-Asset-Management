@@ -12,8 +12,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 // An account (through its personnel record) can be assigned to several offices. The full set
-// lives in personnel_offices; personnel.office_id / users.office_id keep the primary one — the
-// first chosen — so the stored procedures and older app versions that read a single office keep
+// lives in personnel_offices; personnel.office_id / users.office_id keep the primary one - the
+// first chosen - so the stored procedures and older app versions that read a single office keep
 // working. Reads union the primary office in, so a record whose office was set elsewhere (e.g.
 // the default admin office) is never missing it.
 @Service

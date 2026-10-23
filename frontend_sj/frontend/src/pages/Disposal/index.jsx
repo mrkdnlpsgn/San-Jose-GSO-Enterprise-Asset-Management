@@ -233,7 +233,7 @@ function Disposal() {
           onClose={() => setViewing(null)}
           subtitle={<>
             <span className="text-slate-600 dark:text-zinc-400">Property No.</span>
-            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{v.asset?.propertyNumber || '—'}</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{v.asset?.propertyNumber || 'N/A'}</span>
             <span className="text-slate-300 dark:text-zinc-600" aria-hidden="true">·</span>
             <MappedBadge map={METHOD} value={v.recommendedMethod} />
             <MappedBadge map={STATUS} value={v.disposalStatus} />
@@ -289,7 +289,7 @@ function Disposal() {
         <EvidenceModal
           path={`/disposal/${viewingEvidence.id}/evidence`}
           title="Disposal Evidence"
-          subtitle={`${viewingEvidence.asset?.propertyNumber || ''} — ${viewingEvidence.asset?.description || ''}`}
+          subtitle={`${viewingEvidence.asset?.propertyNumber || ''}: ${viewingEvidence.asset?.description || ''}`}
           onClose={() => setViewingEvidence(null)}
         />
       )}
@@ -297,7 +297,7 @@ function Disposal() {
       {rejecting && (
         <RejectRequestModal
           record={rejecting}
-          describe={(r) => `${r.asset?.propertyNumber || ''} — ${r.asset?.description || ''}`}
+          describe={(r) => `${r.asset?.propertyNumber || ''}: ${r.asset?.description || ''}`}
           onClose={() => setRejecting(null)}
           onConfirm={handleReject}
         />

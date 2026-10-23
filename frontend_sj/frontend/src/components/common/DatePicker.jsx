@@ -14,7 +14,7 @@ const EDGE = 8
 
 const pad = (n) => String(n).padStart(2, '0')
 const toKey = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`
-// Parsed by hand — `new Date('2026-10-15')` is UTC midnight and can land on the previous day locally.
+// Parsed by hand - `new Date('2026-10-15')` is UTC midnight and can land on the previous day locally.
 const parseKey = (key) => {
   if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return null
   const [y, m, d] = key.split('-').map(Number)
@@ -109,7 +109,7 @@ function DatePicker({ value, onChange, name, min, max, required = false, placeho
       close(false)
     }
     // Capture phase on document runs before the surrounding Modal's own Escape listener,
-    // wherever focus happens to be — so Escape closes only the calendar, never the form.
+    // wherever focus happens to be - so Escape closes only the calendar, never the form.
     const onEsc = (e) => {
       if (e.key !== 'Escape') return
       e.stopImmediatePropagation()

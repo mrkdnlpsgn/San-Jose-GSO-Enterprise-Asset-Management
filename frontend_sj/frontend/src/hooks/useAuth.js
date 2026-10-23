@@ -11,12 +11,12 @@ export function useAuth() {
 
   // Correct credentials but a temp password or 2FA pending return
   // { mustChangePassword: true } / { requiresTwoFactor: true } instead of a
-  // session — the caller (Login) must collect a new password / emailed code
+  // session - the caller (Login) must collect a new password / emailed code
   // before this resolves.
   const login = useCallback(async ({ identifier, password }) => {
     const { data } = await loginApi({ identifier, password })
     if (data.mustChangePassword || data.requiresTwoFactor) return data
-    // Backend sets the JWT as an HttpOnly cookie — only user info is in the response body
+    // Backend sets the JWT as an HttpOnly cookie - only user info is in the response body
     dispatch(setCredentials({ user: data.user }))
     return data
   }, [dispatch])

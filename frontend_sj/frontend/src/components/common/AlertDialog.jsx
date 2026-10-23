@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-// Single-button, informational counterpart to ConfirmDialog — for telling the
+// Single-button, informational counterpart to ConfirmDialog - for telling the
 // user an action can't proceed (e.g. "this category has assets assigned to
 // it"), not asking them to confirm one.
 function AlertDialog({ title = 'Heads up', message, closeLabel = 'OK', onClose }) {

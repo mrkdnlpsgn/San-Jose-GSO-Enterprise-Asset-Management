@@ -41,7 +41,7 @@ public class MaintenanceLedger {
     @Column(name = "assigned_to", length = 150)
     private String assignedTo;
 
-    // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED — see AccessService
+    // PENDING_APPROVAL (requested by staff) | APPROVED | REJECTED - see AccessService
     @Column(name = "approval_status", length = 20)
     private String approvalStatus;
 

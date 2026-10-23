@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import 'offline_store.dart';
 
 /// Keeps the last answer to every GET on the phone, and answers from it when the server
-/// can't be reached — so any screen that was opened before shows what it showed last time.
+/// can't be reached - so any screen that was opened before shows what it showed last time.
 ///
 /// While the phone has no network at all, nothing waits on a timeout: GETs are answered from
 /// the saved copy (or fail at once), and every other request fails at once so a form can
@@ -79,7 +79,7 @@ class ResponseCacheInterceptor extends Interceptor {
 
   @override
   Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
-    // No answer at all (offline, timeout, server asleep) — fall back to the saved copy.
+    // No answer at all (offline, timeout, server asleep) - fall back to the saved copy.
     if (err.response == null && _cacheable(err.requestOptions)) {
       final hit = await _cached(err.requestOptions);
       if (hit != null) return handler.resolve(hit);

@@ -44,7 +44,7 @@ class AccountService {
     }
   }
 
-  // POST /api/users/{id}/reset-password — admin-mediated reset, also clears
+  // POST /api/users/{id}/reset-password - admin-mediated reset, also clears
   // any lockout state on the target account.
   Future<void> resetPassword(int id, String newPassword) async {
     try {
@@ -54,7 +54,7 @@ class AccountService {
     }
   }
 
-  // PUT /api/users/me/password — self-service change, requires current password.
+  // PUT /api/users/me/password - self-service change, requires current password.
   Future<void> changePassword(String currentPassword, String newPassword) async {
     try {
       await _dio.put('/users/me/password', data: {

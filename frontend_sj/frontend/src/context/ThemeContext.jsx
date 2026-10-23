@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 
 // Text size is a per-device preference (an employee with weaker eyesight sets it once on
 // their own PC). It scales the root font size, and since the UI is sized in rem, text,
-// buttons, icons and spacing all grow together — like browser zoom, but remembered.
+// buttons, icons and spacing all grow together - like browser zoom, but remembered.
 export const TEXT_SIZES = [
   { id: 'normal',  label: 'Normal',  scale: 100 },
   { id: 'large',   label: 'Large',   scale: 112.5 },
@@ -15,7 +15,7 @@ function readTextSize() {
   try {
     const saved = localStorage.getItem(TEXT_SIZE_KEY)
     if (TEXT_SIZES.some((s) => s.id === saved)) return saved
-  } catch { /* storage blocked — fall back to normal */ }
+  } catch { /* storage blocked, fall back to normal */ }
   return 'normal'
 }
 

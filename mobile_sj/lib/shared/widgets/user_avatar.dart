@@ -3,7 +3,7 @@ import '../../core/api/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/model/user_model.dart';
 
-/// The user's profile picture, or their initial on brand green — same as the web's UserAvatar.
+/// The user's profile picture, or their initial on brand green - same as the web's UserAvatar.
 class UserAvatar extends StatelessWidget {
   final UserModel? user;
   final double size;

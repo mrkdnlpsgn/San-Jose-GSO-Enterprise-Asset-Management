@@ -91,7 +91,7 @@ public class AssetController {
             .toList();
     }
 
-    // Signed payload `asset:{id}:{propertyNumber}:{tag}` (see AssetQrService) — the same text the
+    // Signed payload `asset:{id}:{propertyNumber}:{tag}` (see AssetQrService) - the same text the
     // web and mobile apps print from the asset's qrPayload, so stickers from any source match.
     @GetMapping(value = "/{id}/qr", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getQrCode(@PathVariable Long id,
@@ -146,7 +146,7 @@ public class AssetController {
     }
 
     // Reads a photo of an asset tag/sticker (device name + serial number) via
-    // Gemini vision to pre-fill the Add Asset form — nothing is saved here,
+    // Gemini vision to pre-fill the Add Asset form - nothing is saved here,
     // the image is processed in memory and discarded.
     @PostMapping(value = "/scan-label", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public AssetOcrResult scanLabel(@RequestParam("file") MultipartFile file) {
@@ -154,7 +154,7 @@ public class AssetController {
         return assetOcrService.scan(file);
     }
 
-    // Bulk create from a parsed spreadsheet (see AssetImportRow) — create-only,
+    // Bulk create from a parsed spreadsheet (see AssetImportRow) - create-only,
     // one bad row is reported as a failure rather than aborting the batch.
     @PostMapping("/bulk-import")
     public Map<String, Object> bulkImport(@RequestBody List<AssetImportRow> rows) {
@@ -195,7 +195,7 @@ public class AssetController {
         return withRequest(id, requested, result);
     }
 
-    // Condition/lifecycle only — used by the QR scanner's "Update Status".
+    // Condition/lifecycle only - used by the QR scanner's "Update Status".
     @PutMapping("/{id}/status")
     public Asset updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         accessService.requireAssetAccess(id);
@@ -228,8 +228,8 @@ public class AssetController {
         return asked != null && !asked.isBlank() && !asked.trim().equalsIgnoreCase(current);
     }
 
-    // Putting an asset under maintenance or up for disposal — by picking that status, or by
-    // marking it REPAIRABLE / UNSERVICEABLE — is a request: the asset keeps its condition
+    // Putting an asset under maintenance or up for disposal - by picking that status, or by
+    // marking it REPAIRABLE / UNSERVICEABLE - is a request: the asset keeps its condition
     // and status until an admin approves. Returns null when nothing needs approval.
     private StaffRequest staffRequest(Asset before, String askedCondition, String askedLifecycle) {
         String conditionBefore = name(before.getCondition());
@@ -286,7 +286,7 @@ public class AssetController {
     }
 
     // Staff can't transfer an asset (admins assign it). Putting it under maintenance or
-    // disposing of it comes back as the change to request — an admin approves it.
+    // disposing of it comes back as the change to request - an admin approves it.
     private String limitStaffLifecycle(Asset before, String requested, String conditionAfter) {
         if (requested == null || requested.isBlank()) return null;
         String current = before.getLifecycleStatus() != null ? before.getLifecycleStatus().name() : null;
@@ -299,7 +299,7 @@ public class AssetController {
                 String cond = conditionAfter == null ? "" : conditionAfter.trim().toUpperCase();
                 if (!cond.equals("REPAIRABLE") && !cond.equals("UNSERVICEABLE")) {
                     throw new IllegalStateException(
-                        "Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed — set the condition first.");
+                        "Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed. Set the condition first.");
                 }
                 return next;
             }

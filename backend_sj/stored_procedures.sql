@@ -1,5 +1,5 @@
 -- =============================================================
--- GSO Inventory Management System — Stored Procedures
+-- GSO Inventory Management System - Stored Procedures
 -- Import AFTER running gso_inventory.sql
 -- =============================================================
 
@@ -123,7 +123,7 @@ BEGIN
 END $$
 
 -- Step 2 of login 2FA: store a fresh code for an account that passed the
--- password check and has two_factor_enabled — mirrors sp_auth_set_password_reset_otp.
+-- password check and has two_factor_enabled - mirrors sp_auth_set_password_reset_otp.
 DROP PROCEDURE IF EXISTS sp_auth_set_login_otp $$
 CREATE PROCEDURE sp_auth_set_login_otp(
     IN p_user_id INT, IN p_otp_hash VARCHAR(255), IN p_expires_at DATETIME
@@ -160,7 +160,7 @@ BEGIN
     WHERE user_id = p_user_id;
 END $$
 
--- Called once a login OTP has been consumed successfully — clears it so it
+-- Called once a login OTP has been consumed successfully - clears it so it
 -- can't be replayed, without touching anything else (unlike the forgot-password
 -- flow, nothing else needs to change here: no password/token_version bump).
 DROP PROCEDURE IF EXISTS sp_auth_clear_login_otp $$
@@ -173,7 +173,7 @@ BEGIN
     WHERE user_id = p_user_id;
 END $$
 
--- Step-up 2FA for permanently deleting a Recycle Bin record — a dedicated OTP
+-- Step-up 2FA for permanently deleting a Recycle Bin record - a dedicated OTP
 -- column set (not the login OTP's) so requesting a delete confirmation code
 -- can't interfere with, or be satisfied by, a concurrent login attempt.
 DROP PROCEDURE IF EXISTS sp_auth_set_delete_otp $$
@@ -530,7 +530,7 @@ CREATE PROCEDURE sp_users_create(
     OUT p_id INT
 )
 BEGIN
-    -- token_version has no column default and is NOT NULL — must be set
+    -- token_version has no column default and is NOT NULL - must be set
     -- explicitly or every new-user INSERT fails outright. 0 is the same
     -- starting value JwtUtil/AuthService already assume for a user with no
     -- recorded version (see login()'s `tokenVersion() != null ? ... : 0`).
@@ -616,10 +616,10 @@ CREATE PROCEDURE sp_assets_list(
 BEGIN
     SET p_search = TRIM(p_search);
     -- groupSize/groupTotalValue are only meaningful for a grouped asset (group_id NOT
-    -- NULL) — which no asset can become anymore since the grouping feature was
+    -- NULL) - which no asset can become anymore since the grouping feature was
     -- removed. The CASE skips the correlated subquery entirely for every ungrouped
     -- row (i.e. currently every row), which is what made this query take seconds
-    -- over a few thousand assets — MySQL can't cache/batch a correlated subquery,
+    -- over a few thousand assets - MySQL can't cache/batch a correlated subquery,
     -- so it was re-executing full table lookups once per row for no benefit.
     SELECT a.asset_id AS id, a.property_number AS propertyNumber, a.par_number AS parNumber, a.group_id AS groupId,
            CASE WHEN a.group_id IS NULL THEN 0
@@ -665,7 +665,7 @@ BEGIN
     LIMIT p_limit OFFSET p_offset;
 END $$
 
--- Mirrors sp_assets_list's filters minus LIMIT/OFFSET — backs a lightweight
+-- Mirrors sp_assets_list's filters minus LIMIT/OFFSET - backs a lightweight
 -- /count endpoint so the mobile app can show a true total without fetching
 -- every row (list screens paginate 20 at a time and never see a real total).
 DROP PROCEDURE IF EXISTS sp_assets_count $$
@@ -728,7 +728,7 @@ BEGIN
     WHERE a.asset_id = p_id AND a.is_deleted = FALSE;
 END $$
 
--- Every (non-deleted) device of one group — clients load this when a group is opened, so the
+-- Every (non-deleted) device of one group - clients load this when a group is opened, so the
 -- view doesn't depend on which page/search results happened to be loaded.
 DROP PROCEDURE IF EXISTS sp_assets_get_by_group $$
 CREATE PROCEDURE sp_assets_get_by_group(IN p_group_id VARCHAR(36))
@@ -822,7 +822,7 @@ BEGIN
     WHERE asset_id = p_id AND is_deleted = FALSE;
 END $$
 
--- Status-only edit (QR scanner) — touches nothing else, so it works for assets
+-- Status-only edit (QR scanner) - touches nothing else, so it works for assets
 -- registered before PAR Numbers existed and for old multi-quantity records.
 DROP PROCEDURE IF EXISTS sp_assets_update_status $$
 CREATE PROCEDURE sp_assets_update_status(
@@ -867,10 +867,10 @@ BEGIN
 END $$
 
 -- The original assets row is only ever soft-deleted in place (never removed),
--- so restoring is just un-flagging it and dropping its archive snapshot —
+-- so restoring is just un-flagging it and dropping its archive snapshot -
 -- no data has to be reconstructed. Also cascades to any maintenance/disposal
 -- record that was archived alongside this same asset (see
--- sp_maintenance_soft_delete_by_asset / sp_disposal_soft_delete_by_asset) —
+-- sp_maintenance_soft_delete_by_asset / sp_disposal_soft_delete_by_asset) -
 -- otherwise restoring the asset leaves its ledger record stuck looking
 -- deleted, or restoring the ledger record leaves its asset stuck deleted.
 DROP PROCEDURE IF EXISTS sp_assets_restore $$
@@ -899,7 +899,7 @@ BEGIN
     DELETE FROM deleted_disposal WHERE asset_id = v_asset_id;
 END $$
 
--- Irreversibly removes the asset and its Recycle Bin snapshot — unlike
+-- Irreversibly removes the asset and its Recycle Bin snapshot - unlike
 -- restore, there is no going back after this. Also purges any maintenance/
 -- disposal records archived alongside this same asset (see sp_assets_restore's
 -- comment) so the Recycle Bin doesn't keep entries pointing at an asset that
@@ -967,7 +967,7 @@ BEGIN
 END $$
 
 -- Dashboard counts: each asset's latest recommendation only (highest id, so two generated in
--- the same second are not double-counted), and only for assets still in service — disposed
+-- the same second are not double-counted), and only for assets still in service - disposed
 -- or deleted assets no longer need a lifecycle decision.
 DROP PROCEDURE IF EXISTS sp_ai_recommendations_summary $$
 CREATE PROCEDURE sp_ai_recommendations_summary()
@@ -1196,7 +1196,7 @@ BEGIN
     LIMIT p_limit OFFSET p_offset;
 END $$
 
--- Mirrors sp_maintenance_list's filters minus LIMIT/OFFSET — see sp_assets_count.
+-- Mirrors sp_maintenance_list's filters minus LIMIT/OFFSET - see sp_assets_count.
 DROP PROCEDURE IF EXISTS sp_maintenance_count $$
 CREATE PROCEDURE sp_maintenance_count(
     IN p_search VARCHAR(255),
@@ -1360,7 +1360,7 @@ BEGIN
 END $$
 
 -- Irreversibly removes just this maintenance record and its Recycle Bin
--- snapshot — unlike restore, this is scoped to the record itself and does
+-- snapshot - unlike restore, this is scoped to the record itself and does
 -- NOT touch the parent asset either way. maintenance_summaries cascades
 -- automatically via ON DELETE CASCADE.
 DROP PROCEDURE IF EXISTS sp_maintenance_permanent_delete $$
@@ -1384,7 +1384,7 @@ END $$
 
 -- Used when the parent asset itself is deleted (as opposed to a condition
 -- change cascading via sp_maintenance_delete_by_asset above, which doesn't
--- archive) — an asset's active maintenance record should show up in its own
+-- archive) - an asset's active maintenance record should show up in its own
 -- Recycle Bin section too, not just under the asset's.
 DROP PROCEDURE IF EXISTS sp_maintenance_soft_delete_by_asset $$
 CREATE PROCEDURE sp_maintenance_soft_delete_by_asset(
@@ -1472,7 +1472,7 @@ BEGIN
     LIMIT p_limit OFFSET p_offset;
 END $$
 
--- Mirrors sp_disposal_list's filters minus LIMIT/OFFSET — see sp_assets_count.
+-- Mirrors sp_disposal_list's filters minus LIMIT/OFFSET - see sp_assets_count.
 DROP PROCEDURE IF EXISTS sp_disposal_count $$
 CREATE PROCEDURE sp_disposal_count(
     IN p_search VARCHAR(255),
@@ -1655,7 +1655,7 @@ BEGIN
 END $$
 
 -- Irreversibly removes just this disposal record and its Recycle Bin
--- snapshot — unlike restore, this is scoped to the record itself and does
+-- snapshot - unlike restore, this is scoped to the record itself and does
 -- NOT touch the parent asset either way. disposal_justifications cascades
 -- automatically via ON DELETE CASCADE.
 DROP PROCEDURE IF EXISTS sp_disposal_permanent_delete $$

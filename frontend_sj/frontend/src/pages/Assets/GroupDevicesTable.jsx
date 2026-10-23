@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// Same columns as the main Assets table — used for the main table's header and for the
+// Same columns as the main Assets table - used for the main table's header and for the
 // devices of a group.
 export const TABLE_HEADERS = ['Property No.', 'PAR No.', 'Description', 'Category', 'Qty (Property Card)', 'Qty (Physical Count)', 'Shortage/Overage Qty', 'Shortage/Overage Value', 'Location', 'Unit Value', 'Date', 'Remarks', '']
 export const TH_CLASS = 'px-5 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap'
@@ -13,7 +13,7 @@ export const deviceMatches = (a, q) => [
   a.propertyNumber, a.parNumber, a.serialNumber, a.accountablePerson?.fullName, a.currentUser?.fullName,
 ].some((v) => includes(v, q))
 
-// Same, for a maintenance / disposal / history record — the device is the record's nested `asset`.
+// Same, for a maintenance / disposal / history record - the device is the record's nested `asset`.
 export const recordMatches = (r, q) => deviceMatches(r.asset || {}, q)
 
 // Groups a list of records (or assets) by group id. Items that share a group id become one

@@ -110,7 +110,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(body);
     }
 
-    // A missing /uploads/** file (e.g. a replaced profile picture) — not a server error.
+    // A missing /uploads/** file (e.g. a replaced profile picture) - not a server error.
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex) {
         return buildResponse(HttpStatus.NOT_FOUND, "Not found.");

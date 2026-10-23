@@ -21,7 +21,7 @@ export default defineConfig({
     headers: {
       // Prevent MIME-type sniffing
       'X-Content-Type-Options': 'nosniff',
-      // Block page from being framed — clickjacking protection
+      // Block page from being framed - clickjacking protection
       'X-Frame-Options': 'DENY',
       // Limit referrer info sent to other origins
       'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -29,7 +29,7 @@ export default defineConfig({
       'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), display-capture=()',
       // Suppress DNS prefetching to avoid leaking visited URLs
       'X-DNS-Prefetch-Control': 'off',
-      // Isolate browsing context — limits cross-origin window access
+      // Isolate browsing context - limits cross-origin window access
       'Cross-Origin-Opener-Policy': 'same-origin',
       // Restrict cross-origin resource sharing at document level
       'Cross-Origin-Resource-Policy': 'same-origin',

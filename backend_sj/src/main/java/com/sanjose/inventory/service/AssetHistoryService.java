@@ -94,7 +94,7 @@ public class AssetHistoryService {
 
     // Same columns as sp_asset_history_get_all. The listing is built here rather than in the
     // stored procedures so an event that moved an asset out of an office (a transfer) still
-    // shows for that office after the asset is gone — the procs only match the asset's
+    // shows for that office after the asset is gone - the procs only match the asset's
     // current office.
     private static final String HISTORY_SELECT = """
         SELECT h.history_id AS id, h.event_type AS eventType, h.event_date AS eventDate, h.notes,
@@ -141,7 +141,7 @@ public class AssetHistoryService {
     }
 
     // Maintenance / disposal / transfer requests filed by staff (null requestedById = every
-    // requester), newest first, with where each stands — Pending, Approved or Rejected.
+    // requester), newest first, with where each stands - Pending, Approved or Rejected.
     public List<EditRequestView> findRequests(Long requestedById) {
         String select = """
             SELECT '%s' AS kind, r.%s AS record_id, a.asset_id, a.property_number, a.par_number,
@@ -217,7 +217,7 @@ public class AssetHistoryService {
 
     /**
      * Fire-and-forget history entry for other services to call when a REGISTERED, TRANSFERRED,
-     * MAINTENANCE, or DISPOSAL event actually happens — as opposed to {@link #create}, which
+     * MAINTENANCE, or DISPOSAL event actually happens - as opposed to {@link #create}, which
      * serves the manual "Log Asset Event" endpoint and returns the fully-joined record for the API response.
      */
     public void logEvent(Long assetId, String eventType, Long fromOfficeId, Long toOfficeId, Long performedById, String notes) {

@@ -56,7 +56,7 @@ class AuditLogModel {
   }
 }
 
-/// GET /api/audit-logs/archive/summary — old entries moved out of the live list.
+/// GET /api/audit-logs/archive/summary - old entries moved out of the live list.
 class AuditArchiveSummary {
   final int retentionDays;
   final int liveCount;

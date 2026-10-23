@@ -70,7 +70,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (email != null) {
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-            // Reject tokens issued before the account's most recent password change —
+            // Reject tokens issued before the account's most recent password change -
             // otherwise a stolen session would outlive the very reset meant to kill it.
             if (userDetails instanceof AppUserDetails appUserDetails && appUserDetails.getTokenVersion() != null
                     && !appUserDetails.getTokenVersion().equals(jwtUtil.extractTokenVersion(token))) {

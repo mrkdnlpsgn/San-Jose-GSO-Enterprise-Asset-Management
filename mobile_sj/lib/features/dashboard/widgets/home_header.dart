@@ -10,7 +10,7 @@ import '../../auth/provider/auth_provider.dart';
 ///   Treasury Office · Thursday, October 15, 2026 · 11:55 AM
 ///
 /// The name is there so a shared office phone shows whose account actions will be
-/// recorded under — not as decoration, so no avatar, icons or "Mabuhay".
+/// recorded under - not as decoration, so no avatar, icons or "Mabuhay".
 class HomeHeader extends ConsumerStatefulWidget {
   const HomeHeader({super.key});
 
@@ -57,7 +57,7 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
     final h = _now.hour % 12 == 0 ? 12 : _now.hour % 12;
     final time = '$h:${_now.minute.toString().padLeft(2, '0')} ${_now.hour < 12 ? 'AM' : 'PM'}';
     final date = '${_days[_now.weekday - 1]}, ${_months[_now.month - 1]} ${_now.day}, ${_now.year}';
-    // office for staff, role for admins — skipped when it would just repeat the name
+    // office for staff, role for admins - skipped when it would just repeat the name
     // (the seeded admin account's full name is literally "Administrator")
     final where = user == null
         ? null
