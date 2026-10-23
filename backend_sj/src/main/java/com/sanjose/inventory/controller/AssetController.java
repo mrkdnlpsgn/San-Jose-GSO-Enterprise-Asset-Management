@@ -41,19 +41,56 @@ public class AssetController {
     private final AuditLogService auditLogService;
     private final ActionOtpService actionOtpService;
 
+    // view=summary returns only what the web lists need (about a fifth of the size): the full
+    // records carry specs, remarks, QR data and each office's head user, which the asset view and
+    // the edit form load one asset at a time (GET /{id}). Without it the full records come back,
+    // as the mobile app and the reports expect.
     @GetMapping
-    public List<Asset> getAll(@RequestParam(required = false) String search,
-                               @RequestParam(defaultValue = "0") int page,
-                               @RequestParam(defaultValue = "20") int size,
-                               @RequestParam(required = false) Long categoryId,
-                               @RequestParam(required = false) Long officeId,
-                               @RequestParam(required = false) String condition,
-                               @RequestParam(required = false) String lifecycleStatus) {
+    public List<?> getAll(@RequestParam(required = false) String search,
+                           @RequestParam(defaultValue = "0") int page,
+                           @RequestParam(defaultValue = "20") int size,
+                           @RequestParam(required = false) Long categoryId,
+                           @RequestParam(required = false) Long officeId,
+                           @RequestParam(required = false) String condition,
+                           @RequestParam(required = false) String lifecycleStatus,
+                           @RequestParam(required = false) String view) {
         Set<Long> visible = accessService.visibleAssetIds();
-        if (visible == null) return assetService.findAll(search, page, size, categoryId, officeId, condition, lifecycleStatus);
-        List<Asset> own = ownAssets(search, categoryId, condition, lifecycleStatus, visible);
-        int from = (int) Math.min((long) page * size, own.size());
-        return own.subList(from, (int) Math.min((long) from + size, own.size()));
+        List<Asset> list;
+        if (visible == null) {
+            list = assetService.findAll(search, page, size, categoryId, officeId, condition, lifecycleStatus);
+        } else {
+            List<Asset> own = ownAssets(search, categoryId, condition, lifecycleStatus, visible);
+            int from = (int) Math.min((long) page * size, own.size());
+            list = own.subList(from, (int) Math.min((long) from + size, own.size()));
+        }
+        return "summary".equalsIgnoreCase(view) ? list.stream().map(AssetController::summary).toList() : list;
+    }
+
+    private static Map<String, Object> summary(Asset a) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", a.getId());
+        m.put("propertyNumber", a.getPropertyNumber());
+        m.put("parNumber", a.getParNumber());
+        m.put("serialNumber", a.getSerialNumber());
+        m.put("description", a.getDescription());
+        m.put("category", a.getCategory() == null ? null : ref("categoryName", a.getCategory().getId(), a.getCategory().getCategoryName()));
+        m.put("office", a.getOffice() == null ? null : ref("officeName", a.getOffice().getId(), a.getOffice().getOfficeName()));
+        m.put("accountablePerson", a.getAccountablePerson() == null ? null : ref("fullName", a.getAccountablePerson().getId(), a.getAccountablePerson().getFullName()));
+        m.put("currentUser", a.getCurrentUser() == null ? null : ref("fullName", a.getCurrentUser().getId(), a.getCurrentUser().getFullName()));
+        m.put("condition", a.getCondition());
+        m.put("lifecycleStatus", a.getLifecycleStatus());
+        m.put("unitValue", a.getUnitValue());
+        m.put("quantity", a.getQuantity());
+        m.put("acquisitionDate", a.getAcquisitionDate());
+        m.put("createdAt", a.getCreatedAt());
+        return m;
+    }
+
+    private static Map<String, Object> ref(String nameKey, Long id, String name) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        m.put(nameKey, name);
+        return m;
     }
 
     @GetMapping("/count")

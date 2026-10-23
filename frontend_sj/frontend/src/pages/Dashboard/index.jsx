@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
-import { setAssets } from '../../store/slices/assetSlice'
 import MainLayout from '../../components/layout/MainLayout'
-import { getAssets } from '../../services/assetService'
+import { getDashboardSummary } from '../../services/dashboardService'
 import { getAssetHistory, getEditRequests } from '../../services/assetHistoryService'
 import { getUsers } from '../../services/userService'
 import { getLifecycleInsights, generateLifecycleSummary } from '../../services/aiRecommendationService'
-import { getMaintenance, approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
-import { getDisposal, approveDisposal, rejectDisposal } from '../../services/disposalService'
+import { approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
+import { approveDisposal, rejectDisposal } from '../../services/disposalService'
 import { approveTransfer, rejectTransfer } from '../../services/transferService'
 import { useToast } from '../../context/ToastContext'
 import { RejectRequestModal } from '../../components/common/ApprovalControls'
@@ -98,16 +97,6 @@ const REQUEST_KIND = {
 const REQUESTS_LINK = (status) => `/asset-history?view=requests&status=${status}`
 const REJECTED_RECENT_DAYS = 14
 
-function computeOfficeDist(assets) {
-  const map = {}
-  assets.forEach((a) => {
-    const key = a.office?.officeName || 'Unassigned'
-    if (!map[key]) map[key] = { office: key, officeId: a.office?.id ?? null, count: 0 }
-    map[key].count++
-  })
-  return Object.values(map).sort((a, b) => b.count - a.count)
-}
-
 const TOP_OFFICES = 6
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
@@ -158,7 +147,8 @@ function StatStrip({ stats, loading }) {
 // "Needs attention": one row per problem, shown only when there is something to do. A row
 // can list the assets behind its count (each opens that asset), since the Assets page has
 // no filter for things like "no accountable person".
-function AttentionRow({ tone, text, link, assets }) {
+// assets: the first few matching assets (the server sends up to 10); total: how many match.
+function AttentionRow({ tone, text, link, assets, total = assets?.length ?? 0 }) {
   const [open, setOpen] = useState(false)
   const dot = tone === 'red' ? 'bg-red-500' : 'bg-amber-500'
   return (
@@ -181,7 +171,7 @@ function AttentionRow({ tone, text, link, assets }) {
       </div>
       {open && (
         <ul className="mt-2 ml-5 space-y-1">
-          {assets.slice(0, 10).map((a) => (
+          {assets.map((a) => (
             <li key={a.id} className="text-xs truncate">
               <Link to={assetLink(a.propertyNumber)} className="text-slate-600 dark:text-zinc-300 hover:text-brand-600 dark:hover:text-brand-400">
                 <span className="font-mono text-slate-600 dark:text-zinc-400 mr-1.5">{a.propertyNumber}</span>
@@ -189,8 +179,8 @@ function AttentionRow({ tone, text, link, assets }) {
               </Link>
             </li>
           ))}
-          {assets.length > 10 && (
-            <li className="text-xs text-slate-600 dark:text-zinc-400">and {fmtNum(assets.length - 10)} more</li>
+          {total > assets.length && (
+            <li className="text-xs text-slate-600 dark:text-zinc-400">and {fmtNum(total - assets.length)} more</li>
           )}
         </ul>
       )}
@@ -637,7 +627,6 @@ const ICONS = {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard() {
-  const dispatch = useDispatch()
   const navigate = useNavigate()
   // Staff only ever receive their own office's data from the API (see AccessService);
   // the admin-only parts of the page (approvals, offices, unassigned staff) are hidden for them.
@@ -650,11 +639,9 @@ function Dashboard() {
 
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(false)
-  const [assets, setLocalAssets] = useState([])
+  const [summary, setSummary]   = useState(null)   // asset numbers worked out by the server
   const [history, setHistory]   = useState([])
   const [unassignedStaff, setUnassignedStaff] = useState([])
-  const [maintenanceRecords, setMaintenanceRecords] = useState([])
-  const [disposalRecords, setDisposalRecords] = useState([])
   const [requests, setRequests] = useState([])
   const [requestsFailed, setRequestsFailed] = useState(false)
   const [insightToken, setInsightToken] = useState(0)   // bumps on every (re)load so the month card refetches
@@ -662,31 +649,25 @@ function Dashboard() {
   const load = useCallback(({ silent = false } = {}) => {
     if (!silent) { setLoading(true); setError(false) }
     Promise.all([
-      getAssets().catch(() => null),
+      getDashboardSummary().catch(() => null),
       getAssetHistory('', 8).catch(() => null),  // Recent Activity shows the 8 newest
       isAdmin ? getUsers().catch(() => null) : Promise.resolve(null),
-      getMaintenance().catch(() => null),
-      getDisposal().catch(() => null),
       // Admin: everyone's requests. Staff: the backend returns only their own.
       getEditRequests().catch(() => null),
-    ]).then(([assetRes, histRes, userRes, maintRes, dispRes, reqRes]) => {
-      if (!assetRes && !histRes) {
+    ]).then(([sumRes, histRes, userRes, reqRes]) => {
+      if (!sumRes && !histRes) {
         if (!silent) { setError(true); setLoading(false) }
         return
       }
-      const a = assetRes?.data ?? []
-      setLocalAssets(a)
-      dispatch(setAssets(a))
+      if (sumRes) setSummary(sumRes.data)
       setHistory(histRes?.data ?? [])
       setUnassignedStaff((userRes?.data ?? []).filter((x) => x.role === 'STAFF' && x.isActive && !x.officeId && !x.officeName))
-      setMaintenanceRecords(maintRes?.data ?? [])
-      setDisposalRecords(dispRes?.data ?? [])
       setRequests(reqRes?.data ?? [])
       setRequestsFailed(!reqRes)
       if (silent) setInsightToken((t) => t + 1)  // the month card loads itself on first open
       if (!silent) setLoading(false)
     })
-  }, [dispatch, isAdmin])
+  }, [isAdmin])
 
   useEffect(() => { load() }, [load])
 
@@ -703,55 +684,17 @@ function Dashboard() {
   useEventStream('maintenance', scheduleReload)
   useEventStream('disposal', scheduleReload)
 
-  // ── Derived numbers ────────────────────────────────────────────────────────
-  // The record that describes each asset now (rejected requests don't count). An asset keeps
-  // its finished records as history, so one that's still open (or, for disposal, finished)
-  // wins over older closed ones.
-  const notRejected = (r) => r.approvalStatus !== 'REJECTED'
-  const keyRecord = (list, wins) => {
-    const map = {}
-    list.forEach((r) => {
-      const id = r.asset?.id
-      if (id == null || !notRejected(r)) return
-      if (!map[id] || (wins(r) && !wins(map[id]))) map[id] = r
-    })
-    return map
-  }
-  const maintByAsset = keyRecord(maintenanceRecords, (m) => m.status !== 'COMPLETED')
-  const dispByAsset  = keyRecord(disposalRecords, (d) => d.disposalStatus === 'COMPLETED')
-
-  // "In use" leaves out assets whose disposal is finished, and archived ones, so the totals,
-  // value and charts describe property the municipality still holds.
-  const isGone = (a) => a.lifecycleStatus === 'ARCHIVED'
-    || (a.lifecycleStatus === 'DISPOSED' && dispByAsset[a.id]?.disposalStatus === 'COMPLETED')
-  const inUse = assets.filter((a) => !isGone(a))
-
-  const totalAssets = inUse.length
-  const totalValue  = inUse.reduce((s, a) => s + (Number(a.unitValue) || 0) * (Number(a.quantity) || 1), 0)
-
-  const now = new Date()
-  const newThisMonth = inUse.filter((a) => {
-    if (!a.createdAt) return false
-    const d = new Date(a.createdAt)
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-  }).length
-
-  // Under repair = maintenance still open (a completed record means the repair is done).
-  const underRepair = inUse.filter((a) => a.lifecycleStatus === 'UNDER_MAINTENANCE'
-    && maintByAsset[a.id]?.status !== 'COMPLETED').length
-  const forDisposal = inUse.filter((a) => a.lifecycleStatus === 'DISPOSED').length
-
-  const condDist = {}
-  inUse.forEach((a) => { condDist[a.condition] = (condDist[a.condition] || 0) + 1 })
-
-  const officeDist = computeOfficeDist(inUse)
-  const categoryMap = {}
-  inUse.forEach((a) => {
-    const key = a.category?.categoryName || 'Uncategorized'
-    if (!categoryMap[key]) categoryMap[key] = { category: key, categoryId: a.category?.id ?? null, count: 0 }
-    categoryMap[key].count++
-  })
-  const categoryBreakdown = Object.values(categoryMap).sort((a, b) => b.count - a.count).slice(0, 6)
+  // ── Numbers (from /api/dashboard/summary) ──────────────────────────────────
+  // The server applies the rules: "in use" leaves out archived assets and finished disposals;
+  // "under repair" is maintenance not yet finished.
+  const totalAssets  = summary?.inUse ?? 0
+  const totalValue   = Number(summary?.totalValue ?? 0)
+  const newThisMonth = summary?.newThisMonth ?? 0
+  const underRepair  = summary?.underRepair ?? 0
+  const forDisposal  = summary?.forDisposal ?? 0
+  const condDist     = summary?.condition ?? {}
+  const officeDist   = summary?.offices ?? []
+  const categoryBreakdown = (summary?.categories ?? []).slice(0, 6)
 
   const recentEvents = history.slice(0, 8)
 
@@ -765,9 +708,10 @@ function Dashboard() {
   }, [requests])
 
   // ── Needs attention ────────────────────────────────────────────────────────
-  const noAccountable = inUse.filter((a) => !a.accountablePerson)
-  const noOffice      = inUse.filter((a) => !a.office)
-  const unserviceableNoDisposal = inUse.filter((a) => a.condition === 'UNSERVICEABLE' && !dispByAsset[a.id])
+  const att = summary?.attention ?? {}
+  const noAccountable = att.noAccountable ?? { count: 0, items: [] }
+  const noOffice      = att.noOffice ?? { count: 0, items: [] }
+  const unserviceableNoDisposal = att.unserviceableNoDisposal ?? { count: 0, items: [] }
   const plural = (n, one, many) => `${fmtNum(n)} ${n === 1 ? one : many}`
 
   const attention = []
@@ -784,20 +728,20 @@ function Dashboard() {
   if (!isAdmin && requestsFailed) attention.push({
     key: 'mine-failed', tone: 'red', text: "Couldn't load your requests. Refresh to try again.",
   })
-  if (unserviceableNoDisposal.length > 0) attention.push({
+  if (unserviceableNoDisposal.count > 0) attention.push({
     key: 'unserviceable', tone: 'red',
-    text: `${plural(unserviceableNoDisposal.length, 'unserviceable asset has', 'unserviceable assets have')} no disposal record yet`,
-    assets: unserviceableNoDisposal,
+    text: `${plural(unserviceableNoDisposal.count, 'unserviceable asset has', 'unserviceable assets have')} no disposal record yet`,
+    assets: unserviceableNoDisposal.items, total: unserviceableNoDisposal.count,
   })
-  if (noAccountable.length > 0) attention.push({
+  if (noAccountable.count > 0) attention.push({
     key: 'no-accountable', tone: 'amber',
-    text: `${plural(noAccountable.length, 'asset has', 'assets have')} no accountable person`,
-    assets: noAccountable,
+    text: `${plural(noAccountable.count, 'asset has', 'assets have')} no accountable person`,
+    assets: noAccountable.items, total: noAccountable.count,
   })
-  if (isAdmin && noOffice.length > 0) attention.push({
+  if (isAdmin && noOffice.count > 0) attention.push({
     key: 'no-office', tone: 'amber',
-    text: `${plural(noOffice.length, 'asset is', 'assets are')} not assigned to an office`,
-    assets: noOffice,
+    text: `${plural(noOffice.count, 'asset is', 'assets are')} not assigned to an office`,
+    assets: noOffice.items, total: noOffice.count,
   })
 
   // ── Approvals ──────────────────────────────────────────────────────────────
@@ -853,7 +797,7 @@ function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 mb-4">
         <p className="text-base font-semibold text-slate-800 dark:text-zinc-100">
-          {now.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          {new Date().toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
         <div className="flex items-center gap-2">
           {error && (

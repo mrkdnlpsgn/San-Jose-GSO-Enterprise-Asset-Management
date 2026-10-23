@@ -5,6 +5,7 @@ import { getMaintenanceByAsset } from '../../services/maintenanceService'
 import { getDisposalByAsset } from '../../services/disposalService'
 import { getHistoryByAsset } from '../../services/assetHistoryService'
 import { getPropertyCard } from '../../services/propertyCardService'
+import { getAssetById } from '../../services/assetService'
 import { openPrintWindow, printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 import { getLatestRecommendation, generateRecommendation } from '../../services/aiRecommendationService'
 import { useEventStream } from '../../hooks/useEventStream'
@@ -35,7 +36,17 @@ function php(v) {
 }
 
 // onDelete is passed for admins only.
-export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting }) {
+// listAsset: the row's record. The list only carries a summary, so the full record (specs,
+// remarks, PAR, QR data, ...) is loaded here; Edit waits for it, or saving would drop fields.
+export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelete, exiting }) {
+  const [full, setFull] = useState(null)
+  useEffect(() => {
+    let alive = true
+    setFull(null)
+    getAssetById(listAsset.id).then(({ data }) => { if (alive) setFull(data) }).catch(() => {})
+    return () => { alive = false }
+  }, [listAsset.id, listAsset.updatedAt])
+  const asset = full || listAsset
   const navigate = useNavigate()
   const [maintenance, setMaintenance] = useState([])
   const [disposal, setDisposal]       = useState([])
@@ -98,7 +109,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
     }
 
     fetchAssetData()
-  }, [asset])
+  }, [listAsset.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Esc closes the drawer - but not while one of its own dialogs (QR, photos) is open on top.
   useEffect(() => {
@@ -180,7 +191,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
           </div>
           {/* Labelled buttons rather than bare icons, so every user can tell what they do */}
           <div className="order-last sm:order-none w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-1.5">
-            <DrawerAction onClick={() => onEdit(asset)} label="Edit asset"
+            <DrawerAction onClick={() => full && onEdit(full)} disabled={!full} label={full ? 'Edit asset' : 'Loading…'}
               icon={<path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />} />
             <DrawerAction onClick={() => setShowQr(true)} label="QR sticker"
               icon={<path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 1v2h2V5H5zM3 12a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm2 1v2h2v-2H5zM11 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm2 1v2h2V5h-2zM11 12h2v2h-2v-2zM15 12h2v2h-2v-2zM11 16h2v2h-2v-2zM15 16h2v2h-2v-2z" clipRule="evenodd" />} />
@@ -210,7 +221,12 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4">
-          {tab === 'details' && (
+          {!full && (tab === 'details' || tab === 'specs') ? (
+            <div className="space-y-3 py-2" aria-busy="true">
+              {Array.from({ length: 6 }).map((_, i) => <div key={i} className="animate-pulse h-4 rounded bg-slate-200 dark:bg-zinc-800" style={{ width: `${90 - i * 8}%` }} />)}
+            </div>
+          ) : null}
+          {full && tab === 'details' && (
             <div>
               {/* Two columns of sections when there's room; one on phones */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
@@ -365,7 +381,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
             )
           })()}
 
-          {tab === 'specs' && (
+          {full && tab === 'specs' && (
             asset.specifications ? (
               <p className="text-sm text-slate-700 dark:text-zinc-200 whitespace-pre-line break-words bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg px-3.5 py-3 leading-relaxed">
                 {asset.specifications}
@@ -376,7 +392,7 @@ export default function AssetDrawer({ asset, onClose, onEdit, onDelete, exiting 
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p className="text-sm text-slate-600 dark:text-zinc-400">No technical specifications recorded for this asset.</p>
-                <button onClick={() => onEdit(asset)}
+                <button onClick={() => full && onEdit(full)} disabled={!full}
                   className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30 text-brand-700 dark:text-brand-300 text-sm font-medium hover:bg-brand-500/20 transition-all">
                   Add Specifications
                 </button>
@@ -500,10 +516,10 @@ function Field({ label, value, mono = false }) {
   )
 }
 
-function DrawerAction({ onClick, label, icon }) {
+function DrawerAction({ onClick, label, icon, disabled = false }) {
   return (
-    <button type="button" onClick={onClick}
-      className="flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md whitespace-nowrap border border-slate-200 dark:border-zinc-700 text-sm font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+    <button type="button" onClick={onClick} disabled={disabled}
+      className="disabled:opacity-60 flex items-center justify-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-md whitespace-nowrap border border-slate-200 dark:border-zinc-700 text-sm font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">{icon}</svg>
       {label}
     </button>

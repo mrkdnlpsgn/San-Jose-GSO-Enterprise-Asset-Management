@@ -116,7 +116,8 @@ function Assets() {
   // Reopen the form a draft came from; it restores the draft itself.
   const continueDraft = async (d) => {
     if (d.id === 'new') { setShowAdd(true); return }
-    const record = items.find((r) => String(r.id) === d.id) || (await getAssetById(d.id).catch(() => null))?.data
+    // the list holds summaries; the form needs the full record, or saving would drop fields
+    const record = (await getAssetById(d.id).catch(() => null))?.data
     if (!record) { discardDraft(d.key); toast.show('That record no longer exists, so its draft was removed.', 'error'); return }
     setEditing(record)
   }
@@ -159,7 +160,7 @@ function Assets() {
   const fetchAssets = useCallback(async (q = '', { silent = false } = {}) => {
     if (!silent) setLoading(true)
     try {
-      const { data } = await getAssets(q)
+      const { data } = await getAssets(q, { summary: true })
       setItems(data)
       dispatch(setAssets(data))
     } catch {
@@ -269,21 +270,33 @@ function Assets() {
     }
   }
 
-  const handleExport = () => {
+  // The list holds summaries, so the spreadsheet loads the full records first (same search and
+  // filters as on screen).
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
     if (filtered.length === 0) { toast.show('No assets to export.', 'error'); return }
-    exportAssetsToExcel(filtered)
-    toast.show(`Exported ${filtered.length} asset${filtered.length !== 1 ? 's' : ''}.`, 'success')
+    setExporting(true)
+    try {
+      const { data } = await getAssets(debouncedSearch)
+      const rows = data.filter(matchesFilters)
+      await exportAssetsToExcel(rows)
+      toast.show(`Exported ${rows.length} asset${rows.length !== 1 ? 's' : ''}.`, 'success')
+    } catch {
+      toast.show('Could not prepare the spreadsheet. Try again.', 'error')
+    } finally {
+      setExporting(false)
+    }
   }
 
-  const filtered = useMemo(() => {
-    return items.filter((a) => {
-      if (filterCondition && a.condition !== filterCondition) return false
-      if (filterLifecycle && a.lifecycleStatus !== filterLifecycle) return false
-      if (filterCategory && String(a.category?.id) !== filterCategory) return false
-      if (filterOffice && String(a.office?.id) !== filterOffice) return false
-      return true
-    })
-  }, [items, filterCondition, filterLifecycle, filterCategory, filterOffice])
+  const matchesFilters = (a) => {
+    if (filterCondition && a.condition !== filterCondition) return false
+    if (filterLifecycle && a.lifecycleStatus !== filterLifecycle) return false
+    if (filterCategory && String(a.category?.id) !== filterCategory) return false
+    if (filterOffice && String(a.office?.id) !== filterOffice) return false
+    return true
+  }
+  const filtered = useMemo(() => items.filter(matchesFilters),
+    [items, filterCondition, filterLifecycle, filterCategory, filterOffice]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -370,10 +383,10 @@ function Assets() {
           )}
           {/* The list's own actions: download what's shown, bring in a spreadsheet, refresh */}
           <div className="ml-auto flex items-center gap-1">
-            <button type="button" onClick={handleExport}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+            <button type="button" onClick={handleExport} disabled={exporting}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-60 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-              Download Excel
+              {exporting ? 'Preparing…' : 'Download Excel'}
             </button>
             {isAdmin && (
               <button type="button" onClick={() => setShowImport(true)}

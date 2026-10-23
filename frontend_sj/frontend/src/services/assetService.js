@@ -3,8 +3,10 @@ import api from './api';
 // Callers across the app (Dashboard, Reports, Maintenance, Disposal, etc.) expect
 // the full asset list for client-side filtering/pagination, but the backend
 // defaults to a 20-row page - request an effectively-unlimited page explicitly.
-export const getAssets       = (search = '') => api.get('/assets', {
-  params: { size: 100000, ...(search.trim() ? { search: search.trim() } : {}) },
+// summary: only the fields lists need (about a third of the download). Anything that shows or
+// edits one asset in full must load it with getAssetById - editing a summary would drop fields.
+export const getAssets       = (search = '', { summary = false } = {}) => api.get('/assets', {
+  params: { size: 100000, ...(search.trim() ? { search: search.trim() } : {}), ...(summary ? { view: 'summary' } : {}) },
 });
 export const getAssetById    = (id)        => api.get(`/assets/${id}`);
 export const getAssetQrCode  = (id, size = 400) => api.get(`/assets/${id}/qr`, { params: { size }, responseType: 'blob' });

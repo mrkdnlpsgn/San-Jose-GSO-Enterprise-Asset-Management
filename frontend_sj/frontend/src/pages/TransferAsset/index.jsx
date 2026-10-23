@@ -8,7 +8,7 @@ import Button from '../../components/common/Button'
 import QrScannerOverlay from '../../components/common/QrScannerOverlay'
 import { printQrSticker } from '../../utils/printQrSticker'
 import { useToast } from '../../context/ToastContext'
-import { getAssets, updateAssetStatus, verifyAssetQr } from '../../services/assetService'
+import { getAssets, updateAssetStatus, verifyAssetQr, getAssetById } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
 import { getPersonnel, inOffice } from '../../services/personnelService'
 import { getTransfers, submitTransfer, approveTransfer, rejectTransfer } from '../../services/transferService'
@@ -110,7 +110,7 @@ function TransferAsset() {
 
   useEffect(() => {
     if (assetItems.length === 0) {
-      getAssets().then(({ data }) => dispatch(setAssets(data))).catch(() => {})
+      getAssets('', { summary: true }).then(({ data }) => dispatch(setAssets(data))).catch(() => {})
     }
     getOffices().then(({ data }) => setOffices(data || [])).catch(() => {})
     getPersonnel().then(({ data }) => setPersonnel(data || [])).catch(() => {})
@@ -179,7 +179,13 @@ function TransferAsset() {
         a.propertyNumber?.toLowerCase() === propertyNumber.toLowerCase() ||
         (parNumber && a.parNumber?.toLowerCase() === parNumber)
     )
-    if (asset) { setResult(asset); setNotFound(false) }
+    if (asset) {
+      setResult(asset); setNotFound(false)
+      // the cached list holds summaries; the details below need the full record
+      getAssetById(asset.id)
+        .then(({ data }) => setResult((cur) => (cur?.id === data.id ? data : cur)))
+        .catch(() => {})
+    }
     else        { setNotFound(true); setResult(null) }
     // On phones the result sits below the search card - bring it into view.
     if (window.matchMedia?.('(max-width: 1023px)').matches) {

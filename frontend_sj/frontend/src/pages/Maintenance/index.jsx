@@ -118,7 +118,7 @@ function Maintenance() {
   useEffect(() => {
     if (!editing || formListsLoaded) return
     setFormListsLoaded(true)
-    Promise.all([getAssets().catch(() => ({ data: [] })), getUsers().catch(() => ({ data: [] }))])
+    Promise.all([getAssets('', { summary: true }).catch(() => ({ data: [] })), getUsers().catch(() => ({ data: [] }))])
       .then(([assetRes, userRes]) => { setAssets(assetRes.data); setUsers(userRes.data) })
   }, [editing, formListsLoaded])
 
