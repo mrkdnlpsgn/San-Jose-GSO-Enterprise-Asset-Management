@@ -116,13 +116,13 @@ export function FilterBar({ children, more, moreOpen, onMoreToggle, activeCount 
         <div className="col-span-2 flex items-center justify-between gap-2 sm:contents">
           {more ? (
             <button type="button" onClick={() => onMoreToggle(!moreOpen)} aria-expanded={moreOpen}
-              className="-ml-2.5 sm:ml-0 px-2.5 py-1.5 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-500/10 transition-colors">
+              className="py-1.5 sm:px-2.5 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-300 hover:underline sm:hover:no-underline sm:hover:bg-brand-500/10 transition-colors">
               {moreOpen ? 'Fewer filters' : 'More filters'}
             </button>
           ) : <span />}
           {activeCount > 0 && (
             <button type="button" onClick={onClear}
-              className="-mr-2.5 sm:mr-0 px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+              className="py-1.5 sm:px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-zinc-300 hover:underline sm:hover:no-underline sm:hover:bg-slate-100 dark:sm:hover:bg-zinc-800 transition-colors">
               Clear all ({activeCount})
             </button>
           )}
@@ -160,12 +160,13 @@ export function Icon({ children, className = 'h-4 w-4' }) {
 }
 
 // A labelled button in the list card's header (Download Excel, Import, …).
-export function ListAction({ onClick, icon, children, label }) {
+export function ListAction({ onClick, icon, children, label, disabled = false }) {
   return (
-    <button type="button" onClick={onClick} aria-label={label}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+    <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label}
+      className="flex items-center gap-1.5 p-1.5 sm:px-2.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-60 transition-colors">
       {icon && <Icon>{icon}</Icon>}
-      {children}
+      {/* icon only on phones (the button keeps its label for screen readers) */}
+      <span className={icon ? 'hidden sm:inline' : ''}>{children}</span>
     </button>
   )
 }
@@ -187,14 +188,15 @@ export function ListCard({ title, filtered = false, count, total, noun = 'record
   const n = (v) => Number(v).toLocaleString('en-PH')
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-      <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">{title}</p>
+      {/* one line on every screen: the title may shorten, the count and the buttons don't wrap */}
+      <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-x-3">
+        <p className="min-w-0 truncate text-sm font-semibold text-slate-700 dark:text-zinc-300">{title}</p>
         {!loading && count != null && (
-          <span className={`text-xs font-medium ${MUTED} bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full`}>
+          <span className={`flex-shrink-0 whitespace-nowrap text-xs font-medium ${MUTED} bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full`}>
             {n(count)}{filtered && total != null && total !== count ? ` of ${n(total)}` : ''} {count === 1 ? noun : plural(noun)}
           </span>
         )}
-        {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
+        {actions && <div className="ml-auto flex flex-shrink-0 items-center gap-1">{actions}</div>}
       </div>
       {children}
       {footer}

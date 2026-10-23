@@ -361,27 +361,30 @@ function Assets() {
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-        <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">
-            {activeFilters > 0 ? 'Matching assets' : 'All assets'}
+        <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-x-3">
+          <p className="min-w-0 truncate text-sm font-semibold text-slate-700 dark:text-zinc-300">
+            {activeFilters > 0 ? <>Matching<span className="hidden sm:inline"> assets</span></> : 'All assets'}
           </p>
           {!loading && (
-            <span className="text-xs font-medium text-slate-600 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full">
-              {filtered.length.toLocaleString('en-PH')}{filtered.length !== items.length ? ` of ${items.length.toLocaleString('en-PH')}` : ''} asset{filtered.length !== 1 ? 's' : ''}
+            <span className="flex-shrink-0 whitespace-nowrap text-xs font-medium text-slate-600 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 px-2 py-0.5 rounded-full">
+              {filtered.length.toLocaleString('en-PH')}{filtered.length !== items.length ? ` of ${items.length.toLocaleString('en-PH')}` : ''}
+              {/* "128 of 2,423" is clear enough on phones, where the title needs the room */}
+              <span className={filtered.length !== items.length ? 'hidden sm:inline' : ''}> asset{filtered.length !== 1 ? 's' : ''}</span>
             </span>
           )}
           {/* The list's own actions: download what's shown, bring in a spreadsheet, refresh */}
-          <div className="ml-auto flex items-center gap-1">
-            <button type="button" onClick={handleExport} disabled={exporting}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-60 transition-colors">
+          <div className="ml-auto flex flex-shrink-0 items-center gap-1">
+            {/* icon only on phones; the labels stay for screen readers */}
+            <button type="button" onClick={handleExport} disabled={exporting} aria-label="Download Excel" title="Download Excel"
+              className="flex items-center gap-1.5 p-1.5 sm:px-2.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-60 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-              {exporting ? 'Preparing…' : 'Download Excel'}
+              <span className="hidden sm:inline">{exporting ? 'Preparing…' : 'Download Excel'}</span>
             </button>
             {isAdmin && (
-              <button type="button" onClick={() => setShowImport(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+              <button type="button" onClick={() => setShowImport(true)} aria-label="Import" title="Import"
+                className="flex items-center gap-1.5 p-1.5 sm:px-2.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm4.293 8.707a1 1 0 011.414-1.414L9 10.586V17a1 1 0 102 0v-6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3z" clipRule="evenodd" /></svg>
-                Import
+                <span className="hidden sm:inline">Import</span>
               </button>
             )}
           <button onClick={() => fetchAssets(search)} aria-label="Refresh the list" className="p-1.5 rounded-md text-slate-600 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-all" title="Refresh">
