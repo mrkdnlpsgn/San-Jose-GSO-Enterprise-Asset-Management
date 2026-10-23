@@ -20,14 +20,14 @@ import java.util.regex.Pattern;
 // runs before sign-in too.
 //
 // It comes from the repository's latest GitHub release (the "Release mobile app" workflow
-// publishes one per version): the release tag gives the version, which names the APK to download,
-// and the release's update-notes.txt holds the short notes. Looked up at most every 15 minutes.
+// publishes one per version): the release tag gives the version, which names the APK to download.
+// Looked up at most every 15 minutes. No release notes are sent: the update notice on the phone
+// is just "Version X is available. You have Y." (the full notes stay on the GitHub release page).
 //
 // Render env vars still override it when set:
 //   MOBILE_LATEST_VERSION   e.g. 1.0.1 - the app asks to update when it's older than this
 //   MOBILE_MIN_VERSION      optional; older apps must update before continuing
 //   MOBILE_DOWNLOAD_URL     where the APK is downloaded
-//   MOBILE_RELEASE_NOTES    optional short text shown in the dialog
 //   MOBILE_RELEASES_REPO    owner/name of the GitHub repository to read releases from
 // With no version from either place, the app never prompts.
 @Slf4j
@@ -49,17 +49,12 @@ public class AppVersionController {
     @Value("${app.mobile.download-url:${MOBILE_DOWNLOAD_URL:}}")
     private String downloadUrl;
 
-    @Value("${app.mobile.release-notes:${MOBILE_RELEASE_NOTES:}}")
-    private String releaseNotes;
-
     @Value("${app.mobile.releases-repo:${MOBILE_RELEASES_REPO:mrkdnlpsgn/San-Jose-GSO-Enterprise-Asset-Management}}")
     private String releasesRepo;
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
-        .followRedirects(HttpClient.Redirect.NORMAL).build();
     private final HttpClient noRedirects = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
-    private record Release(String version, String downloadUrl, String notes) {}
+    private record Release(String version, String downloadUrl) {}
     private volatile Release cached;
     private volatile long nextLookupAt;
 
@@ -70,15 +65,13 @@ public class AppVersionController {
         body.put("latestVersion", firstSet(latestVersion, release == null ? null : release.version()));
         body.put("minVersion", blankToNull(minVersion));
         body.put("downloadUrl", firstSet(downloadUrl, release == null ? null : release.downloadUrl()));
-        body.put("releaseNotes", firstSet(releaseNotes, release == null ? null : release.notes()));
         return body;
     }
 
     // GitHub's REST API allows only 60 unauthenticated calls an hour per IP, and a host like Render
     // shares its outgoing IPs with many other apps, so the limit is often used up already. The
     // plain web links have no such limit: /releases/latest redirects to /releases/tag/v<version>,
-    // and the workflow names every release's files the same way (SJ-Inventory-v<version>.apk,
-    // update-notes.txt with the short notes).
+    // and the workflow names every release's APK the same way (SJ-Inventory-v<version>.apk).
     private Release latestRelease() {
         if (blankToNull(releasesRepo) == null || System.currentTimeMillis() < nextLookupAt) return cached;
         synchronized (this) {
@@ -91,7 +84,7 @@ public class AppVersionController {
                 if (!tag.find()) throw new IllegalStateException("GitHub answered " + latest.statusCode() + " with no release tag");
                 String version = tag.group(1);
                 String download = base + "/download/v" + version + "/";
-                cached = new Release(version, download + "SJ-Inventory-v" + version + ".apk", notes(download + "update-notes.txt"));
+                cached = new Release(version, download + "SJ-Inventory-v" + version + ".apk");
                 nextLookupAt = System.currentTimeMillis() + FRESH_FOR.toMillis();
             } catch (Exception e) {
                 if (e instanceof InterruptedException) Thread.currentThread().interrupt();
@@ -99,17 +92,6 @@ public class AppVersionController {
                 nextLookupAt = System.currentTimeMillis() + RETRY_AFTER.toMillis();
             }
             return cached;
-        }
-    }
-
-    // The release's short notes, or null when it has none.
-    private String notes(String url) {
-        try {
-            HttpResponse<String> r = http.send(get(url), HttpResponse.BodyHandlers.ofString());
-            return r.statusCode() == 200 ? blankToNull(r.body()) : null;
-        } catch (Exception e) {
-            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-            return null;
         }
     }
 
