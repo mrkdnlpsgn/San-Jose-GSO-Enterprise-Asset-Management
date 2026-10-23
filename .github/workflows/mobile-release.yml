@@ -86,6 +86,14 @@ jobs:
           fi
           mkdir -p ~/.android
           echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+          # make Gradle look in ~/.android even if the runner points it elsewhere
+          echo "ANDROID_USER_HOME=$HOME/.android" >> "$GITHUB_ENV"
+          # stop here, before the long build, if the secret holds some other key
+          digest=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey \
+            | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+          if [ "$digest" != "$KEY_SHA256" ]; then
+            echo "::error::The ANDROID_KEYSTORE_BASE64 secret holds key ${digest:-(unreadable)}, not the usual key $KEY_SHA256."; exit 1
+          fi
 
       - name: Run the tests
         working-directory: mobile_sj
