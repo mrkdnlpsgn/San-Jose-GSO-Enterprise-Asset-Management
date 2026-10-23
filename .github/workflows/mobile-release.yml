@@ -4,8 +4,8 @@ name: Release mobile app
 # It raises the version in mobile_sj/pubspec.yaml, builds the APK, checks it is signed with the
 # same key as every earlier version (or phones couldn't install it over the old one), commits the
 # version to main and Branch-Nuque, and publishes a GitHub release with the APK.
-# The backend reads the latest release (AppVersionController), so phones are offered the update
-# without touching Render.
+# The backend reads the latest release (AppVersionController): the APK must keep the name
+# SJ-Inventory-v<version>.apk and update-notes.txt holds the short note shown on phones.
 #
 # Needs the repository secret ANDROID_KEYSTORE_BASE64: the signing keystore, base64-encoded.
 on:
@@ -117,12 +117,13 @@ jobs:
           version = os.environ['VERSION']
           apk = f'SJ-Inventory-v{version}.apk'
           sha = hashlib.sha256(open(apk, 'rb').read()).hexdigest()
-          items = []
+          items, titles = [], []
           for part in os.environ['NOTES'].split('|'):
               part = part.strip()
               if not part:
                   continue
               title, sep, rest = part.partition(':')
+              titles.append((title if sep and rest.strip() else part).strip().rstrip('.'))
               items.append(f'- **{title.strip()}:** {rest.strip()}' if sep and rest.strip() else f'- **{part}**')
           text = (
               f'San Jose GSO Enterprise Asset Management, Android app version {version}.\n\n'
@@ -132,6 +133,8 @@ jobs:
               f'SHA-256: `{sha}`\n'
           )
           open('release-notes.md', 'w').write(text)
+          # the short line the app's update dialog shows (read by AppVersionController)
+          open('update-notes.txt', 'w').write('. '.join(titles[:4]) + '.')
           print(text)
           PY
 
@@ -147,7 +150,7 @@ jobs:
           git push origin HEAD:main
           # Branch-Nuque normally matches main; if it has moved on, it is left for a person to merge.
           git push origin HEAD:Branch-Nuque || echo "::warning::Branch-Nuque has other commits, so the version bump wasn't pushed there. Merge main into it."
-          gh release create "v$VERSION" "SJ-Inventory-v$VERSION.apk" \
+          gh release create "v$VERSION" "SJ-Inventory-v$VERSION.apk" update-notes.txt \
             --target "$(git rev-parse HEAD)" \
             --title "Mobile app $VERSION" \
             --notes-file release-notes.md
