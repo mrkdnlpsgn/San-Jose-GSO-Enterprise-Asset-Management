@@ -28,3 +28,6 @@ export const scanAssetLabel = (file) => {
   formData.append('file', file);
   return api.post('/assets/scan-label', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 };
+
+// Bulk QR export: [{ id, propertyNumber, description, qrPayload }] for the chosen assets, in order.
+export const getQrStickers   = (ids)       => api.post('/assets/qr-stickers', { ids });

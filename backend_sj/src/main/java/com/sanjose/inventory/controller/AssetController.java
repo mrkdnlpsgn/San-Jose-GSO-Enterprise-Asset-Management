@@ -143,6 +143,21 @@ public class AssetController {
             .body(png);
     }
 
+    // Bulk QR printing: the sticker data (signed QR text, property number) of the chosen assets,
+    // in the order given. Capped so one request stays small; logged like any other print run.
+    public record StickerRequest(List<Long> ids) {}
+
+    @PostMapping("/qr-stickers")
+    public List<Map<String, Object>> qrStickers(@RequestBody StickerRequest body) {
+        List<Long> ids = body.ids() == null ? List.of() : body.ids().stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) throw new IllegalArgumentException("Choose at least one asset.");
+        if (ids.size() > 1000) throw new IllegalArgumentException("Print at most 1,000 QR codes at a time.");
+        List<Map<String, Object>> stickers = assetQrService.stickers(ids, accessService.staffScope());
+        auditLogService.log("ASSET_QR_BULK_EXPORT", "Assets", null, "asset",
+            "Exported QR codes for " + stickers.size() + " asset" + (stickers.size() == 1 ? "" : "s"));
+        return stickers;
+    }
+
     // Checks a scanned sticker: VERIFIED (printed by this system, current), UNSIGNED (an older
     // sticker from before signing), INVALID (made up, edited, or replaced by a reissued one), or
     // NOT_FOUND. Answers only the status and id, so it reveals nothing about assets outside the

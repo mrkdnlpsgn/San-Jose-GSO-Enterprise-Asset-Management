@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useLocation } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
@@ -11,6 +11,8 @@ import AddAssetModal from './AddAssetModal'
 import AssetDrawer from './AssetDrawer'
 import AssetImportModal from './AssetImportModal'
 import AssetQrModal from './AssetQrModal'
+// loaded on first use: it brings the QR drawing code
+const QrExportModal = lazy(() => import('./QrExportModal'))
 import { Badge, CONDITION_BADGE, LIFECYCLE_BADGE } from './assetBadges'
 import { FilterSelect, FilterBar, SearchBox, SearchRow } from '../../components/common/ListKit'
 import { exportAssetsToExcel } from './assetExcel'
@@ -111,6 +113,10 @@ function Assets() {
   }
   const [showAdd, setShowAdd]       = useState(false)
   const [showImport, setShowImport] = useState(false)
+  // Bulk QR export: while choosing, rows get tick boxes and a click ticks instead of opening.
+  const [choosing, setChoosing]     = useState(false)
+  const [chosen, setChosen]         = useState(() => new Set())
+  const [showQrExport, setShowQrExport] = useState(false)
   const [editing, setEditing]       = useState(null)
   const { drafts, discard: discardDraft } = useDraftList('asset')
   // Reopen the form a draft came from; it restores the draft itself.
@@ -306,16 +312,33 @@ function Assets() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  const toggleChosen = (ids, on) => setChosen((prev) => {
+    const next = new Set(prev)
+    ids.forEach((id) => (on ? next.add(id) : next.delete(id)))
+    return next
+  })
+  const pageAllChosen = paged.length > 0 && paged.every((a) => chosen.has(a.id))
+  const allFilteredChosen = filtered.length > 0 && filtered.every((a) => chosen.has(a.id))
+  const stopChoosing = () => { setChoosing(false); setChosen(new Set()) }
+
   // One row per asset (each asset is one physical item). The whole row opens the drawer with
   // the complete details, edit, QR, photos and delete.
   const renderAssetRow = (a) => {
     const row = toRow(a)
-    const open = () => setSelected(a)
+    const isChosen = chosen.has(a.id)
+    const open = choosing ? () => toggleChosen([a.id], !isChosen) : () => setSelected(a)
     return (
       <tr key={a.id} onClick={open}
-        className={`hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100 cursor-pointer ${selected?.id === a.id ? 'bg-slate-50 dark:bg-zinc-800/40' : ''}`}>
+        className={`hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100 cursor-pointer ${
+          (choosing ? isChosen : selected?.id === a.id) ? 'bg-slate-50 dark:bg-zinc-800/40' : ''}`}>
+        {choosing && (
+          <td className={`${TD} pr-0`} onClick={(e) => e.stopPropagation()}>
+            <input type="checkbox" checked={isChosen} onChange={(e) => toggleChosen([a.id], e.target.checked)}
+              aria-label={`Choose ${a.propertyNumber}`} className="mt-1 h-4 w-4 accent-brand-600 cursor-pointer" />
+          </td>
+        )}
         {COLUMNS.map((c, i) => (
-          <td key={c.label} className={`${TD} ${c.th}`}>{assetCell(i, row, i === 0 ? open : undefined)}</td>
+          <td key={c.label} className={`${TD} ${c.th}`}>{assetCell(i, row, i === 0 && !choosing ? open : undefined)}</td>
         ))}
         <td className={`${TD} text-right text-slate-500 dark:text-zinc-400`} aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline-block mt-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
@@ -372,8 +395,15 @@ function Assets() {
               <span className={filtered.length !== items.length ? 'hidden sm:inline' : ''}> asset{filtered.length !== 1 ? 's' : ''}</span>
             </span>
           )}
-          {/* The list's own actions: download what's shown, bring in a spreadsheet, refresh */}
+          {/* The list's own actions: QR codes, download what's shown, bring in a spreadsheet, refresh */}
           <div className="ml-auto flex flex-shrink-0 items-center gap-1">
+            <button type="button" onClick={() => (choosing ? stopChoosing() : setChoosing(true))} aria-pressed={choosing}
+              aria-label="Export QR codes" title="Export QR codes"
+              className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 rounded-md text-sm font-medium transition-colors ${
+                choosing ? 'bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" /></svg>
+              <span className="hidden sm:inline">QR codes</span>
+            </button>
             {/* icon only on phones; the labels stay for screen readers */}
             <button type="button" onClick={handleExport} disabled={exporting} aria-label="Download Excel" title="Download Excel"
               className="flex items-center gap-1.5 p-1.5 sm:px-2.5 rounded-md text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-60 transition-colors">
@@ -392,6 +422,37 @@ function Assets() {
           </button>
           </div>
         </div>
+
+        {choosing && (
+          <div role="region" aria-label="Choose assets for QR export"
+            className="px-5 py-2.5 border-b border-slate-200 dark:border-zinc-800 bg-brand-500/5 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-sm text-slate-700 dark:text-zinc-200" aria-live="polite">
+              <span className="font-semibold">{chosen.size.toLocaleString('en-PH')}</span> chosen
+            </p>
+            {!allFilteredChosen && filtered.length > 0 && (
+              <button type="button" onClick={() => toggleChosen(filtered.map((a) => a.id), true)}
+                className="text-sm font-medium text-brand-700 dark:text-brand-300 hover:underline">
+                Choose all {filtered.length.toLocaleString('en-PH')}{activeFilters > 0 || search ? ' shown' : ''}
+              </button>
+            )}
+            {chosen.size > 0 && (
+              <button type="button" onClick={() => setChosen(new Set())}
+                className="text-sm font-medium text-slate-700 dark:text-zinc-300 hover:underline">Clear</button>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={stopChoosing}>Cancel</Button>
+              <Button size="sm" onClick={() => setShowQrExport(true)} disabled={chosen.size === 0 || chosen.size > 1000}>
+                Export QR codes
+              </Button>
+            </div>
+            {chosen.size > 1000 && (
+              <p className="basis-full text-xs text-red-700 dark:text-red-300" role="alert">Export at most 1,000 QR codes at a time.</p>
+            )}
+            {chosen.size === 0 && (
+              <p className="basis-full text-xs text-slate-600 dark:text-zinc-400">Tick the assets whose QR codes you want, then press Export QR codes.</p>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="divide-y divide-slate-100 dark:divide-zinc-800">
@@ -416,6 +477,12 @@ function Assets() {
               <caption className="sr-only">Assets. Select an asset to see its complete details.</caption>
               <thead>
                 <tr>
+                  {choosing && (
+                    <th scope="col" className="w-10 pl-4 py-3 text-left">
+                      <input type="checkbox" checked={pageAllChosen} onChange={(e) => toggleChosen(paged.map((a) => a.id), e.target.checked)}
+                        aria-label="Choose every asset on this page" className="h-4 w-4 accent-brand-600 cursor-pointer" />
+                    </th>
+                  )}
                   {COLUMNS.map((c) => (
                     <th key={c.label} scope="col" className={`px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-zinc-400 uppercase tracking-wide ${c.th}`}>{c.label}</th>
                   ))}
@@ -424,7 +491,8 @@ function Assets() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />
+                {/* unsaved drafts have no QR code yet, so they step aside while choosing */}
+                {!choosing && <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />}
                 {paged.map((a) => renderAssetRow(a))}
               </tbody>
             </table>
@@ -480,6 +548,12 @@ function Assets() {
         />
       )}
       {showImport && <AssetImportModal onClose={() => setShowImport(false)} onImport={handleImport} />}
+      {showQrExport && (
+        <Suspense fallback={null}>
+          <QrExportModal ids={[...chosen]} onClose={() => setShowQrExport(false)}
+            onDone={() => { setShowQrExport(false); stopChoosing() }} />
+        </Suspense>
+      )}
       {qrAsset && <AssetQrModal asset={qrAsset} onClose={() => setQrAsset(null)} />}
       {deleting && (
         <ConfirmDialog

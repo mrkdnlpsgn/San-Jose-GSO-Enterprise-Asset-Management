@@ -13,8 +13,12 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 // Signs asset QR stickers so a made-up or edited code can be told apart from one this system printed.
@@ -74,6 +78,31 @@ public class AssetQrService {
         return sha256Hash != null && sha256Hash.length() >= TAG_LENGTH
             ? base + ":" + sha256Hash.substring(0, TAG_LENGTH)
             : base;
+    }
+
+    // Sticker data for many assets at once (bulk QR printing): id, property number, description
+    // and the signed QR text, in the order asked. Deleted assets and, for staff, assets outside
+    // their scope are left out. scope null = admin.
+    public List<Map<String, Object>> stickers(List<Long> ids, AccessService.StaffScope scope) {
+        if (ids.isEmpty()) return List.of();
+        List<Object> args = new ArrayList<>(ids);
+        String sql = "SELECT a.asset_id, a.property_number, a.description, a.sha256_hash FROM assets a"
+            + " WHERE a.is_deleted = 0 AND a.asset_id IN (" + String.join(", ", Collections.nCopies(ids.size(), "?")) + ")";
+        if (scope != null) {
+            sql += " AND " + scope.sql("a");
+            args.addAll(List.of(scope.args()));
+        }
+        Map<Long, Map<String, Object>> byId = new LinkedHashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            long id = rs.getLong("asset_id");
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", id);
+            m.put("propertyNumber", rs.getString("property_number"));
+            m.put("description", rs.getString("description"));
+            m.put("qrPayload", payload(id, rs.getString("property_number"), rs.getString("sha256_hash")));
+            byId.put(id, m);
+        }, args.toArray());
+        return ids.stream().map(byId::get).filter(m -> m != null).toList();
     }
 
     // Issues and saves a new hash, retiring any sticker printed before; returns the new hash.
