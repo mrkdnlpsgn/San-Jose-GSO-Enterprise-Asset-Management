@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
+import { setAssets } from '../../store/slices/assetSlice'
+import { getAssets } from '../../services/assetService'
 import { Link, useNavigate } from 'react-router-dom'
 import MainLayout from '../../components/layout/MainLayout'
 import { getDashboardSummary } from '../../services/dashboardService'
@@ -380,20 +382,22 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
 // staff), with the on-demand AI summary. The last summary comes back with the numbers when it
 // still matches them; a new one is only written when someone presses Generate (the Gemini free
 // plan allows ~20 a day).
-function MonthSummary({ refreshToken }) {
+// ready: false until the dashboard's main numbers are in, so this heavier request doesn't slow them.
+function MonthSummary({ refreshToken, ready = true }) {
   const [data, setData]             = useState(null)
   const [loading, setLoading]       = useState(true)
   const [generating, setGenerating] = useState(false)
   const [aiError, setAiError]       = useState('')
 
   useEffect(() => {
+    if (!ready) return
     let alive = true
     getLifecycleInsights('month')
       .then(({ data }) => { if (alive) setData(data) })
       .catch(() => { if (alive) setData(null) })
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [refreshToken])
+  }, [refreshToken, ready])
 
   const generate = async () => {
     setGenerating(true)
@@ -630,8 +634,10 @@ function Dashboard() {
   const navigate = useNavigate()
   // Staff only ever receive their own office's data from the API (see AccessService);
   // the admin-only parts of the page (approvals, offices, unassigned staff) are hidden for them.
+  const dispatch = useDispatch()
   const user     = useSelector((s) => s.auth.user)
   const isAdmin  = user?.role === 'ADMIN'
+  const cachedAssetCount = useSelector((s) => s.assets.items.length)
   const toast    = useToast()
   const [rejecting, setRejecting]   = useState(null)
   const [approving, setApproving]   = useState(null)   // disposal waiting for the confirm dialog
@@ -668,6 +674,16 @@ function Dashboard() {
       if (!silent) setLoading(false)
     })
   }, [isAdmin])
+
+  // Once the dashboard is in, quietly load the asset list (the slim one) so Assets and Transfer
+  // Asset open at once from it and refresh in the background.
+  useEffect(() => {
+    if (loading || cachedAssetCount > 0) return
+    const timer = setTimeout(() => {
+      getAssets('', { summary: true }).then(({ data }) => dispatch(setAssets(data))).catch(() => {})
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
 
@@ -844,7 +860,7 @@ function Dashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
           <ActivityFeed events={recentEvents} loading={loading} />
-          <MonthSummary refreshToken={insightToken} />
+          <MonthSummary refreshToken={insightToken} ready={!loading} />
         </div>
       </div>
 

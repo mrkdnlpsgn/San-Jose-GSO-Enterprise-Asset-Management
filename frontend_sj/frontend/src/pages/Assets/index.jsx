@@ -176,10 +176,15 @@ function Assets() {
     fetchAssets(search)
   }, [fetchAssets, search]) // eslint-disable-line
 
+  // The lists for the filters and the forms load after the asset list, so they don't compete
+  // with it for the server (a small one: requests sent together slow each other down).
+  const refsRequested = useRef(false)
   useEffect(() => {
+    if (loading || refsRequested.current) return
+    refsRequested.current = true
     Promise.all([getCategories().catch(() => ({ data: [] })), getOffices().catch(() => ({ data: [] })), getPersonnel().catch(() => ({ data: [] }))])
       .then(([catRes, officeRes, personnelRes]) => { setCategories(catRes.data); setOffices(officeRes.data); setPersonnel(personnelRes.data) })
-  }, [])
+  }, [loading])
 
   // Dashboard charts link here with a pre-set filter, e.g. /assets?condition=REPAIRABLE
   useEffect(() => {
