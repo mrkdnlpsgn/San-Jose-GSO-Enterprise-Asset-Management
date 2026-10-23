@@ -25,7 +25,7 @@ const STATUS_BADGE = {
 }
 const METHOD_BADGE = {
   SALE:        'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20',
-  TRANSFER:    'bg-orange-500/10 text-orange-400 ring-1 ring-orange-500/20',
+  TRANSFER:    'bg-violet-500/10 text-violet-400 ring-1 ring-violet-500/20',
   DESTRUCTION: 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20',
   OTHERS:      'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20',
 }

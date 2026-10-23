@@ -39,28 +39,6 @@ function useCountUp(target, active) {
   return value
 }
 
-// ── Animated 0→1 progress (for the lifecycle ring's sweep-in) ─────────────────
-function useAnimatedProgress(duration, active) {
-  const [progress, setProgress] = useState(0)
-  const rafRef = useRef(null)
-  useEffect(() => {
-    cancelAnimationFrame(rafRef.current)
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (!active || reduced) { setProgress(1); return }
-    setProgress(0)
-    const start = performance.now()
-    const tick = (now) => {
-      const p = Math.min((now - start) / duration, 1)
-      const eased = 1 - Math.pow(1 - p, 3)
-      setProgress(eased)
-      if (p < 1) rafRef.current = requestAnimationFrame(tick)
-    }
-    rafRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [active, duration])
-  return progress
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function localDateStr(d) {
   const y = d.getFullYear()
@@ -90,10 +68,19 @@ function fmtMoney(v) {
   return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2 })
 }
 
+const fmtNum = (n) => Number(n).toLocaleString('en-PH')
+
+// A non-zero count never shows as 0%.
+function fmtPct(count, total) {
+  if (!total || !count) return '0%'
+  const pct = Math.round((count / total) * 100)
+  return pct === 0 ? '<1%' : `${pct}%`
+}
+
 const EVENT_CFG = {
   REGISTERED:   { label: 'Registered',   color: 'text-blue-400',    bg: 'bg-blue-400/10' },
   ASSIGNED:     { label: 'Assigned',     color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-  TRANSFERRED:  { label: 'Transferred',  color: 'text-orange-400',  bg: 'bg-orange-400/10' },
+  TRANSFERRED:  { label: 'Transferred',  color: 'text-violet-400',  bg: 'bg-violet-400/10' },
   MAINTENANCE:  { label: 'Maintenance',  color: 'text-amber-400',   bg: 'bg-amber-400/10' },
   DISPOSAL:     { label: 'Disposal',     color: 'text-red-400',     bg: 'bg-red-400/10' },
   ARCHIVED:     { label: 'Archived',     color: 'text-zinc-400',    bg: 'bg-zinc-400/10' },
@@ -128,15 +115,16 @@ const LIFECYCLE_ORDER = [
   'ARCHIVED',
 ]
 const LIFECYCLE_CFG = {
-  REGISTERED:        { bar: 'bg-blue-500',    dot: 'bg-blue-400',    label: 'Registered',           hex: '#3b82f6' },
-  TRANSFERRED:        { bar: 'bg-orange-500',  dot: 'bg-orange-400',  label: 'Transferred',          hex: '#f97316' },
-  MAINT_ONGOING:      { bar: 'bg-amber-500',   dot: 'bg-amber-400',   label: 'Ongoing Maintenance',  hex: '#f59e0b' },
-  MAINT_SCHEDULED:    { bar: 'bg-yellow-500',  dot: 'bg-yellow-400',  label: 'Scheduled Maintenance',hex: '#eab308' },
-  MAINT_REPAIRED:     { bar: 'bg-lime-500',    dot: 'bg-lime-400',    label: 'Repaired',             hex: '#84cc16' },
-  DISP_PENDING:       { bar: 'bg-rose-400',    dot: 'bg-rose-300',    label: 'Pending Disposal',     hex: '#fb7185' },
-  DISP_TRANSFERRED:   { bar: 'bg-pink-500',    dot: 'bg-pink-400',    label: 'Transferred Disposal', hex: '#ec4899' },
-  DISP_DESTRUCTED:    { bar: 'bg-red-600',     dot: 'bg-red-500',     label: 'Destructed',           hex: '#dc2626' },
-  ARCHIVED:           { bar: 'bg-zinc-500',    dot: 'bg-zinc-400',    label: 'Archived',             hex: '#71717a' },
+  REGISTERED:        { bar: 'bg-blue-500',    dot: 'bg-blue-400',    label: 'Registered' },
+  TRANSFERRED:        { bar: 'bg-violet-500',  dot: 'bg-violet-500',  label: 'Transferred' },
+  // Both maintenance buckets share the amber hue: solid for ongoing, light for scheduled.
+  MAINT_ONGOING:      { bar: 'bg-amber-500',   dot: 'bg-amber-500',   label: 'Ongoing Maintenance' },
+  MAINT_SCHEDULED:    { bar: 'bg-amber-300',   dot: 'bg-amber-300',   label: 'Scheduled Maintenance' },
+  MAINT_REPAIRED:     { bar: 'bg-lime-500',    dot: 'bg-lime-400',    label: 'Repaired' },
+  DISP_PENDING:       { bar: 'bg-rose-400',    dot: 'bg-rose-300',    label: 'Pending Disposal' },
+  DISP_TRANSFERRED:   { bar: 'bg-pink-500',    dot: 'bg-pink-400',    label: 'Transferred Disposal' },
+  DISP_DESTRUCTED:    { bar: 'bg-red-600',     dot: 'bg-red-500',     label: 'Destructed' },
+  ARCHIVED:           { bar: 'bg-zinc-500',    dot: 'bg-zinc-400',    label: 'Archived' },
 }
 
 const ACTIVITY_RANGES = {
@@ -207,8 +195,10 @@ function computeOfficeDist(assets) {
     if (!map[key]) map[key] = { office: key, officeId: a.office?.id ?? null, count: 0 }
     map[key].count++
   })
-  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 6)
+  return Object.values(map).sort((a, b) => b.count - a.count)
 }
+
+const TOP_OFFICES = 6
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function Sk({ className, style }) {
@@ -292,11 +282,12 @@ function QuickActions({ isAdmin }) {
 }
 
 function ConditionDistribution({ condDist, total, loading, onSelect }) {
+  const needAction = (condDist.REPAIRABLE || 0) + (condDist.UNSERVICEABLE || 0)
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 flex flex-col">
       <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Asset Condition</p>
-        {!loading && <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">{total} assets</span>}
+        {!loading && <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">{fmtNum(total)} assets</span>}
       </div>
       <div className="p-4">
         {loading ? (
@@ -332,7 +323,6 @@ function ConditionDistribution({ condDist, total, loading, onSelect }) {
               {CONDITION_ORDER.map((cond) => {
                 const count = condDist[cond] || 0
                 if (count === 0) return null
-                const pct = Math.round((count / total) * 100)
                 const cfg = CONDITION_CFG[cond]
                 return (
                   <button
@@ -344,8 +334,8 @@ function ConditionDistribution({ condDist, total, loading, onSelect }) {
                   >
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
                     <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate text-left group-hover:text-slate-700 dark:group-hover:text-zinc-200 transition-colors duration-150">{cfg.label}</span>
-                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{fmtNum(count)}</span>
+                    <span className="text-[0.625rem] text-slate-500 dark:text-zinc-500 tabular-nums w-7 text-right">{fmtPct(count, total)}</span>
                   </button>
                 )
               })}
@@ -353,86 +343,68 @@ function ConditionDistribution({ condDist, total, loading, onSelect }) {
           </>
         )}
       </div>
+      {!loading && total > 0 && (
+        // mt-auto pins this to the bottom when the row's taller cards stretch this one
+        <div className="mt-auto px-5 py-3 border-t border-slate-200 dark:border-zinc-800 text-xs text-slate-500 dark:text-zinc-400">
+          <span className="font-semibold text-slate-700 dark:text-zinc-200 tabular-nums">{fmtNum(needAction)}</span>
+          {' '}{needAction === 1 ? 'asset needs' : 'assets need'} repair or disposal
+          <span className="text-slate-500 dark:text-zinc-500 tabular-nums"> · {fmtPct(needAction, total)}</span>
+        </div>
+      )}
     </div>
   )
 }
 
+// Same stacked-bar layout as Asset Condition. Segments get a minimum width so a
+// status with only a handful of assets still shows up in the bar.
 function LifecycleDistribution({ lifecycleDist, total, loading }) {
-  const active = !loading && total > 0
-  const progress = useAnimatedProgress(1100, active)
-  const animatedTotal = useCountUp(total, !loading)
-
-  const R = 64
-  const STROKE = 18
-  const C = 2 * Math.PI * R
-  const GAP = 6
-
-  let cumulative = 0
-  const segments = active
-    ? LIFECYCLE_ORDER.filter((s) => (lifecycleDist[s] || 0) > 0).map((s) => {
-        const count = lifecycleDist[s] || 0
-        const fullLen = (count / total) * C
-        const start = cumulative
-        cumulative += fullLen
-        const drawn = Math.max(fullLen * progress - GAP, 0)
-        return { key: s, color: LIFECYCLE_CFG[s].hex, dasharray: `${drawn} ${C - drawn}`, dashoffset: -start }
-      })
-    : []
-
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
       <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Lifecycle Status</p>
-        {!loading && <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">{total} total</span>}
+        {!loading && <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">{fmtNum(total)} assets</span>}
       </div>
       <div className="p-4">
         {loading ? (
-          <div className="flex flex-col items-center gap-4">
-            <Sk className="w-36 h-36 rounded-full" />
-            <div className="w-full space-y-2.5">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <Sk className="w-2 h-2 rounded-full flex-shrink-0" />
-                  <Sk className="h-3 flex-1" />
-                  <Sk className="h-3 w-6" />
-                </div>
-              ))}
-            </div>
+          <div className="space-y-3">
+            <Sk className="h-2.5 w-full rounded-full" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Sk className="w-2 h-2 rounded-full flex-shrink-0" />
+                <Sk className="h-3 flex-1" />
+                <Sk className="h-3 w-6" />
+              </div>
+            ))}
           </div>
         ) : total === 0 ? (
           <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">No assets yet.</p>
         ) : (
           <>
-            <div className="relative w-36 h-36 mx-auto mb-4">
-              <svg viewBox="0 0 160 160" className="w-full h-full -rotate-90">
-                <circle cx="80" cy="80" r={R} fill="none" strokeWidth={STROKE} className="stroke-slate-100 dark:stroke-zinc-800" />
-                {segments.map((seg) => (
-                  <circle
-                    key={seg.key}
-                    cx="80" cy="80" r={R} fill="none"
-                    strokeWidth={STROKE}
-                    strokeLinecap="round"
-                    style={{ stroke: seg.color, strokeDasharray: seg.dasharray, strokeDashoffset: seg.dashoffset }}
+            <div className="flex h-2.5 rounded-full overflow-hidden mb-4 gap-px bg-zinc-100 dark:bg-zinc-800">
+              {LIFECYCLE_ORDER.map((s) => {
+                const count = lifecycleDist[s] || 0
+                if (count === 0) return null
+                return (
+                  <div
+                    key={s}
+                    className={`h-full min-w-[4px] ${LIFECYCLE_CFG[s].bar} transition-all duration-700`}
+                    style={{ width: `${(count / total) * 100}%` }}
+                    title={`${LIFECYCLE_CFG[s].label}: ${fmtNum(count)}`}
                   />
-                ))}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-extrabold text-slate-900 dark:text-white tabular-nums">{animatedTotal}</span>
-                <span className="text-[0.625rem] font-semibold text-slate-400 dark:text-zinc-600 tracking-wide">ASSETS</span>
-              </div>
+                )
+              })}
             </div>
             <div className="space-y-2.5">
               {LIFECYCLE_ORDER.map((s) => {
                 const count = lifecycleDist[s] || 0
                 if (count === 0) return null
-                const pct = Math.round((count / total) * 100)
                 const cfg = LIFECYCLE_CFG[s]
                 return (
-                  <div key={s} className="flex items-center gap-2">
+                  <div key={s} className="flex items-center gap-2 -mx-1.5 px-1.5 py-1">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
                     <span className="text-xs text-slate-500 dark:text-zinc-400 flex-1 truncate">{cfg.label}</span>
-                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{fmtNum(count)}</span>
+                    <span className="text-[0.625rem] text-slate-500 dark:text-zinc-500 tabular-nums w-7 text-right">{fmtPct(count, total)}</span>
                   </div>
                 )
               })}
@@ -444,13 +416,18 @@ function LifecycleDistribution({ lifecycleDist, total, loading }) {
   )
 }
 
-function OfficeDistribution({ offices, total, loading, onSelect }) {
+// Bars are scaled to the largest office, so no share-of-total percentage is shown beside them.
+function OfficeDistribution({ offices, officeCount, loading, onSelect }) {
   const max = offices[0]?.count || 1
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
       <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Assets by Office</p>
-        {!loading && <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">{total} total</span>}
+        {!loading && officeCount > 0 && (
+          <span className="text-xs text-slate-400 dark:text-zinc-600 tabular-nums">
+            {officeCount > offices.length ? `Top ${offices.length} of ${officeCount} offices` : `${officeCount} offices`}
+          </span>
+        )}
       </div>
       <div className="p-4 space-y-3">
         {loading ? (
@@ -464,7 +441,6 @@ function OfficeDistribution({ offices, total, loading, onSelect }) {
           <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">No office data available.</p>
         ) : (
           offices.map(({ office, officeId, count }) => {
-            const pct = Math.round((count / total) * 100)
             const clickable = officeId != null
             return (
               <button
@@ -476,11 +452,8 @@ function OfficeDistribution({ offices, total, loading, onSelect }) {
                 className={`w-full text-left group ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[9.375rem] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={office}>{office}</span>
-                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
-                  </div>
+                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate min-w-0 flex-1 leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={office}>{office}</span>
+                  <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums flex-shrink-0 ml-2">{fmtNum(count)}</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
                   <div className={`h-full w-full rounded-full bg-blue-500 origin-left transition-transform duration-[250ms] ease-out ${clickable ? 'group-hover:bg-blue-400' : ''}`} style={{ transform: `scaleX(${count / max})` }} />
@@ -837,7 +810,6 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
           <p className="text-xs text-slate-400 dark:text-zinc-600 text-center py-6">No assets yet.</p>
         ) : (
           breakdown.map(({ category, categoryId, count }) => {
-            const pct = Math.round((count / total) * 100)
             const clickable = categoryId != null
             return (
               <button
@@ -849,10 +821,10 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
                 className={`w-full text-left group ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate max-w-[9.375rem] leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={category}>{category}</span>
+                  <span className={`text-xs text-slate-500 dark:text-zinc-400 truncate min-w-0 flex-1 leading-tight transition-colors duration-150 ${clickable ? 'group-hover:text-slate-700 dark:group-hover:text-zinc-200' : ''}`} title={category}>{category}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{count}</span>
-                    <span className="text-[0.625rem] text-slate-400 dark:text-zinc-600 tabular-nums w-7 text-right">{pct}%</span>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums">{fmtNum(count)}</span>
+                    <span className="text-[0.625rem] text-slate-500 dark:text-zinc-500 tabular-nums w-7 text-right">{fmtPct(count, total)}</span>
                   </div>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
@@ -955,7 +927,7 @@ function PendingApprovals({ requests, loading, onApprove, onReject, busyId }) {
               : isMaint
                 ? `${r.maintenanceType || ''}${r.findings ? ` · ${r.findings}` : ''}`
                 : `${r.recommendedMethod || ''}${r.reason ? ` · ${r.reason}` : ''}`
-            const badge = isTransfer ? ['Transfer', 'text-orange-500 bg-orange-500/10']
+            const badge = isTransfer ? ['Transfer', 'text-violet-500 bg-violet-500/10']
               : isMaint ? ['Maintenance', 'text-amber-500 bg-amber-500/10'] : ['Disposal', 'text-red-400 bg-red-400/10']
             return (
               <div key={`${r.kind}:${r.id}`} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
@@ -1245,7 +1217,7 @@ function Dashboard() {
           onSelect={(cond) => navigate(`/assets?condition=${cond}`)} />
         <LifecycleDistribution lifecycleDist={lifecycleDist} total={lifecycleTotal} loading={loading} />
         {isAdmin && (
-          <OfficeDistribution offices={officeDist} total={totalAssets} loading={loading}
+          <OfficeDistribution offices={officeDist.slice(0, TOP_OFFICES)} officeCount={officeDist.length} loading={loading}
             onSelect={(officeId) => navigate(`/assets?office=${officeId}`)} />
         )}
       </div>
