@@ -11,6 +11,9 @@ import '../model/asset_import_result.dart';
 // saved as-is.
 typedef AssetOcrResult = ({String? description, String? serialNumber, String? specifications});
 
+/// One QR sticker for bulk printing: the signed QR text and the property number under it.
+typedef QrSticker = ({String propertyNumber, String qrPayload});
+
 class AssetService {
   final Dio _dio = ApiClient.instance.dio;
   final AssetSnapshot _snapshot = AssetSnapshot.instance;
@@ -43,8 +46,13 @@ class AssetService {
         condition: condition,
         lifecycleStatus: lifecycleStatus);
     // The whole list, unfiltered - the same download the offline copy is made of.
-    final everything = page == 0 && size >= 100000 && (search == null || search.isEmpty) &&
-        categoryId == null && officeId == null && (condition ?? '').isEmpty && (lifecycleStatus ?? '').isEmpty;
+    final everything = page == 0 &&
+        size >= 100000 &&
+        (search == null || search.isEmpty) &&
+        categoryId == null &&
+        officeId == null &&
+        (condition ?? '').isEmpty &&
+        (lifecycleStatus ?? '').isEmpty;
     if (ApiClient.instance.deviceOffline) {
       final fromPhone = await local();
       if (fromPhone != null) return fromPhone;
@@ -95,7 +103,11 @@ class AssetService {
     String? lifecycleStatus,
   }) async {
     Future<int?> local() => _snapshot.count(
-        search: search, categoryId: categoryId, officeId: officeId, condition: condition, lifecycleStatus: lifecycleStatus);
+        search: search,
+        categoryId: categoryId,
+        officeId: officeId,
+        condition: condition,
+        lifecycleStatus: lifecycleStatus);
     if (ApiClient.instance.deviceOffline) {
       final fromPhone = await local();
       if (fromPhone != null) return fromPhone;
@@ -128,6 +140,28 @@ class AssetService {
     }
   }
 
+  /// Sticker data for many assets at once (bulk QR export), in the order given. The server
+  /// leaves out deleted assets and, for staff, assets outside their office, and logs the export.
+  /// Offline: built from the asset list saved on the phone (its QR text is the same signed text).
+  Future<List<QrSticker>> qrStickers(List<int> ids) async {
+    try {
+      final res = await _dio.post('/assets/qr-stickers', data: {'ids': ids});
+      return (res.data as List)
+          .cast<Map<String, dynamic>>()
+          .map((m) => (propertyNumber: m['propertyNumber'] as String, qrPayload: m['qrPayload'] as String))
+          .toList();
+    } catch (e) {
+      return _orSnapshot(e, () async {
+        final out = <QrSticker>[];
+        for (final id in ids) {
+          final a = await _snapshot.byId(id);
+          if (a?.qrPayload != null) out.add((propertyNumber: a!.propertyNumber, qrPayload: a.qrPayload!));
+        }
+        return out;
+      });
+    }
+  }
+
   /// Checks a scanned sticker's signature on the server:
   /// VERIFIED, UNSIGNED, INVALID or NOT_FOUND.
   Future<String> verifyQr(String code) async {
@@ -141,8 +175,8 @@ class AssetService {
 
   Future<AssetModel> create(Map<String, dynamic> data, {String? idempotencyKey}) async {
     try {
-      final res = await _dio.post('/assets', data: data,
-          options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
+      final res = await _dio.post('/assets',
+          data: data, options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
       await _snapshot.upsert(res.data as Map<String, dynamic>);
       return AssetModel.fromJson(res.data as Map<String, dynamic>);
     } catch (e) {
@@ -181,8 +215,7 @@ class AssetService {
 
   Future<void> delete(int id, {String? reason}) async {
     try {
-      await _dio.delete('/assets/$id',
-          data: reason != null ? {'deleteReason': reason} : null);
+      await _dio.delete('/assets/$id', data: reason != null ? {'deleteReason': reason} : null);
     } catch (e) {
       throw ApiException.from(e);
     }
