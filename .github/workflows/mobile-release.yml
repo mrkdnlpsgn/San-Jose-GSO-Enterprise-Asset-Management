@@ -36,7 +36,7 @@ jobs:
       KEY_SHA256: 3af4c64d91140052f0dfbf0599cb1f43dadfeda056ae5556f0492468cebf9381
       FLUTTER_VERSION: 3.44.2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
@@ -64,7 +64,7 @@ jobs:
           echo "name=$new" >> "$GITHUB_OUTPUT"
           echo "build=$newbuild" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
