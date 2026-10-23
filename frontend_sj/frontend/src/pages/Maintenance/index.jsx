@@ -37,7 +37,7 @@ const APPROVAL = {
   REJECTED:         { label: 'Request rejected',  tone: 'red' },
 }
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 5
 
 // The table keeps what tells records apart; findings, actions taken, cost, the request trail
 // and photos are in the window a row opens.
@@ -298,7 +298,7 @@ function Maintenance() {
       {deleting && (
         <ConfirmDialog
           title="Delete this maintenance record?"
-          message="It moves to the Recycle Bin, where an administrator can restore it."
+          message="It moves to Recovery, where an administrator can restore it."
           confirmLabel="Delete"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}

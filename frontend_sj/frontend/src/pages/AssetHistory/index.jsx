@@ -41,7 +41,7 @@ const REQUEST_STATUS = {
 
 const WHEN = [['today', 'Today'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days']]
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 5
 
 function withinDate(dt, dateFilter, now) {
   if (!dateFilter) return true

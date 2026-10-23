@@ -89,7 +89,7 @@ function PermanentDeleteModal({ recordLabel, onClose, onConfirm }) {
           Permanently delete this {recordLabel.toLowerCase()}?
         </h2>
         <p className="text-xs text-slate-500 dark:text-zinc-400 text-center mt-2 leading-relaxed">
-          This cannot be undone. The record will be completely removed, not just moved out of the Recycle Bin.
+          This cannot be undone. The record will be completely removed, not just moved out of Recovery.
           {sending ? ' Sending a verification code to your email…' :
             sent ? ' Enter the verification code we emailed you to confirm.' : ''}
         </p>
@@ -152,7 +152,7 @@ const DISPOSAL_METHOD = {
   DESTRUCTION: { label: 'Destruction', tone: 'red' },
   OTHERS:      { label: 'Others',      tone: 'slate' },
 }
-const PAGE_SIZE = 25
+const PAGE_SIZE = 5
 
 function fmtDateTime(dt) {
   if (!dt) return 'N/A'
@@ -229,7 +229,7 @@ function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, d
         <SearchBox value={search} onChange={setSearch} label={`Search deleted ${recordLabel.toLowerCase()}s`} placeholder={searchHint} />
       </div>
 
-      <ListCard title="Recycle Bin" filtered={filtered.length !== rows.length} count={filtered.length} total={rows.length} loading={loading}
+      <ListCard title="Recovery" filtered={filtered.length !== rows.length} count={filtered.length} total={rows.length} loading={loading}
         actions={<RefreshButton onClick={load} />}
         footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
         {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 ? (

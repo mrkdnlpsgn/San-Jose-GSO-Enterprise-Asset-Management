@@ -272,6 +272,9 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
                     value: _generatePassword,
                     onChanged: (v) => setState(() => _generatePassword = v ?? false),
                     activeColor: AppTheme.brand,
+                    // sits on the page, not in a card - without this the theme's white tile
+                    // colour shows as a block that slides when the form scrolls
+                    tileColor: Colors.transparent,
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     title: Text('Auto-generate a password and email it to the address above',

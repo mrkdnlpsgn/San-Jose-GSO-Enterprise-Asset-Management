@@ -11,7 +11,7 @@ import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
 import { SearchBox, FilterBar, FilterToggle, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, StatusBadge } from '../../components/common/ListKit'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 5
 
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 

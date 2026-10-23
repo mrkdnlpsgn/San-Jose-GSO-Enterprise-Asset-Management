@@ -7,10 +7,11 @@ import '../model/edit_request_model.dart';
 class AssetHistoryService {
   final Dio _dio = ApiClient.instance.dio;
 
-  Future<List<AssetHistoryModel>> getAll({String? search}) async {
+  Future<List<AssetHistoryModel>> getAll({String? search, int? limit}) async {
     try {
       final res = await _dio.get('/asset-history', queryParameters: {
         if (search != null && search.isNotEmpty) 'search': search,
+        if (limit != null) 'limit': limit,
       });
       return (res.data as List).map((e) => AssetHistoryModel.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {

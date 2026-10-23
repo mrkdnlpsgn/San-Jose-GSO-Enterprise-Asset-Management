@@ -20,7 +20,7 @@ const pageMeta = {
   '/audit-logs':    'Audit Logs',
   '/my-account':    'My Account',
   '/personnel':     'Personnel',
-  '/deleted-records': 'Recycle Bin',
+  '/deleted-records': 'Recovery',
   '/privacy':       'Privacy, Terms & Conditions',
 }
 

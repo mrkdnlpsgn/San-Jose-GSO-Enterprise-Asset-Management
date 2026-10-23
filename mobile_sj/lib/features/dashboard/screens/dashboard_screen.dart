@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/cupertino.dart'
     show CupertinoButton, CupertinoSliverNavigationBar, CupertinoSliverRefreshControl, CupertinoTextThemeData, CupertinoTheme, CupertinoThemeData;
 import 'package:flutter/material.dart';
@@ -14,7 +13,7 @@ import '../../../shared/widgets/staggered_entrance.dart';
 import '../../../shared/widgets/main_shell.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/user_avatar.dart';
-import '../../assets/provider/ai_recommendation_provider.dart';
+import '../../asset_history/model/asset_history_model.dart';
 import '../../audit_log/provider/audit_log_digest_provider.dart';
 import '../provider/dashboard_provider.dart';
 import '../../reports/utils/formatters.dart' show fmtMoney;
@@ -31,7 +30,8 @@ class DashboardScreen extends ConsumerWidget {
 
     void refreshAll() {
       ref.invalidate(dashboardStatsProvider);
-      ref.invalidate(aiRecommendationSummaryProvider);
+      ref.invalidate(recentActivityProvider);
+      ref.invalidate(monthSummaryProvider);
       ref.invalidate(auditLogDigestProvider);
       ref.invalidate(attentionProvider);
     }
@@ -137,7 +137,7 @@ class _ModuleList extends StatelessWidget {
         _ModuleItem(Icons.category_rounded, 'Categories', 'Asset categories', '/categories', Ios.purple),
         _ModuleItem(Icons.badge_rounded, 'Personnel', 'Assign each account its office', '/personnel', Ios.teal),
         _ModuleItem(Icons.people_rounded, 'Accounts', 'Create and manage user accounts', '/accounts', Ios.gray),
-        _ModuleItem(Icons.restore_from_trash_rounded, 'Recycle Bin', 'Restore deleted records', '/recycle-bin', Ios.pink),
+        _ModuleItem(Icons.restore_from_trash_rounded, 'Recovery', 'Restore deleted records', '/recycle-bin', Ios.pink),
         _ModuleItem(Icons.history_edu_rounded, 'Audit Logs', 'Who did what, and the log archive', '/audit-logs', Color(0xFFA2845E)),
       ],
     ];
@@ -236,61 +236,9 @@ class _ModuleItem {
 }
 
 const _conditionOrder = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
-// Registered+Assigned merged into one bucket (every asset has a location by
-// default); maintenance/disposal are ledger-record buckets, not asset
-// lifecycleStatus - see dashboard_provider.dart. Keep in sync with web's
-// LIFECYCLE_CFG (frontend_sj/frontend/src/pages/Dashboard/index.jsx).
-const _lifecycleOrder = [
-  'REGISTERED', 'TRANSFERRED',
-  'MAINT_ONGOING', 'MAINT_SCHEDULED', 'MAINT_REPAIRED',
-  'DISP_PENDING', 'DISP_TRANSFERRED', 'DISP_DESTRUCTED',
-  'ARCHIVED',
-];
-const _recommendationOrder = ['MAINTAIN', 'REPAIR', 'MONITOR', 'REVIEW_FOR_DISPOSAL', 'BUDGET_PRIORITY'];
 
-Color _lifecycleDashboardColor(String key) => switch (key) {
-      'REGISTERED' => const Color(0xFF3B82F6),
-      'TRANSFERRED' => const Color(0xFFF97316),
-      'MAINT_ONGOING' => const Color(0xFFF59E0B),
-      'MAINT_SCHEDULED' => const Color(0xFFEAB308),
-      'MAINT_REPAIRED' => const Color(0xFF84CC16),
-      'DISP_PENDING' => const Color(0xFFFB7185),
-      'DISP_TRANSFERRED' => const Color(0xFFEC4899),
-      'DISP_DESTRUCTED' => const Color(0xFFDC2626),
-      'ARCHIVED' => Colors.grey.shade600,
-      _ => Colors.grey,
-    };
-
-String _lifecycleDashboardLabel(String key) => switch (key) {
-      'REGISTERED' => 'Registered',
-      'TRANSFERRED' => 'Transferred',
-      'MAINT_ONGOING' => 'Ongoing Maintenance',
-      'MAINT_SCHEDULED' => 'Scheduled Maintenance',
-      'MAINT_REPAIRED' => 'Repaired',
-      'DISP_PENDING' => 'Pending Disposal',
-      'DISP_TRANSFERRED' => 'Transferred Disposal',
-      'DISP_DESTRUCTED' => 'Destructed',
-      'ARCHIVED' => 'Archived',
-      _ => key,
-    };
-
-Color _recColor(String rec) => switch (rec) {
-      'MAINTAIN' => AppTheme.brand,
-      'REPAIR' => AppTheme.statusMaintenance,
-      'MONITOR' => AppTheme.info,
-      'REVIEW_FOR_DISPOSAL' => AppTheme.statusDisposed,
-      'BUDGET_PRIORITY' => Colors.deepOrange,
-      _ => Colors.grey,
-    };
-
-String _recLabel(String rec) => switch (rec) {
-      'MAINTAIN' => 'Maintain',
-      'REPAIR' => 'Repair',
-      'MONITOR' => 'Monitor',
-      'REVIEW_FOR_DISPOSAL' => 'Review for Disposal',
-      'BUDGET_PRIORITY' => 'Budget Priority',
-      _ => rec,
-    };
+// Same as the web dashboard: the 6 largest offices and categories.
+const _topGroups = 6;
 
 class _DashboardStatsSection extends ConsumerStatefulWidget {
   final Widget modules;
@@ -313,7 +261,7 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
     // Keep rendering the last snapshot while a refresh is in flight instead
     // of dropping back to the skeleton - a pull-to-refresh would otherwise
     // tear down and recreate every card, replaying the stagger entrance and
-    // restarting the count-up/ring animations from zero on data the user is
+    // restarting the count-up animations from zero on data the user is
     // already looking at.
     final stats = _lastStats;
 
@@ -339,15 +287,15 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
           Shimmer(
             child: Column(
               children: [
-                const _RingCardSkeleton(),
-                const SizedBox(height: 12),
                 const _DistributionCardSkeleton(rows: 3),
-                const SizedBox(height: 12),
-                const _DistributionCardSkeleton(rows: 2),
                 if (isAdmin) ...[
                   const SizedBox(height: 12),
-                  const _DigestCardSkeleton(),
+                  const _DistributionCardSkeleton(rows: 4),
                 ],
+                const SizedBox(height: 12),
+                const _DistributionCardSkeleton(rows: 4),
+                const SizedBox(height: 12),
+                const _DigestCardSkeleton(),
               ],
             ),
           ),
@@ -372,82 +320,65 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
     Widget maybeStagger(int index, Widget child) =>
         animate ? StaggeredEntrance(index: index, child: child) : child;
 
+    final needAction = (stats.conditionDist['REPAIRABLE'] ?? 0) + (stats.conditionDist['UNSERVICEABLE'] ?? 0);
+    final officeCount = stats.offices.length;
+    final cards = <Widget>[
+      _DistributionCard(
+        icon: Icons.verified_rounded,
+        accent: Ios.green,
+        title: 'Asset Condition',
+        total: stats.inUse,
+        dist: stats.conditionDist,
+        order: _conditionOrder,
+        colorOf: (v) => StatusBadge.condition(v).color,
+        labelOf: (v) => StatusBadge.condition(v).label,
+        footer: '${_fmtCount(needAction)} ${needAction == 1 ? 'asset needs' : 'assets need'} repair or disposal'
+            ' · ${_fmtPct(needAction, stats.inUse)}',
+      ),
+      // offices are an admin view - staff only ever see their own office
+      if (isAdmin)
+        _BarListCard(
+          icon: Icons.apartment_rounded,
+          accent: Ios.blue,
+          title: 'Assets by Office',
+          caption: officeCount > _topGroups ? 'Top $_topGroups of $officeCount offices' : '$officeCount offices',
+          groups: stats.offices.take(_topGroups).toList(),
+          barColor: Ios.blue,
+          emptyMessage: 'No office data available.',
+        ),
+      _BarListCard(
+        icon: Icons.category_rounded,
+        accent: Ios.purple,
+        title: 'Assets by Category',
+        caption: '${_fmtCount(stats.inUse)} assets',
+        groups: stats.categories.take(_topGroups).toList(),
+        barColor: AppTheme.brand,
+        shareOf: stats.inUse,
+        emptyMessage: 'No assets yet.',
+      ),
+      const _RecentActivityCard(),
+      const _MonthSummaryCard(),
+      if (isAdmin) const _AuditLogDigestCard(),
+    ];
+
     return withModules(
       maybeStagger(
         0,
         _OverviewPanel(
-          totalAssets: stats.totalAssets,
+          inUse: stats.inUse,
           totalValue: stats.totalValue,
-          underMaintenance: stats.underMaintenance,
-          disposed: stats.disposed,
+          newThisMonth: stats.newThisMonth,
+          underRepair: stats.underRepair,
+          forDisposal: stats.forDisposal,
         ),
       ),
       Column(
-      children: [
-        maybeStagger(
-          1,
-          _LifecycleRingCard(
-            title: 'Lifecycle Status',
-            total: stats.lifecycleDist.values.fold(0, (a, b) => a + b),
-            dist: stats.lifecycleDist,
-            order: _lifecycleOrder,
-            colorOf: _lifecycleDashboardColor,
-            labelOf: _lifecycleDashboardLabel,
-          ),
-        ),
-        const SizedBox(height: 12),
-        maybeStagger(
-          2,
-          _DistributionCard(
-            icon: Icons.verified_rounded,
-            accent: Ios.green,
-            title: 'Asset Condition',
-            total: stats.totalAssets,
-            dist: stats.conditionDist,
-            order: _conditionOrder,
-            colorOf: (v) => StatusBadge.condition(v).color,
-            labelOf: (v) => StatusBadge.condition(v).label,
-          ),
-        ),
-        const SizedBox(height: 12),
-        maybeStagger(3, const _AiRecommendationSummaryCard()),
-        if (isAdmin) ...[
-          const SizedBox(height: 12),
-          maybeStagger(4, const _AuditLogDigestCard()),
+        children: [
+          for (var i = 0; i < cards.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            maybeStagger(i + 1, cards[i]),
+          ],
         ],
-      ],
-      ),
-    );
-  }
-}
-
-class _AiRecommendationSummaryCard extends ConsumerWidget {
-  const _AiRecommendationSummaryCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(aiRecommendationSummaryProvider);
-
-    return summaryAsync.when(
-      loading: () => const Shimmer(child: _DistributionCardSkeleton(rows: 3)),
-      error: (e, _) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Text('Failed to load AI recommendations: $e',
-              style: TextStyle(color: context.colors.textSecondary, fontSize: 14)),
-        ),
-      ),
-      data: (dist) => _DistributionCard(
-        icon: Icons.lightbulb_rounded,
-        accent: Ios.purple,
-        title: 'AI Recommendations',
-        total: dist.values.fold(0, (a, b) => a + b),
-        dist: dist,
-        order: _recommendationOrder,
-        colorOf: _recColor,
-        labelOf: _recLabel,
-        emptyMessage: 'No AI recommendations generated yet.',
-        totalNoun: 'assets reviewed',
       ),
     );
   }
@@ -544,18 +475,21 @@ class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
   }
 }
 
-/// The web dashboard's stat cards - label, big number, one-line description - as a 2 × 2 grid.
+/// The web dashboard's stat strip - Asset Value as the headline, then Assets in use, Under
+/// Repair and For Disposal as tappable rows.
 class _OverviewPanel extends StatelessWidget {
-  final int totalAssets;
+  final int inUse;
   final double totalValue;
-  final int underMaintenance;
-  final int disposed;
+  final int newThisMonth;
+  final int underRepair;
+  final int forDisposal;
 
   const _OverviewPanel({
-    required this.totalAssets,
+    required this.inUse,
     required this.totalValue,
-    required this.underMaintenance,
-    required this.disposed,
+    required this.newThisMonth,
+    required this.underRepair,
+    required this.forDisposal,
   });
 
   @override
@@ -587,7 +521,7 @@ class _OverviewPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Total Asset Value',
+                Text('Asset Value',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: c.textSecondary)),
                 const SizedBox(height: 2),
                 // large numerals get negative tracking, as iOS sets big text
@@ -595,7 +529,7 @@ class _OverviewPanel extends StatelessWidget {
                     TextStyle(fontSize: 32, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -1, color: c.textPrimary)),
                 const SizedBox(height: 4),
                 Text(
-                  'Acquisition cost of all registered assets',
+                  'Acquisition cost of assets in use',
                   style: TextStyle(fontSize: 15, color: c.textSecondary),
                 ),
               ],
@@ -604,35 +538,43 @@ class _OverviewPanel extends StatelessWidget {
           // One full-width row per count, so labels never wrap - not three squeezed columns.
           const Divider(height: 1),
           _StatRow(
-            label: 'Registered assets',
-            value: counter(totalAssets.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
+            label: 'Assets in use',
+            badge: newThisMonth > 0 ? '+${_fmtCount(newThisMonth)} this month' : null,
+            value: counter(inUse.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
             icon: Icons.inventory_2_rounded,
             dot: Ios.green,
-            semantics: '${_fmtCount(totalAssets)} registered assets. Open Assets.',
+            semantics: '${_fmtCount(inUse)} assets in use. Open Assets.',
             onTap: () => context.go('/assets'), // bottom-bar tab
           ),
           const Divider(height: 1, indent: 60),
           _StatRow(
-            label: 'In maintenance',
-            value: counter(underMaintenance.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
+            label: 'Under repair',
+            value: counter(underRepair.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
             icon: Icons.build_rounded,
             dot: Ios.orange,
-            semantics: '${_fmtCount(underMaintenance)} in maintenance. Open Maintenance.',
+            semantics: '${_fmtCount(underRepair)} under repair. Open Maintenance.',
             onTap: () => context.push('/maintenance'),
           ),
           const Divider(height: 1, indent: 60),
           _StatRow(
-            label: 'Disposed',
-            value: counter(disposed.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
+            label: 'For disposal',
+            value: counter(forDisposal.toDouble(), (v) => _fmtCount(v.round()), _StatRow.numberStyle(c)),
             icon: Icons.delete_rounded,
             dot: Ios.red,
-            semantics: '${_fmtCount(disposed)} disposed. Open Disposal.',
+            semantics: '${_fmtCount(forDisposal)} for disposal. Open Disposal.',
             onTap: () => context.push('/disposal'),
           ),
         ],
       ),
     );
   }
+}
+
+/// A non-zero count never shows as 0% (same rule as the web dashboard).
+String _fmtPct(int count, int total) {
+  if (total == 0 || count == 0) return '0%';
+  final pct = (count * 100 / total).round();
+  return pct == 0 ? '<1%' : '$pct%';
 }
 
 /// 2024 -> "2,024"
@@ -650,6 +592,7 @@ String _fmtCount(int n) {
 /// badges elsewhere) and the label on the left, the number on the right, then a chevron.
 class _StatRow extends StatelessWidget {
   final String label;
+  final String? badge;
   final Widget value;
   final IconData icon;
   final Color dot;
@@ -658,6 +601,7 @@ class _StatRow extends StatelessWidget {
 
   const _StatRow({
     required this.label,
+    this.badge,
     required this.icon,
     required this.value,
     required this.dot,
@@ -687,8 +631,16 @@ class _StatRow extends StatelessWidget {
                 IosIconTile(icon: icon, color: dot),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Text(label,
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w400, letterSpacing: -0.3, color: c.textPrimary)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w400, letterSpacing: -0.3, color: c.textPrimary)),
+                      // "+12 this month" - the web stat card's green delta
+                      if (badge != null)
+                        Text(badge!, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppTheme.brandButton)),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 12),
                 // the counter's FittedBox needs a bounded width to scale into
@@ -943,8 +895,7 @@ class _DistributionCard extends StatelessWidget {
   final List<String> order;
   final Color Function(String) colorOf;
   final String Function(String) labelOf;
-  final String emptyMessage;
-  final String totalNoun;
+  final String? footer;
 
   const _DistributionCard({
     required this.icon,
@@ -955,8 +906,7 @@ class _DistributionCard extends StatelessWidget {
     required this.order,
     required this.colorOf,
     required this.labelOf,
-    this.emptyMessage = 'No assets registered yet.',
-    this.totalNoun = 'assets',
+    this.footer,
   });
 
   @override
@@ -969,9 +919,9 @@ class _DistributionCard extends StatelessWidget {
       accent: accent,
       title: title,
       headline: total == 0 ? null : _fmtCount(total),
-      headlineUnit: total == 0 ? null : totalNoun,
+      headlineUnit: total == 0 ? null : 'assets',
       child: total == 0
-          ? Text(emptyMessage, style: TextStyle(color: c.textSecondary, fontSize: 15))
+          ? Text('No assets registered yet.', style: TextStyle(color: c.textSecondary, fontSize: 15))
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1003,171 +953,351 @@ class _DistributionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 _LegendList(keys: present, dist: dist, total: total, colorOf: colorOf, labelOf: labelOf),
+                if (footer != null) ...[
+                  const Divider(height: 1),
+                  const SizedBox(height: 10),
+                  Text(footer!, style: TextStyle(fontSize: 14.5, color: c.textSecondary)),
+                ],
               ],
             ),
     );
   }
 }
 
-class _LifecycleRingCard extends StatelessWidget {
+/// Assets by Office / by Category: one row per group with its count, and a thin bar scaled to
+/// the largest group (so a share-of-total is only shown when [shareOf] is given).
+class _BarListCard extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
   final String title;
-  final int total;
-  final Map<String, int> dist;
-  final List<String> order;
-  final Color Function(String) colorOf;
-  final String Function(String) labelOf;
+  final String caption;
+  final List<DashboardGroup> groups;
+  final Color barColor;
+  final int? shareOf;
+  final String emptyMessage;
 
-  const _LifecycleRingCard({
+  const _BarListCard({
+    required this.icon,
+    required this.accent,
     required this.title,
-    required this.total,
-    required this.dist,
-    required this.order,
-    required this.colorOf,
-    required this.labelOf,
+    required this.caption,
+    required this.groups,
+    required this.barColor,
+    required this.emptyMessage,
+    this.shareOf,
   });
 
   @override
   Widget build(BuildContext context) {
-    final present = order.where((k) => (dist[k] ?? 0) > 0).toList();
     final c = context.colors;
+    final max = groups.isEmpty ? 1 : groups.first.count.clamp(1, 1 << 31);
+    final still = context.prefersReducedMotion;
 
     return _SummaryCard(
-      icon: Icons.donut_large_rounded,
-      accent: Ios.blue,
+      icon: icon,
+      accent: accent,
       title: title,
-      child: total == 0
-          ? Text('No assets registered yet.', style: TextStyle(color: c.textSecondary, fontSize: 15))
+      trailing: groups.isEmpty
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Text(caption, style: TextStyle(fontSize: 14, color: c.textTertiary)),
+            ),
+      child: groups.isEmpty
+          ? Text(emptyMessage, style: TextStyle(color: c.textSecondary, fontSize: 15))
           : Column(
               children: [
-                const SizedBox(height: 4),
-                Center(
-                  child: SizedBox(
-                    width: 176,
-                    height: 176,
-                    child: TweenAnimationBuilder<double>(
-                      // fills once in 600ms (was 1.1s); Reduce Motion: drawn complete, no sweep
-                      tween: Tween(begin: context.prefersReducedMotion ? 1 : 0, end: 1),
-                      duration: context.prefersReducedMotion ? Duration.zero : const Duration(milliseconds: 600),
-                      curve: AppTheme.motionCurve,
-                      builder: (context, progress, child) => CustomPaint(
-                        painter: _LifecycleRingPainter(
-                          segments: present.map((k) => _RingSegment(count: dist[k] ?? 0, color: colorOf(k))).toList(),
-                          total: total,
-                          trackColor: c.border,
-                          progress: progress,
-                        ),
-                        child: child,
+                for (var i = 0; i < groups.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(groups[i].name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 16, letterSpacing: -0.3, color: c.textPrimary)),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(_fmtCount(groups[i].count),
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: c.textPrimary)),
+                          if (shareOf != null)
+                            SizedBox(
+                              width: 50,
+                              child: Text(_fmtPct(groups[i].count, shareOf!),
+                                  textAlign: TextAlign.right, style: TextStyle(fontSize: 15, color: c.textTertiary)),
+                            ),
+                        ],
                       ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(_fmtCount(total),
-                                style: TextStyle(
-                                    color: c.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 30,
-                                    height: 1,
-                                    letterSpacing: -0.9)),
-                            const SizedBox(height: 4),
-                            Text('assets', style: TextStyle(color: c.textTertiary, fontSize: 15, fontWeight: FontWeight.w600)),
-                          ],
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: Container(
+                          height: 6,
+                          color: c.border.withValues(alpha: 0.5),
+                          alignment: Alignment.centerLeft,
+                          child: TweenAnimationBuilder<double>(
+                            // Reduce Motion: drawn at full length, no grow
+                            tween: Tween(begin: still ? 1 : 0, end: 1),
+                            duration: still ? Duration.zero : AppTheme.motionSlow,
+                            curve: AppTheme.motionCurve,
+                            builder: (context, progress, _) => FractionallySizedBox(
+                              widthFactor: (groups[i].count / max * progress).clamp(0.0, 1.0),
+                              child: Container(
+                                decoration: BoxDecoration(color: barColor, borderRadius: BorderRadius.circular(3)),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 14),
-                _LegendList(keys: present, dist: dist, total: total, colorOf: colorOf, labelOf: labelOf),
+                ],
               ],
             ),
     );
   }
 }
 
-class _RingSegment {
-  final int count;
-  final Color color;
-  const _RingSegment({required this.count, required this.color});
+/// History event labels and colours - the web dashboard's EVENT_CFG.
+({String label, Color color}) _eventStyle(String type) => switch (type) {
+      'REGISTERED' => (label: 'Registered', color: AppTheme.statusRegistered),
+      'ASSIGNED' => (label: 'Assigned', color: AppTheme.statusAssigned),
+      'TRANSFERRED' => (label: 'Transferred', color: Ios.purple),
+      'MAINTENANCE' => (label: 'Maintenance', color: AppTheme.statusMaintenance),
+      'DISPOSAL' => (label: 'Disposal', color: AppTheme.statusDisposed),
+      'ARCHIVED' => (label: 'Archived', color: AppTheme.statusArchived),
+      _ => (label: type, color: Ios.gray),
+    };
+
+/// "Just now", "5m ago", "3h ago", "2d ago", then the date - as on the web dashboard.
+String _timeAgo(String raw) {
+  final dt = DateTime.tryParse(raw)?.toLocal();
+  if (dt == null) return '';
+  final m = DateTime.now().difference(dt).inMinutes;
+  if (m < 1) return 'Just now';
+  if (m < 60) return '${m}m ago';
+  final h = m ~/ 60;
+  if (h < 24) return '${h}h ago';
+  final d = h ~/ 24;
+  if (d < 7) return '${d}d ago';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
 }
 
-class _LifecycleRingPainter extends CustomPainter {
-  final List<_RingSegment> segments;
-  final int total;
-  final Color trackColor;
-  final double progress;
-  static const _strokeWidth = 22.0;
-  static const _gapDegrees = 5.0;
-
-  const _LifecycleRingPainter({
-    required this.segments,
-    required this.total,
-    required this.trackColor,
-    this.progress = 1.0,
-  });
+class _RecentActivityCard extends ConsumerWidget {
+  const _RecentActivityCard();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius - _strokeWidth / 2);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final events = ref.watch(recentActivityProvider);
+    final hasEvents = events.valueOrNull?.isNotEmpty ?? false;
 
-    final trackPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = _strokeWidth
-      ..color = trackColor.withValues(alpha: 0.4);
-    canvas.drawArc(rect, 0, 2 * math.pi, false, trackPaint);
+    return _SummaryCard(
+      icon: Icons.history_rounded,
+      accent: Ios.teal,
+      title: 'Recent Activity',
+      // History is a bottom-bar tab - switch to it
+      trailing: hasEvents ? TextButton(onPressed: () => context.go('/asset-history'), child: const Text('View all')) : null,
+      child: events.when(
+        loading: () => Shimmer(
+          child: Column(
+            children: [
+              for (var i = 0; i < 4; i++)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Bone(width: 72, height: 20),
+                      SizedBox(width: 10),
+                      Expanded(child: Bone(width: double.infinity, height: 14)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        error: (e, _) => Text('Could not load recent activity.', style: TextStyle(color: c.textSecondary, fontSize: 15)),
+        data: (list) => list.isEmpty
+            ? Text('No activity recorded yet.', style: TextStyle(color: c.textSecondary, fontSize: 15))
+            : Column(
+                children: [
+                  for (var i = 0; i < list.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    _ActivityRow(event: list[i]),
+                  ],
+                ],
+              ),
+      ),
+    );
+  }
+}
 
-    if (total == 0) return;
+class _ActivityRow extends StatelessWidget {
+  final AssetHistoryModel event;
+  const _ActivityRow({required this.event});
 
-    const gapRadians = _gapDegrees * math.pi / 180;
-    // Start angles are computed from the un-animated (full) sweep so every
-    // segment's position is fixed and correct throughout - only each arc's
-    // own length grows with `progress`, so the ring fills in place rather
-    // than sliding segments around as they animate.
-    var startAngle = -math.pi / 2;
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final style = _eventStyle(event.eventType);
+    final performer = event.performedBy.fullName.isNotEmpty ? event.performedBy.fullName : event.performedBy.username;
+    final when = _timeAgo(event.eventDate);
 
-    for (final seg in segments) {
-      final fullSweep = (seg.count / total) * 2 * math.pi;
-      final animatedSweep = fullSweep * progress;
-      final drawnSweep = (animatedSweep - gapRadians).clamp(0.0, animatedSweep);
-      final paint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = _strokeWidth
-        ..strokeCap = StrokeCap.round
-        ..color = seg.color;
-      canvas.drawArc(rect, startAngle + gapRadians / 2, drawnSweep, false, paint);
-      startAngle += fullSweep;
+    return InkWell(
+      onTap: () => context.push('/assets/${event.asset.id}'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: style.color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(style.label,
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: style.color)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${event.asset.propertyNumber}  ${event.asset.description.isNotEmpty ? event.asset.description : 'N/A'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500, letterSpacing: -0.2, color: c.textPrimary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'By: $performer${when.isEmpty ? '' : ' · $when'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13.5, color: c.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Last 30 Days: assets maintained and disposed, with the on-demand AI summary (web: MonthSummary).
+class _MonthSummaryCard extends ConsumerStatefulWidget {
+  const _MonthSummaryCard();
+
+  @override
+  ConsumerState<_MonthSummaryCard> createState() => _MonthSummaryCardState();
+}
+
+class _MonthSummaryCardState extends ConsumerState<_MonthSummaryCard> {
+  bool _generating = false;
+
+  Future<void> _generate() async {
+    setState(() => _generating = true);
+    try {
+      await MonthSummaryService().generate();
+      // the summary is saved with the numbers, so a fresh read now returns it
+      ref.invalidate(monthSummaryProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.red.shade800,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _generating = false);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _LifecycleRingPainter oldDelegate) => true;
-}
-
-class _RingCardSkeleton extends StatelessWidget {
-  const _RingCardSkeleton();
-
-  @override
   Widget build(BuildContext context) {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(14),
-        child: Column(
+    final c = context.colors;
+    final month = ref.watch(monthSummaryProvider);
+    final data = month.valueOrNull;
+
+    Widget count(int n, String noun, String route) => Expanded(
+          child: InkWell(
+            onTap: () => context.push(route),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_fmtCount(n),
+                      style: TextStyle(
+                          fontSize: 28, height: 1.1, fontWeight: FontWeight.w700, letterSpacing: -0.8, color: c.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text('${n == 1 ? 'asset' : 'assets'} $noun', style: TextStyle(fontSize: 14.5, color: c.textSecondary)),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    return _SummaryCard(
+      icon: Icons.calendar_month_rounded,
+      accent: Ios.orange,
+      title: 'Last 30 Days',
+      trailing: data == null
+          ? null
+          : _generating
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              : TextButton(onPressed: _generate, child: Text(data.summary != null ? 'Regenerate' : 'Generate')),
+      child: month.when(
+        loading: () => const Shimmer(
+          child: Row(
+            children: [
+              Expanded(child: Bone(width: double.infinity, height: 48)),
+              SizedBox(width: 16),
+              Expanded(child: Bone(width: double.infinity, height: 48)),
+            ],
+          ),
+        ),
+        error: (e, _) => Text("Couldn't load the last 30 days' maintenance and disposal counts.",
+            style: TextStyle(color: c.textSecondary, fontSize: 15)),
+        data: (d) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Bone(width: 120, height: 14),
-            SizedBox(height: 16),
-            Center(child: Bone(width: 176, height: 176, borderRadius: BorderRadius.all(Radius.circular(88)))),
-            SizedBox(height: 16),
-            Wrap(
-              spacing: 14,
-              runSpacing: 8,
+            Row(
               children: [
-                Bone(width: 90, height: 12),
-                Bone(width: 110, height: 12),
-                Bone(width: 80, height: 12),
+                count(d.maintained, 'maintained', '/maintenance'),
+                const SizedBox(width: 16),
+                count(d.disposed, 'disposed', '/disposal'),
               ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Text('AI SUMMARY',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, letterSpacing: 0.6, color: c.textTertiary)),
+            const SizedBox(height: 6),
+            Text(
+              d.summary ??
+                  (_generating
+                      ? 'Writing a summary of the last 30 days…'
+                      : "Tap Generate for a short plain-language summary of the last 30 days' maintenance and disposal."),
+              style: TextStyle(
+                  fontSize: d.summary != null ? 16 : 15,
+                  height: 1.45,
+                  letterSpacing: d.summary != null ? -0.2 : 0,
+                  color: d.summary != null ? c.textPrimary : c.textSecondary),
             ),
           ],
         ),

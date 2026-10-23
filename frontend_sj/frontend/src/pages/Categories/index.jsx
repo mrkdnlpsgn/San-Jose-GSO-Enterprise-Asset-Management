@@ -13,7 +13,7 @@ import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
 import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 5
 
 const lifeText = (years) => (years ? `${years} year${years === 1 ? '' : 's'}` : 'Not set')
 

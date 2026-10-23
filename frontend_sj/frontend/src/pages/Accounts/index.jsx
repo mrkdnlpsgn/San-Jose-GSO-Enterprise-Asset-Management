@@ -61,8 +61,8 @@ const MODULE = {
   Offices:      { label: 'Offices',       tone: 'blue' },
   Categories:   { label: 'Categories',    tone: 'blue' },
 }
-const AUDIT_PAGE_SIZE = 25
-const ACCOUNTS_PAGE_SIZE = 25
+const AUDIT_PAGE_SIZE = 5
+const ACCOUNTS_PAGE_SIZE = 5
 
 const roleBadge = (u) => <StatusBadge tone={u.role === 'ADMIN' ? 'green' : 'slate'}>{u.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'}</StatusBadge>
 const NO_OFFICE = <span className="italic text-amber-800 dark:text-amber-300">Not assigned</span>

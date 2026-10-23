@@ -23,9 +23,15 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["appLabel"] = "SJ Inventory"
     }
 
     buildTypes {
+        debug {
+            // Installs beside the deployed (release) app instead of replacing it
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appLabel"] = "SJ Inventory (Local)"
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.

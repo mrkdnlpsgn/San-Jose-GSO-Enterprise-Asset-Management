@@ -37,7 +37,7 @@ class _DeleteDialogState extends State<_DeleteDialog> {
           // records that ask for a reason go to the Recycle Bin; reference data (offices, categories) doesn't
           Text(
               widget.requireReason
-                  ? 'It moves to the Recycle Bin, where an administrator can restore it.'
+                  ? 'It moves to Recovery, where an administrator can restore it.'
                   : 'This cannot be undone.',
               style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45)),
           if (widget.requireReason) ...[

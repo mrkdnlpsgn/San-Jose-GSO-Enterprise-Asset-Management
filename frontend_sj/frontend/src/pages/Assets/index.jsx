@@ -24,7 +24,7 @@ import { getPersonnel } from '../../services/personnelService'
 import DraftRows from '../../components/common/DraftRows'
 import { useDraftList } from '../../hooks/useFormDraft'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 8
 
 // The table shows only what identifies an asset and where it stands; everything else (PAR,
 // values, dates, quantities, shortage/overage, specs) is in the drawer that opens on click, and

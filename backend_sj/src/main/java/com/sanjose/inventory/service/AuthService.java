@@ -514,7 +514,7 @@ public class AuthService {
     public void requestDeleteOtp(String username) {
         sendStepUpOtp(username, "Confirm permanent deletion",
             "<p>You requested to permanently delete a record from the San Jose GSO Enterprise Asset "
-                + "Management Recycle Bin. <strong>This action cannot be undone.</strong> Enter this code to confirm:</p>",
+                + "Management Recovery module. <strong>This action cannot be undone.</strong> Enter this code to confirm:</p>",
             "nothing will be deleted without the code.", false);
     }
 

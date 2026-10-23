@@ -38,7 +38,7 @@ const APPROVAL = {
   REJECTED:         { label: 'Request rejected',  tone: 'red' },
 }
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 5
 
 // The table keeps what tells records apart; the reason, findings, appraisal and sale details,
 // the request trail and photos are in the window a row opens.
@@ -310,7 +310,7 @@ function Disposal() {
       {deleting && (
         <ConfirmDialog
           title="Delete this disposal record?"
-          message="It moves to the Recycle Bin, where an administrator can restore it."
+          message="It moves to Recovery, where an administrator can restore it."
           confirmLabel="Delete"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}

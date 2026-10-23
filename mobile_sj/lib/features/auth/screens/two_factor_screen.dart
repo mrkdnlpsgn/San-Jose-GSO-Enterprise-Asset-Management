@@ -138,6 +138,8 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                     value: _remember,
                     onChanged: _loading ? null : (v) => setState(() => _remember = v ?? false),
                     controlAffinity: ListTileControlAffinity.leading,
+                    // on the page, not in a card - keep the theme's white tile colour off it
+                    tileColor: Colors.transparent,
                     contentPadding: EdgeInsets.zero,
                     title: const Text("Don't ask for a code on this phone for 30 days"),
                     subtitle: Text("Only on a phone that only you use. You'll still need your password.",

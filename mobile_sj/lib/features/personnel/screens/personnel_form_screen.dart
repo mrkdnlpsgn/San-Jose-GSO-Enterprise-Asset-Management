@@ -112,29 +112,36 @@ class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
                       border: Border.all(color: field.hasError ? AppTheme.statusDisposed : c.border),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: officesAsync.isLoading
-                        ? const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                          )
-                        : ListView(
-                            shrinkWrap: true,
-                            padding: EdgeInsets.zero,
-                            children: [
-                              for (final o in officesAsync.valueOrNull ?? const [])
-                                CheckboxListTile(
-                                  dense: true,
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  value: _officeIds.contains(o.id),
-                                  title: Text(o.officeName, style: TextStyle(color: c.textPrimary, fontSize: 15)),
-                                  onChanged: (v) => setState(() {
-                                    v == true ? _officeIds.add(o.id) : _officeIds.remove(o.id);
-                                    _error = null;
-                                    field.didChange(_officeIds);
-                                  }),
-                                ),
-                            ],
-                          ),
+                    // The tiles paint their background and tap ripple on the nearest Material - give
+                    // them one inside this box, clipped to it, or they slide past its edges on scroll.
+                    child: Material(
+                      color: c.surface,
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: BorderRadius.circular(9),
+                      child: officesAsync.isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : ListView(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.zero,
+                              children: [
+                                for (final o in officesAsync.valueOrNull ?? const [])
+                                  CheckboxListTile(
+                                    dense: true,
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                    value: _officeIds.contains(o.id),
+                                    title: Text(o.officeName, style: TextStyle(color: c.textPrimary, fontSize: 15)),
+                                    onChanged: (v) => setState(() {
+                                      v == true ? _officeIds.add(o.id) : _officeIds.remove(o.id);
+                                      _error = null;
+                                      field.didChange(_officeIds);
+                                    }),
+                                  ),
+                              ],
+                            ),
+                    ),
                   ),
                   if (field.hasError) ...[
                     const SizedBox(height: 6),

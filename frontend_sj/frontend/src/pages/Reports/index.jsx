@@ -781,7 +781,7 @@ function ValuationTotalsRow({ rows }) {
 }
 
 // ── Date range filter ─────────────────────────────────────────────────────────
-const PAGE_SIZE = 8
+const PAGE_SIZE = 5
 
 const DATE_INPUT_CLASS ='rounded-md border border-slate-200 dark:border-zinc-700 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 

@@ -7,9 +7,10 @@ import '../../accounts/data/account_service.dart';
 import '../../asset_history/data/asset_history_service.dart';
 import '../../asset_history/model/edit_request_model.dart';
 import '../../auth/provider/auth_provider.dart';
+import '../provider/dashboard_provider.dart';
 
-/// Things on Home that someone has to act on - the web dashboard's "Pending Approvals"
-/// and "staff account has no office" alerts. Shown only when there is something.
+/// Things on Home that someone has to act on - the web dashboard's "Pending Approvals",
+/// "staff account has no office" and "Needs attention" alerts. Shown only when there is something.
 class AttentionItem {
   final IconData icon;
   final String title;
@@ -85,6 +86,47 @@ final attentionProvider = FutureProvider.autoDispose<List<AttentionItem>>((ref) 
       ));
     }
   }
+
+  // The web's asset problems, from the same dashboard summary (staff: their office only).
+  try {
+    final stats = await ref.watch(dashboardStatsProvider.future);
+    String examples(DashboardAttention a) {
+      final shown = a.items.take(2).map((x) => x.propertyNumber).join(', ');
+      return a.count > 2 ? '$shown and ${a.count - 2} more' : shown;
+    }
+    String plural(int n, String one, String many) => '$n ${n == 1 ? one : many}';
+
+    final unserviceable = stats.unserviceableNoDisposal;
+    if (unserviceable.count > 0) {
+      items.add(AttentionItem(
+        Icons.report_rounded,
+        '${plural(unserviceable.count, 'unserviceable asset has', 'unserviceable assets have')} no disposal record yet',
+        examples(unserviceable),
+        '/assets',
+        warning: false,
+      ));
+    }
+    final noAccountable = stats.noAccountable;
+    if (noAccountable.count > 0) {
+      items.add(AttentionItem(
+        Icons.person_off_rounded,
+        '${plural(noAccountable.count, 'asset has', 'assets have')} no accountable person',
+        examples(noAccountable),
+        '/assets',
+      ));
+    }
+    final noOffice = stats.noOffice;
+    if (user.isAdmin && noOffice.count > 0) {
+      items.add(AttentionItem(
+        Icons.domain_disabled_rounded,
+        '${plural(noOffice.count, 'asset is', 'assets are')} not assigned to an office',
+        examples(noOffice),
+        '/assets',
+      ));
+    }
+  } catch (_) {
+    // the totals card already says when the summary couldn't load
+  }
   return items;
 });
 
@@ -116,9 +158,10 @@ class AttentionCard extends ConsumerWidget {
                   PressScale(
                     scale: 0.98,
                     child: InkWell(
-                      // History is a bottom-bar tab (switch to it); Personnel is a pushed screen
-                      onTap: () =>
-                          items[i].route.startsWith('/asset-history') ? context.go(items[i].route) : context.push(items[i].route),
+                      // History and Assets are bottom-bar tabs (switch to them); Personnel is a pushed screen
+                      onTap: () => items[i].route.startsWith('/asset-history') || items[i].route == '/assets'
+                          ? context.go(items[i].route)
+                          : context.push(items[i].route),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 13, 14, 13),
                         child: Row(

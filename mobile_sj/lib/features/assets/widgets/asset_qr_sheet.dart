@@ -307,6 +307,8 @@ class _QrExportSheetState extends State<_QrExportSheet> {
               value: a4,
               enabled: !_working,
               activeColor: AppTheme.brand,
+              // let the Material's selected tint show through the theme's white tile colour
+              tileColor: Colors.transparent,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               title: Text(title, style: TextStyle(color: c.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
               subtitle: Text(text, style: TextStyle(color: c.textTertiary, fontSize: 14)),

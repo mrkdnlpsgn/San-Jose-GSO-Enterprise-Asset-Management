@@ -15,6 +15,11 @@ const ROLES = [
 // Markers that LastPass, 1Password and Bitwarden respect to skip a field.
 const NO_EXTENSION_AUTOFILL = { 'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true' }
 
+// The 2-step switch is for testing on a local copy only (like the mobile app's Connection
+// screen, which only debug builds show). The deployed site never shows it, and leaves the
+// setting to the server: on for every new account with an email, unchanged on edit.
+const SHOW_TWO_STEP_SWITCH = import.meta.env.DEV || ['localhost', '127.0.0.1'].includes(window.location.hostname)
+
 const EMPTY = { username: '', email: '', fullName: '', password: '', confirmPassword: '', generatePassword: false, role: 'STAFF', isActive: true, twoFactorEnabled: true }
 
 function Field({ label, required, error, children }) {
@@ -137,6 +142,7 @@ function UserModal({ onClose, onSave, initial = null }) {
       delete payload.confirmPassword
       if (!isEditing && payload.generatePassword) delete payload.password
       if (isEditing && !payload.password) delete payload.password
+      if (!SHOW_TWO_STEP_SWITCH) delete payload.twoFactorEnabled
       await onSave(payload, idempotencyKey)
       draft.clear()
       onClose()
@@ -284,6 +290,7 @@ function UserModal({ onClose, onSave, initial = null }) {
           </label>
         </Field>
 
+        {SHOW_TWO_STEP_SWITCH && (
         <Field label="2-step verification">
           <label className={`flex items-start gap-2.5 select-none ${emailValid ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
             <div className="relative mt-0.5">
@@ -307,6 +314,7 @@ function UserModal({ onClose, onSave, initial = null }) {
             </span>
           </label>
         </Field>
+        )}
 
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800 mt-2">
           <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>

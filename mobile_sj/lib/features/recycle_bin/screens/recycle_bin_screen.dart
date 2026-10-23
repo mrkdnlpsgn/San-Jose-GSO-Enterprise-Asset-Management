@@ -26,7 +26,7 @@ class RecycleBinScreen extends ConsumerWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Recycle Bin'),
+          title: const Text('Recovery'),
           bottom: TabBar(
             indicatorColor: context.brandAccent,
             indicatorWeight: 3,
@@ -283,8 +283,8 @@ class _PermanentDeleteDialogState extends State<_PermanentDeleteDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'This cannot be undone. The record will be completely removed, not just moved out of the '
-            'Recycle Bin.${_sending ? ' Sending a verification code to your email…' : _sent ? ' Enter the verification code we emailed you to confirm.' : ''}',
+            'This cannot be undone. The record will be completely removed, not just moved out of '
+            'Recovery.${_sending ? ' Sending a verification code to your email…' : _sent ? ' Enter the verification code we emailed you to confirm.' : ''}',
             style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45),
           ),
           if (_sent) ...[
