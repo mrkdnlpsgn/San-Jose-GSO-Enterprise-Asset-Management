@@ -327,8 +327,12 @@ public class AssetService {
         if (d.getUnitValue() == null) throw new IllegalArgumentException("Unit value is required.");
         if (isBlank(d.getCondition())) throw new IllegalArgumentException("Condition is required.");
 
-        String par = normalizeParNumber(in.getParNumber(), d.getAcquisitionDate());
-        if (existsElsewhere("par_number", par, excludeId)) {
+        // PAR is required for new assets. Older assets were registered without one, so an edit
+        // may leave it blank as long as the asset never had one; a PAR that is given must still
+        // be valid and unique.
+        boolean keepsNoPar = before != null && isBlank(before.getParNumber()) && isBlank(in.getParNumber());
+        String par = keepsNoPar ? null : normalizeParNumber(in.getParNumber(), d.getAcquisitionDate());
+        if (par != null && existsElsewhere("par_number", par, excludeId)) {
             throw new IllegalArgumentException(
                 "PAR Number \"" + par + "\" is already used by another asset — each asset needs its own.");
         }
@@ -444,6 +448,11 @@ public class AssetService {
     // joins, or grows a group.
     public Asset update(Long id, AssetRequest req) {
         Asset before = findById(id);
+        // The edit form no longer sends a status: it follows the condition (see
+        // handleConditionLedger) and the Transfer page. Blank = keep the current one.
+        if (isBlank(req.getLifecycleStatus()) && before.getLifecycleStatus() != null) {
+            req.setLifecycleStatus(before.getLifecycleStatus().name());
+        }
         List<AssetRequest> devices = resolveDevices(req, before);
         AssetRequest own = devices.get(0);
         updateOne(id, before, own, before.getGroupId());
@@ -572,44 +581,105 @@ public class AssetService {
             return;
         }
 
+        // Records are never thrown away on a condition change: they are the asset's repair and
+        // disposal history (Maintenance/Disposal pages, the asset drawer, the AI's repair count).
+        // Open maintenance is closed as COMPLETED with a note; an unfinished disposal that no
+        // longer applies is cancelled (soft-deleted with the reason, so it stays traceable);
+        // finished and rejected records are left alone.
         if (asset.getCondition() == Asset.AssetCondition.REPAIRABLE) {
-            jdbcTemplate.update("CALL sp_disposal_delete_by_asset(?)", asset.getId());
-            SpHelper.callWithOutLong(jdbcTemplate,
-                "CALL sp_maintenance_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                asset.getId(), "REPAIR",
-                "Asset flagged as repairable — requires maintenance",
-                "Pending review and assignment",
-                null, AppTime.today(), null, "ONGOING", recId);
+            cancelOpenDisposal(asset.getId(), recId, "Cancelled — asset marked repairable");
+            // the admin has done what a waiting staff maintenance request asked for
+            withdrawPendingRequests("maintenance_ledger", asset.getId(), recId, "an administrator marked the asset repairable");
+            if (!hasOpenMaintenance(asset.getId())) {
+                SpHelper.callWithOutLong(jdbcTemplate,
+                    "CALL sp_maintenance_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    asset.getId(), "REPAIR",
+                    "Asset flagged as repairable — requires maintenance",
+                    "Pending review and assignment",
+                    null, AppTime.today(), null, "ONGOING", recId);
+            }
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
                 asset.getId(), "UNDER_MAINTENANCE");
             assetHistoryService.logEvent(asset.getId(), "MAINTENANCE", null, null, recorderId,
                 "Flagged repairable, maintenance record auto-created");
             sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
+            sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
 
         } else if (asset.getCondition() == Asset.AssetCondition.UNSERVICEABLE) {
-            jdbcTemplate.update("CALL sp_maintenance_delete_by_asset(?)", asset.getId());
-            SpHelper.callWithOutLong(jdbcTemplate,
-                "CALL sp_disposal_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                asset.getId(),
-                "Asset is unserviceable and flagged for disposal",
-                "Auto-generated from asset condition change",
-                "SALE", "PENDING",
-                AppTime.today(), null, recId,
-                null, null, null);
+            closeOpenMaintenance(asset.getId(), recId, "Closed — asset found unserviceable and sent for disposal");
+            withdrawPendingRequests("disposal_ledger", asset.getId(), recId, "an administrator marked the asset unserviceable");
+            if (!hasOpenDisposal(asset.getId())) {
+                SpHelper.callWithOutLong(jdbcTemplate,
+                    "CALL sp_disposal_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    asset.getId(),
+                    "Asset is unserviceable and flagged for disposal",
+                    "Auto-generated from asset condition change",
+                    "SALE", "PENDING",
+                    AppTime.today(), null, recId,
+                    null, null, null);
+            }
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
                 asset.getId(), "DISPOSED");
             assetHistoryService.logEvent(asset.getId(), "DISPOSAL", null, null, recorderId,
                 "Flagged unserviceable, disposal record auto-created");
+            sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
 
         } else if (asset.getCondition() == Asset.AssetCondition.SERVICEABLE) {
-            jdbcTemplate.update("CALL sp_maintenance_delete_by_asset(?)", asset.getId());
-            jdbcTemplate.update("CALL sp_disposal_delete_by_asset(?)", asset.getId());
+            boolean repaired = closeOpenMaintenance(asset.getId(), recId, "Closed — asset back in service");
+            cancelOpenDisposal(asset.getId(), recId, "Cancelled — asset marked serviceable");
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
                 asset.getId(), "ASSIGNED");
+            if (repaired) {
+                assetHistoryService.logEvent(asset.getId(), "MAINTENANCE", null, null, recorderId,
+                    "Repair finished — asset back in service, maintenance record closed");
+            }
             sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
         }
+    }
+
+    private boolean hasOpenMaintenance(Long assetId) {
+        Integer n = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM maintenance_ledger WHERE asset_id = ? AND is_deleted = 0 AND approval_status = 'APPROVED' AND status <> 'COMPLETED'",
+            Integer.class, assetId);
+        return n != null && n > 0;
+    }
+
+    private boolean hasOpenDisposal(Long assetId) {
+        Integer n = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM disposal_ledger WHERE asset_id = ? AND is_deleted = 0 AND approval_status = 'APPROVED' AND disposal_status <> 'COMPLETED'",
+            Integer.class, assetId);
+        return n != null && n > 0;
+    }
+
+    // Marks the asset's open (approved, unfinished) maintenance COMPLETED, adding why to
+    // Actions Taken. A waiting staff maintenance request no longer applies and is withdrawn.
+    // Returns whether any record was closed.
+    private boolean closeOpenMaintenance(Long assetId, int byUserId, String note) {
+        int closed = jdbcTemplate.update(
+            "UPDATE maintenance_ledger SET status = 'COMPLETED', actions_taken = CONCAT(actions_taken, '\\n', ?) "
+                + "WHERE asset_id = ? AND is_deleted = 0 AND approval_status = 'APPROVED' AND status <> 'COMPLETED'",
+            note + " (" + AppTime.today() + ")", assetId);
+        withdrawPendingRequests("maintenance_ledger", assetId, byUserId, note);
+        return closed > 0;
+    }
+
+    // An unfinished disposal (and any waiting disposal request) that no longer applies.
+    // Completed disposals are history and are never touched.
+    private void cancelOpenDisposal(Long assetId, int byUserId, String reason) {
+        jdbcTemplate.update(
+            "UPDATE disposal_ledger SET is_deleted = 1, deleted_at = NOW(), deleted_by = ?, delete_reason = ? "
+                + "WHERE asset_id = ? AND is_deleted = 0 AND approval_status = 'APPROVED' AND disposal_status <> 'COMPLETED'",
+            byUserId == 0 ? null : byUserId, reason, assetId);
+        withdrawPendingRequests("disposal_ledger", assetId, byUserId, reason);
+    }
+
+    private void withdrawPendingRequests(String table, Long assetId, int byUserId, String reason) {
+        jdbcTemplate.update(
+            "UPDATE " + table + " SET is_deleted = 1, deleted_at = NOW(), deleted_by = ?, delete_reason = ? "
+                + "WHERE asset_id = ? AND is_deleted = 0 AND approval_status = 'PENDING_APPROVAL'",
+            byUserId == 0 ? null : byUserId, "Request withdrawn — " + reason, assetId);
     }
 
     // A staff account's change of an asset to UNDER_MAINTENANCE / DISPOSED: files a
