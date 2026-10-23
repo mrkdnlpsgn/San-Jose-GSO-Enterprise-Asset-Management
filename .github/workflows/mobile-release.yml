@@ -1,0 +1,153 @@
+name: Release mobile app
+
+# One click publishes a new Android version: Actions > "Release mobile app" > Run workflow.
+# It raises the version in mobile_sj/pubspec.yaml, builds the APK, checks it is signed with the
+# same key as every earlier version (or phones couldn't install it over the old one), commits the
+# version to main and Branch-Nuque, and publishes a GitHub release with the APK.
+# The backend reads the latest release (AppVersionController), so phones are offered the update
+# without touching Render.
+#
+# Needs the repository secret ANDROID_KEYSTORE_BASE64: the signing keystore, base64-encoded.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to raise (patch = 1.0.5 to 1.0.6, minor = 1.1.0, major = 2.0.0)
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      notes:
+        description: "What's new. Separate items with |, each as Title: explanation. Example: Clearer wording: messages rewritten in plain sentences | Faster sync: uploads finish sooner"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      # certificate of the key every published APK so far was signed with
+      KEY_SHA256: 3af4c64d91140052f0dfbf0599cb1f43dadfeda056ae5556f0492468cebf9381
+      FLUTTER_VERSION: 3.44.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Work out the new version
+        id: version
+        working-directory: mobile_sj
+        run: |
+          current=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version: *//; s/\r$//')
+          name=${current%%+*}
+          build=${current##*+}
+          IFS=. read -r major minor patch <<< "$name"
+          case "${{ inputs.bump }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            *)     patch=$((patch + 1)) ;;
+          esac
+          new="$major.$minor.$patch"
+          newbuild=$((build + 1))
+          if git rev-parse -q --verify "refs/tags/v$new" >/dev/null; then
+            echo "::error::Version $new was already released (tag v$new exists)."; exit 1
+          fi
+          sed -i "s/^version: .*/version: $new+$newbuild/" pubspec.yaml
+          echo "Releasing $new (build $newbuild), up from $current"
+          echo "name=$new" >> "$GITHUB_OUTPUT"
+          echo "build=$newbuild" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # The app is signed with the debug keystore (android/app/build.gradle.kts), so it goes
+      # where Gradle looks for it.
+      - name: Restore the signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::The ANDROID_KEYSTORE_BASE64 secret is missing."; exit 1
+          fi
+          mkdir -p ~/.android
+          echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+
+      - name: Run the tests
+        working-directory: mobile_sj
+        run: |
+          flutter pub get
+          flutter test
+
+      - name: Build the APK
+        working-directory: mobile_sj
+        run: flutter build apk --release
+
+      - name: Check the APK is signed with the usual key
+        run: |
+          apk=mobile_sj/build/app/outputs/flutter-apk/app-release.apk
+          tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          digest=$("$tools/apksigner" verify --print-certs "$apk" | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+          if [ "$digest" != "$KEY_SHA256" ]; then
+            echo "::error::The APK is signed with $digest, not the usual key $KEY_SHA256. Phones couldn't update to it."; exit 1
+          fi
+          cp "$apk" "SJ-Inventory-v${{ steps.version.outputs.name }}.apk"
+
+      - name: Write the release notes
+        env:
+          NOTES: ${{ inputs.notes }}
+          VERSION: ${{ steps.version.outputs.name }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os
+          version = os.environ['VERSION']
+          apk = f'SJ-Inventory-v{version}.apk'
+          sha = hashlib.sha256(open(apk, 'rb').read()).hexdigest()
+          items = []
+          for part in os.environ['NOTES'].split('|'):
+              part = part.strip()
+              if not part:
+                  continue
+              title, sep, rest = part.partition(':')
+              items.append(f'- **{title.strip()}:** {rest.strip()}' if sep and rest.strip() else f'- **{part}**')
+          text = (
+              f'San Jose GSO Enterprise Asset Management, Android app version {version}.\n\n'
+              f'**Install:** download `{apk}` below on the phone and open it. If Android asks, allow installs '
+              'from this source. It installs over earlier versions and keeps you signed in.\n\n'
+              "### What's new\n" + '\n'.join(items) + '\n\n'
+              f'SHA-256: `{sha}`\n'
+          )
+          open('release-notes.md', 'w').write(text)
+          print(text)
+          PY
+
+      - name: Commit the version and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile_sj/pubspec.yaml
+          git commit -q -m "Mobile app $VERSION"
+          git push origin HEAD:main
+          # Branch-Nuque normally matches main; if it has moved on, it is left for a person to merge.
+          git push origin HEAD:Branch-Nuque || echo "::warning::Branch-Nuque has other commits, so the version bump wasn't pushed there. Merge main into it."
+          gh release create "v$VERSION" "SJ-Inventory-v$VERSION.apk" \
+            --target "$(git rev-parse HEAD)" \
+            --title "Mobile app $VERSION" \
+            --notes-file release-notes.md
