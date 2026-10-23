@@ -183,7 +183,7 @@ function Offices() {
 
   return (
     <MainLayout>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-stretch gap-2 mb-4">
         <SearchBox value={search} onChange={setSearch} label="Search offices" placeholder="Search offices by name" />
         <Button size="md" className="whitespace-nowrap flex-shrink-0" onClick={() => setShowAdd(true)}>
           <Icon className="h-4 w-4 sm:mr-1.5">{ICON.plus}</Icon>

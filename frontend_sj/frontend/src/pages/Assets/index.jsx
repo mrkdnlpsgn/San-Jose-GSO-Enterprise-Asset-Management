@@ -12,7 +12,7 @@ import AssetDrawer from './AssetDrawer'
 import AssetImportModal from './AssetImportModal'
 import AssetQrModal from './AssetQrModal'
 import { Badge, CONDITION_BADGE, LIFECYCLE_BADGE } from './assetBadges'
-import { FilterSelect } from '../../components/common/ListKit'
+import { FilterSelect, FilterBar, SearchBox, SearchRow } from '../../components/common/ListKit'
 import { exportAssetsToExcel } from './assetExcel'
 import { setAssets, addAsset, updateAsset, removeAsset } from '../../store/slices/assetSlice'
 import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset, bulkImportAssets, getAssetById } from '../../services/assetService'
@@ -330,15 +330,9 @@ function Assets() {
       {/* Toolbar: one search box and the main action, then a few plainly labelled filters.
           Category and Status sit behind "More filters" so the everyday view stays simple. */}
       <div className="flex flex-col gap-2.5 mb-4">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-zinc-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-            <input type="search" aria-label="Search assets" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by property no., description, serial no. or person"
-              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 placeholder:text-slate-500 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
-          </div>
+        <SearchRow>
+          <SearchBox value={search} onChange={setSearch} label="Search assets"
+            placeholder="Search by property no., description, serial no. or person" />
           {isAdmin && (
             <Button size="md" onClick={() => setShowAdd(true)} className="whitespace-nowrap flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -347,9 +341,15 @@ function Assets() {
               <span className="sr-only sm:not-sr-only">Add Asset</span>
             </Button>
           )}
-        </div>
+        </SearchRow>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <FilterBar activeCount={activeFilters} onClear={clearFilters} moreOpen={showMoreFilters} onMoreToggle={setShowMoreFilters}
+          more={<>
+            <FilterSelect label="Category" value={filterCategory} onChange={setFilterCategory}
+              options={categories.map((c) => [String(c.id), c.categoryName])} />
+            <FilterSelect label="Status" value={filterLifecycle} onChange={setFilterLifecycle}
+              options={[['ASSIGNED', 'Assigned'], ['TRANSFERRED', 'Transferred'], ['UNDER_MAINTENANCE', 'Under maintenance'], ['DISPOSED', 'Disposed']]} />
+          </>}>
           <FilterSelect label="Condition" value={filterCondition} onChange={setFilterCondition}
             options={[['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable'], ['UNSERVICEABLE', 'Unserviceable']]} />
           {/* staff only ever see their own office's assets, so they get no office filter */}
@@ -357,23 +357,7 @@ function Assets() {
             <FilterSelect label="Office" value={filterOffice} onChange={setFilterOffice}
               options={offices.map((o) => [String(o.id), o.officeName])} />
           )}
-          {showMoreFilters && (<>
-            <FilterSelect label="Category" value={filterCategory} onChange={setFilterCategory}
-              options={categories.map((c) => [String(c.id), c.categoryName])} />
-            <FilterSelect label="Status" value={filterLifecycle} onChange={setFilterLifecycle}
-              options={[['ASSIGNED', 'Assigned'], ['TRANSFERRED', 'Transferred'], ['UNDER_MAINTENANCE', 'Under maintenance'], ['DISPOSED', 'Disposed']]} />
-          </>)}
-          <button type="button" onClick={() => setShowMoreFilters((v) => !v)} aria-expanded={showMoreFilters}
-            className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-500/10 transition-colors">
-            {showMoreFilters ? 'Fewer filters' : 'More filters'}
-          </button>
-          {activeFilters > 0 && (
-            <button type="button" onClick={clearFilters}
-              className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
-              Clear all ({activeFilters})
-            </button>
-          )}
-        </div>
+        </FilterBar>
       </div>
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">

@@ -202,10 +202,10 @@ function AssetHistory() {
           <SearchBox value={search} onChange={setSearch} label={isHistory ? 'Search asset history' : 'Search requests'}
             placeholder={isHistory ? 'Search by asset, property no. or person' : 'Search by asset, person or details'} />
           {/* Two lists on one page: what happened to assets, and maintenance/disposal/transfer requests */}
-          <div className="inline-flex self-start sm:self-auto rounded-lg border border-slate-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900" role="tablist">
+          <div className="grid grid-cols-2 sm:inline-flex sm:self-auto rounded-lg border border-slate-300 dark:border-zinc-700 p-0.5 bg-white dark:bg-zinc-900" role="tablist">
             {[['history', 'History'], ['requests', requestsLabel]].map(([key, label]) => (
               <button key={key} role="tab" aria-selected={view === key} onClick={() => { setView(key); setViewing(null) }}
-                className={`text-sm px-3.5 py-1.5 rounded-md font-medium transition-colors ${
+                className={`text-sm px-3.5 py-2 sm:py-1.5 rounded-md font-medium whitespace-nowrap transition-colors ${
                   view === key ? 'bg-slate-900 text-white dark:bg-white dark:text-zinc-900' : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800'
                 }`}>{label}</button>
             ))}

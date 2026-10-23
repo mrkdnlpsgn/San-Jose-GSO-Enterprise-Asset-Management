@@ -176,7 +176,7 @@ function AccountsTab() {
   return (
     <>
       <div className="flex flex-col gap-2.5 mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-stretch gap-2">
           <SearchBox value={search} onChange={setSearch} label="Search accounts" placeholder="Search by name, username, email or office" />
           <Button size="md" className="whitespace-nowrap flex-shrink-0" onClick={() => setShowCreate(true)}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">{ICON.plus}</svg>
@@ -409,7 +409,7 @@ function AuditLogsTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-stretch gap-2">
           <SearchBox value={search} onChange={setSearch} label="Search audit logs" placeholder="Search what happened or who did it" />
         </div>
         <FilterBar activeCount={activeFilters} onClear={() => { setSearch(''); setModuleFilter(''); setActionFilter('') }}>

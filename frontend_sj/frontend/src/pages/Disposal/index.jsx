@@ -204,7 +204,7 @@ function Disposal() {
       )}
 
       <div className="flex flex-col gap-2.5 mb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-stretch gap-2">
           <SearchBox value={search} onChange={setSearch} label="Search disposal records"
             placeholder="Search by asset, property no. or reason" />
         </div>

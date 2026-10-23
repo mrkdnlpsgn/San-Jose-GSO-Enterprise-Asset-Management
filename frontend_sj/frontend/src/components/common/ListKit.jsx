@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState, useEffect } from 'react'
 
 // Shared pieces for every module's list page, so they all look and behave the same:
 //   SearchBox + FilterSelect / FilterBar  - one search box, a few plainly labelled filters,
@@ -35,14 +35,39 @@ export function MappedBadge({ map, value }) {
 
 const MUTED = 'text-slate-600 dark:text-zinc-400'
 
-export function SearchBox({ value, onChange, placeholder, label = 'Search' }) {
+// True on phone-width screens (below Tailwind's sm breakpoint), kept up to date on resize.
+function useNarrow() {
+  const query = '(max-width: 639px)'
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia?.(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia?.(query)
+    if (!mq) return
+    const on = () => setNarrow(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return narrow
+}
+
+// The row holding the search box and the page's main button; the button takes the box's height.
+export function SearchRow({ children }) {
+  return <div className="flex items-stretch gap-2">{children}</div>
+}
+
+// placeholder: the full hint. On phones it would be cut off, so the shorter one shows there
+// (by default the label, e.g. "Search assets"); the full hint stays the field's description.
+export function SearchBox({ value, onChange, placeholder, shortPlaceholder, label = 'Search' }) {
+  const narrow = useNarrow()
+  const hintId = useId()
   return (
     <div className="relative flex-1 min-w-0">
       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-zinc-400 pointer-events-none" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
         <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
       </svg>
-      <input type="search" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      <input type="search" aria-label={label} aria-describedby={placeholder ? hintId : undefined} value={value} onChange={(e) => onChange(e.target.value)}
+        placeholder={narrow ? (shortPlaceholder || label) : placeholder}
         className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 placeholder:text-slate-500 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all" />
+      {placeholder && <span id={hintId} className="sr-only">{placeholder}</span>}
     </div>
   )
 }
@@ -52,11 +77,11 @@ export function SearchBox({ value, onChange, placeholder, label = 'Search' }) {
 export function FilterSelect({ label, value, onChange, options, anyLabel = 'Any' }) {
   const id = useId()
   return (
-    <div className={`relative flex items-center rounded-lg border focus-within:ring-2 focus-within:ring-brand-500 transition-colors ${
+    <div className={`relative flex items-center min-w-0 w-full sm:w-auto rounded-lg border focus-within:ring-2 focus-within:ring-brand-500 transition-colors ${
       value ? 'border-brand-600 bg-brand-50 dark:bg-brand-500/10' : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900'}`}>
       <label htmlFor={id} className={`pl-3 text-sm ${MUTED} whitespace-nowrap`}>{label}:</label>
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-transparent pl-1.5 pr-8 py-1.5 text-sm font-medium text-slate-900 dark:text-zinc-100 max-w-[13rem] truncate focus:outline-none cursor-pointer">
+        className="appearance-none bg-transparent pl-1.5 pr-8 py-2 sm:py-1.5 text-sm font-medium text-slate-900 dark:text-zinc-100 flex-1 min-w-0 sm:flex-none sm:max-w-[13rem] truncate focus:outline-none cursor-pointer">
         <option value="">{anyLabel}</option>
         {options.map(([val, text]) => <option key={val} value={val}>{text}</option>)}
       </select>
@@ -71,7 +96,7 @@ export function FilterSelect({ label, value, onChange, options, anyLabel = 'Any'
 export function FilterToggle({ on, onChange, children }) {
   return (
     <button type="button" aria-pressed={on} onClick={() => onChange(!on)}
-      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+      className={`w-full sm:w-auto px-3 py-2 sm:py-1.5 rounded-lg border text-sm font-medium truncate transition-colors ${
         on ? 'border-amber-600 bg-amber-500/15 text-amber-900 dark:text-amber-200' : 'border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'}`}>
       {children}
     </button>
@@ -79,22 +104,29 @@ export function FilterToggle({ on, onChange, children }) {
 }
 
 // The filter row. `more` (optional) holds filters hidden behind "More filters".
+// On phones the filters sit in two equal columns with "More filters" and "Clear all" on a row of
+// their own underneath; from the sm breakpoint up everything flows on one wrapping line.
 export function FilterBar({ children, more, moreOpen, onMoreToggle, activeCount = 0, onClear }) {
+  const links = more || activeCount > 0
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
       {children}
       {more && moreOpen && more}
-      {more && (
-        <button type="button" onClick={() => onMoreToggle(!moreOpen)} aria-expanded={moreOpen}
-          className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-500/10 transition-colors">
-          {moreOpen ? 'Fewer filters' : 'More filters'}
-        </button>
-      )}
-      {activeCount > 0 && (
-        <button type="button" onClick={onClear}
-          className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
-          Clear all ({activeCount})
-        </button>
+      {links && (
+        <div className="col-span-2 flex items-center justify-between gap-2 sm:contents">
+          {more ? (
+            <button type="button" onClick={() => onMoreToggle(!moreOpen)} aria-expanded={moreOpen}
+              className="-ml-2.5 sm:ml-0 px-2.5 py-1.5 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-500/10 transition-colors">
+              {moreOpen ? 'Fewer filters' : 'More filters'}
+            </button>
+          ) : <span />}
+          {activeCount > 0 && (
+            <button type="button" onClick={onClear}
+              className="-mr-2.5 sm:mr-0 px-2.5 py-1.5 rounded-lg text-sm font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+              Clear all ({activeCount})
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -147,8 +179,8 @@ export function RefreshButton({ onClick }) {
   )
 }
 
-// record → records, entry → entries, category → categories
-const plural = (noun) => (/[^aeiou]y$/.test(noun) ? `${noun.slice(0, -1)}ies` : `${noun}s`)
+// record → records, entry → entries, category → categories, person → people
+const plural = (noun) => (noun === 'person' ? 'people' : /[^aeiou]y$/.test(noun) ? `${noun.slice(0, -1)}ies` : `${noun}s`)
 
 // The card around a list. `count`/`total`: shown "549 of 2,423 records" when filtered.
 export function ListCard({ title, filtered = false, count, total, noun = 'record', loading, actions, children, footer }) {
