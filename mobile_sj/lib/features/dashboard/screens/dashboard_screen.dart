@@ -133,7 +133,7 @@ class _ModuleList extends StatelessWidget {
       // Reference data, account management and the recycle bin are ADMIN-only -
       // staff work only with their office's assets, maintenance, disposal and reports.
       if (isAdmin) ...const [
-        _ModuleItem(Icons.apartment_rounded, 'Offices', 'Offices and their head users', '/offices', Ios.blue),
+        _ModuleItem(Icons.apartment_rounded, 'Offices', 'Offices', '/offices', Ios.blue),
         _ModuleItem(Icons.category_rounded, 'Categories', 'Asset categories', '/categories', Ios.purple),
         _ModuleItem(Icons.badge_rounded, 'Personnel', 'Assign each account its office', '/personnel', Ios.teal),
         _ModuleItem(Icons.people_rounded, 'Accounts', 'Create and manage user accounts', '/accounts', Ios.gray),

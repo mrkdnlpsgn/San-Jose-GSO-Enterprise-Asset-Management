@@ -7,12 +7,11 @@ import ConfirmDialog from '../../components/common/ConfirmDialog'
 import AlertDialog from '../../components/common/AlertDialog'
 import Modal from '../../components/common/Modal'
 import { getOffices, createOffice, updateOffice, deleteOffice } from '../../services/officeService'
-import { getUsers } from '../../services/userService'
 import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
-import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
+import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, Icon, ICON } from '../../components/common/ListKit'
 
 const PAGE_SIZE = 5
 
@@ -21,18 +20,13 @@ const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-7
 // onDelete (editing only) puts a Delete button in the form, since a row opens this form directly.
 function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
   const isEditing = !!initial
-  const [form, setForm]     = useState({ officeName: initial?.officeName || '', headUserId: initial?.headUser?.id ? String(initial.headUser.id) : '' })
+  const [form, setForm]     = useState({ officeName: initial?.officeName || '' })
   const draft = useFormDraft(`office:${initial?.id ?? 'new'}`, form, setForm, {
     title: (f) => f.officeName.trim() || initial?.officeName || 'Untitled office',
   })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
-  const [users, setUsers]   = useState([])
   const [idempotencyKey] = useState(() => newIdempotencyKey())
-
-  useEffect(() => {
-    getUsers().then(({ data }) => setUsers(data)).catch(() => {})
-  }, [])
 
   const set = (key) => (e) => {
     setForm((p) => ({ ...p, [key]: e.target.value }))
@@ -46,7 +40,8 @@ function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
     try {
       const payload = {
         officeName: form.officeName.trim(),
-        headUserId: form.headUserId ? Number(form.headUserId) : null,
+        // Head is no longer set from this form; keep whatever the office already has.
+        headUserId: initial?.headUser?.id ?? null,
       }
       await onSave(payload, idempotencyKey)
       draft.clear()
@@ -69,20 +64,6 @@ function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Office Name<span className="text-red-400 ml-0.5">*</span></label>
           <input className={INPUT_CLASS} placeholder="e.g. Office of the Mayor" value={form.officeName} onChange={set('officeName')} />
           {errors.officeName && <p className="text-xs text-red-700 dark:text-red-300">{errors.officeName}</p>}
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Head User <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
-          <div className="relative">
-            <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.headUserId} onChange={set('headUserId')}>
-              <option value="">None</option>
-              {users.map((u) => <option key={u.id} value={String(u.id)}>{u.fullName || u.username}</option>)}
-            </select>
-            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </div>
-          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           {isEditing && onDelete && (
@@ -114,13 +95,10 @@ function Offices() {
 
   // Draft rows use the table's columns: draft fields laid over the saved office (if editing).
   const draftRecord = (d) => {
-    const base = d.id === 'new' ? {} : offices.find((o) => String(o.id) === d.id) || {}
-    const sameHead = String(base.headUser?.id ?? '') === String(d.data.headUserId ?? '')
-    return { officeName: d.data.officeName, head: sameHead ? (base.headUser?.fullName || base.headUser?.username) : (d.data.headUserId ? 'Changed. Open to review' : '') }
+    return { officeName: d.data.officeName }
   }
   const draftColumns = [
     { className: 'px-4 py-3 align-top', render: (o) => <PrimaryCell title={o.officeName || 'No name yet'} /> },
-    { className: 'px-4 py-3 align-top hidden sm:table-cell w-[40%]', render: (o) => <MutedCell>{o.head}</MutedCell> },
   ]
   const [deleting, setDeleting] = useState(null)
   const [blockedDelete, setBlockedDelete] = useState(null)
@@ -174,11 +152,9 @@ function Offices() {
   const filtered = offices
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  // A row opens the office's form (it only has a name and a head), which also holds Delete.
+  // A row opens the office's form (it only has a name), which also holds Delete.
   const columns = [
-    { key: 'name', label: 'Office', cell: (o, open) => <PrimaryCell title={o.officeName} open={open}
-        extra={<p className="sm:hidden text-xs text-slate-600 dark:text-zinc-400 mt-0.5 truncate">{o.headUser ? `Head: ${o.headUser.fullName || o.headUser.username}` : 'No head assigned'}</p>} /> },
-    { key: 'head', label: 'Head', className: 'hidden sm:table-cell w-[40%]', cell: (o) => <MutedCell>{o.headUser ? (o.headUser.fullName || o.headUser.username) : ''}</MutedCell> },
+    { key: 'name', label: 'Office', cell: (o, open) => <PrimaryCell title={o.officeName} open={open} /> },
   ]
 
   return (

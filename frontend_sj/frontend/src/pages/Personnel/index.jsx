@@ -21,7 +21,6 @@ const officeNames = (p) => personOffices(p).map((o) => o.officeName).join(', ')
 // place an admin assigns an account's offices (one or more); name and role come from the account.
 function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
   const [form, setForm]     = useState({
-    position:    initial.position || '',
     officeIds:   personOffices(initial).map((o) => String(o.id)),
     contactInfo: initial.contactInfo || '',
   })
@@ -55,7 +54,8 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
       await onSave({
         officeId:    Number(primary),
         officeIds:   [primary, ...selected.filter((x) => x !== primary)].map(Number),
-        position:    form.position.trim() || null,
+        // Position is no longer edited here; keep the saved value.
+        position:    initial.position ?? null,
         contactInfo: form.contactInfo.trim() || null,
       })
       draft.clear()
@@ -100,10 +100,6 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
           </div>
           {errors.officeId && <p className="text-xs text-red-700 dark:text-red-300">{errors.officeId}</p>}
           <p className="text-xs text-slate-600 dark:text-zinc-400">Staff see and manage the assets they're accountable for in every office checked.</p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Position <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
-          <input className={INPUT_CLASS} placeholder="e.g. Administrative Aide IV" value={form.position} onChange={set('position')} />
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Contact Info <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>

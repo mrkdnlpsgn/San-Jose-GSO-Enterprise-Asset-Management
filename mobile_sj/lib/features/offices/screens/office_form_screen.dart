@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/ui.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/data/reference_service.dart';
 import '../../../shared/utils/idempotency.dart';
-import '../../accounts/data/account_service.dart';
-import '../../accounts/model/account_model.dart';
 import '../../assets/model/asset_model.dart';
-import '../../../shared/widgets/ios_pickers.dart';
 
 class OfficeFormScreen extends StatefulWidget {
   final OfficeModel? office; // null = create, non-null = edit
@@ -20,12 +16,11 @@ class OfficeFormScreen extends StatefulWidget {
 class _OfficeFormScreenState extends State<OfficeFormScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
-  bool _loadingUsers = true;
   final String _idempotencyKey = newIdempotencyKey();
 
   late final TextEditingController _name;
+  // Head is no longer set from this form; keep whatever the office already has.
   int? _headUserId;
-  List<AccountModel> _users = [];
 
   bool get _isEdit => widget.office != null;
 
@@ -34,16 +29,6 @@ class _OfficeFormScreenState extends State<OfficeFormScreen> {
     super.initState();
     _name = TextEditingController(text: widget.office?.officeName ?? '');
     _headUserId = widget.office?.headUserId;
-    _loadUsers();
-  }
-
-  Future<void> _loadUsers() async {
-    try {
-      final users = await AccountService().getAll();
-      if (mounted) setState(() { _users = users; _loadingUsers = false; });
-    } catch (_) {
-      if (mounted) setState(() => _loadingUsers = false);
-    }
   }
 
   @override
@@ -103,26 +88,6 @@ class _OfficeFormScreenState extends State<OfficeFormScreen> {
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Office Name', hintText: 'e.g. Office of the Mayor'),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: IosSelectFormField<int?>(
-                initialValue: _headUserId,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: 'Head User (optional)',
-                  hintText: _loadingUsers ? 'Loading users…' : null,
-                ),
-                dropdownColor: context.colors.surface,
-                items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('None')),
-                  ..._users.map((u) => DropdownMenuItem<int?>(
-                        value: u.id,
-                        child: Text(u.fullName.isNotEmpty ? u.fullName : u.username, overflow: TextOverflow.ellipsis),
-                      )),
-                ],
-                onChanged: _loadingUsers ? null : (v) => setState(() => _headUserId = v),
               ),
             ),
             const SizedBox(height: 10),

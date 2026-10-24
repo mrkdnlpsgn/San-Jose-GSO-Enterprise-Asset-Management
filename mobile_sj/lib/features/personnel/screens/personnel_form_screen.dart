@@ -19,14 +19,12 @@ class PersonnelFormScreen extends ConsumerStatefulWidget {
 class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final List<int> _officeIds = [...widget.person.officeIds];
-  late final _position = TextEditingController(text: widget.person.position ?? '');
   late final _contact = TextEditingController(text: widget.person.contactInfo ?? '');
   bool _saving = false;
   String? _error;
 
   @override
   void dispose() {
-    _position.dispose();
     _contact.dispose();
     super.dispose();
   }
@@ -47,7 +45,8 @@ class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
       final saved = await PersonnelService().update(
         widget.person.id,
         officeIds: _primaryFirst(),
-        position: _orNull(_position.text),
+        // Position is no longer edited here; keep the saved value.
+        position: widget.person.position,
         contactInfo: _orNull(_contact.text),
       );
       if (mounted) Navigator.pop(context, saved);
@@ -158,15 +157,6 @@ class _PersonnelFormScreenState extends ConsumerState<PersonnelFormScreen> {
               const Text("Couldn't load the offices. Pull back and try again.",
                   style: TextStyle(color: AppTheme.statusDisposed, fontSize: 14)),
             ],
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _position,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Position (optional)',
-                hintText: 'e.g. Administrative Aide IV',
-              ),
-            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _contact,

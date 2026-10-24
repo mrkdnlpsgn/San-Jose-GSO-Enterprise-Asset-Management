@@ -112,8 +112,6 @@ class _OfficeListScreenState extends ConsumerState<OfficeListScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         CardTitle(office.officeName),
-                        const SizedBox(height: 4),
-                        MetaLine(Icons.person_rounded, office.headUserName ?? 'No head assigned'),
                         const SizedBox(height: 6),
                         Text('Tap to edit',
                             style: TextStyle(color: context.brandAccent, fontSize: 14, fontWeight: FontWeight.w600)),
