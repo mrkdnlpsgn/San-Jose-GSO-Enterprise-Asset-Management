@@ -8,6 +8,11 @@ final categoriesProvider = FutureProvider<List<CategoryModel>>((ref) {
   return ref.watch(referenceServiceProvider).getCategories();
 });
 
+// Every category's articles; the asset form shows the chosen category's.
+final articlesProvider = FutureProvider<List<ArticleModel>>((ref) {
+  return ref.watch(referenceServiceProvider).getArticles();
+});
+
 final officesProvider = FutureProvider<List<OfficeModel>>((ref) {
   return ref.watch(referenceServiceProvider).getOffices();
 });

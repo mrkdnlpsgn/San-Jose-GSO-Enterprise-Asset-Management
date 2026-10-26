@@ -249,6 +249,7 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
                   <Field label="PAR Number"        value={asset.parNumber} mono />
                   <Field label="Serial Number"     value={asset.serialNumber} mono />
                   <Field label="Category"          value={asset.category?.categoryName} />
+                  <Field label="Article"           value={asset.article?.articleName} />
                 </section>
                 <section aria-labelledby="sec-value">
                   <h3 id="sec-value" className={SECTION}>Acquisition &amp; count</h3>

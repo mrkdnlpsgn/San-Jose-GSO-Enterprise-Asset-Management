@@ -20,6 +20,7 @@ public class CategoryService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
+    private final PropertyNumberService propertyNumberService;
 
     private static final RowMapper<Category> CAT_MAPPER = (rs, rn) -> {
         Category c = new Category();
@@ -31,15 +32,17 @@ public class CategoryService {
     };
 
     public List<Category> findAll(String search) {
-        if (search != null && !search.isBlank()) {
-            return jdbcTemplate.query("CALL sp_categories_search(?)", CAT_MAPPER, search.trim());
-        }
-        return jdbcTemplate.query("CALL sp_categories_get_all()", CAT_MAPPER);
+        List<Category> list = search != null && !search.isBlank()
+            ? jdbcTemplate.query("CALL sp_categories_search(?)", CAT_MAPPER, search.trim())
+            : jdbcTemplate.query("CALL sp_categories_get_all()", CAT_MAPPER);
+        propertyNumberService.attachCategoryCodes(list);
+        return list;
     }
 
     public Category findById(Long id) {
         List<Category> list = jdbcTemplate.query("CALL sp_categories_get_by_id(?)", CAT_MAPPER, id);
         if (list.isEmpty()) throw new ResourceNotFoundException("Category not found: " + id);
+        propertyNumberService.attachCategoryCodes(list);
         return list.get(0);
     }
 
@@ -53,6 +56,7 @@ public class CategoryService {
 
     public Category create(CategoryRequest req) {
         checkUsefulLife(req);
+        propertyNumberService.checkCategoryCode(null, req.getPropertyCode());
         Boolean exists = SpHelper.callWithOutBoolean(jdbcTemplate,
             "CALL sp_categories_name_exists(?, ?)", req.getCategoryName());
         if (Boolean.TRUE.equals(exists)) {
@@ -61,6 +65,7 @@ public class CategoryService {
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
             "CALL sp_categories_create(?, ?, ?, ?)",
             req.getCategoryName(), req.getDescription(), req.getUsefulLifeYears());
+        propertyNumberService.setCategoryCode(newId, req.getPropertyCode());
         Category saved = findById(newId);
         auditLogService.log("CATEGORY_CREATED", "Categories", newId, "category", saved.getCategoryName());
         return saved;
@@ -69,8 +74,10 @@ public class CategoryService {
     public Category update(Long id, CategoryRequest req) {
         findById(id); // throws if not found
         checkUsefulLife(req);
+        propertyNumberService.checkCategoryCode(id, req.getPropertyCode());
         jdbcTemplate.update("CALL sp_categories_update(?, ?, ?, ?)",
             id, req.getCategoryName(), req.getDescription(), req.getUsefulLifeYears());
+        propertyNumberService.setCategoryCode(id, req.getPropertyCode());
         Category saved = findById(id);
         auditLogService.log("CATEGORY_UPDATED", "Categories", id, "category", saved.getCategoryName());
         return saved;

@@ -24,4 +24,9 @@ public class Category {
 
     @Column(name = "useful_life_years")
     private Integer usefulLifeYears;
+
+    // The code in this category's place in property numbers (see PropertyNumberService).
+    // Not mapped: the column is added at startup, so Hibernate validation doesn't depend on it.
+    @Transient
+    private String propertyCode;
 }

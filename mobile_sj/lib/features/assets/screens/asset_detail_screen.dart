@@ -245,6 +245,7 @@ class _DetailsTab extends ConsumerWidget {
           if (asset.serialNumber != null && asset.serialNumber!.isNotEmpty)
             _row(context, 'Serial Number', asset.serialNumber!),
           _row(context, 'Category', asset.category.categoryName),
+          _row(context, 'Article', asset.article?.articleName ?? 'N/A'),
           _row(context, 'Location', asset.office.officeName),
           if (asset.accountablePerson != null) _row(context, 'Accountable Person', asset.accountablePerson!.fullName),
           if (asset.currentUser != null) _row(context, 'Current User', asset.currentUser!.fullName),

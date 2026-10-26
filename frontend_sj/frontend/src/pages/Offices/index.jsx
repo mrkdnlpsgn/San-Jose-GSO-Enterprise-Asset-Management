@@ -11,7 +11,8 @@ import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
-import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, Icon, ICON } from '../../components/common/ListKit'
+import PropertyNumberPanel from '../../components/common/PropertyNumberPanel'
+import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
 
 const PAGE_SIZE = 5
 
@@ -20,7 +21,7 @@ const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-7
 // onDelete (editing only) puts a Delete button in the form, since a row opens this form directly.
 function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
   const isEditing = !!initial
-  const [form, setForm]     = useState({ officeName: initial?.officeName || '' })
+  const [form, setForm]     = useState({ officeName: initial?.officeName || '', propertyCode: initial?.propertyCode || '' })
   const draft = useFormDraft(`office:${initial?.id ?? 'new'}`, form, setForm, {
     title: (f) => f.officeName.trim() || initial?.officeName || 'Untitled office',
   })
@@ -36,12 +37,15 @@ function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.officeName.trim()) { setErrors({ officeName: 'Office name is required.' }); return }
+    const code = form.propertyCode.trim()
+    if (code && !/^[A-Za-z0-9]{1,10}$/.test(code)) { setErrors({ propertyCode: 'Use letters and numbers only, up to 10.' }); return }
     setSaving(true)
     try {
       const payload = {
         officeName: form.officeName.trim(),
         // Head is no longer set from this form; keep whatever the office already has.
         headUserId: initial?.headUser?.id ?? null,
+        propertyCode: code,
       }
       await onSave(payload, idempotencyKey)
       draft.clear()
@@ -64,6 +68,15 @@ function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Office Name<span className="text-red-400 ml-0.5">*</span></label>
           <input className={INPUT_CLASS} placeholder="e.g. Office of the Mayor" value={form.officeName} onChange={set('officeName')} />
           {errors.officeName && <p className="text-xs text-red-700 dark:text-red-300">{errors.officeName}</p>}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="pn-code" className="text-sm font-medium text-slate-700 dark:text-zinc-300">Property number code</label>
+          <input id="pn-code" className={INPUT_CLASS + ' max-w-[10rem] font-mono'} placeholder="e.g. 1061" maxLength={10}
+            value={form.propertyCode} onChange={set('propertyCode')} aria-describedby="pn-code-hint" aria-invalid={!!errors.propertyCode} />
+          <p id="pn-code-hint" className="text-xs text-slate-600 dark:text-zinc-400">
+            The office part of property numbers (YEAR-MONTH-CATEGORY-SERIAL-OFFICE). Letters and numbers only. Changing it doesn&apos;t change numbers already given.
+          </p>
+          {errors.propertyCode && <p className="text-xs text-red-700 dark:text-red-300">{errors.propertyCode}</p>}
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           {isEditing && onDelete && (
@@ -95,10 +108,11 @@ function Offices() {
 
   // Draft rows use the table's columns: draft fields laid over the saved office (if editing).
   const draftRecord = (d) => {
-    return { officeName: d.data.officeName }
+    return { officeName: d.data.officeName, propertyCode: d.data.propertyCode }
   }
   const draftColumns = [
     { className: 'px-4 py-3 align-top', render: (o) => <PrimaryCell title={o.officeName || 'No name yet'} /> },
+    { className: 'px-4 py-3 align-top whitespace-nowrap w-[8rem]', render: (o) => <MutedCell>{o.propertyCode}</MutedCell> },
   ]
   const [deleting, setDeleting] = useState(null)
   const [blockedDelete, setBlockedDelete] = useState(null)
@@ -155,10 +169,14 @@ function Offices() {
   // A row opens the office's form (it only has a name), which also holds Delete.
   const columns = [
     { key: 'name', label: 'Office', cell: (o, open) => <PrimaryCell title={o.officeName} open={open} /> },
+    { key: 'code', label: 'Code', className: 'whitespace-nowrap w-[8rem]', cell: (o) => o.propertyCode
+        ? <span className="font-mono text-sm text-slate-800 dark:text-zinc-200">{o.propertyCode}</span>
+        : <span className="text-sm italic text-amber-800 dark:text-amber-300">Not set</span> },
   ]
 
   return (
     <MainLayout>
+      <PropertyNumberPanel refreshKey={offices} />
       <div className="flex items-stretch gap-2 mb-4">
         <SearchBox value={search} onChange={setSearch} label="Search offices" placeholder="Search offices by name" />
         <Button size="md" className="whitespace-nowrap flex-shrink-0" onClick={() => setShowAdd(true)}>

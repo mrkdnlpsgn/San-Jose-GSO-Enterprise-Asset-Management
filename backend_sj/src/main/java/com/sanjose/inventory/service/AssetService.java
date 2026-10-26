@@ -44,6 +44,8 @@ public class AssetService {
     private final MaintenanceLedgerService maintenanceLedgerService;
     private final DisposalLedgerService disposalLedgerService;
     private final AssetQrService assetQrService;
+    private final ArticleService articleService;
+    private final PropertyNumberService propertyNumberService;
 
     // A column a database with older copies of the procedures may not return yet.
     private static Integer optionalInt(java.sql.ResultSet rs, String column) {
@@ -126,6 +128,7 @@ public class AssetService {
                                 Long categoryId, Long officeId, String condition, String lifecycleStatus) {
         List<Asset> assets = jdbcTemplate.query("CALL sp_assets_list(?, ?, ?, ?, ?, ?, ?)", ASSET_MAPPER,
             search, size, page * size, categoryId, officeId, condition, lifecycleStatus);
+        articleService.attach(assets);
         return assets;
     }
 
@@ -135,12 +138,15 @@ public class AssetService {
     }
 
     public List<Asset> findByGroup(String groupId) {
-        return jdbcTemplate.query("CALL sp_assets_get_by_group(?)", ASSET_MAPPER, groupId);
+        List<Asset> assets = jdbcTemplate.query("CALL sp_assets_get_by_group(?)", ASSET_MAPPER, groupId);
+        articleService.attach(assets);
+        return assets;
     }
 
     public Asset findById(Long id) {
         List<Asset> list = jdbcTemplate.query("CALL sp_assets_get_by_id(?)", ASSET_MAPPER, id);
         if (list.isEmpty()) throw new ResourceNotFoundException("Asset not found: " + id);
+        articleService.attach(list);
         return list.get(0);
     }
 
@@ -168,6 +174,7 @@ public class AssetService {
             req.getCurrentUserId(), groupId,
             req.getShortageOverageQty() != null ? req.getShortageOverageQty() : 0,
             req.getShortageOverageValue() != null ? req.getShortageOverageValue() : BigDecimal.ZERO);
+        articleService.setOnAsset(newId, req.getArticleId());
 
         Asset saved = findById(newId);
         // The QR signature needs the new id, so it is issued right after the insert.
@@ -186,7 +193,7 @@ public class AssetService {
         return result;
     }
 
-    private static final Set<String> VALID_CONDITIONS = Set.of("SERVICEABLE", "REPAIRABLE", "UNSERVICEABLE");
+    private static final Set<String> VALID_CONDITIONS = Set.of("NEW", "SERVICEABLE", "REPAIRABLE", "UNSERVICEABLE");
 
     // Create-only bulk import (spreadsheet → assets). Each row is validated and
     // saved independently - one bad row (unknown category, bad date, etc.) is
@@ -235,11 +242,17 @@ public class AssetService {
         String condition = row.getCondition().trim().toUpperCase();
         if (!VALID_CONDITIONS.contains(condition)) {
             throw new IllegalArgumentException(
-                "Unknown condition \"" + row.getCondition() + "\". It must be SERVICEABLE, REPAIRABLE, or UNSERVICEABLE.");
+                "Unknown condition \"" + row.getCondition() + "\". It must be NEW, SERVICEABLE, REPAIRABLE, or UNSERVICEABLE.");
         }
 
         Long categoryId = resolveCategoryId(row.getCategoryName());
         if (categoryId == null) throw new IllegalArgumentException("Unknown category: \"" + row.getCategoryName() + "\"");
+        Long articleId = null;
+        if (!isBlank(row.getArticle())) {
+            articleId = articleService.idByName(categoryId, row.getArticle());
+            if (articleId == null) throw new IllegalArgumentException(
+                "Unknown article \"" + row.getArticle() + "\" for category \"" + row.getCategoryName() + "\". Add it on the Categories page first.");
+        }
         Long officeId = resolveOfficeId(row.getOfficeName());
         if (officeId == null) throw new IllegalArgumentException("Unknown office: \"" + row.getOfficeName() + "\"");
         Long personnelId = resolvePersonnelId(row.getAccountablePerson());
@@ -260,6 +273,7 @@ public class AssetService {
         req.setUnits(List.of(unit));
         req.setDescription(row.getDescription().trim());
         req.setCategoryId(categoryId);
+        req.setArticleId(articleId);
         req.setOfficeId(officeId);
         req.setPersonnelId(personnelId);
         req.setCurrentUserId(currentUserId);
@@ -348,6 +362,15 @@ public class AssetService {
         }
         d.setParNumber(par);
 
+        Long article = req.getArticleId();
+        if (article != null && article == 0) {
+            article = null;
+        } else if (article == null && before != null && before.getArticle() != null
+                && before.getCategory() != null && before.getCategory().getId().equals(d.getCategoryId())) {
+            article = before.getArticle().getId();
+        }
+        d.setArticleId(articleService.checkForCategory(article, d.getCategoryId()));
+
         if (!isBlank(d.getSerialNumber()) && existsElsewhere("serial_number", d.getSerialNumber().trim(), excludeId)) {
             throw new IllegalArgumentException(
                 "Serial Number \"" + d.getSerialNumber().trim() + "\" is already used by another asset. Each asset needs its own.");
@@ -355,12 +378,16 @@ public class AssetService {
 
         String prop = blankToNull(in.getPropertyNumber());
         if (prop == null && before != null) prop = before.getPropertyNumber(); // blank on edit = keep it
+        // a move to another office takes that office's code, unless a new number was typed
+        if (before != null && Objects.equals(prop, before.getPropertyNumber()) && before.getOffice() != null
+                && !Objects.equals(before.getOffice().getId(), d.getOfficeId())) {
+            prop = propertyNumberService.withOffice(prop, d.getOfficeId());
+        }
         if (prop != null && existsElsewhere("property_number", prop, excludeId)) {
             throw new IllegalArgumentException("Property Number \"" + prop + "\" is already used by another asset.");
         }
         if (prop == null) {
-            int year = d.getAcquisitionDate() != null ? d.getAcquisitionDate().getYear() : AppTime.today().getYear();
-            prop = generatePropertyNumber(year, Set.of());
+            prop = propertyNumberService.generate(d.getCategoryId(), d.getOfficeId(), d.getAcquisitionDate());
         }
         d.setPropertyNumber(prop);
 
@@ -519,6 +546,7 @@ public class AssetService {
             req.getCurrentUserId(), groupId,
             req.getShortageOverageQty() != null ? req.getShortageOverageQty() : 0,
             req.getShortageOverageValue() != null ? req.getShortageOverageValue() : BigDecimal.ZERO);
+        articleService.setOnAsset(id, req.getArticleId());
 
         Asset saved = findById(id);
         if (oldCondition != saved.getCondition()) {
@@ -635,7 +663,8 @@ public class AssetService {
             sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
 
-        } else if (asset.getCondition() == Asset.AssetCondition.SERVICEABLE) {
+        } else if (asset.getCondition() == Asset.AssetCondition.SERVICEABLE
+                || asset.getCondition() == Asset.AssetCondition.NEW) {
             boolean repaired = closeOpenMaintenance(asset.getId(), recId, "Closed, asset back in service");
             cancelOpenDisposal(asset.getId(), recId, "Cancelled, asset marked serviceable");
             jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)",
@@ -747,22 +776,6 @@ public class AssetService {
             "SELECT COUNT(*) FROM " + table + " WHERE asset_id = ? AND approval_status = 'PENDING_APPROVAL' AND is_deleted = 0",
             Integer.class, assetId);
         return n != null && n > 0;
-    }
-
-    // Next free COA-YYYY-NNN, skipping
-    // anything already claimed earlier in the same request (`taken`, upper-cased).
-    private String generatePropertyNumber(int year, Set<String> taken) {
-        String prefix = "COA-" + year + "-";
-        Integer maxSeq = jdbcTemplate.queryForObject(
-            "SELECT MAX(CAST(SUBSTRING(property_number, LENGTH(?) + 1) AS UNSIGNED)) FROM assets WHERE property_number LIKE ?",
-            Integer.class, prefix, prefix + "%");
-        int next = (maxSeq != null ? maxSeq : 0) + 1;
-        String candidate = prefix + String.format("%03d", next);
-        while (taken.contains(candidate.toUpperCase())) {
-            next++;
-            candidate = prefix + String.format("%03d", next);
-        }
-        return candidate;
     }
 
     private Long getUserIdByUsername(String username) {

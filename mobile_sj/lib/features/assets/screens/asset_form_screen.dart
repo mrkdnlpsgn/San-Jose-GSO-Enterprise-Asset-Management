@@ -53,10 +53,11 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   late final TextEditingController _specifications;
 
   int? _categoryId;
+  int? _articleId;
   int? _officeId;
   int? _personnelId;   // accountable person
   int? _currentUserId; // who actually has the asset - may differ from accountable person
-  String _condition = 'SERVICEABLE';
+  String _condition = 'NEW';
   String _lifecycleStatus = 'REGISTERED';
   DateTime? _acquisitionDate;
 
@@ -114,10 +115,11 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     _remarks = TextEditingController(text: a?.remarks ?? '');
     _specifications = TextEditingController(text: a?.specifications ?? '');
     _categoryId = a?.category.id;
+    _articleId = a?.article?.id;
     _officeId = a?.office.id;
     _personnelId = a?.accountablePerson?.id;
     _currentUserId = a?.currentUser?.id;
-    _condition = a?.condition ?? 'SERVICEABLE';
+    _condition = a?.condition ?? 'NEW';
     _originalCondition = a?.condition;
     _lifecycleStatus = a?.lifecycleStatus ?? 'REGISTERED';
     if (a?.acquisitionDate != null) {
@@ -201,6 +203,8 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
         'serialNumber': _serialNumber.text.trim().isEmpty ? null : _serialNumber.text.trim(),
         'description': _description.text.trim(),
         'categoryId': _categoryId,
+        // 0 = none; the server keeps the current article only when the field is missing
+        'articleId': _articleId ?? 0,
         'quantity': 1,
         'physicalCount': 1,
         'acquisitionDate': _acquisitionDate?.toIso8601String().substring(0, 10),
@@ -296,6 +300,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     final asset = widget.asset;
     final base = asset != null && asset.id > 0 ? await AssetSnapshot.instance.rawById(asset.id) : null;
     final category = (ref.read(categoriesProvider).valueOrNull ?? []).where((c) => c.id == _categoryId).firstOrNull;
+    final article = (ref.read(articlesProvider).valueOrNull ?? []).where((a) => a.id == _articleId).firstOrNull;
     final office = (ref.read(officesProvider).valueOrNull ?? []).where((o) => o.id == _officeId).firstOrNull;
     final people = ref.read(personnelProvider).valueOrNull ?? [];
     Map<String, dynamic>? person(int? id) {
@@ -311,6 +316,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       'id': asset?.id ?? 0,
       'propertyNumber': data['propertyNumber'] ?? asset?.propertyNumber ?? 'New asset',
       'category': {'id': _categoryId ?? 0, 'categoryName': category?.categoryName ?? asset?.category.categoryName ?? 'N/A'},
+      'article': article?.toJson() ?? (_articleId != null && _articleId == asset?.article?.id ? asset!.article!.toJson() : null),
       'office': {'id': _officeId ?? 0, 'officeName': office?.officeName ?? asset?.office.officeName ?? 'N/A'},
       'accountablePerson': person(_personnelId),
       'currentUser': person(_currentUserId),
@@ -332,6 +338,9 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     final categoriesAsync = ref.watch(categoriesProvider);
     final officesAsync = ref.watch(officesProvider);
     final personnelAsync = ref.watch(personnelProvider);
+    // optional for the form: without the list (e.g. offline before it was ever loaded) the
+    // asset keeps its current article
+    final articles = ref.watch(articlesProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit Asset' : 'New Asset')),
@@ -383,10 +392,13 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       items: categories,
                       itemLabel: (c) => c.categoryName,
                       onChanged: (c) => setState(() {
+                        // an article belongs to one category
+                        if (c?.id != _categoryId) _articleId = null;
                         _categoryId = c?.id;
                         _suggestedCategory = null;
                       }),
                     ),
+                    if (_categoryId != null && articles != null) _articlePicker(articles),
                     AnimatedSize(
                       duration: AppTheme.motionFast,
                       curve: AppTheme.motionCurve,
@@ -489,7 +501,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                     const SizedBox(height: 10),
                     const SectionLabel('Status'),
                     _enumDropdown('Condition', _condition,
-                      ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
+                      ['NEW', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
                       (v) => setState(() => _condition = v!)),
                     if (_staffRequest != null && _lifecycleStatus == widget.asset?.lifecycleStatus)
                       _requestNotice(),
@@ -673,6 +685,31 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // Article: the kind of item within the chosen category, as on the physical count report.
+  // Required once the category has articles.
+  Widget _articlePicker(List<ArticleModel> all) {
+    final options = all.where((a) => a.categoryId == _categoryId).toList()
+      ..sort((a, b) => a.articleName.toLowerCase().compareTo(b.articleName.toLowerCase()));
+    if (options.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Text(
+          'This category has no articles yet. An administrator can add them (e.g. Laptop, Printer) on the web Categories page.',
+          style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
+        ),
+      );
+    }
+    return _dropdown<ArticleModel>(
+      // rebuilt per category so the choice clears when the category changes
+      key: ValueKey('article-$_categoryId'),
+      label: 'Article',
+      value: options.where((a) => a.id == _articleId).firstOrNull,
+      items: options,
+      itemLabel: (a) => a.articleName,
+      onChanged: (a) => setState(() => _articleId = a?.id),
     );
   }
 

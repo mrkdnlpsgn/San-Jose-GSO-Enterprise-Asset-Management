@@ -83,8 +83,9 @@ const EVENT_CFG = {
   ARCHIVED:     { label: 'Archived',     color: 'text-zinc-700 dark:text-zinc-300', bg: 'bg-zinc-500/10' },
 }
 
-const CONDITION_ORDER = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
+const CONDITION_ORDER = ['NEW', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
 const CONDITION_CFG = {
+  NEW:           { bar: 'bg-sky-500',     text: 'text-sky-400',     dot: 'bg-sky-400',     label: 'New' },
   SERVICEABLE:   { bar: 'bg-emerald-500', text: 'text-emerald-400', dot: 'bg-emerald-400', label: 'Serviceable' },
   REPAIRABLE:    { bar: 'bg-amber-500',   text: 'text-amber-400',   dot: 'bg-amber-400',   label: 'Repairable' },
   UNSERVICEABLE: { bar: 'bg-red-500',     text: 'text-red-400',     dot: 'bg-red-400',     label: 'Unserviceable' },

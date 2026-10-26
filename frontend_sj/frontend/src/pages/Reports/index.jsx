@@ -9,6 +9,8 @@ import api from '../../services/api'
 import { getAssetHistory } from '../../services/assetHistoryService'
 import { getPropertyCards } from '../../services/propertyCardService'
 import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
+import { openPrintWindow } from '../../utils/printWindow'
+import { printRpcppe, exportRpcppeExcel, rpcppeRows, rpcppeLine, RPCPPE_DEFAULTS } from '../../utils/rpcppeExport'
 
 // Reports need the full dataset, not a paginated page. getAssets()/getDisposal()/getMaintenance()
 // default to the backend's page size of 20 - fine for list pages, wrong here, so fetch directly
@@ -75,23 +77,6 @@ const normPar = (v) => String(v || '').trim().toUpperCase()
 const lineAmount = (r) => (Number(r.unitValue) || 0) * (Number(r.quantity) || 1)
 const uniqueJoined = (rows, pick) => [...new Set(rows.map(pick).filter(Boolean))].join(', ')
 
-// RPCPPE physical-count variance: quantity per records vs. quantity per physical count.
-// physicalCount is null until someone has actually counted the asset - don't assume a shortage.
-const assetVariance = (r) => {
-  if (r.physicalCount == null) return null
-  return Number(r.physicalCount) - Number(r.quantity ?? 1)
-}
-const fmtVariance = (r) => {
-  const v = assetVariance(r)
-  if (v === null) return 'Not yet counted'
-  if (v === 0) return 'None'
-  return v > 0 ? `+${v} (Overage)` : `${v} (Shortage)`
-}
-const varianceValue = (r) => {
-  const v = assetVariance(r)
-  return v === null ? 0 : v * (Number(r.unitValue) || 0)
-}
-
 // ── Report definitions ────────────────────────────────────────────────────────
 // PAR items: the PAR report's columns, also listed under an expanded PAR row.
 const PAR_HEADERS = [
@@ -103,6 +88,33 @@ const PAR_HEADERS = [
   { label: 'Unit Cost',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
   { label: 'Amount',         display: (r) => fmtMoney(lineAmount(r)),                                                                                raw: (r) => lineAmount(r).toFixed(2) },
 ]
+
+// One RPCPPE line, as listed under an expanded type of PPE (same columns as the printed form).
+const RPCPPE_HEADERS = [
+  { label: 'Article',          display: (a) => rpcppeLine(a).article || 'N/A' },
+  { label: 'Location',         display: (a) => rpcppeLine(a).location || 'N/A' },
+  { label: 'Description',      display: (a) => <span className="font-medium text-slate-900 dark:text-white">{rpcppeLine(a).description || 'N/A'}</span> },
+  { label: 'Property No.',     display: (a) => <span className="font-mono">{rpcppeLine(a).propertyNumber || 'N/A'}</span> },
+  { label: 'Unit',             display: () => 'unit' },
+  { label: 'Unit Value',       display: (a) => fmtMoney(a.unitValue) },
+  { label: 'Qty (Card)',       display: (a) => rpcppeLine(a).qtyCard },
+  { label: 'Qty (Count)',      display: (a) => rpcppeLine(a).qtyCount },
+  { label: 'Shortage/Overage', display: (a) => { const l = rpcppeLine(a); return l.soQty === '' ? '' : `${l.soQty} · ${fmtMoney(l.soValue)}` } },
+  { label: 'Remarks',          display: (a) => <span className="italic">{rpcppeLine(a).remarks}</span> },
+]
+
+// One RPCPPE form per type of PPE (category), with the items on hand as at the report date.
+function rpcppeGroupsOf(assets, settings) {
+  const byCat = new Map()
+  rpcppeRows(assets, settings?.asAt).forEach((a) => {
+    const key = String(a.category?.id ?? 'none')
+    if (!byCat.has(key)) byCat.set(key, { key, categoryName: a.category?.categoryName || 'Uncategorized', rows: [] })
+    byCat.get(key).rows.push(a)
+  })
+  return [...byCat.values()]
+    .map((g) => ({ ...g, total: g.rows.reduce((n, a) => n + lineAmount(a), 0) }))
+    .sort((a, b) => a.categoryName.localeCompare(b.categoryName))
+}
 
 // One Property Card line, as listed under an expanded card row.
 const CARD_ENTRY_HEADERS = [
@@ -132,9 +144,9 @@ function parGroupsOf(assets) {
 
 const REPORTS = [
   {
-    id: 'inventory',
-    title: 'Asset Inventory',
-    description: 'Complete list of all GSO assets with condition, lifecycle status, and location.',
+    id: 'rpcppe',
+    title: 'RPCPPE (Physical Count)',
+    description: 'Report on the Physical Count of Property, Plant and Equipment: one form per type of PPE, in the GSO\'s printed format.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
@@ -144,21 +156,30 @@ const REPORTS = [
     async load() {
       return (await getAllAssets()).data
     },
-    dateField: 'acquisitionDate',
-    headers: [
-      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                   raw: (r) => r.propertyNumber || '' },
-      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.parNumber || 'N/A'}</span>,                                   raw: (r) => r.parNumber || '' },
-      { label: 'Description',     display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,              raw: (r) => r.description || '' },
-      { label: 'Category',        display: (r) => r.category?.categoryName || 'N/A',                                                                        raw: (r) => r.category?.categoryName || '' },
-      { label: 'Condition',       display: (r) => r.condition || 'N/A',                                                                                     raw: (r) => r.condition || '' },
-      { label: 'Lifecycle',       display: (r) => (r.lifecycleStatus || '').replace('_', ' ') || 'N/A',                                                     raw: (r) => r.lifecycleStatus || '' },
-      { label: 'Office',          display: (r) => r.office?.officeName || 'N/A',                                                                            raw: (r) => r.office?.officeName || '' },
-      { label: 'Location',        display: (r) => r.location || 'N/A',                                                                                      raw: (r) => r.location || '' },
-      { label: 'Accountable',     display: (r) => r.accountablePerson?.fullName || 'N/A',                                                               raw: (r) => r.accountablePerson?.fullName || '' },
-      { label: 'Qty',             display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
-      { label: 'Unit Value',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
-      { label: 'Acq. Date',       display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
-    ],
+    // The report header (as-at date, fund cluster, accountable officer) is filled in above the list.
+    rpcppeSettings: true,
+    selectable: {
+      toItems: rpcppeGroupsOf,
+      noun: ['type of PPE', 'types of PPE'],
+      placeholder: 'Search type, article, office, property No.',
+      hint: 'Tick one or more types of PPE to export their physical count reports.',
+      none: 'No assets on hand as at this date.',
+      search: (g, q) => g.categoryName.toLowerCase().includes(q)
+        || g.rows.some((a) => [a.article?.articleName, a.office?.officeName, a.propertyNumber, a.description]
+          .some((v) => String(v || '').toLowerCase().includes(q))),
+      label: (g) => g.categoryName,
+      columns: [
+        { label: 'Type of PPE', cell: (g) => <span className="font-medium text-slate-900 dark:text-white">{g.categoryName}</span> },
+        { label: 'Items',       cell: (g) => g.rows.length.toLocaleString('en-PH'), right: true },
+        { label: 'Total Value', cell: (g) => fmtMoney(g.total), right: true },
+      ],
+      expandLabel: 'items',
+      expanded: (g) => <MiniTable headers={RPCPPE_HEADERS} rows={g.rows} rowKey={(a) => a.id} />,
+      summary: (items) => `${items.reduce((n, g) => n + g.rows.length, 0).toLocaleString('en-PH')} items · Total ${fmtMoney(items.reduce((n, g) => n + g.total, 0))}`,
+      exportExcel: (items, settings) => exportRpcppeExcel(items, settings),
+      exportPdf: (items, settings) => printRpcppe(items, settings),
+    },
+    headers: [],
   },
   {
     id: 'condition',
@@ -369,41 +390,6 @@ const REPORTS = [
     headers: [],
   },
   {
-    id: 'rpcppe',
-    title: 'RPCPPE (Physical Count)',
-    description: 'COA-format Report on the Physical Count of Property, Plant and Equipment: records vs. physical count variance.',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.914a2 2 0 00-.586-1.414l-3.914-3.914A2 2 0 0010.086 2H6zm.5 8a.5.5 0 000 1h7a.5.5 0 000-1h-7zm0 3a.5.5 0 000 1h4a.5.5 0 000-1h-4z" clipRule="evenodd" />
-      </svg>
-    ),
-    async load() {
-      return (await getAllAssets()).data
-    },
-    dateField: 'acquisitionDate',
-    headers: [
-      { label: 'Article',             display: (r) => r.category?.categoryName || 'N/A',                                                                    raw: (r) => r.category?.categoryName || '' },
-      { label: 'Description',         display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,          raw: (r) => r.description || '' },
-      { label: 'Property No.',        display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                raw: (r) => r.propertyNumber || '' },
-      { label: 'PAR No.',           display: (r) => <span className="font-mono text-xs">{r.parNumber || 'N/A'}</span>,                                raw: (r) => r.parNumber || '' },
-      { label: 'Unit Value',          display: (r) => fmtMoney(r.unitValue),                                                                              raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
-      { label: 'Qty per Records',     display: (r) => r.quantity ?? 1,                                                                                    raw: (r) => r.quantity ?? 1 },
-      { label: 'Qty per Phys. Count', display: (r) => r.physicalCount ?? 'N/A',                                                                             raw: (r) => r.physicalCount ?? '' },
-      { label: 'Shortage/Overage',    display: (r) => fmtVariance(r),                                                                                      raw: (r) => fmtVariance(r) },
-      { label: 'Value of Variance',   display: (r) => varianceValue(r) !== 0 ? fmtMoney(varianceValue(r)) : 'N/A',                                           raw: (r) => varianceValue(r).toFixed(2) },
-      { label: 'Location',            display: (r) => r.location || 'N/A',                                                                                  raw: (r) => r.location || '' },
-      { label: 'Condition',           display: (r) => r.condition || 'N/A',                                                                                 raw: (r) => r.condition || '' },
-      { label: 'Remarks',             display: (r) => r.remarks || 'N/A',                                                                                   raw: (r) => r.remarks || '' },
-    ],
-    certification: [
-      'Prepared by: Property Custodian / GSO Staff',
-      'Certified Correct by: Inventory Committee Chairman',
-      'Member, Inventory Committee',
-      'Member, Inventory Committee',
-      'Verified by: COA Representative',
-    ],
-  },
-  {
     id: 'iirup',
     title: 'IIRUP (Unserviceable Property)',
     description: 'COA-format Inventory and Inspection Report of Unserviceable Property, for items pending disposal.',
@@ -518,9 +504,7 @@ function exportPDF(rows, headers, title, certification) {
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'width=1100,height=800')
-  win.document.write(html)
-  win.document.close()
+  openPrintWindow().write(html)
 }
 
 // ── PAR form export ───────────────────────────────────────────────────────────
@@ -636,9 +620,7 @@ function exportParPDF(groups) {
 </body>
 </html>`
 
-  const win = window.open('', '_blank', 'width=1100,height=800')
-  win.document.write(html)
-  win.document.close()
+  openPrintWindow().write(html)
 }
 
 // One sheet per PAR in a single workbook.
@@ -828,6 +810,34 @@ function DateRangeFilter({ from, to, onChange }) {
   )
 }
 
+// ── RPCPPE header details ─────────────────────────────────────────────────────
+function RpcppeSettings({ value, onChange }) {
+  const input = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500'
+  const label = 'text-xs font-medium text-slate-600 dark:text-zinc-400'
+  const field = (key, text, extra = {}) => (
+    <label className="flex flex-col gap-1">
+      <span className={label}>{text}</span>
+      {extra.date
+        ? <DatePicker value={value[key]} onChange={onChange(key)} className={input} placeholder={extra.placeholder} />
+        : <input className={input} value={value[key]} onChange={onChange(key)} placeholder={extra.placeholder} />}
+    </label>
+  )
+  return (
+    <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/20">
+      <p className="text-sm font-medium text-slate-700 dark:text-zinc-200">Report details</p>
+      <p className="text-xs text-slate-600 dark:text-zinc-400 mb-3">Printed at the top of each form. Items acquired after the "as at" date are left out.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {field('asAt', 'As at', { date: true, placeholder: 'Today' })}
+        {field('fundCluster', 'Fund cluster')}
+        {field('officer', 'Accountable officer')}
+        {field('designation', 'Designation')}
+        {field('entity', 'Entity / LGU')}
+        {field('assumedOn', 'Assumed accountability on', { date: true })}
+      </div>
+    </div>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 function Reports() {
   const { show } = useToast()
@@ -844,6 +854,15 @@ function Reports() {
   const [picked, setPicked]           = useState(() => new Set())
   const [expandedKey, setExpandedKey] = useState(null)
   const previewRef = useRef(null)
+  // RPCPPE header details, remembered in this browser so they needn't be retyped each time
+  const [rpcppeSettings, setRpcppeSettings] = useState(() => {
+    try { return { ...RPCPPE_DEFAULTS, ...JSON.parse(localStorage.getItem('rpcppe-settings') || '{}') } } catch { return { ...RPCPPE_DEFAULTS } }
+  })
+  const setRpcppeSetting = (key) => (e) => {
+    const next = { ...rpcppeSettings, [key]: e.target.value }
+    setRpcppeSettings(next)
+    try { localStorage.setItem('rpcppe-settings', JSON.stringify(next)) } catch { /* private window */ }
+  }
 
   const activeReport = REPORTS.find((r) => r.id === activeId)
 
@@ -895,7 +914,7 @@ function Reports() {
   // aggregation (`transform`, e.g. the Condition Report's grouping) runs on
   // top of that - so filtering a range re-aggregates instead of just hiding rows.
   const pick = activeReport?.selectable
-  const pickItems = useMemo(() => (pick ? pick.toItems(reportData) : []), [reportData, pick])
+  const pickItems = useMemo(() => (pick ? pick.toItems(reportData, rpcppeSettings) : []), [reportData, pick, rpcppeSettings])
 
   const displayRows = useMemo(() => {
     if (!activeReport) return []
@@ -1007,13 +1026,13 @@ function Reports() {
             </div>
             {canExport && (
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportExcel(pickedItems) : exportExcel(getExportRows(), activeReport.headers, activeReport.title)}>
+                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportExcel(pickedItems, rpcppeSettings) : exportExcel(getExportRows(), activeReport.headers, activeReport.title)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                   <span className="hidden sm:inline">Export Excel{exportCount}</span>
                 </Button>
-                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportPdf(pickedItems) : exportPDF(getExportRows(), activeReport.headers, activeReport.title, activeReport.certification)}>
+                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportPdf(pickedItems, rpcppeSettings) : exportPDF(getExportRows(), activeReport.headers, activeReport.title, activeReport.certification)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
                   </svg>
@@ -1022,6 +1041,10 @@ function Reports() {
               </div>
             )}
           </div>
+
+          {!loading && activeReport?.rpcppeSettings && reportData.length > 0 && (
+            <RpcppeSettings value={rpcppeSettings} onChange={setRpcppeSetting} />
+          )}
 
           {!loading && pick && pickItems.length > 0 && (
             <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/20 flex flex-wrap items-center gap-3">

@@ -29,6 +29,11 @@ public class Office {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // The code in this office's place in property numbers (see PropertyNumberService).
+    // Not mapped: the column is added at startup, so Hibernate validation doesn't depend on it.
+    @Transient
+    private String propertyCode;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();

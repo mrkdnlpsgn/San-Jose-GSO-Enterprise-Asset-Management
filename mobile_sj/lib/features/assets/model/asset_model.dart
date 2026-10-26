@@ -15,6 +15,25 @@ class CategoryModel {
       );
 }
 
+/// The kind of item within a category (ICT Equipment > Laptop): the ARTICLE column of the
+/// physical count report. Kept per category on the web Categories page.
+class ArticleModel {
+  final int id;
+  /// Absent in the web list's summary of an asset; always present from /articles.
+  final int? categoryId;
+  final String articleName;
+
+  const ArticleModel({required this.id, this.categoryId, required this.articleName});
+
+  factory ArticleModel.fromJson(Map<String, dynamic> json) => ArticleModel(
+        id: json['id'] as int,
+        categoryId: json['categoryId'] as int?,
+        articleName: json['articleName'] as String? ?? 'N/A',
+      );
+
+  Map<String, dynamic> toJson() => {'id': id, 'categoryId': categoryId, 'articleName': articleName};
+}
+
 class PersonnelModel {
   final int id;
   final String fullName;
@@ -77,6 +96,7 @@ class AssetModel {
   final String? serialNumber;
   final String description;
   final CategoryModel category;
+  final ArticleModel? article;
   final int quantity;
   final String acquisitionDate;
   final double unitValue;
@@ -89,7 +109,7 @@ class AssetModel {
   final int shortageOverageQty;
   final double shortageOverageValue;
   final String location;
-  final String condition;       // SERVICEABLE | REPAIRABLE | UNSERVICEABLE
+  final String condition;       // NEW | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
   final String lifecycleStatus; // REGISTERED | ASSIGNED | TRANSFERRED | UNDER_MAINTENANCE | DISPOSED | ARCHIVED
   final String? remarks;
   final String? specifications;
@@ -112,6 +132,7 @@ class AssetModel {
     this.serialNumber,
     required this.description,
     required this.category,
+    this.article,
     required this.quantity,
     required this.acquisitionDate,
     required this.unitValue,
@@ -153,6 +174,9 @@ class AssetModel {
         category: json['category'] != null
             ? CategoryModel.fromJson(json['category'] as Map<String, dynamic>)
             : const CategoryModel(id: 0, categoryName: 'N/A'),
+        article: json['article'] != null
+            ? ArticleModel.fromJson(json['article'] as Map<String, dynamic>)
+            : null,
         quantity: json['quantity'] as int? ?? 1,
         acquisitionDate: json['acquisitionDate'] as String? ?? '',
         unitValue: json['unitValue'] != null ? (json['unitValue'] as num).toDouble() : 0,

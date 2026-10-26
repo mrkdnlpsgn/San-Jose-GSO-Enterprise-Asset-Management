@@ -22,6 +22,7 @@ public class OfficeService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
+    private final PropertyNumberService propertyNumberService;
 
     private static final RowMapper<Office> OFFICE_MAPPER = (rs, rn) -> {
         Office o = new Office();
@@ -41,23 +42,27 @@ public class OfficeService {
     };
 
     public List<Office> findAll(String search) {
-        if (search != null && !search.isBlank()) {
-            return jdbcTemplate.query("CALL sp_offices_search(?)", OFFICE_MAPPER, search.trim());
-        }
-        return jdbcTemplate.query("CALL sp_offices_get_all()", OFFICE_MAPPER);
+        List<Office> list = search != null && !search.isBlank()
+            ? jdbcTemplate.query("CALL sp_offices_search(?)", OFFICE_MAPPER, search.trim())
+            : jdbcTemplate.query("CALL sp_offices_get_all()", OFFICE_MAPPER);
+        propertyNumberService.attachOfficeCodes(list);
+        return list;
     }
 
     public Office findById(Long id) {
         List<Office> list = jdbcTemplate.query("CALL sp_offices_get_by_id(?)", OFFICE_MAPPER, id);
         if (list.isEmpty()) throw new ResourceNotFoundException("Office not found: " + id);
+        propertyNumberService.attachOfficeCodes(list);
         return list.get(0);
     }
 
     public Office create(OfficeRequest req) {
+        propertyNumberService.checkOfficeCode(null, req.getPropertyCode());
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
             "CALL sp_offices_create(?, ?, ?)",
             req.getOfficeName(),
             req.getHeadUserId() != null ? req.getHeadUserId().intValue() : 0);
+        propertyNumberService.setOfficeCode(newId, req.getPropertyCode());
         Office saved = findById(newId);
         auditLogService.log("OFFICE_CREATED", "Offices", newId, "office", "Created: " + saved.getOfficeName());
         return saved;
@@ -65,10 +70,12 @@ public class OfficeService {
 
     public Office update(Long id, OfficeRequest req) {
         findById(id); // throws if not found
+        propertyNumberService.checkOfficeCode(id, req.getPropertyCode());
         jdbcTemplate.update("CALL sp_offices_update(?, ?, ?)",
             id,
             req.getOfficeName(),
             req.getHeadUserId() != null ? req.getHeadUserId().intValue() : 0);
+        propertyNumberService.setOfficeCode(id, req.getPropertyCode());
         Office saved = findById(id);
         auditLogService.log("OFFICE_UPDATED", "Offices", id, "office", "Updated: " + saved.getOfficeName());
         return saved;

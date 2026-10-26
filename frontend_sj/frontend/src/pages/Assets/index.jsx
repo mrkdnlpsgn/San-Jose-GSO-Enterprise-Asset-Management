@@ -13,7 +13,7 @@ import AssetImportModal from './AssetImportModal'
 import AssetQrModal from './AssetQrModal'
 // loaded on first use: it brings the QR drawing code
 const QrExportModal = lazy(() => import('./QrExportModal'))
-import { Badge, CONDITION_BADGE, LIFECYCLE_BADGE } from './assetBadges'
+import { Badge, CONDITION_BADGE } from './assetBadges'
 import { FilterSelect, FilterBar, SearchBox, SearchRow } from '../../components/common/ListKit'
 import { exportAssetsToExcel } from './assetExcel'
 import { setAssets, addAsset, updateAsset, removeAsset } from '../../store/slices/assetSlice'
@@ -26,26 +26,30 @@ import { useDraftList } from '../../hooks/useFormDraft'
 
 const PAGE_SIZE = 8
 
-// The table shows only what identifies an asset and where it stands; everything else (PAR,
-// values, dates, quantities, shortage/overage, specs) is in the drawer that opens on click, and
-// in the Excel export. Columns drop away on narrow screens instead of scrolling sideways.
+// The table keeps the physical count report's main columns, in its order, and fits the screen
+// without scrolling sideways: columns drop away on narrow screens and what they said moves into
+// the Description cell. Everything else (unit of measure, quantities, shortage/overage, PAR,
+// accountable person, dates, specs, status) is in the drawer that opens on click, and in the
+// Excel export.
 const COLUMNS = [
-  { label: 'Asset',                  th: '' },
-  { label: 'Category',               th: 'hidden lg:table-cell w-[16%]' },
-  { label: 'Office / Accountable',   th: 'hidden md:table-cell w-[26%]' },
-  { label: 'Condition',              th: 'hidden sm:table-cell w-[9rem]' },
-  { label: 'Status',                 th: 'hidden xl:table-cell w-[10rem]' },
+  { label: 'Article',     th: 'hidden md:table-cell w-[18%]' },
+  { label: 'Description', th: '' },
+  { label: 'Location',    th: 'hidden lg:table-cell w-[18%]' },
+  { label: 'Unit Value',  th: 'hidden xl:table-cell w-[9rem] text-right' },
+  { label: 'Remarks',     th: 'hidden sm:table-cell w-[9rem]' },
 ]
 const TD = 'px-4 py-3 align-top'
+
+const php = (v) => (v == null || v === '' ? '' : Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 
 const toRow = (a) => ({
   propertyNumber: a.propertyNumber,
   description: a.description,
+  articleName: a.article?.articleName,
   categoryName: a.category?.categoryName,
   officeName: a.office?.officeName,
-  accountableName: a.accountablePerson?.fullName,
+  unitValue: a.unitValue,
   condition: a.condition,
-  lifecycleStatus: a.lifecycleStatus,
 })
 
 // One table cell's content. onOpen (saved assets only) makes the description a button, so the
@@ -53,7 +57,14 @@ const toRow = (a) => ({
 function assetCell(i, r, onOpen) {
   const muted = 'text-slate-600 dark:text-zinc-400'
   switch (i) {
+    // the category is the report's heading; here it sits under the article
     case 0: return (
+      <div className="min-w-0">
+        <p className={`text-sm truncate ${r.articleName ? 'text-slate-800 dark:text-zinc-200' : `italic ${muted}`}`}>{r.articleName || 'No article'}</p>
+        <p className={`text-xs break-words mt-0.5 ${muted}`}>{r.categoryName || 'N/A'}</p>
+      </div>
+    )
+    case 1: return (
       <div className="min-w-0">
         <p className={`font-mono text-xs ${muted}`}>{r.propertyNumber || <span className="italic">Property No. auto-generated</span>}</p>
         {onOpen ? (
@@ -65,21 +76,14 @@ function assetCell(i, r, onOpen) {
           <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{r.description || <span className={`italic font-normal ${muted}`}>No description yet</span>}</p>
         )}
         {/* What the hidden columns would say, on screens too narrow to show them */}
-        <p className={`md:hidden text-xs ${muted} truncate mt-0.5`}>{r.officeName || 'No office'}</p>
+        <p className={`md:hidden text-xs ${muted} truncate mt-0.5`}>{r.articleName || r.categoryName || 'No article'}</p>
+        <p className={`lg:hidden text-xs ${muted} truncate mt-0.5`}>{r.officeName || 'No office'}</p>
         <div className="sm:hidden mt-1"><Badge map={CONDITION_BADGE} value={r.condition} /></div>
       </div>
     )
-    case 1: return <p className={`text-sm ${muted} truncate`}>{r.categoryName || 'N/A'}</p>
-    case 2: return (
-      <div className="min-w-0">
-        <p className="text-sm text-slate-700 dark:text-zinc-200 truncate">{r.officeName || 'N/A'}</p>
-        <p className={`text-xs truncate mt-0.5 ${r.accountableName ? muted : 'italic text-amber-800 dark:text-amber-300'}`}>
-          {r.accountableName || 'No accountable person'}
-        </p>
-      </div>
-    )
-    case 3: return <Badge map={CONDITION_BADGE} value={r.condition} />
-    case 4: return <Badge map={LIFECYCLE_BADGE} value={r.lifecycleStatus} />
+    case 2: return <p className="text-sm text-slate-700 dark:text-zinc-200 break-words">{r.officeName || 'N/A'}</p>
+    case 3: return <p className="text-sm tabular-nums text-slate-700 dark:text-zinc-200">{php(r.unitValue)}</p>
+    case 4: return <Badge map={CONDITION_BADGE} value={r.condition} />
     default: return null
   }
 }
@@ -138,11 +142,11 @@ function Assets() {
     return {
       propertyNumber: f.propertyNumber || base.propertyNumber,
       description: f.description || base.description,
+      articleName: String(f.articleId || '') === String(base.article?.id ?? '') ? base.article?.articleName : undefined,
       categoryName: cat || base.category?.categoryName,
       officeName: offices.find((o) => String(o.id) === String(f.officeId))?.officeName || base.office?.officeName,
-      accountableName: personnel.find((p) => String(p.id) === String(f.personnelId))?.fullName || base.accountablePerson?.fullName,
+      unitValue: f.unitValue || base.unitValue,
       condition: f.condition || base.condition,
-      lifecycleStatus: base.lifecycleStatus,
     }
   }
   // Same cells as a saved asset's row (see AssetCells), so drafts line up with the table.
@@ -338,7 +342,7 @@ function Assets() {
           </td>
         )}
         {COLUMNS.map((c, i) => (
-          <td key={c.label} className={`${TD} ${c.th}`}>{assetCell(i, row, i === 0 && !choosing ? open : undefined)}</td>
+          <td key={c.label} className={`${TD} ${c.th}`}>{assetCell(i, row, i === 1 && !choosing ? open : undefined)}</td>
         ))}
         <td className={`${TD} text-right text-slate-500 dark:text-zinc-400`} aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline-block mt-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
@@ -374,7 +378,7 @@ function Assets() {
               options={[['ASSIGNED', 'Assigned'], ['TRANSFERRED', 'Transferred'], ['UNDER_MAINTENANCE', 'Under maintenance'], ['DISPOSED', 'Disposed']]} />
           </>}>
           <FilterSelect label="Condition" value={filterCondition} onChange={setFilterCondition}
-            options={[['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable'], ['UNSERVICEABLE', 'Unserviceable']]} />
+            options={[['NEW', 'New'], ['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable'], ['UNSERVICEABLE', 'Unserviceable']]} />
           {/* staff only ever see their own office's assets, so they get no office filter */}
           {isAdmin && (
             <FilterSelect label="Office" value={filterOffice} onChange={setFilterOffice}
@@ -484,7 +488,7 @@ function Assets() {
                     </th>
                   )}
                   {COLUMNS.map((c) => (
-                    <th key={c.label} scope="col" className={`px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-zinc-400 uppercase tracking-wide ${c.th}`}>{c.label}</th>
+                    <th key={c.label} scope="col" className={`px-4 py-3 text-xs font-semibold text-slate-600 dark:text-zinc-400 uppercase tracking-wide ${c.th.includes('text-right') ? '' : 'text-left'} ${c.th}`}>{c.label}</th>
                   ))}
                   {/* Wide enough for a draft row's Continue / Discard buttons */}
                   <th scope="col" className={drafts.length ? 'w-[8.5rem]' : 'w-10'}><span className="sr-only">Open</span></th>

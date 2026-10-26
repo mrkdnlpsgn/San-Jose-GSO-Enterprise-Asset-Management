@@ -22,10 +22,6 @@ function QrExportModal({ ids, onClose, onDone }) {
 
   const exportCodes = async () => {
     const win = openPrintWindow()
-    if (!win) {
-      show('Your browser blocked the print window. Allow pop-ups for this site and try again.', 'error')
-      return
-    }
     setWorking(true)
     try {
       const { data } = await getQrStickers(ids)

@@ -15,6 +15,15 @@ class ReferenceService {
     }
   }
 
+  Future<List<ArticleModel>> getArticles() async {
+    try {
+      final res = await _dio.get('/articles');
+      return (res.data as List).map((e) => ArticleModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
   Future<List<OfficeModel>> getOffices() async {
     try {
       final res = await _dio.get('/offices');

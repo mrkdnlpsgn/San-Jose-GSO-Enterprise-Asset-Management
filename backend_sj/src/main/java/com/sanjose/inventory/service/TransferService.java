@@ -30,6 +30,8 @@ public class TransferService {
     private final AuditLogService auditLogService;
     private final SseEmitterService sseEmitterService;
     private final OfficeAssignmentService officeAssignments;
+    private final PropertyNumberService propertyNumberService;
+    private final AssetQrService assetQrService;
 
     public record TransferRequest(Long assetId, Long toOfficeId, Long toPersonnelId, String toLocation, String reason) {}
 
@@ -178,10 +180,19 @@ public class TransferService {
             WHERE transfer_id = ?
             """, reviewerId, now(), transferId);
 
+        // the property number's office code follows the asset; its QR sticker must be reprinted
+        String newNumber = officeChanges ? propertyNumberService.withOffice(before.getPropertyNumber(), t.toOfficeId()) : before.getPropertyNumber();
+        boolean renumbered = !Objects.equals(newNumber, before.getPropertyNumber());
+        if (renumbered) {
+            jdbcTemplate.update("UPDATE assets SET property_number = ? WHERE asset_id = ?", newNumber, t.assetId());
+            assetQrService.reissue(t.assetId(), newNumber);
+        }
+
         String note = "Transferred from " + (t.fromOfficeName() != null ? t.fromOfficeName() : "unassigned")
             + " to " + t.toOfficeName() + " (" + t.toLocation() + ")"
             + (t.toPersonnelName() != null ? ", accountable: " + t.toPersonnelName() : "")
-            + (t.reason() != null ? ". Reason: " + t.reason() : "");
+            + (t.reason() != null ? ". Reason: " + t.reason() : "")
+            + (renumbered ? ". Property number changed from " + before.getPropertyNumber() + " to " + newNumber : "");
         assetHistoryService.logEvent(t.assetId(), "TRANSFERRED", fromOfficeId, t.toOfficeId(), reviewerId, note);
         auditLogService.log("ASSET_TRANSFERRED", "Assets", t.assetId(), "asset",
             "Transferred " + t.propertyNumber() + " to " + t.toOfficeName());

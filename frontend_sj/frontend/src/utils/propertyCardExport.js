@@ -52,11 +52,11 @@ function cardHtml(card) {
 }
 
 // Opens the print window. Call it straight from a click: browsers block popups opened later.
-export const openPrintWindow = () => window.open('', '_blank', 'width=1100,height=800')
+export { openPrintWindow } from './printWindow'
+import { openPrintWindow } from './printWindow'
 
 // `win` lets a caller open the window on click and fill it once the card data has loaded.
 export function printPropertyCards(cards, win = openPrintWindow()) {
-  if (!win) throw new Error('The print window was blocked. Allow pop-ups for this site and try again.')
   const title = cards.length === 1 ? `Property Card ${cards[0].propertyNumber}` : `Property Cards (${cards.length})`
   const html = `<!DOCTYPE html>
 <html>
@@ -87,8 +87,7 @@ export function printPropertyCards(cards, win = openPrintWindow()) {
   <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
 </body>
 </html>`
-  win.document.write(html)
-  win.document.close()
+  win.write(html)
 }
 
 export async function exportPropertyCardsExcel(cards) {

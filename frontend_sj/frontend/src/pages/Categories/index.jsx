@@ -7,10 +7,12 @@ import ConfirmDialog from '../../components/common/ConfirmDialog'
 import AlertDialog from '../../components/common/AlertDialog'
 import Modal from '../../components/common/Modal'
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../../services/categoryService'
+import { getArticles, createArticle, updateArticle, deleteArticle } from '../../services/articleService'
 import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
+import PropertyNumberPanel from '../../components/common/PropertyNumberPanel'
 import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
 
 const PAGE_SIZE = 5
@@ -19,13 +21,85 @@ const lifeText = (years) => (years ? `${years} year${years === 1 ? '' : 's'}` : 
 
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
+// The articles of one category (Laptop, Printer... under ICT Equipment): the ARTICLE column of
+// the physical count report, picked on the asset form. Each change saves at once.
+function ArticleList({ categoryId, articles, onChange }) {
+  const [newName, setNewName]   = useState('')
+  const [editId, setEditId]     = useState(null)
+  const [editName, setEditName] = useState('')
+  const [busy, setBusy]         = useState(false)
+  const [error, setError]       = useState('')
+
+  const run = async (fn) => {
+    setBusy(true); setError('')
+    try { await fn(); return true } catch (err) { setError(err.response?.data?.message || 'Failed to save the article.'); return false } finally { setBusy(false) }
+  }
+  const add = async () => {
+    const name = newName.trim()
+    if (!name) { setError('Type the article name first.'); return }
+    if (await run(async () => { const { data } = await createArticle({ categoryId, articleName: name }); onChange([...articles, data]) })) setNewName('')
+  }
+  const rename = async (a) => {
+    const name = editName.trim()
+    if (!name) { setError('Article name is required.'); return }
+    if (await run(async () => { const { data } = await updateArticle(a.id, { articleName: name }); onChange(articles.map((x) => (x.id === a.id ? data : x))) })) setEditId(null)
+  }
+  const remove = (a) => run(async () => { await deleteArticle(a.id); onChange(articles.filter((x) => x.id !== a.id)) })
+
+  const sorted = [...articles].sort((a, b) => a.articleName.localeCompare(b.articleName))
+  const small = 'px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors disabled:opacity-50'
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">Articles</p>
+        <p className="text-xs text-slate-600 dark:text-zinc-400">The kinds of item in this category, e.g. Laptop or Printer. Each asset picks one. Changes here save right away.</p>
+      </div>
+      {sorted.length > 0 ? (
+        <ul className="divide-y divide-slate-200 dark:divide-zinc-800 rounded-md border border-slate-200 dark:border-zinc-700">
+          {sorted.map((a) => (
+            <li key={a.id} className="flex items-center gap-2 px-3 py-2">
+              {editId === a.id ? (
+                <>
+                  <input className={INPUT_CLASS + ' py-1.5'} value={editName} autoFocus aria-label="Article name"
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); rename(a) } if (e.key === 'Escape') { e.stopPropagation(); setEditId(null) } }} />
+                  <button type="button" disabled={busy} onClick={() => rename(a)} className={`${small} bg-brand-700 text-white hover:bg-brand-800`}>Save</button>
+                  <button type="button" onClick={() => setEditId(null)} className={`${small} text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800`}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm text-slate-900 dark:text-white">{a.articleName}</span>
+                  <button type="button" onClick={() => { setEditId(a.id); setEditName(a.articleName); setError('') }}
+                    className={`${small} text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800`}>Rename</button>
+                  <button type="button" disabled={busy} onClick={() => remove(a)}
+                    className={`${small} text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40`}>Remove</button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-slate-600 dark:text-zinc-400">No articles yet.</p>
+      )}
+      <div className="flex gap-2">
+        <input className={INPUT_CLASS} placeholder="New article, e.g. Laptop" value={newName} aria-label="New article name"
+          onChange={(e) => { setNewName(e.target.value); setError('') }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }} />
+        <Button type="button" variant="secondary" size="md" className="flex-shrink-0" disabled={busy} onClick={add}>Add</Button>
+      </div>
+      {error && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{error}</p>}
+    </div>
+  )
+}
+
 // onDelete (editing only) puts a Delete button in the form, since a row opens this form directly.
-function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
+function CategoryModal({ onClose, onSave, onDelete, initial = null, articles = [], onArticlesChange }) {
   const isEditing = !!initial
   const [form, setForm]     = useState({
     categoryName:    initial?.categoryName || '',
     description:     initial?.description || '',
     usefulLifeYears: initial?.usefulLifeYears != null ? String(initial.usefulLifeYears) : '',
+    propertyCode:    initial?.propertyCode || '',
   })
   const draft = useFormDraft(`category:${initial?.id ?? 'new'}`, form, setForm, {
     title: (f) => f.categoryName.trim() || initial?.categoryName || 'Untitled category',
@@ -46,12 +120,15 @@ function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
     if (life && !(/^\d+$/.test(life) && +life >= 1 && +life <= 100)) {
       setErrors({ usefulLifeYears: 'Enter a whole number of years from 1 to 100, or leave it blank.' }); return
     }
+    const code = form.propertyCode.trim()
+    if (code && !/^[A-Za-z0-9]{1,10}$/.test(code)) { setErrors({ propertyCode: 'Use letters and numbers only, up to 10.' }); return }
     setSaving(true)
     try {
       await onSave({
         categoryName: form.categoryName.trim(),
         description: form.description.trim(),
         usefulLifeYears: life ? Number(life) : null,
+        propertyCode: code,
       }, idempotencyKey)
       draft.clear()
       onClose()
@@ -85,6 +162,15 @@ function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
           />
         </div>
         <div className="flex flex-col gap-1.5">
+          <label htmlFor="pn-code" className="text-sm font-medium text-slate-700 dark:text-zinc-300">Property number code</label>
+          <input id="pn-code" className={INPUT_CLASS + ' max-w-[10rem] font-mono'} placeholder="e.g. 020" maxLength={10}
+            value={form.propertyCode} onChange={set('propertyCode')} aria-describedby="pn-code-hint" aria-invalid={!!errors.propertyCode} />
+          <p id="pn-code-hint" className="text-xs text-slate-600 dark:text-zinc-400">
+            The category part of property numbers (YEAR-MONTH-CATEGORY-SERIAL-OFFICE). Letters and numbers only. Changing it doesn&apos;t change numbers already given.
+          </p>
+          {errors.propertyCode && <p className="text-xs text-red-700 dark:text-red-300">{errors.propertyCode}</p>}
+        </div>
+        <div className="flex flex-col gap-1.5">
           <label htmlFor="cat-life" className="text-sm font-medium text-slate-700 dark:text-zinc-300">Expected life <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
           <div className="flex items-center gap-2">
             <input id="cat-life" type="number" inputMode="numeric" min={1} max={100} step={1}
@@ -97,6 +183,13 @@ function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
           </p>
           {errors.usefulLifeYears && <p className="text-xs text-red-700 dark:text-red-300">{errors.usefulLifeYears}</p>}
         </div>
+        {isEditing ? (
+          <div className="pt-4 border-t border-slate-200 dark:border-zinc-800">
+            <ArticleList categoryId={initial.id} articles={articles} onChange={onArticlesChange} />
+          </div>
+        ) : (
+          <p className="text-xs text-slate-600 dark:text-zinc-400">After adding the category, open it to add its articles (e.g. Laptop, Printer).</p>
+        )}
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
           {isEditing && onDelete && (
             <Button type="button" variant="danger" size="md" className="mr-auto" onClick={onDelete}>Delete Category</Button>
@@ -112,6 +205,12 @@ function CategoryModal({ onClose, onSave, onDelete, initial = null }) {
 function Categories() {
   const toast = useToast()
   const [categories, setCategories] = useState([])
+  const [articles, setArticles]     = useState([])
+  useEffect(() => { getArticles().then(({ data }) => setArticles(data)).catch(() => {}) }, [])
+  const articlesOf = (categoryId) => articles.filter((a) => a.categoryId === categoryId)
+  // replaces one category's articles after the list in its form changes
+  const setArticlesOf = (categoryId) => (next) =>
+    setArticles((prev) => [...prev.filter((a) => a.categoryId !== categoryId), ...next])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [showAdd, setShowAdd]       = useState(false)
@@ -129,7 +228,8 @@ function Categories() {
   const draftRecord = (d) => d.data
   const draftColumns = [
     { className: 'px-4 py-3 align-top', render: (c) => <PrimaryCell title={c.categoryName || 'No name yet'} /> },
-    { className: 'px-4 py-3 align-top hidden sm:table-cell w-[50%]', render: (c) => <MutedCell>{c.description}</MutedCell> },
+    { className: 'px-4 py-3 align-top hidden sm:table-cell w-[50%]', render: () => <MutedCell /> },
+    { className: 'px-4 py-3 align-top whitespace-nowrap', render: (c) => <MutedCell>{c.propertyCode}</MutedCell> },
     { className: 'px-4 py-3 align-top whitespace-nowrap', render: (c) => <MutedCell>{lifeText(c.usefulLifeYears)}</MutedCell> },
   ]
   const [deleting, setDeleting]     = useState(null)
@@ -171,6 +271,7 @@ function Categories() {
     try {
       await deleteCategory(target.id)
       setCategories((prev) => prev.filter((c) => c.id !== target.id))
+      setArticles((prev) => prev.filter((a) => a.categoryId !== target.id))
       toast.show('Category deleted.', 'warning')
     } catch (err) {
       if (err.response?.status === 409) {
@@ -187,13 +288,20 @@ function Categories() {
   // A row opens the category's form (name and description), which also holds Delete.
   const columns = [
     { key: 'name', label: 'Category', cell: (c, open) => <PrimaryCell title={c.categoryName} open={open}
-        extra={c.description && <p className="sm:hidden text-xs text-slate-600 dark:text-zinc-400 mt-0.5 truncate">{c.description}</p>} /> },
-    { key: 'desc', label: 'Description', className: 'hidden sm:table-cell w-[50%]', cell: (c) => <MutedCell>{c.description}</MutedCell> },
+        extra={c.description && <p className="text-xs text-slate-600 dark:text-zinc-400 mt-0.5 truncate">{c.description}</p>} /> },
+    { key: 'articles', label: 'Articles', className: 'hidden sm:table-cell w-[50%]', cell: (c) => {
+        const names = articlesOf(c.id).map((a) => a.articleName).sort((a, b) => a.localeCompare(b))
+        return <MutedCell>{names.length ? names.join(', ') : 'None yet'}</MutedCell>
+      } },
+    { key: 'code', label: 'Code', className: 'whitespace-nowrap', cell: (c) => c.propertyCode
+        ? <span className="font-mono text-sm text-slate-800 dark:text-zinc-200">{c.propertyCode}</span>
+        : <span className="text-sm italic text-amber-800 dark:text-amber-300">Not set</span> },
     { key: 'life', label: 'Expected life', className: 'whitespace-nowrap', cell: (c) => <MutedCell>{lifeText(c.usefulLifeYears)}</MutedCell> },
   ]
 
   return (
     <MainLayout>
+      <PropertyNumberPanel refreshKey={categories} />
       <div className="flex items-stretch gap-2 mb-4">
         <SearchBox value={search} onChange={setSearch} label="Search categories" placeholder="Search categories by name" />
         <Button size="md" className="whitespace-nowrap flex-shrink-0" onClick={() => setShowAdd(true)}>
@@ -215,7 +323,8 @@ function Categories() {
       </ListCard>
 
       {showAdd  && <CategoryModal onClose={() => setShowAdd(false)} onSave={handleCreate} />}
-      {editing  && <CategoryModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} onDelete={() => { setDeleting(editing); setEditing(null) }} />}
+      {editing  && <CategoryModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} onDelete={() => { setDeleting(editing); setEditing(null) }}
+        articles={articlesOf(editing.id)} onArticlesChange={setArticlesOf(editing.id)} />}
       {deleting && (
         <ConfirmDialog
           title="Delete this category?"

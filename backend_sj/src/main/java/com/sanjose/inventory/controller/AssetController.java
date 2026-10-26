@@ -74,6 +74,7 @@ public class AssetController {
         m.put("serialNumber", a.getSerialNumber());
         m.put("description", a.getDescription());
         m.put("category", a.getCategory() == null ? null : ref("categoryName", a.getCategory().getId(), a.getCategory().getCategoryName()));
+        m.put("article", a.getArticle() == null ? null : ref("articleName", a.getArticle().getId(), a.getArticle().getArticleName()));
         m.put("office", a.getOffice() == null ? null : ref("officeName", a.getOffice().getId(), a.getOffice().getOfficeName()));
         m.put("accountablePerson", a.getAccountablePerson() == null ? null : ref("fullName", a.getAccountablePerson().getId(), a.getAccountablePerson().getFullName()));
         m.put("currentUser", a.getCurrentUser() == null ? null : ref("fullName", a.getCurrentUser().getId(), a.getCurrentUser().getFullName()));
@@ -81,6 +82,10 @@ public class AssetController {
         m.put("lifecycleStatus", a.getLifecycleStatus());
         m.put("unitValue", a.getUnitValue());
         m.put("quantity", a.getQuantity());
+        // the list follows the Report on the Physical Count of PPE, which shows these
+        m.put("physicalCount", a.getPhysicalCount());
+        m.put("shortageOverageQty", a.getShortageOverageQty());
+        m.put("shortageOverageValue", a.getShortageOverageValue());
         m.put("acquisitionDate", a.getAcquisitionDate());
         m.put("createdAt", a.getCreatedAt());
         return m;

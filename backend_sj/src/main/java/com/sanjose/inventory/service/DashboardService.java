@@ -51,6 +51,7 @@ public class DashboardService {
             + "   = DATE_FORMAT(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00'), '%Y-%m')), 0) new_this_month,"
             + " COALESCE(SUM(" + UNDER_REPAIR + "), 0) under_repair,"
             + " COALESCE(SUM(a.lifecycle_status = 'DISPOSED'), 0) for_disposal,"
+            + " COALESCE(SUM(a.`condition` = 'NEW'), 0) is_new,"
             + " COALESCE(SUM(a.`condition` = 'SERVICEABLE'), 0) serviceable,"
             + " COALESCE(SUM(a.`condition` = 'REPAIRABLE'), 0) repairable,"
             + " COALESCE(SUM(a.`condition` = 'UNSERVICEABLE'), 0) unserviceable"
@@ -62,6 +63,7 @@ public class DashboardService {
                 out.put("underRepair", rs.getLong("under_repair"));
                 out.put("forDisposal", rs.getLong("for_disposal"));
                 Map<String, Long> condition = new LinkedHashMap<>();
+                condition.put("NEW", rs.getLong("is_new"));
                 condition.put("SERVICEABLE", rs.getLong("serviceable"));
                 condition.put("REPAIRABLE", rs.getLong("repairable"));
                 condition.put("UNSERVICEABLE", rs.getLong("unserviceable"));

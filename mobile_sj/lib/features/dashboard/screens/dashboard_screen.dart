@@ -235,7 +235,7 @@ class _ModuleItem {
   const _ModuleItem(this.icon, this.title, this.subtitle, this.route, this.color);
 }
 
-const _conditionOrder = ['SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
+const _conditionOrder = ['NEW', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
 
 // Same as the web dashboard: the 6 largest offices and categories.
 const _topGroups = 6;

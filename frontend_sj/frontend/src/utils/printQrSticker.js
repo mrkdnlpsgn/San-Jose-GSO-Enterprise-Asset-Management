@@ -1,4 +1,5 @@
 import { escapeHtml } from './helpers'
+import { openPrintWindow as openWindow } from './printWindow'
 
 // Prints one 30 × 30 mm asset QR sticker: the QR code with the municipal seal in the
 // middle and the property number under it. `@page` sets the paper to the sticker itself,
@@ -26,10 +27,8 @@ const STICKER_STYLES = `
 
 // `qrHtml` is an <img> or <svg> of the QR code.
 export function printQrSticker({ qrHtml, propertyNumber }) {
-  const win = window.open('', '_blank', 'width=360,height=360')
-  if (!win) return
   const sealUrl = `${window.location.origin}/logo-qr.png`
-  win.document.write(`<!DOCTYPE html><html><head>
+  openWindow({ width: 360, height: 360, waiting: 'Preparing the sticker…' }).write(`<!DOCTYPE html><html><head>
   <title>QR Sticker – ${escapeHtml(propertyNumber)}</title>
   <style>${STICKER_STYLES}</style></head><body>
   <div class="label">
@@ -38,7 +37,6 @@ export function printQrSticker({ qrHtml, propertyNumber }) {
   </div>
   <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
   </body></html>`)
-  win.document.close()
 }
 
 // Many stickers at once (bulk QR export). layout 'labels': one 30 × 30 mm sticker per page, for
@@ -57,12 +55,7 @@ const SHEET_STYLES = {
 }
 
 export function openPrintWindow() {
-  const win = window.open('', '_blank', 'width=900,height=700')
-  if (win) {
-    win.document.write('<!DOCTYPE html><title>Preparing QR codes</title><p style="font:14px Arial;padding:24px">Preparing QR codes…</p>')
-    win.document.close()
-  }
-  return win
+  return openWindow({ width: 900, height: 700, waiting: 'Preparing QR codes…' })
 }
 
 export function printQrSheet(win, stickers, layout = 'a4') {
@@ -72,8 +65,7 @@ export function printQrSheet(win, stickers, layout = 'a4') {
       <div class="qr">${s.qrSvg}<img class="seal" src="${sealUrl}" alt="" /></div>
       <p class="pn">${escapeHtml(s.propertyNumber)}</p>
     </div>`).join('')
-  win.document.open()
-  win.document.write(`<!DOCTYPE html><html><head>
+  win.write(`<!DOCTYPE html><html><head>
   <title>QR codes (${stickers.length})</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -100,5 +92,4 @@ export function printQrSheet(win, stickers, layout = 'a4') {
     seal.complete ? go() : (seal.onload = seal.onerror = go);
   <\/script>
   </body></html>`)
-  win.document.close()
 }

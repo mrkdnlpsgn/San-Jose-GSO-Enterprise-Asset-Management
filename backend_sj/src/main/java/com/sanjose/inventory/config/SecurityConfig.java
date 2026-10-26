@@ -134,11 +134,14 @@ public class SecurityConfig {
                 // Reference data: readable by everyone (form dropdowns), managed by ADMIN
                 .requestMatchers(HttpMethod.GET, "/api/offices/**", "/api/offices",
                                  "/api/categories/**", "/api/categories",
+                                 "/api/articles/**", "/api/articles",
                                  "/api/personnel/**", "/api/personnel").authenticated()
                 .requestMatchers("/api/offices/**", "/api/offices",
                                  "/api/categories/**", "/api/categories",
+                                 "/api/articles/**", "/api/articles",
                                  "/api/personnel/**", "/api/personnel").hasRole("ADMIN")
                 .requestMatchers("/api/equipment/**", "/api/equipment").hasRole("ADMIN")
+                .requestMatchers("/api/property-numbers/**").hasRole("ADMIN")
                 // Asset history: office-scoped in the service
                 .requestMatchers("/api/asset-history/**").authenticated()
                 // SSE stream for real-time updates (events filtered per office)

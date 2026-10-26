@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { inOffice } from '../../services/personnelService'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
 import CameraCaptureModal from '../../components/common/CameraCaptureModal'
 import { createCategory } from '../../services/categoryService'
+import { getArticles } from '../../services/articleService'
 import { scanAssetLabel } from '../../services/assetService'
 import { useToast } from '../../context/ToastContext'
 import { newIdempotencyKey } from '../../utils/idempotency'
@@ -14,7 +15,7 @@ import DatePicker from '../../components/common/DatePicker'
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 // The status (Assigned / Under maintenance / Disposed) isn't edited here: it follows the
 // condition (Repairable starts maintenance, Unserviceable starts disposal) and the Transfer page.
-const CONDITIONS  = [['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable (needs repair)'], ['UNSERVICEABLE', 'Unserviceable (for disposal)']]
+const CONDITIONS  = [['NEW', 'New'], ['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable (needs repair)'], ['UNSERVICEABLE', 'Unserviceable (for disposal)']]
 const PAR_SERIAL_RE = /^[A-Za-z0-9-]+$/
 
 // PAR number = acquisition year-month + ':' + a serial typed by hand,
@@ -58,6 +59,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     serialNumber:     initial?.serialNumber          || '',
     description:      initial?.description           || '',
     categoryId:       initial?.category?.id          ? String(initial.category.id) : '',
+    articleId:        initial?.article?.id           ? String(initial.article.id) : '',
     acquisitionDate:  initial?.acquisitionDate        || '',
     unitValue:        initial?.unitValue              ?? '',
     officeId:         initial?.office?.id             ? String(initial.office.id) : '',
@@ -66,7 +68,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     shortageOverageQty:   initial?.shortageOverageQty != null ? String(initial.shortageOverageQty) : '0',
     shortageOverageValue: initial?.shortageOverageValue != null ? String(initial.shortageOverageValue) : '0',
     location:         initial?.location               || '',
-    condition:        initial?.condition              || 'SERVICEABLE',
+    condition:        initial?.condition              || (initial ? 'SERVICEABLE' : 'NEW'),
     specifications:   initial?.specifications         || '',
     remarks:          initial?.remarks                || '',
   })
@@ -82,6 +84,11 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const [customName, setCustomName]       = useState('')
   const [savingCustom, setSavingCustom]   = useState(false)
   const [customError, setCustomError]     = useState('')
+
+  // Articles (Laptop, Printer...) are kept per category on the Categories page.
+  const [articles, setArticles] = useState([])
+  useEffect(() => { getArticles().then(({ data }) => setArticles(data)).catch(() => {}) }, [])
+  const categoryArticles = articles.filter((a) => String(a.categoryId) === String(form.categoryId))
 
   // Build combined category list: predefined first, then DB categories not already matching a predefined name
   const dbCategoryNames = categories.map((c) => c.categoryName.toLowerCase())
@@ -111,6 +118,14 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const currentUserOptions = keepSelected(activePersonnel, initial?.currentUser)
 
   // A new office drops an accountable person who isn't in it (they're tied to their office).
+  // What a blank Property Number becomes, as far as it can be told before saving (the serial is
+  // given on save). Null while a code is missing, so the form can say which.
+  const catCode = categories.find((c) => String(c.id) === String(form.categoryId))?.propertyCode
+  const officeCode = offices.find((o) => String(o.id) === String(form.officeId))?.propertyCode
+  const numberPreview = `${form.acquisitionDate ? form.acquisitionDate.slice(0, 7) : 'YYYY-MM'}-${catCode || '???'}-###-${officeCode || '????'}`
+  const missingCode = form.categoryId && !String(form.categoryId).startsWith('pre:') && !catCode ? 'category'
+    : form.officeId && !officeCode ? 'office' : null
+
   const handleOfficeChange = (e) => {
     const officeId = e.target.value
     setForm((p) => {
@@ -133,8 +148,9 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
       setForm((p) => ({ ...p, categoryId: '' }))
     } else {
       setCustomMode(false)
-      setForm((p) => ({ ...p, categoryId: val }))
-      setErrors((p) => { const n = { ...p }; delete n.categoryId; return n })
+      // an article belongs to one category
+      setForm((p) => ({ ...p, categoryId: val, articleId: val === p.categoryId ? p.articleId : '' }))
+      setErrors((p) => { const n = { ...p }; delete n.categoryId; delete n.articleId; return n })
     }
   }
 
@@ -203,6 +219,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     const e = {}
     if (!form.description.trim())      e.description      = 'Description is required.'
     if (!form.categoryId)              e.categoryId       = 'Category is required.'
+    if (!form.articleId && categoryArticles.length > 0) e.articleId = 'Article is required.'
     if (!form.officeId)                e.officeId         = 'Office is required.'
     if (!form.personnelId && personRequired) e.personnelId = 'Accountable person is required.'
     if (!form.acquisitionDate)         e.acquisitionDate  = 'Acquisition date is required.'
@@ -238,6 +255,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         serialNumber:      form.serialNumber.trim() || null,
         description:       form.description.trim(),
         categoryId:        resolvedCategoryId,
+        articleId:         form.articleId ? Number(form.articleId) : 0,
         quantity:          1,
         physicalCount:     1,
         acquisitionDate:   form.acquisitionDate || null,
@@ -425,10 +443,33 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           {errors.categoryId && !customMode && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.categoryId}</p>}
         </div>
 
+        {/* Article: the kind of item within the category, as on the physical count report */}
+        {form.categoryId && !customMode && (
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="asset-article" className="text-sm font-medium text-slate-700 dark:text-zinc-300">
+              Article{categoryArticles.length > 0 && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}
+            </label>
+            {categoryArticles.length > 0 ? (
+              <div className="relative">
+                <select id="asset-article" className={INPUT_CLASS + ' appearance-none pr-9'} value={form.articleId} onChange={set('articleId')}>
+                  <option value="">Select article</option>
+                  {categoryArticles.map((a) => <option key={a.id} value={String(a.id)}>{a.articleName}</option>)}
+                </select>
+                <ChevronIcon />
+              </div>
+            ) : (
+              <p className="text-xs text-slate-600 dark:text-zinc-400">
+                This category has no articles yet. {staffMode ? 'An administrator' : 'You'} can add them (e.g. Laptop, Printer) on the Categories page.
+              </p>
+            )}
+            {errors.articleId && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.articleId}</p>}
+          </div>
+        )}
+
         {/* Description */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Description<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
-          <input className={INPUT_CLASS} placeholder="Article / equipment description" value={form.description} onChange={set('description')} />
+          <input className={INPUT_CLASS} placeholder="Brand and model, e.g. Lenovo ThinkPad E14" value={form.description} onChange={set('description')} />
           {errors.description && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.description}</p>}
         </div>
 
@@ -480,6 +521,12 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">Property Number <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional)</span></label>
               <input className={INPUT_CLASS} placeholder="Leave blank to auto-generate" value={form.propertyNumber} onChange={set('propertyNumber')} />
+              {!isEditing && !form.propertyNumber.trim() && (
+                <p className="text-xs text-slate-600 dark:text-zinc-400">
+                  Will be <span className="font-mono">{numberPreview}</span>
+                  {missingCode && <span className="block text-amber-800 dark:text-amber-300">The chosen {missingCode} has no property number code yet. {staffMode ? 'Ask an administrator to set it' : `Set it on the ${missingCode === 'category' ? 'Categories' : 'Offices'} page`}, or type the number.</span>}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-slate-600 dark:text-zinc-400">PAR Number{parRequired ? <span className="text-red-600 dark:text-red-400 ml-0.5">*</span> : <span className="font-normal"> (optional. This asset has none yet)</span>}</label>

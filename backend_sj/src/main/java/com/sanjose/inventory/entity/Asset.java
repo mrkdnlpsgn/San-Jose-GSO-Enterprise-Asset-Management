@@ -15,7 +15,9 @@ import java.time.LocalDateTime;
 @Builder
 public class Asset {
 
-    public enum AssetCondition { SERVICEABLE, REPAIRABLE, UNSERVICEABLE }
+    // NEW behaves like SERVICEABLE (in use, no maintenance or disposal); it only reads differently
+    // in the Remarks column of the physical count report.
+    public enum AssetCondition { NEW, SERVICEABLE, REPAIRABLE, UNSERVICEABLE }
     public enum LifecycleStatus { REGISTERED, ASSIGNED, TRANSFERRED, UNDER_MAINTENANCE, DISPOSED, ARCHIVED }
 
     @Id
@@ -45,6 +47,10 @@ public class Asset {
     @JoinColumn(name = "category_id", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"description"})
     private Category category;
+
+    // Filled in by ArticleService.attach (assets.article_id, created at startup).
+    @Transient
+    private com.sanjose.inventory.dto.Article article;
 
     @Builder.Default
     @Column(nullable = false)
