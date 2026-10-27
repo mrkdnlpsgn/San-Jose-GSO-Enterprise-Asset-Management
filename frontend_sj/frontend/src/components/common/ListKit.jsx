@@ -1,4 +1,5 @@
 import { useId, useState, useEffect } from 'react'
+import Select, { isTouch } from './Select'
 
 // Shared pieces for every module's list page, so they all look and behave the same:
 //   SearchBox + FilterSelect / FilterBar  - one search box, a few plainly labelled filters,
@@ -74,8 +75,21 @@ export function SearchBox({ value, onChange, placeholder, shortPlaceholder, labe
 
 // A dropdown that always shows what it filters ("Status: Any"); tinted while something other
 // than Any is picked. options: [[value, label], …]
+// With a mouse it opens the same list as the form dropdowns (Select); on touch screens it stays
+// the browser's <select>, so phones keep their own picker.
 export function FilterSelect({ label, value, onChange, options, anyLabel = 'Any' }) {
   const id = useId()
+  if (!isTouch()) {
+    return (
+      <Select id={id} prefix={`${label}:`} value={value} onChange={(e) => onChange(e.target.value)}
+        wrapperClassName="min-w-0 w-full sm:w-auto"
+        className={`w-full sm:w-auto sm:max-w-[18rem] rounded-lg border pl-3 pr-2.5 py-2 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors ${
+          value ? 'border-brand-600 bg-brand-50 dark:bg-brand-500/10' : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-slate-400 dark:hover:border-zinc-600'}`}>
+        <option value="">{anyLabel}</option>
+        {options.map(([val, text]) => <option key={val} value={val}>{text}</option>)}
+      </Select>
+    )
+  }
   return (
     <div className={`relative flex items-center min-w-0 w-full sm:w-auto rounded-lg border focus-within:ring-2 focus-within:ring-brand-500 transition-colors ${
       value ? 'border-brand-600 bg-brand-50 dark:bg-brand-500/10' : 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900'}`}>

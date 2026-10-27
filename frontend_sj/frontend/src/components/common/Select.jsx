@@ -8,8 +8,8 @@ import { createPortal } from 'react-dom'
 //  - on touch screens it stays the browser's <select>, so phones keep their own picker.
 // onChange receives an input-like event ({ target: { name, value } }), the same as DatePicker,
 // so existing `set(key)` handlers keep working. `className` is the page's input style;
-// `wrapperClassName` styles the box around it (a margin, flex-1 in a row). List filters use
-// FilterSelect in ListKit instead.
+// `wrapperClassName` styles the box around it (a margin, flex-1 in a row). `prefix` is shown
+// before the value inside the field (FilterSelect's "Condition:").
 
 const SEARCH_FROM = 8      // show a search box from this many options
 const GAP = 6
@@ -48,14 +48,15 @@ const optionsOf = (children) => {
   return out
 }
 
-const isTouch = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+export const isTouch = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
 
 const Select = forwardRef(function Select(props, ref) {
   return isTouch() ? <NativeSelect ref={ref} {...props} /> : <ListboxSelect {...props} />
 })
 
 // Phones and tablets: the browser's own <select> with our arrow.
-const NativeSelect = forwardRef(function NativeSelect({ className = '', wrapperClassName = '', children, ...props }, ref) {
+// `prefix` is taken out so it doesn't reach the <select>; FilterSelect draws its own label here.
+const NativeSelect = forwardRef(function NativeSelect({ className = '', wrapperClassName = '', prefix, children, ...props }, ref) {
   return (
     <div className={`relative ${wrapperClassName}`}>
       <select ref={ref} className={`${className} appearance-none pr-9 cursor-pointer disabled:cursor-not-allowed`} {...props}>
@@ -66,7 +67,7 @@ const NativeSelect = forwardRef(function NativeSelect({ className = '', wrapperC
   )
 })
 
-function ListboxSelect({ value, onChange, name, id, disabled = false, className = '', wrapperClassName = '', children, ...rest }) {
+function ListboxSelect({ value, onChange, name, id, disabled = false, className = '', wrapperClassName = '', prefix, children, ...rest }) {
   const options = useMemo(() => optionsOf(children), [children])
   const current = String(value ?? '')
   const selected = options.find((o) => o.value === current) || options[0]
@@ -238,7 +239,12 @@ function ListboxSelect({ value, onChange, name, id, disabled = false, className 
         aria-required={rest['aria-required']}
         className={`${className} flex items-center justify-between gap-2 text-left cursor-pointer disabled:cursor-not-allowed`}
       >
-        <span className={`truncate min-w-0 ${isPlaceholder ? 'text-slate-500 dark:text-zinc-400' : ''}`}>{selected?.label ?? ''}</span>
+        <span className="flex items-center gap-1.5 min-w-0">
+          {prefix && <span className="shrink-0 text-slate-600 dark:text-zinc-400">{prefix}</span>}
+          <span className={`truncate min-w-0 ${prefix ? 'font-medium text-slate-900 dark:text-zinc-100' : isPlaceholder ? 'text-slate-500 dark:text-zinc-400' : ''}`}>
+            {selected?.label ?? ''}
+          </span>
+        </span>
         <ChevronIcon className={`h-4 w-4 shrink-0 text-slate-400 dark:text-zinc-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
 
