@@ -122,7 +122,13 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   // given on save). Null while a code is missing, so the form can say which.
   const catCode = categories.find((c) => String(c.id) === String(form.categoryId))?.propertyCode
   const officeCode = offices.find((o) => String(o.id) === String(form.officeId))?.propertyCode
-  const numberPreview = `${form.acquisitionDate ? form.acquisitionDate.slice(0, 7) : 'YYYY-MM'}-${catCode || '???'}-###-${officeCode || '????'}`
+  // The auto-generated number, part by part: real values where known, a plain word where not.
+  const numberPreview = [
+    { label: 'year-month', value: form.acquisitionDate ? form.acquisitionDate.slice(0, 7) : null },
+    { label: 'category',   value: catCode || null },
+    { label: 'no.',        value: null },   // the next free serial, given when the asset is saved
+    { label: 'office',     value: officeCode || null },
+  ]
   const missingCode = form.categoryId && !String(form.categoryId).startsWith('pre:') && !catCode ? 'category'
     : form.officeId && !officeCode ? 'office' : null
 
@@ -507,15 +513,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
 
         {/* Property & PAR Number */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-baseline justify-between gap-3">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Property & PAR Number{parRequired && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}</label>
-            <span className="text-xs text-slate-600 dark:text-zinc-400 font-mono">
-              PAR = {parPrefix(form.acquisitionDate) || 'YYYY-MM'}:SERIAL
-            </span>
-          </div>
+          <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Property & PAR Number{parRequired && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}</label>
           <p className="text-xs text-slate-600 dark:text-zinc-400 -mt-1">
-            The Property Number is unique to this asset (leave blank to auto-generate); the PAR Number's serial
-            is also unique to this asset. The PAR year-month comes from the Acquisition Date above.
+            Leave the Property Number blank and the system will make one. For the PAR Number, type only
+            the serial; the year and month come from the Acquisition Date.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
@@ -523,7 +524,17 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               <input className={INPUT_CLASS} placeholder="Leave blank to auto-generate" value={form.propertyNumber} onChange={set('propertyNumber')} />
               {!isEditing && !form.propertyNumber.trim() && (
                 <p className="text-xs text-slate-600 dark:text-zinc-400">
-                  Will be <span className="font-mono">{numberPreview}</span>
+                  <span className="inline-flex flex-wrap items-center gap-x-0.5 gap-y-1">
+                    <span className="mr-1">Will be</span>
+                    {numberPreview.map((part, i) => (
+                      <span key={part.label} className="inline-flex items-center gap-x-0.5">
+                        {i > 0 && <span className="font-mono">-</span>}
+                        {part.value
+                          ? <span className="font-mono text-slate-700 dark:text-zinc-300">{part.value}</span>
+                          : <span className="rounded bg-slate-100 dark:bg-zinc-800 px-1 text-slate-600 dark:text-zinc-400">{part.label}</span>}
+                      </span>
+                    ))}
+                  </span>
                   {missingCode && <span className="block text-amber-800 dark:text-amber-300">The chosen {missingCode} has no property number code yet. {staffMode ? 'Ask an administrator to set it' : `Set it on the ${missingCode === 'category' ? 'Categories' : 'Offices'} page`}, or type the number.</span>}
                 </p>
               )}
