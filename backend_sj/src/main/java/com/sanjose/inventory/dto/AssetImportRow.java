@@ -19,7 +19,7 @@ public class AssetImportRow {
     private String accountablePerson;
     private String currentUser; // optional - who currently has the asset, if different from accountablePerson
     private String location;
-    private String condition;       // NEW | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
+    private String condition;       // NEW | GOOD | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
     private String article;         // optional, an article name of the row's category
     private String specifications;
     private String remarks;

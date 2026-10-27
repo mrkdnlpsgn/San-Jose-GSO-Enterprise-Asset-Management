@@ -19,6 +19,7 @@ class StatusBadge extends StatelessWidget {
   static StatusBadge condition(String value) {
     final color = switch (value) {
       'NEW' => AppTheme.statusRegistered,         // web: sky
+      'GOOD' => AppTheme.conditionGood,           // web: teal
       'SERVICEABLE' => AppTheme.statusAssigned,   // web: emerald
       'REPAIRABLE' => AppTheme.statusMaintenance,
       'UNSERVICEABLE' => AppTheme.statusDisposed,
@@ -26,6 +27,7 @@ class StatusBadge extends StatelessWidget {
     };
     final display = switch (value) {
       'NEW' => 'New',
+      'GOOD' => 'Good',
       'SERVICEABLE' => 'Serviceable',
       'REPAIRABLE' => 'Repairable',
       'UNSERVICEABLE' => 'Unserviceable',

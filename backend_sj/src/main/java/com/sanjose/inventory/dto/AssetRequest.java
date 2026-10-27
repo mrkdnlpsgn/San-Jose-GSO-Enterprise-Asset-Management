@@ -29,7 +29,7 @@ public class AssetRequest {
     private Integer shortageOverageQty;
     private BigDecimal shortageOverageValue;
     private String location;
-    private String condition;       // NEW | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
+    private String condition;       // NEW | GOOD | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
     // An article of the chosen category. On an edit, null keeps the current one (older clients
     // such as the mobile app don't send it) unless the category changed; 0 clears it.
     private Long articleId;

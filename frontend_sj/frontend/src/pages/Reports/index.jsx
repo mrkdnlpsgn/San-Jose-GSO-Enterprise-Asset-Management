@@ -4,12 +4,12 @@ import MainLayout from '../../components/layout/MainLayout'
 import Button from '../../components/common/Button'
 import DatePicker from '../../components/common/DatePicker'
 import { useToast } from '../../context/ToastContext'
-import { manilaDateKey, manilaDateTime } from '../../utils/helpers'
+import { manilaDateKey } from '../../utils/helpers'
 import api from '../../services/api'
-import { getAssetHistory } from '../../services/assetHistoryService'
 import { getPropertyCards } from '../../services/propertyCardService'
 import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 import { openPrintWindow } from '../../utils/printWindow'
+import { printForm, toPages, longDate } from '../../utils/printForm'
 import { printRpcppe, exportRpcppeExcel, rpcppeRows, rpcppeLine, RPCPPE_DEFAULTS } from '../../utils/rpcppeExport'
 
 // Reports need the full dataset, not a paginated page. getAssets()/getDisposal()/getMaintenance()
@@ -184,7 +184,8 @@ const REPORTS = [
   {
     id: 'condition',
     title: 'Condition Report',
-    description: 'Asset breakdown by condition: serviceable, repairable, and unserviceable counts.',
+    printTitle: 'REPORT ON THE CONDITION OF PROPERTY, PLANT AND EQUIPMENT',
+    description: 'Asset breakdown by condition: new, good, serviceable, repairable, and unserviceable counts.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
@@ -218,78 +219,15 @@ const REPORTS = [
       { label: 'Total Value (₱)', display: (r) => r.totalValue > 0 ? fmtMoney(r.totalValue) : 'N/A',                                                       raw: (r) => r.totalValue > 0 ? r.totalValue.toFixed(2) : '' },
       { label: 'Offices',         display: (r) => <span className="text-slate-400 dark:text-zinc-400 text-xs">{r.offices}</span>,                         raw: (r) => r.offices },
     ],
-  },
-  {
-    id: 'history',
-    title: 'Asset History',
-    description: 'Full log of all asset events: assignments, transfers, maintenance, and disposals.',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-      </svg>
-    ),
-    async load() {
-      return (await getAssetHistory()).data
-    },
-    dateField: 'eventDate',
-    headers: [
-      { label: 'Asset',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || 'N/A'}</span>,       raw: (r) => r.asset?.description || '' },
-      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.asset?.propertyNumber || 'N/A'}</span>,                             raw: (r) => r.asset?.propertyNumber || '' },
-      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.asset?.parNumber || 'N/A'}</span>,                             raw: (r) => r.asset?.parNumber || '' },
-      { label: 'Event Type',      display: (r) => r.eventType || 'N/A',                                                                                     raw: (r) => r.eventType || '' },
-      { label: 'From Office',     display: (r) => r.fromOffice?.officeName || 'N/A',                                                                        raw: (r) => r.fromOffice?.officeName || '' },
-      { label: 'To Office',       display: (r) => r.toOffice?.officeName || 'N/A',                                                                          raw: (r) => r.toOffice?.officeName || '' },
-      { label: 'Performed By',    display: (r) => r.performedBy?.fullName || r.performedBy?.username || 'N/A',                                              raw: (r) => r.performedBy?.fullName || r.performedBy?.username || '' },
-      { label: 'Notes',           display: (r) => r.notes ? <span className="max-w-[10rem] truncate block" title={r.notes}>{r.notes}</span> : 'N/A',        raw: (r) => r.notes || '' },
-      { label: 'Date',            display: (r) => <span className="text-xs whitespace-nowrap">{fmtDate(r.eventDate)}</span>,                              raw: (r) => manilaDateTime(r.eventDate) },
-    ],
-  },
-  {
-    id: 'valuation',
-    title: 'Asset Valuation',
-    description: 'Financial summary of GSO asset acquisition values, sorted by unit value.',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-      </svg>
-    ),
-    async load() {
-      return (await getAllAssets()).data
-    },
-    dateField: 'acquisitionDate',
-    transform(assets) {
-      return assets
-        .filter((a) => a.unitValue != null && a.unitValue !== '')
-        .sort((a, b) => Number(b.unitValue) - Number(a.unitValue))
-    },
-    extraRows: (rows) => {
-      const total = rows.reduce((s, r) => s + (Number(r.unitValue) || 0) * (Number(r.quantity) || 1), 0)
-      return [
-        ...rows,
-        {
-          propertyNumber: 'TOTAL ACQUISITION VALUE',
-          description: '', category: null, condition: '', lifecycleStatus: '',
-          unitValue: total, quantity: 1, acquisitionDate: '', office: null,
-          location: '', accountablePerson: null, remarks: '',
-        },
-      ]
-    },
-    headers: [
-      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                   raw: (r) => r.propertyNumber || '' },
-      { label: 'PAR No.',       display: (r) => <span className="font-mono text-xs">{r.parNumber || 'N/A'}</span>,                                   raw: (r) => r.parNumber || '' },
-      { label: 'Description',     display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,              raw: (r) => r.description || '' },
-      { label: 'Category',        display: (r) => r.category?.categoryName || 'N/A',                                                                        raw: (r) => r.category?.categoryName || '' },
-      { label: 'Condition',       display: (r) => r.condition || 'N/A',                                                                                     raw: (r) => r.condition || '' },
-      { label: 'Unit Value',      display: (r) => <span className="font-semibold text-amber-400">{fmtMoney(r.unitValue)}</span>,                          raw: (r) => Number(r.unitValue).toFixed(2) },
-      { label: 'Quantity',        display: (r) => r.quantity ?? 1,                                                                                        raw: (r) => r.quantity ?? 1 },
-      { label: 'Total Value',     display: (r) => fmtMoney((Number(r.unitValue) || 0) * (Number(r.quantity) || 1)),                                       raw: (r) => ((Number(r.unitValue) || 0) * (Number(r.quantity) || 1)).toFixed(2) },
-      { label: 'Acq. Date',       display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
-      { label: 'Office',          display: (r) => r.office?.officeName || 'N/A',                                                                            raw: (r) => r.office?.officeName || '' },
+    certification: [
+      { label: 'Prepared by:', caption: 'Signature over Printed Name of Property Custodian / GSO Staff' },
+      { label: 'Approved by:', caption: 'Signature over Printed Name of Municipal General Services Officer' },
     ],
   },
   {
     id: 'maintenance',
     title: 'Maintenance Ledger',
+    printTitle: 'MAINTENANCE AND REPAIR LEDGER',
     description: 'All maintenance and repair records for GSO assets.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -305,7 +243,7 @@ const REPORTS = [
       { label: 'Type',            display: (r) => r.maintenanceType || 'N/A',                                                                               raw: (r) => r.maintenanceType || '' },
       { label: 'Findings',        display: (r) => r.findings ? <span className="max-w-[11.25rem] truncate block" title={r.findings}>{r.findings}</span> : 'N/A', raw: (r) => r.findings || '' },
       { label: 'Status',          display: (r) => r.status || 'N/A',                                                                                        raw: (r) => r.status || '' },
-      { label: 'Assigned To',     display: (r) => r.assignedTo?.fullName || r.assignedTo?.username || 'N/A',                                                raw: (r) => r.assignedTo?.fullName || r.assignedTo?.username || '' },
+      { label: 'Assigned To',     display: (r) => r.assignedTo || 'N/A',                                                                                     raw: (r) => r.assignedTo || '' },
       { label: 'Cost',            display: (r) => r.cost != null ? fmtMoney(r.cost) : 'N/A',                                                               raw: (r) => r.cost != null ? Number(r.cost).toFixed(2) : '' },
       { label: 'Date',            display: (r) => fmtDate(r.maintenanceDate),                                                                             raw: (r) => r.maintenanceDate || '' },
       { label: 'Recorded By',     display: (r) => r.recordedBy?.fullName || r.recordedBy?.username || 'N/A',                                               raw: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '' },
@@ -392,6 +330,7 @@ const REPORTS = [
   {
     id: 'iirup',
     title: 'IIRUP (Unserviceable Property)',
+    printTitle: 'INVENTORY AND INSPECTION REPORT OF UNSERVICEABLE PROPERTY',
     description: 'COA-format Inventory and Inspection Report of Unserviceable Property, for items pending disposal.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -421,10 +360,10 @@ const REPORTS = [
       { label: 'Amount',                        display: (r) => fmtMoney(r.amount),                                                                               raw: (r) => r.amount != null ? Number(r.amount).toFixed(2) : '' },
     ],
     certification: [
-      'Inspected by: GSO Inspector',
-      'Certified Correct by: Inventory Committee Chairman',
-      'Recommending Approval: Head of Office',
-      'Approved by: Local Chief Executive (Municipal Mayor)',
+      { label: 'Inspected by:',          caption: 'Signature over Printed Name of GSO Inspector' },
+      { label: 'Certified Correct by:',  caption: 'Signature over Printed Name of Inventory Committee Chairman' },
+      { label: 'Recommending Approval:', caption: 'Signature over Printed Name of Head of Office' },
+      { label: 'Approved by:',           caption: 'Signature over Printed Name of Local Chief Executive (Municipal Mayor)' },
     ],
   },
 ]
@@ -452,59 +391,37 @@ async function exportExcel(rows, headers, title) {
   XLSX.writeFile(wb, `${safeName(title).replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-function exportPDF(rows, headers, title, certification) {
-  const headerCells = headers.map((h) => `<th>${esc(h.label)}</th>`).join('')
-  const bodyRows = rows.map((row) =>
-    `<tr>${headers.map(({ raw }) => `<td>${esc(raw(row)) || 'N/A'}</td>`).join('')}</tr>`
-  ).join('')
+// Printed in the standard (RPCPPE) format: the title block and table header on every page,
+// at most 8 rows a page, and the report's signatures once after the last page.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+)?$/
+function printCell(v) {
+  const s = String(v ?? '')
+  if (ISO_DATE.test(s)) return `<td class="c">${esc(fmtDate(s))}</td>`
+  if (/^-?\d+\.\d{2}$/.test(s)) return `<td class="r">${Number(s).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>`
+  if (/^\d+$/.test(s)) return `<td class="c">${s}</td>`
+  return `<td>${esc(s)}</td>`
+}
 
-  const certifyBlock = certification?.length ? `
-  <div class="certify">
-    ${certification.map((role) => `
-    <div class="sig-block">
-      <div class="sig-line"></div>
-      <p class="sig-role">${esc(role)}</p>
-    </div>`).join('')}
-  </div>` : ''
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>${esc(title)}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; padding: 28px; color: #111827; }
-    .header { margin-bottom: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; }
-    .header h1 { font-size: 18px; font-weight: 700; color: #111827; }
-    .header p  { font-size: 10px; color: #6b7280; margin-top: 3px; }
-    table  { width: 100%; border-collapse: collapse; font-size: 10px; }
-    th     { background: #f9fafb; text-align: left; padding: 7px 8px; font-weight: 600; font-size: 9px; text-transform: uppercase; letter-spacing: .05em; border: 1px solid #e5e7eb; color: #374151; }
-    td     { padding: 5px 8px; border: 1px solid #e5e7eb; vertical-align: top; color: #374151; }
-    tr:nth-child(even) td { background: #f9fafb; }
-    .footer { margin-top: 16px; font-size: 9px; color: #9ca3af; border-top: 1px solid #f3f4f6; padding-top: 8px; }
-    .certify { display: flex; flex-wrap: wrap; gap: 32px; margin-top: 48px; page-break-inside: avoid; }
-    .sig-block { width: 200px; }
-    .sig-line { border-bottom: 1px solid #111827; height: 36px; }
-    .sig-role { font-size: 9px; text-align: center; margin-top: 4px; color: #374151; }
-    @media print { body { padding: 0; } }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>${esc(title)}</h1>
-    <p>San Jose Municipal Hall &middot; GSO Inventory Management System &middot; Generated: ${new Date().toLocaleString('en-PH')} &middot; ${rows.length} record(s)</p>
+function exportPDF(rows, report, { from, to }, settings) {
+  const s = { ...RPCPPE_DEFAULTS, ...settings }
+  const today = manilaDateKey(new Date())
+  const period = from
+    ? `For the period ${longDate(from)} to ${longDate(to || today)}`
+    : `As at ${longDate(to || today)}`
+  const headerCells = report.headers.map((h) => `<th>${esc(h.label.toUpperCase())}</th>`).join('')
+  const pages = toPages(rows).map((pageRows) => `<section class="form${report.headers.length > 12 ? ' dense' : ''}">
+  <div class="title">
+    <h1>${esc(report.printTitle || report.title.toUpperCase())}</h1>
+    <h2>${esc((s.entity || '').toUpperCase())}</h2>
+    <p>${esc(period)}</p>
   </div>
+  <p class="fund">Fund Cluster : ${esc((s.fundCluster || '').toUpperCase())}</p>
   <table>
     <thead><tr>${headerCells}</tr></thead>
-    <tbody>${bodyRows}</tbody>
+    <tbody>${pageRows.map((row) => `<tr>${report.headers.map(({ raw }) => printCell(raw(row))).join('')}</tr>`).join('')}</tbody>
   </table>
-  ${certifyBlock}
-  <p class="footer">This is a system-generated report. &copy; ${new Date().getFullYear()} San Jose Municipal Hall.</p>
-  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
-</body>
-</html>`
-
-  openPrintWindow().write(html)
+</section>`).join('\n')
+  printForm(report.printTitle || report.title, pages, report.certification)
 }
 
 // ── PAR form export ───────────────────────────────────────────────────────────
@@ -747,18 +664,6 @@ function MiniTable({ headers, rows, rowKey }) {
         ))}
       </tbody>
     </table>
-  )
-}
-
-// ── Totals row for valuation report ──────────────────────────────────────────
-function ValuationTotalsRow({ rows }) {
-  const total = rows.reduce((s, r) => s + (Number(r.unitValue) || 0) * (Number(r.quantity) || 1), 0)
-  return (
-    <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/60">
-      <td className="px-4 py-3 text-sm font-bold text-slate-900 dark:text-white" colSpan={6}>Total</td>
-      <td className="px-4 py-3 text-sm font-bold text-amber-400">{fmtMoney(total)}</td>
-      <td className="px-4 py-3" colSpan={2} />
-    </tr>
   )
 }
 
@@ -1032,7 +937,7 @@ function Reports() {
                   </svg>
                   <span className="hidden sm:inline">Export Excel{exportCount}</span>
                 </Button>
-                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportPdf(pickedItems, rpcppeSettings) : exportPDF(getExportRows(), activeReport.headers, activeReport.title, activeReport.certification)}>
+                <Button variant="secondary" size="md" disabled={exportDisabled} onClick={() => pick ? pick.exportPdf(pickedItems, rpcppeSettings) : exportPDF(getExportRows(), activeReport, { from: dateFrom, to: dateTo }, rpcppeSettings)}>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:mr-1.5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
                   </svg>
@@ -1122,7 +1027,6 @@ function Reports() {
                   </thead>
                   <tbody className="bg-white dark:bg-zinc-950 divide-y divide-slate-100 dark:divide-zinc-800/60">
                     {pagedRows.map((row, i) => renderReportRow(row, `r:${(page - 1) * PAGE_SIZE + i}`))}
-                    {activeId === 'valuation' && <ValuationTotalsRow rows={displayRows} />}
                   </tbody>
                 </table>
               </div>

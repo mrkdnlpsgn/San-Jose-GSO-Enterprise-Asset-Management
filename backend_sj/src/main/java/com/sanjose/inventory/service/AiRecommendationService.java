@@ -118,7 +118,7 @@ public class AiRecommendationService {
             .setScale(2, RoundingMode.HALF_UP);
 
         int conditionScore = switch (asset.getCondition()) {
-            case NEW, SERVICEABLE -> 3;
+            case NEW, GOOD, SERVICEABLE -> 3;
             case REPAIRABLE -> 2;
             case UNSERVICEABLE -> 1;
         };

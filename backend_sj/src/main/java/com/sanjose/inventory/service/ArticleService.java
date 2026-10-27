@@ -33,7 +33,7 @@ public class ArticleService {
 
     // Created here rather than in a migration script so a fresh or hosted database
     // (Render/Aiven, where Hibernate DDL is off) gets them on the next deploy.
-    // Also widens the asset condition columns to take NEW. Every step is a no-op once done.
+    // Also widens the asset condition columns to take NEW and GOOD. Every step is a no-op once done.
     @PostConstruct
     void ensureSchema() {
         jdbcTemplate.execute("""
@@ -58,9 +58,9 @@ public class ArticleService {
                 "SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
                     + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'condition' AND DATA_TYPE = 'enum'",
                 String.class, table);
-            if (!types.isEmpty() && !types.get(0).contains("'NEW'")) {
+            if (!types.isEmpty() && !types.get(0).contains("'GOOD'")) {
                 jdbcTemplate.execute("ALTER TABLE " + table + " MODIFY `condition` "
-                    + "enum('NEW','SERVICEABLE','REPAIRABLE','UNSERVICEABLE') COLLATE utf8mb4_general_ci NOT NULL");
+                    + "enum('NEW','GOOD','SERVICEABLE','REPAIRABLE','UNSERVICEABLE') COLLATE utf8mb4_general_ci NOT NULL");
             }
         }
     }

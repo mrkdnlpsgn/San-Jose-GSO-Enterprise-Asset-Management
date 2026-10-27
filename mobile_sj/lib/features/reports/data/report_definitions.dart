@@ -1,267 +1,655 @@
+// The reports, one for one with the web Reports page (frontend pages/Reports/index.jsx): the
+// same reports in the same order, reading the same API data, with the same columns, filters and
+// exports. A change there should be made here too.
+
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../assets/data/asset_service.dart';
-import '../../assets/model/asset_model.dart';
-import '../../asset_history/data/asset_history_service.dart';
-import '../../disposal/data/disposal_service.dart';
-import '../../disposal/model/disposal_model.dart';
-import '../../maintenance/data/maintenance_service.dart';
+import 'package:pdf/pdf.dart' show PdfPageFormat;
+
+import '../../../core/api/api_client.dart';
 import '../model/report_definition.dart';
-import '../utils/formatters.dart';
+import '../utils/export_excel.dart';
+import '../utils/forms_pdf.dart';
+import '../utils/print_form.dart';
+import '../utils/report_format.dart';
 
-/// Reports need the full dataset, not one paginated page. AssetService/DisposalService/
-/// MaintenanceService default to the backend's page size of 20 (fine for list screens,
-/// wrong here), so ask for a size large enough to always cover a single municipal
-/// office's inventory in one request.
-const _kAllRowsSize = 100000;
-
-String _cell(dynamic row, String Function(AssetModel) fromAsset) =>
-    row is AssetModel ? fromAsset(row) : '';
-
-class _ConditionSummary {
-  final String condition;
-  final int count;
-  final double totalValue;
-  final String offices;
-  const _ConditionSummary(this.condition, this.count, this.totalValue, this.offices);
+// Reports need the full dataset, not a page of it: the backend's page size is 20, so ask for
+// enough to always cover a municipal office's inventory in one request.
+Future<List<ReportRow>> _fetch(String path, {bool paged = true}) async {
+  final res = await ApiClient.instance.dio.get(path, queryParameters: paged ? {'size': 100000} : null);
+  return [for (final r in res.data as List) Map<String, dynamic>.from(r as Map)];
 }
 
-// RPCPPE physical-count variance: quantity per records vs. quantity per physical count.
-// physicalCount is null until someone has actually counted the asset - don't assume a shortage.
-int? _assetVariance(AssetModel a) {
-  if (a.physicalCount == null) return null;
-  return a.physicalCount! - a.quantity;
+num _lineAmount(ReportRow r) => toNum(r['unitValue']) * toNum(r['quantity'], 1);
+String _uniqueJoined(List<ReportRow> rows, Object? Function(ReportRow) pick) =>
+    {for (final r in rows) str(pick(r))}.where((s) => s.isNotEmpty).join(', ');
+String _orNa(Object? v) => str(v).isEmpty ? 'N/A' : str(v);
+String _fixed(Object? v) => v == null || v == '' ? '' : toNum(v).toStringAsFixed(2);
+
+// ── RPCPPE ───────────────────────────────────────────────────────────────────
+
+const rpcppeDefaults = <String, String>{
+  'asAt': '',
+  'fundCluster': 'General Fund',
+  'officer': 'REGIE B. AGNO',
+  'designation': 'Municipal General Services Officer',
+  'entity': 'Municipality of San Jose, Batangas',
+  'assumedOn': '2018-12-01',
+};
+
+/// One report line per asset, in the form's column order.
+Map<String, Object> rpcppeLine(ReportRow a) {
+  final so = toNum(a['shortageOverageQty']);
+  final soValue = toNum(a['shortageOverageValue']);
+  return {
+    'article': str(at(a, 'article.articleName')),
+    'location': str(at(a, 'office.officeName')),
+    'description': str(a['description']),
+    'propertyNumber': str(a['propertyNumber']),
+    'unit': 'unit',
+    'unitValue': a['unitValue'] != null ? toNum(a['unitValue']) : '',
+    'qtyCard': a['quantity'] ?? 1,
+    'qtyCount': a['physicalCount'] ?? '',
+    // like the paper form, shortage/overage stays blank when nothing was found
+    'soQty': so != 0 ? so : '',
+    'soValue': so != 0 || soValue != 0 ? soValue : '',
+    'remarks': str(a['condition']).toLowerCase(),
+  };
 }
 
-String _fmtVariance(AssetModel a) {
-  final v = _assetVariance(a);
-  if (v == null) return 'Not yet counted';
-  if (v == 0) return 'None';
-  return v > 0 ? '+$v (Overage)' : '$v (Shortage)';
+/// Items on hand as at the report date, sorted the way the form lists them.
+List<ReportRow> rpcppeRows(List<ReportRow> assets, String asAt) {
+  final rows = assets.where((a) {
+    final d = str(a['acquisitionDate']);
+    return asAt.isEmpty || d.isEmpty || d.compareTo(asAt) <= 0;
+  }).toList();
+  int cmp(String a, String b) => a.compareTo(b);
+  rows.sort((x, y) {
+    final ax = str(at(x, 'article.articleName')), ay = str(at(y, 'article.articleName'));
+    final r = cmp(ax.isEmpty ? '￿' : ax, ay.isEmpty ? '￿' : ay);
+    if (r != 0) return r;
+    final o = cmp(str(at(x, 'office.officeName')), str(at(y, 'office.officeName')));
+    return o != 0 ? o : cmp(str(x['propertyNumber']), str(y['propertyNumber']));
+  });
+  return rows;
 }
 
-double _varianceValue(AssetModel a) {
-  final v = _assetVariance(a);
-  return v == null ? 0 : v * a.unitValue;
-}
+String _asAtText(Map<String, String> s) =>
+    'As at ${longDate(s['asAt']).isNotEmpty ? longDate(s['asAt']) : longDate(todayKey())}';
 
-List<ReportDefinition> buildReportDefinitions() {
-  final assetService = AssetService();
-  final disposalService = DisposalService();
-  final maintenanceService = MaintenanceService();
-  final historyService = AssetHistoryService();
+const _blank = '________________';
+String _orBlank(String? v) => (v ?? '').isEmpty ? _blank : v!;
 
-  return [
-    ReportDefinition(
-      id: 'inventory',
-      title: 'Asset Inventory',
-      subtitle: 'Complete list of all ICT assets with condition, lifecycle status, and location.',
-      icon: Icons.inventory_2_outlined,
-      color: AppTheme.brand,
-      load: () => assetService.getAll(size: _kAllRowsSize),
-      columns: [
-        ReportColumn('Property No.', (row) => (row as AssetModel).propertyNumber),
-        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? 'N/A'),
-        ReportColumn('Description', (row) => (row as AssetModel).description),
-        ReportColumn('Category', (row) => (row as AssetModel).category.categoryName),
-        ReportColumn('Condition', (row) => (row as AssetModel).condition),
-        ReportColumn('Lifecycle', (row) => (row as AssetModel).lifecycleStatus.replaceAll('_', ' ')),
-        ReportColumn('Office', (row) => (row as AssetModel).office.officeName),
-        ReportColumn('Location', (row) => (row as AssetModel).location),
-        ReportColumn('Accountable', (row) => (row as AssetModel).accountablePerson?.fullName ?? 'N/A'),
-        ReportColumn('Current User', (row) => (row as AssetModel).currentUser?.fullName ?? 'N/A'),
-        ReportColumn('Qty', (row) => (row as AssetModel).quantity.toString()),
-        ReportColumn('Unit Value', (row) => fmtMoney((row as AssetModel).unitValue)),
-        ReportColumn('Acq. Date', (row) => fmtDate((row as AssetModel).acquisitionDate)),
-      ],
-    ),
-    ReportDefinition(
-      id: 'condition',
-      title: 'Condition Report',
-      subtitle: 'Asset breakdown by condition: serviceable, repairable, and unserviceable counts.',
-      icon: Icons.pie_chart_outline_rounded,
-      color: AppTheme.info,
-      load: () async {
-        final assets = await assetService.getAll(size: _kAllRowsSize);
-        final map = <String, _RunningSummary>{};
-        for (final a in assets) {
-          final s = map.putIfAbsent(a.condition, () => _RunningSummary());
-          s.count++;
-          s.totalValue += a.unitValue * a.quantity;
-          s.offices.add(a.office.officeName);
-        }
-        final rows = map.entries
-            .map((e) => _ConditionSummary(e.key, e.value.count, e.value.totalValue, e.value.offices.join(', ')))
-            .toList()
-          ..sort((a, b) => b.count.compareTo(a.count));
-        return rows;
-      },
-      columns: [
-        ReportColumn('Condition', (row) => (row as _ConditionSummary).condition),
-        ReportColumn('Count', (row) => (row as _ConditionSummary).count.toString()),
-        ReportColumn('Total Value', (row) {
-          final r = row as _ConditionSummary;
-          return r.totalValue > 0 ? fmtMoney(r.totalValue) : 'N/A';
-        }),
-        ReportColumn('Offices', (row) {
-          final offices = (row as _ConditionSummary).offices;
-          return offices.isEmpty ? 'N/A' : offices;
-        }),
-      ],
-    ),
-    ReportDefinition(
-      id: 'history',
-      title: 'Asset History',
-      subtitle: 'Full log of all asset events: assignments, transfers, maintenance, and disposals.',
-      icon: Icons.history_rounded,
-      color: AppTheme.statusTransferred,
-      load: () => historyService.getAll(),
-      columns: [
-        ReportColumn('Asset', (row) => row.asset.description as String),
-        ReportColumn('Property No.', (row) => row.asset.propertyNumber as String),
-        ReportColumn('PAR No.', (row) => row.asset.parNumber ?? 'N/A'),
-        ReportColumn('Event Type', (row) => row.eventType as String),
-        ReportColumn('From Office', (row) => row.fromOffice?.officeName ?? 'N/A'),
-        ReportColumn('To Office', (row) => row.toOffice?.officeName ?? 'N/A'),
-        ReportColumn('Performed By', (row) => row.performedBy.fullName as String),
-        ReportColumn('Notes', (row) => row.notes ?? 'N/A'),
-        ReportColumn('Date', (row) => fmtDate(row.eventDate as String)),
-      ],
-    ),
-    ReportDefinition(
-      id: 'valuation',
-      title: 'Asset Valuation',
-      subtitle: 'Financial summary of ICT asset acquisition values, sorted by unit value.',
-      icon: Icons.payments_outlined,
-      color: AppTheme.statusMaintenance,
-      load: () async {
-        final assets = await assetService.getAll(size: _kAllRowsSize);
-        final sorted = [...assets]..sort((a, b) => b.unitValue.compareTo(a.unitValue));
-        return sorted;
-      },
-      extraRows: (rows) {
-        final total = rows.fold<double>(
-            0, (s, r) => s + (r as AssetModel).unitValue * r.quantity);
-        return [...rows, {'label': 'TOTAL ACQUISITION VALUE', 'total': total}];
-      },
-      columns: [
-        ReportColumn('Property No.', (row) => row is Map ? row['label'] as String : (row as AssetModel).propertyNumber),
-        ReportColumn('PAR No.', (row) => row is Map ? '' : (row as AssetModel).parNumber ?? 'N/A'),
-        ReportColumn('Description', (row) => _cell(row, (a) => a.description)),
-        ReportColumn('Category', (row) => _cell(row, (a) => a.category.categoryName)),
-        ReportColumn('Condition', (row) => _cell(row, (a) => a.condition)),
-        ReportColumn('Unit Value', (row) => row is Map ? '' : fmtMoney((row as AssetModel).unitValue)),
-        ReportColumn('Quantity', (row) => _cell(row, (a) => a.quantity.toString())),
-        ReportColumn('Total Value', (row) =>
-            row is Map ? fmtMoney(row['total'] as num) : fmtMoney((row as AssetModel).unitValue * row.quantity)),
-        ReportColumn('Acq. Date', (row) => _cell(row, (a) => fmtDate(a.acquisitionDate))),
-        ReportColumn('Office', (row) => _cell(row, (a) => a.office.officeName)),
-      ],
-    ),
-    ReportDefinition(
-      id: 'maintenance',
-      title: 'Maintenance Ledger',
-      subtitle: 'All maintenance and repair records for ICT assets.',
-      icon: Icons.build_outlined,
-      color: AppTheme.statusMaintenance,
-      load: () => maintenanceService.getAll(size: _kAllRowsSize),
-      columns: [
-        ReportColumn('Asset', (row) => row.asset.description as String),
-        ReportColumn('Type', (row) => row.maintenanceType as String),
-        ReportColumn('Findings', (row) => row.findings as String),
-        ReportColumn('Status', (row) => row.status as String),
-        ReportColumn('Assigned To', (row) => row.assignedTo ?? 'N/A'),
-        ReportColumn('Cost', (row) => fmtMoney(row.cost)),
-        ReportColumn('Date', (row) => fmtDate(row.maintenanceDate as String)),
-        ReportColumn('Recorded By', (row) => row.recordedBy.fullName as String),
-      ],
-    ),
-    ReportDefinition(
-      id: 'rpcppe',
-      title: 'RPCPPE (Physical Count)',
-      subtitle: 'COA-format Report on the Physical Count of Property, Plant and Equipment: '
-          'records vs. physical count variance.',
-      icon: Icons.fact_check_outlined,
-      color: AppTheme.brandDark,
-      load: () => assetService.getAll(size: _kAllRowsSize),
-      columns: [
-        ReportColumn('Article', (row) => (row as AssetModel).category.categoryName),
-        ReportColumn('Description', (row) => (row as AssetModel).description),
-        ReportColumn('Property No.', (row) => (row as AssetModel).propertyNumber),
-        ReportColumn('PAR No.', (row) => (row as AssetModel).parNumber ?? 'N/A'),
-        ReportColumn('Unit Value', (row) => fmtMoney((row as AssetModel).unitValue)),
-        ReportColumn('Qty per Records', (row) => (row as AssetModel).quantity.toString()),
-        ReportColumn('Qty per Phys. Count', (row) => (row as AssetModel).physicalCount?.toString() ?? 'N/A'),
-        ReportColumn('Shortage/Overage', (row) => _fmtVariance(row as AssetModel)),
-        ReportColumn('Value of Variance', (row) {
-          final v = _varianceValue(row as AssetModel);
-          return v != 0 ? fmtMoney(v) : 'N/A';
-        }),
-        ReportColumn('Location', (row) => (row as AssetModel).location),
-        ReportColumn('Condition', (row) => (row as AssetModel).condition),
-        ReportColumn('Remarks', (row) => (row as AssetModel).remarks ?? 'N/A'),
-      ],
-      certification: const [
-        'Prepared by: Property Custodian / GSO Staff',
-        'Certified Correct by: Inventory Committee Chairman',
-        'Member, Inventory Committee',
-        'Member, Inventory Committee',
-        'Verified by: COA Representative',
-      ],
-    ),
-    ReportDefinition(
-      id: 'iirup',
-      title: 'IIRUP (Unserviceable Property)',
-      subtitle: 'COA-format Inventory and Inspection Report of Unserviceable Property, '
-          'for items pending disposal.',
-      icon: Icons.delete_forever_outlined,
-      color: AppTheme.statusDisposed,
-      load: () => disposalService.getAll(size: _kAllRowsSize),
-      columns: [
-        ReportColumn('Date Acquired', (row) => fmtDate((row as DisposalModel).asset.acquisitionDate)),
-        ReportColumn('Particulars/Article', (row) => (row as DisposalModel).asset.description),
-        ReportColumn('Property No.', (row) => (row as DisposalModel).asset.propertyNumber),
-        ReportColumn('PAR No.', (row) => (row as DisposalModel).asset.parNumber ?? 'N/A'),
-        ReportColumn('Qty.', (row) => (row as DisposalModel).asset.quantity.toString()),
-        ReportColumn('Unit Cost', (row) => fmtMoney((row as DisposalModel).asset.unitValue)),
-        ReportColumn('Total Cost', (row) {
-          final d = row as DisposalModel;
-          return fmtMoney(d.asset.unitValue * d.asset.quantity);
-        }),
-        ReportColumn('Remarks', (row) => (row as DisposalModel).inspectionFindings),
-        ReportColumn('Sale', (row) {
-          final d = row as DisposalModel;
-          return d.recommendedMethod == 'SALE' ? d.asset.quantity.toString() : 'N/A';
-        }),
-        ReportColumn('Transfer', (row) {
-          final d = row as DisposalModel;
-          return d.recommendedMethod == 'TRANSFER' ? d.asset.quantity.toString() : 'N/A';
-        }),
-        ReportColumn('Destruction', (row) {
-          final d = row as DisposalModel;
-          return d.recommendedMethod == 'DESTRUCTION' ? d.asset.quantity.toString() : 'N/A';
-        }),
-        ReportColumn('Others (Specify)', (row) {
-          final d = row as DisposalModel;
-          return d.recommendedMethod == 'OTHERS' ? d.asset.quantity.toString() : 'N/A';
-        }),
-        ReportColumn('Total', (row) => (row as DisposalModel).asset.quantity.toString()),
-        ReportColumn('Appraised Value', (row) => fmtMoney((row as DisposalModel).appraisedValue)),
-        ReportColumn('OR No.', (row) => (row as DisposalModel).orNumber ?? 'N/A'),
-        ReportColumn('Amount', (row) => fmtMoney((row as DisposalModel).amount)),
-      ],
-      certification: const [
-        'Inspected by: GSO Inspector',
-        'Certified Correct by: Inventory Committee Chairman',
-        'Recommending Approval: Head of Office',
-        'Approved by: Local Chief Executive (Municipal Mayor)',
-      ],
-    ),
+String _accountability(Map<String, String> s) =>
+    'For which ${_orBlank(s['officer'])}, ${_orBlank(s['designation'])}, ${_orBlank(s['entity'])} is accountable, '
+    'having assumed such accountability on ${_orBlank(longDate(s['assumedOn']))}.';
+
+/// The printed form sets the officer and the date in bold.
+List<TextRun> _accountabilityRuns(Map<String, String> s) => [
+      const TextRun('For which '),
+      TextRun('${_orBlank(s['officer'])}, ${_orBlank(s['designation'])}, ${_orBlank(s['entity'])}', bold: true),
+      const TextRun(' is accountable, having assumed such accountability on '),
+      TextRun(_orBlank(longDate(s['assumedOn'])), bold: true),
+      const TextRun('.'),
+    ];
+
+// Column widths (%) measured from the GSO's printed form.
+const _rpcppeColumns = [
+  FormColumn('ARTICLE', width: 7),
+  FormColumn('LOCATION', width: 8),
+  FormColumn('DESCRIPTION', width: 17),
+  FormColumn('PROPERTY NUMBER', width: 11, align: 'c'),
+  FormColumn('UNIT OF MEASURE', width: 8, align: 'c'),
+  FormColumn('UNIT VALUE', width: 10, align: 'r'),
+  FormColumn('QUANTITY per PROPERTY CARD', width: 8, align: 'c'),
+  FormColumn('QUANTITY per PHYSICAL COUNT', width: 8, align: 'c'),
+  FormColumn('Quantity', group: 'SHORTAGE/ OVERAGE', width: 6, align: 'c'),
+  FormColumn('Value', group: 'SHORTAGE/ OVERAGE', width: 6, align: 'r'),
+  FormColumn('REMARKS', width: 11, italic: true),
+];
+
+const _rpcppeSigners = [
+  StdSigner('Certified Correct by:', 'Signature over Printed Name of Inventory Committee Chair and Members'),
+  StdSigner('Approved by:', 'Signature over Printed Name of Head of Agency/Entity or Authorized Representative'),
+  StdSigner('Verified by:', 'Signature over Printed Name of COA Representative'),
+];
+
+String _moneyOrBlank(Object? v) => v == '' || v == null ? '' : money(toNum(v));
+
+Future<void> printRpcppe(List<PickItem> groups, Map<String, String> settings) {
+  final s = {...rpcppeDefaults, ...settings};
+  final forms = [
+    for (final g in groups)
+      StdForm(
+        h1: 'REPORT ON THE PHYSICAL COUNT OF PROPERTY, PLANT AND EQUIPMENT',
+        h2: str(g['categoryName']).toUpperCase(),
+        lines: ['(Type of Property, Plant and Equipment)', _asAtText(s)],
+        fund: 'Fund Cluster : ${(s['fundCluster'] ?? '').toUpperCase()}',
+        accountability: _accountabilityRuns(s),
+        columns: _rpcppeColumns,
+        rows: [
+          for (final a in g.rows)
+            () {
+              final l = rpcppeLine(a);
+              return [
+                str(l['article']), str(l['location']), str(l['description']), str(l['propertyNumber']), 'unit',
+                _moneyOrBlank(l['unitValue']), str(l['qtyCard']), str(l['qtyCount']), str(l['soQty']),
+                _moneyOrBlank(l['soValue']), str(l['remarks']),
+              ];
+            }(),
+        ],
+      ),
   ];
+  final title = 'RPCPPE ${_asAtText(s)}';
+  return printPdf(title, (fonts) => buildStandardPdf(title, forms, _rpcppeSigners, fonts));
 }
 
-class _RunningSummary {
-  int count = 0;
-  double totalValue = 0;
-  final Set<String> offices = {};
+Future<void> exportRpcppeExcel(List<PickItem> groups, Map<String, String> settings) {
+  final s = {...rpcppeDefaults, ...settings};
+  final sheets = <SheetSpec>[];
+  for (final g in groups) {
+    final rows = <List<Object?>>[
+      ['REPORT ON THE PHYSICAL COUNT OF PROPERTY, PLANT AND EQUIPMENT'],
+      [str(g['categoryName']).toUpperCase()],
+      ['(Type of Property, Plant and Equipment)'],
+      [_asAtText(s)],
+      [],
+      ['Fund Cluster : ${(s['fundCluster'] ?? '').toUpperCase()}'],
+      [_accountability(s)],
+      [],
+      ['ARTICLE', 'LOCATION', 'DESCRIPTION', 'PROPERTY NUMBER', 'UNIT OF MEASURE', 'UNIT VALUE',
+        'QUANTITY per PROPERTY CARD', 'QUANTITY per PHYSICAL COUNT', 'SHORTAGE/OVERAGE', '', 'REMARKS'],
+      ['', '', '', '', '', '', '', '', 'Quantity', 'Value', ''],
+    ];
+    for (final a in g.rows) {
+      final l = rpcppeLine(a);
+      rows.add([l['article'], l['location'], l['description'], l['propertyNumber'], l['unit'],
+        l['unitValue'] == '' ? '' : double.parse(toNum(l['unitValue']).toStringAsFixed(2)), l['qtyCard'], l['qtyCount'],
+        l['soQty'], l['soValue'] == '' ? '' : double.parse(toNum(l['soValue']).toStringAsFixed(2)), l['remarks']]);
+    }
+    rows.addAll([
+      [], ['Certified Correct by:', '', '', '', 'Approved by:', '', '', '', 'Verified by:'], [], [],
+      ['Signature over Printed Name of Inventory Committee Chair and Members', '', '', '',
+        'Signature over Printed Name of Head of Agency/Entity or Authorized Representative', '', '', '',
+        'Signature over Printed Name of COA Representative'],
+    ]);
+    List<int> full(int r) => [r, 0, r, 10];
+    sheets.add(SheetSpec(
+      str(g['categoryName']),
+      rows,
+      widths: const [14, 16, 30, 20, 10, 14, 12, 12, 10, 12, 14],
+      merges: [full(0), full(1), full(2), full(3), full(5), full(6),
+        for (final c in [0, 1, 2, 3, 4, 5, 6, 7, 10]) [8, c, 9, c], [8, 8, 8, 9]],
+      money: [for (var r = 10; r < 10 + g.rows.length; r++) ...[(r, 5), (r, 9)]],
+    ));
+  }
+  final stamp = (s['asAt'] ?? '').isNotEmpty ? s['asAt']! : stampToday();
+  final one = groups.length == 1 ? '${str(groups[0]['categoryName']).replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_')}_' : '';
+  return shareWorkbook('RPCPPE_$one$stamp.xlsx', sheets);
 }
+
+/// One RPCPPE form per type of PPE (category), with the items on hand as at the report date.
+List<PickItem> rpcppeGroupsOf(List<ReportRow> assets, Map<String, String> settings) {
+  final byCat = <String, List<ReportRow>>{};
+  final names = <String, String>{};
+  for (final a in rpcppeRows(assets, settings['asAt'] ?? '')) {
+    final key = str(at(a, 'category.id')).isEmpty ? 'none' : str(at(a, 'category.id'));
+    names[key] = str(at(a, 'category.categoryName')).isEmpty ? 'Uncategorized' : str(at(a, 'category.categoryName'));
+    byCat.putIfAbsent(key, () => []).add(a);
+  }
+  final items = [
+    for (final e in byCat.entries)
+      PickItem(e.key, {'categoryName': names[e.key], 'total': e.value.fold<num>(0, (n, a) => n + _lineAmount(a))}, e.value),
+  ]..sort((a, b) => str(a['categoryName']).compareTo(str(b['categoryName'])));
+  return items;
+}
+
+// One RPCPPE line, as listed under an expanded type of PPE (same columns as the printed form).
+final _rpcppeHeaders = [
+  ReportColumn('Article', display: (a) => _orNa(rpcppeLine(a)['article']), raw: (a) => rpcppeLine(a)['article']),
+  ReportColumn('Location', display: (a) => _orNa(rpcppeLine(a)['location']), raw: (a) => rpcppeLine(a)['location']),
+  ReportColumn('Description', display: (a) => _orNa(rpcppeLine(a)['description']), raw: (a) => rpcppeLine(a)['description']),
+  ReportColumn('Property No.', display: (a) => _orNa(rpcppeLine(a)['propertyNumber']), raw: (a) => rpcppeLine(a)['propertyNumber']),
+  ReportColumn('Unit', display: (_) => 'unit', raw: (_) => 'unit'),
+  ReportColumn('Unit Value', display: (a) => rMoney(a['unitValue']), raw: (a) => a['unitValue']),
+  ReportColumn('Qty (Card)', display: (a) => str(rpcppeLine(a)['qtyCard']), raw: (a) => rpcppeLine(a)['qtyCard']),
+  ReportColumn('Qty (Count)', display: (a) => str(rpcppeLine(a)['qtyCount']), raw: (a) => rpcppeLine(a)['qtyCount']),
+  ReportColumn('Shortage/Overage', display: (a) {
+    final l = rpcppeLine(a);
+    return l['soQty'] == '' ? '' : '${l['soQty']} · ${rMoney(l['soValue'])}';
+  }, raw: (a) => rpcppeLine(a)['soQty']),
+  ReportColumn('Remarks', display: (a) => str(rpcppeLine(a)['remarks']), raw: (a) => rpcppeLine(a)['remarks']),
+];
+
+// ── PAR ──────────────────────────────────────────────────────────────────────
+
+const _parEntity = 'San Jose, Batangas';
+const _parFund = 'General Fund';
+
+// PAR numbers are compared trimmed and case-insensitive, matching how the Assets search treats them.
+String _normPar(Object? v) => str(v).trim().toUpperCase();
+
+List<String> _parDescriptionLines(ReportRow a) {
+  final specs = str(a['specifications']).split(RegExp(r'\r?\n')).map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+  final brand = RegExp(r'^(brand|model)\s*:', caseSensitive: false);
+  final ident = specs.where((l) => brand.hasMatch(l)).toList();
+  final rest = specs.where((l) => !brand.hasMatch(l)).toList();
+  final lines = [str(a['description']).isEmpty ? 'N/A' : str(a['description']), ...ident];
+  if (str(a['serialNumber']).isNotEmpty) lines.add('S/N: ${a['serialNumber']}');
+  if (rest.isNotEmpty) lines.addAll(['', 'Technical Specifications:', ...rest]);
+  return lines;
+}
+
+Map<String, Object> _parHeader(List<ReportRow> rows) {
+  final office = _uniqueJoined(rows, (r) => at(r, 'office.officeName'));
+  return {
+    'office': office.isEmpty ? 'No office assigned' : office,
+    'receivedBy': _uniqueJoined(rows, (r) => at(r, 'accountablePerson.fullName')),
+    'total': rows.fold<num>(0, (s, r) => s + _lineAmount(r)),
+  };
+}
+
+/// One entry per distinct PAR number in the loaded assets, newest PAR first.
+List<PickItem> parGroupsOf(List<ReportRow> assets) {
+  final byKey = <String, List<ReportRow>>{};
+  final pars = <String, String>{};
+  for (final a in assets) {
+    final key = _normPar(a['parNumber']);
+    if (key.isEmpty) continue;
+    pars.putIfAbsent(key, () => str(a['parNumber']).trim());
+    byKey.putIfAbsent(key, () => []).add(a);
+  }
+  return [
+    for (final e in byKey.entries)
+      PickItem(e.key, {'par': pars[e.key], ..._parHeader(e.value)}, e.value),
+  ]..sort((a, b) => str(b['par']).compareTo(str(a['par'])));
+}
+
+final _parHeaders = [
+  ReportColumn('Qty', display: (r) => str(r['quantity'] ?? 1), raw: (r) => r['quantity'] ?? 1),
+  ReportColumn('Description', display: (r) => _orNa(r['description']), raw: (r) => str(r['description'])),
+  ReportColumn('Serial No.', display: (r) => _orNa(r['serialNumber']), raw: (r) => str(r['serialNumber'])),
+  ReportColumn('Property No.', display: (r) => _orNa(r['propertyNumber']), raw: (r) => str(r['propertyNumber'])),
+  ReportColumn('Date Acquired', display: (r) => rDate(r['acquisitionDate']), raw: (r) => str(r['acquisitionDate'])),
+  ReportColumn('Unit Cost', display: (r) => rMoney(r['unitValue']), raw: (r) => _fixed(r['unitValue'])),
+  ReportColumn('Amount', display: (r) => rMoney(_lineAmount(r)), raw: (r) => _lineAmount(r).toStringAsFixed(2)),
+];
+
+Future<void> printPar(List<PickItem> groups) {
+  final title = groups.length == 1 ? 'PAR No. ${groups[0]['par']}' : 'PAR Forms (${groups.length})';
+  final forms = [
+    for (final g in groups)
+      ParForm(
+        par: str(g['par']),
+        office: str(g['office']),
+        entity: _parEntity,
+        fund: _parFund,
+        receivedBy: str(g['receivedBy']),
+        total: rMoney(g['total']),
+        lines: [
+          for (final a in g.rows)
+            ParLine(str(a['quantity'] ?? 1), _parDescriptionLines(a), str(a['propertyNumber']), rDate(a['acquisitionDate']),
+                rMoney(_lineAmount(a))),
+        ],
+      ),
+  ];
+  return printPdf(title, (fonts) => buildParPdf(title, forms, fonts), format: PdfPageFormat.a4);
+}
+
+Future<void> exportParExcel(List<PickItem> groups) {
+  final sheets = [
+    for (final g in groups)
+      () {
+        final rows = <List<Object?>>[
+          ['PROPERTY ACKNOWLEDGMENT RECEIPT'],
+          ['(${str(g['office']).toUpperCase()})'],
+          [],
+          ['Entity Name', '', ': $_parEntity', '', 'PAR No.', ': ${g['par']}'],
+          ['Fund Cluster', '', ': $_parFund'],
+          [],
+          ['Quantity', 'Unit', 'Description', 'Property Number', 'Date Acquired', 'Amount'],
+        ];
+        for (final a in g.rows) {
+          final lines = _parDescriptionLines(a);
+          for (var i = 0; i < lines.length; i++) {
+            rows.add(i == 0
+                ? [a['quantity'] ?? 1, 'Unit', lines[i], str(a['propertyNumber']), str(a['acquisitionDate']),
+                    double.parse(_lineAmount(a).toStringAsFixed(2))]
+                : ['', '', lines[i], '', '', '']);
+          }
+        }
+        rows.add(['', '', '', '', 'TOTAL', double.parse(toNum(g['total']).toStringAsFixed(2))]);
+        rows.addAll([
+          [], ['Received by:', '', '', 'Issued by:'], [], ['', '', str(g['receivedBy']), '', '', ''],
+          ['', '', 'Signature over Printed Name of End User', '', 'Signature over Printed Name of Supply and/or Property Custodian'],
+          [], ['', '', 'Position/Office', '', 'Position/Office'], [], ['', '', 'Date', '', 'Date'],
+        ]);
+        return SheetSpec('PAR ${g['par']}', rows,
+            widths: const [10, 8, 60, 24, 16, 16],
+            merges: const [[0, 0, 0, 5], [1, 0, 1, 5]]);
+      }(),
+  ];
+  final file = groups.length == 1 ? 'PAR_${safeName(str(groups[0]['par']))}' : 'PAR_Forms_${groups.length}';
+  return shareWorkbook('${file}_${stampToday()}.xlsx', sheets);
+}
+
+// ── Property Card ────────────────────────────────────────────────────────────
+
+const _cardEntity = 'SAN JOSE BATANGAS';
+
+String _cardDate(Object? d) {
+  final k = manilaDateKey(d);
+  if (k.length != 10) return '';
+  return '${k.substring(5, 7)}/${k.substring(8, 10)}/${k.substring(0, 4)}';
+}
+
+String _cardMoney(Object? v) => v == null || v == '' ? '' : rMoney(v);
+
+// Description cell lines: the receipt line also carries the amount, like the paper card.
+List<String> _cardDescription(PickItem card, Map e) => e['kind'] == 'RECEIPT'
+    ? [str(e['description']), _cardMoney(card['unitValue'])].where((s) => s.isNotEmpty).toList()
+    : [str(e['description'])];
+
+List<Map> _entries(PickItem c) => [for (final e in (c['entries'] as List? ?? const [])) e as Map];
+
+Future<void> printPropertyCards(List<PickItem> cards) {
+  final title = cards.length == 1 ? 'Property Card ${cards[0]['propertyNumber']}' : 'Property Cards (${cards.length})';
+  final forms = [
+    for (final c in cards)
+      CardForm(str(c['category']), [
+        for (final e in _entries(c))
+          [_cardDate(e['date']), str(e['reference']), _cardDescription(c, e).join('\n'), str(e['receiptQty']),
+            str(e['transferTo']), str(e['office']), str(e['balanceQty'])],
+      ]),
+  ];
+  return printPdf(title, (fonts) => buildPropertyCardPdf(title, _cardEntity, forms, fonts), format: PdfPageFormat.a4);
+}
+
+Future<void> exportPropertyCardsExcel(List<PickItem> cards) {
+  final sheets = [
+    for (final c in cards)
+      SheetSpec(str(c['propertyNumber']), [
+        ['PROPERTY CARD'],
+        [_cardEntity],
+        ['LGU'],
+        ['Plant, Property and Equipment: ${str(c['category'])}', '', '', '', 'Property Classification:'],
+        ['Date', 'Reference Property #', 'Description', 'Receipt Qty', 'Transfer', 'Office', 'Balance Qty'],
+        for (final e in _entries(c))
+          [str(e['date']), str(e['reference']), _cardDescription(c, e).join('\n'), e['receiptQty'] ?? '',
+            str(e['transferTo']), str(e['office']), e['balanceQty']],
+      ], widths: const [12, 30, 44, 11, 26, 34, 11], merges: const [
+        [0, 0, 0, 6], [1, 0, 1, 6], [2, 0, 2, 6], [3, 0, 3, 3], [3, 4, 3, 6],
+      ]),
+  ];
+  final file = cards.length == 1
+      ? 'Property_Card_${safeName(str(cards[0]['propertyNumber']))}'
+      : 'Property_Cards_${cards.length}';
+  return shareWorkbook('${file}_${stampToday()}.xlsx', sheets);
+}
+
+final _cardEntryHeaders = [
+  ReportColumn('Date', display: (e) => rDate(e['date']), raw: (e) => e['date']),
+  ReportColumn('Reference Property #', display: (e) => _orNa(e['reference']), raw: (e) => e['reference']),
+  ReportColumn('Description', display: (e) => _orNa(e['description']), raw: (e) => e['description']),
+  ReportColumn('Receipt Qty', display: (e) => str(e['receiptQty']), raw: (e) => e['receiptQty']),
+  ReportColumn('Transfer', display: (e) => _orNa(e['transferTo']), raw: (e) => e['transferTo']),
+  ReportColumn('Office', display: (e) => _orNa(e['office']), raw: (e) => e['office']),
+  ReportColumn('Balance Qty', display: (e) => str(e['balanceQty']), raw: (e) => e['balanceQty']),
+];
+
+// ── Plain reports (Condition, Maintenance, IIRUP) ────────────────────────────
+
+final _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}(T[\d:.]+)?$');
+final _money = RegExp(r'^-?\d+\.\d{2}$');
+final _int = RegExp(r'^\d+$');
+
+/// A raw value as the printout shows it, and how it sits in its cell.
+(String, String) printCell(Object? v) {
+  final s = str(v);
+  if (_isoDate.hasMatch(s)) return (rDate(s), 'c');
+  if (_money.hasMatch(s)) return (money(num.parse(s)), 'r');
+  if (_int.hasMatch(s)) return (s, 'c');
+  return (s, 'l');
+}
+
+/// Printed in the standard (RPCPPE) format: the title block and table header on every page,
+/// at most 8 rows a page, and the report's signatures after the last page.
+Future<void> printTable(ReportDefinition report, List<ReportRow> rows, String from, String to, Map<String, String> settings) {
+  final s = {...rpcppeDefaults, ...settings};
+  final today = todayKey();
+  final period = from.isNotEmpty
+      ? 'For the period ${longDate(from)} to ${longDate(to.isNotEmpty ? to : today)}'
+      : 'As at ${longDate(to.isNotEmpty ? to : today)}';
+  final cells = [for (final r in rows) [for (final h in report.headers) printCell(h.raw(r))]];
+  // a column sits the way its values do (dates centred, amounts right)
+  final columns = [
+    for (var c = 0; c < report.headers.length; c++)
+      FormColumn(report.headers[c].label.toUpperCase(),
+          align: cells.map((r) => r[c]).firstWhere((v) => v.$1.isNotEmpty, orElse: () => ('', 'l')).$2),
+  ];
+  final title = report.printTitle ?? report.title.toUpperCase();
+  final form = StdForm(
+    h1: title,
+    h2: (s['entity'] ?? '').toUpperCase(),
+    lines: [period],
+    fund: 'Fund Cluster : ${(s['fundCluster'] ?? '').toUpperCase()}',
+    columns: columns,
+    rows: [for (final r in cells) [for (final v in r) v.$1]],
+  );
+  final signers = [for (final c in report.certification) StdSigner(c.label, c.caption)];
+  return printPdf(title, (fonts) => buildStandardPdf(title, [form], signers, fonts));
+}
+
+Future<void> exportReportExcel(ReportDefinition report, List<ReportRow> rows) => exportTable(
+      report.title,
+      [for (final h in report.headers) h.label],
+      [for (final r in rows) [for (final h in report.headers) h.raw(r)]],
+    );
+
+// ── The reports ──────────────────────────────────────────────────────────────
+
+List<ReportDefinition> buildReportDefinitions() => [
+      ReportDefinition(
+        id: 'rpcppe',
+        title: 'RPCPPE (Physical Count)',
+        description: "Report on the Physical Count of Property, Plant and Equipment: one form per type of PPE, in the GSO's printed format.",
+        icon: Icons.fact_check_outlined,
+        load: () => _fetch('/assets'),
+        // The report header (as-at date, fund cluster, accountable officer) is filled in above the list.
+        hasRpcppeSettings: true,
+        pick: PickConfig(
+          toItems: rpcppeGroupsOf,
+          noun: ('type of PPE', 'types of PPE'),
+          placeholder: 'Search type, article, office, property No.',
+          hint: 'Tick one or more types of PPE to export their physical count reports.',
+          none: 'No assets on hand as at this date.',
+          search: (g, q) =>
+              str(g['categoryName']).toLowerCase().contains(q) ||
+              g.rows.any((a) => [at(a, 'article.articleName'), at(a, 'office.officeName'), a['propertyNumber'], a['description']]
+                  .any((v) => str(v).toLowerCase().contains(q))),
+          label: (g) => str(g['categoryName']),
+          columns: [
+            PickColumn('Type of PPE', (g) => str(g['categoryName'])),
+            PickColumn('Items', (g) => '${g.rows.length}', right: true),
+            PickColumn('Total Value', (g) => rMoney(g['total']), right: true),
+          ],
+          expandLabel: 'items',
+          expandedHeaders: _rpcppeHeaders,
+          expandedRows: (g) => g.rows,
+          summary: (items) =>
+              '${items.fold<int>(0, (n, g) => n + g.rows.length)} items · Total ${rMoney(items.fold<num>(0, (n, g) => n + toNum(g['total'])))}',
+          exportExcel: exportRpcppeExcel,
+          exportPdf: printRpcppe,
+        ),
+      ),
+      ReportDefinition(
+        id: 'condition',
+        title: 'Condition Report',
+        printTitle: 'REPORT ON THE CONDITION OF PROPERTY, PLANT AND EQUIPMENT',
+        description: 'Asset breakdown by condition: new, good, serviceable, repairable, and unserviceable counts.',
+        icon: Icons.pie_chart_outline_rounded,
+        load: () => _fetch('/assets'),
+        // Aggregation runs after the date filter, on the assets inside the acquisition date range.
+        dateField: 'acquisitionDate',
+        aggregated: true,
+        transform: (assets) {
+          final map = <String, Map<String, dynamic>>{};
+          for (final a in assets) {
+            final key = str(a['condition']).isEmpty ? 'UNKNOWN' : str(a['condition']);
+            final m = map.putIfAbsent(key, () => {'condition': key, 'count': 0, 'totalValue': 0.0, 'offices': <String>{}});
+            m['count'] = (m['count'] as int) + 1;
+            m['totalValue'] = (m['totalValue'] as num) + _lineAmount(a);
+            final office = str(at(a, 'office.officeName'));
+            if (office.isNotEmpty) (m['offices'] as Set<String>).add(office);
+          }
+          final rows = map.values.toList()..sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+          return [
+            for (final r in rows)
+              {...r, 'offices': (r['offices'] as Set<String>).isEmpty ? 'N/A' : (r['offices'] as Set<String>).join(', ')},
+          ];
+        },
+        headers: [
+          ReportColumn('Condition', display: (r) => str(r['condition']), raw: (r) => r['condition']),
+          ReportColumn('Count', display: (r) => str(r['count']), raw: (r) => r['count']),
+          ReportColumn('Total Value (₱)',
+              display: (r) => toNum(r['totalValue']) > 0 ? rMoney(r['totalValue']) : 'N/A',
+              raw: (r) => toNum(r['totalValue']) > 0 ? toNum(r['totalValue']).toStringAsFixed(2) : ''),
+          ReportColumn('Offices', display: (r) => str(r['offices']), raw: (r) => r['offices']),
+        ],
+        certification: const [
+          Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
+          Signer('Approved by:', 'Signature over Printed Name of Municipal General Services Officer'),
+        ],
+      ),
+      ReportDefinition(
+        id: 'maintenance',
+        title: 'Maintenance Ledger',
+        printTitle: 'MAINTENANCE AND REPAIR LEDGER',
+        description: 'All maintenance and repair records for GSO assets.',
+        icon: Icons.build_outlined,
+        load: () => _fetch('/maintenance'),
+        dateField: 'maintenanceDate',
+        headers: [
+          ReportColumn('Asset', display: (r) => _orNa(at(r, 'asset.description')), raw: (r) => str(at(r, 'asset.description'))),
+          ReportColumn('Type', display: (r) => _orNa(r['maintenanceType']), raw: (r) => str(r['maintenanceType'])),
+          ReportColumn('Findings', display: (r) => _orNa(r['findings']), raw: (r) => str(r['findings'])),
+          ReportColumn('Status', display: (r) => _orNa(r['status']), raw: (r) => str(r['status'])),
+          ReportColumn('Assigned To', display: (r) => _orNa(r['assignedTo']), raw: (r) => str(r['assignedTo'])),
+          ReportColumn('Cost', display: (r) => r['cost'] != null ? rMoney(r['cost']) : 'N/A', raw: (r) => _fixed(r['cost'])),
+          ReportColumn('Date', display: (r) => rDate(r['maintenanceDate']), raw: (r) => str(r['maintenanceDate'])),
+          ReportColumn('Recorded By',
+              display: (r) => _orNa(str(at(r, 'recordedBy.fullName')).isNotEmpty ? at(r, 'recordedBy.fullName') : at(r, 'recordedBy.username')),
+              raw: (r) => str(at(r, 'recordedBy.fullName')).isNotEmpty ? str(at(r, 'recordedBy.fullName')) : str(at(r, 'recordedBy.username'))),
+        ],
+        certification: const [
+          Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
+          Signer('Approved by:', 'Signature over Printed Name of Municipal General Services Officer'),
+        ],
+      ),
+      ReportDefinition(
+        id: 'par',
+        title: 'PAR (Property Acknowledgment Receipt)',
+        description: 'Select one or more PAR numbers to print their receipts, with the accountable person and total amount.',
+        icon: Icons.assignment_turned_in_outlined,
+        load: () => _fetch('/assets'),
+        // No date filter: the list holds PAR numbers, and the ticked ones are exported.
+        pick: PickConfig(
+          toItems: (data, _) => parGroupsOf(data),
+          noun: ('PAR number', 'PAR numbers'),
+          placeholder: 'Search PAR, office, person, property No.',
+          hint: 'Tick one or more PAR numbers to export their receipts.',
+          none: 'No assets have a PAR number yet.',
+          search: (g, q) =>
+              str(g['par']).toLowerCase().contains(q) ||
+              str(g['office']).toLowerCase().contains(q) ||
+              str(g['receivedBy']).toLowerCase().contains(q) ||
+              g.rows.any((r) => str(r['propertyNumber']).toLowerCase().contains(q)),
+          label: (g) => 'PAR No. ${g['par']}',
+          columns: [
+            PickColumn('PAR No.', (g) => str(g['par'])),
+            PickColumn('Office', (g) => _orNa(g['office'])),
+            PickColumn('Accountable Person', (g) => _orNa(g['receivedBy'])),
+            PickColumn('Items', (g) => '${g.rows.length}', right: true),
+            PickColumn('Total Amount', (g) => rMoney(g['total']), right: true),
+          ],
+          expandLabel: 'items',
+          expandedHeaders: _parHeaders,
+          expandedRows: (g) => g.rows,
+          summary: (items) =>
+              '${items.fold<int>(0, (n, g) => n + g.rows.length)} items · Total ${rMoney(items.fold<num>(0, (n, g) => n + toNum(g['total'])))}',
+          exportExcel: (items, _) => exportParExcel(items),
+          exportPdf: (items, _) => printPar(items),
+        ),
+      ),
+      ReportDefinition(
+        id: 'propertycard',
+        title: 'Property Card',
+        description: 'A card for each transferred asset: who it was transferred to and which office, in date order.',
+        icon: Icons.swap_horiz_rounded,
+        load: () => _fetch('/property-cards', paged: false),
+        // Only assets that have been transferred have a card; the backend leaves the rest out.
+        pick: PickConfig(
+          toItems: (cards, _) => [for (final c in cards) PickItem(str(c['assetId']), c)],
+          noun: ('property card', 'property cards'),
+          placeholder: 'Search property No., office, person',
+          hint: 'Tick one or more assets to export their property cards.',
+          none: 'No asset has been transferred yet, so there are no property cards.',
+          search: (c, q) => [
+            c['propertyNumber'], c['parNumber'], c['description'], c['currentOffice'], c['currentAccountable'],
+            for (final e in _entries(c)) e['transferTo'],
+            for (final e in _entries(c)) e['office'],
+          ].any((v) => str(v).toLowerCase().contains(q)),
+          label: (c) => 'property card ${c['propertyNumber']}',
+          columns: [
+            PickColumn('Property No.', (c) => str(c['propertyNumber'])),
+            PickColumn('Description', (c) => _orNa(c['description'])),
+            PickColumn('Current Office', (c) => _orNa(c['currentOffice'])),
+            PickColumn('Accountable Person', (c) => _orNa(c['currentAccountable'])),
+            PickColumn('Transfers', (c) => str(c['transferCount']), right: true),
+            PickColumn('Last Transfer', (c) => rDate(c['lastTransferDate'])),
+          ],
+          expandLabel: 'card lines',
+          expandedHeaders: _cardEntryHeaders,
+          expandedRows: (c) => [for (final e in _entries(c)) Map<String, dynamic>.from(e)],
+          summary: (items) => '${items.fold<num>(0, (n, c) => n + toNum(c['transferCount']))} transfers',
+          exportExcel: (items, _) => exportPropertyCardsExcel(items),
+          exportPdf: (items, _) => printPropertyCards(items),
+        ),
+      ),
+      ReportDefinition(
+        id: 'iirup',
+        title: 'IIRUP (Unserviceable Property)',
+        printTitle: 'INVENTORY AND INSPECTION REPORT OF UNSERVICEABLE PROPERTY',
+        description: 'COA-format Inventory and Inspection Report of Unserviceable Property, for items pending disposal.',
+        icon: Icons.delete_forever_outlined,
+        load: () => _fetch('/disposal'),
+        dateField: 'inspectionDate',
+        headers: [
+          ReportColumn('Date Acquired', display: (r) => rDate(at(r, 'asset.acquisitionDate')), raw: (r) => str(at(r, 'asset.acquisitionDate'))),
+          ReportColumn('Particulars/Article', display: (r) => _orNa(at(r, 'asset.description')), raw: (r) => str(at(r, 'asset.description'))),
+          ReportColumn('Property No.', display: (r) => _orNa(at(r, 'asset.propertyNumber')), raw: (r) => str(at(r, 'asset.propertyNumber'))),
+          ReportColumn('PAR No.', display: (r) => _orNa(at(r, 'asset.parNumber')), raw: (r) => str(at(r, 'asset.parNumber'))),
+          ReportColumn('Qty.', display: (r) => str(at(r, 'asset.quantity') ?? 1), raw: (r) => at(r, 'asset.quantity') ?? 1),
+          ReportColumn('Unit Cost', display: (r) => rMoney(at(r, 'asset.unitValue')), raw: (r) => _fixed(at(r, 'asset.unitValue'))),
+          ReportColumn('Total Cost',
+              display: (r) => rMoney(_lineAmount(_assetOf(r))),
+              raw: (r) => _lineAmount(_assetOf(r)).toStringAsFixed(2)),
+          ReportColumn('Remarks', display: (r) => _orNa(r['inspectionFindings']), raw: (r) => str(r['inspectionFindings'])),
+          for (final (label, method) in [('Sale', 'SALE'), ('Transfer', 'TRANSFER'), ('Destruction', 'DESTRUCTION'), ('Others (Specify)', 'OTHERS')])
+            ReportColumn(label,
+                display: (r) => r['recommendedMethod'] == method ? str(at(r, 'asset.quantity') ?? 1) : 'N/A',
+                raw: (r) => r['recommendedMethod'] == method ? (at(r, 'asset.quantity') ?? 1) : ''),
+          ReportColumn('Total', display: (r) => str(at(r, 'asset.quantity') ?? 1), raw: (r) => at(r, 'asset.quantity') ?? 1),
+          ReportColumn('Appraised Value', display: (r) => rMoney(r['appraisedValue']), raw: (r) => _fixed(r['appraisedValue'])),
+          ReportColumn('OR No.', display: (r) => _orNa(r['orNumber']), raw: (r) => str(r['orNumber'])),
+          ReportColumn('Amount', display: (r) => rMoney(r['amount']), raw: (r) => _fixed(r['amount'])),
+        ],
+        certification: const [
+          Signer('Inspected by:', 'Signature over Printed Name of GSO Inspector'),
+          Signer('Certified Correct by:', 'Signature over Printed Name of Inventory Committee Chairman'),
+          Signer('Recommending Approval:', 'Signature over Printed Name of Head of Office'),
+          Signer('Approved by:', 'Signature over Printed Name of Local Chief Executive (Municipal Mayor)'),
+        ],
+      ),
+    ];
+
+ReportRow _assetOf(ReportRow r) => r['asset'] is Map ? Map<String, dynamic>.from(r['asset'] as Map) : const {};

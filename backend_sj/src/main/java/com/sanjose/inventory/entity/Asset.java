@@ -17,7 +17,7 @@ public class Asset {
 
     // NEW behaves like SERVICEABLE (in use, no maintenance or disposal); it only reads differently
     // in the Remarks column of the physical count report.
-    public enum AssetCondition { NEW, SERVICEABLE, REPAIRABLE, UNSERVICEABLE }
+    public enum AssetCondition { NEW, GOOD, SERVICEABLE, REPAIRABLE, UNSERVICEABLE }
     public enum LifecycleStatus { REGISTERED, ASSIGNED, TRANSFERRED, UNDER_MAINTENANCE, DISPOSED, ARCHIVED }
 
     @Id

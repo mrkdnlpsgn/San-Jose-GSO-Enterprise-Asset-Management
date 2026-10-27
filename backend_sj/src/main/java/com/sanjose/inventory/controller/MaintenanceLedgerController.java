@@ -5,6 +5,7 @@ import com.sanjose.inventory.dto.MaintenancePhotoResponse;
 import com.sanjose.inventory.entity.MaintenanceLedger;
 import com.sanjose.inventory.service.AccessService;
 import com.sanjose.inventory.service.ActionOtpService;
+import com.sanjose.inventory.service.AssetService;
 import com.sanjose.inventory.service.MaintenanceLedgerService;
 import com.sanjose.inventory.service.MaintenancePhotoService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class MaintenanceLedgerController {
     private final MaintenancePhotoService maintenancePhotoService;
     private final AccessService accessService;
     private final ActionOtpService actionOtpService;
+    private final AssetService assetService;
 
     @GetMapping
     public List<MaintenanceLedger> getAll(@RequestParam(required = false) String search,
@@ -73,20 +75,30 @@ public class MaintenanceLedgerController {
         accessService.requireAssetAccess(req.getAssetId());
         // a staff record is a request to put the asset under maintenance, so it is confirmed by code
         if (!accessService.isAdmin()) actionOtpService.require("send a maintenance request");
-        return maintenanceLedgerService.create(req);
+        return checkRepairCost(maintenanceLedgerService.create(req));
     }
 
     @PutMapping("/{id}")
     public MaintenanceLedger update(@PathVariable Long id, @RequestBody MaintenanceLedgerRequest req) {
         accessService.requireMaintenanceAccess(id);
-        return maintenanceLedgerService.update(id, req);
+        return checkRepairCost(maintenanceLedgerService.update(id, req));
     }
 
     @PostMapping("/{id}/approve")
     public MaintenanceLedger approve(@PathVariable Long id) {
         accessService.requireAdmin("approve requests");
         actionOtpService.require("approve a maintenance request");
-        return maintenanceLedgerService.approve(id);
+        return checkRepairCost(maintenanceLedgerService.approve(id));
+    }
+
+    // A repair costing more than the asset makes it unserviceable, or sends it to the Recovery
+    // records once its useful life is used up (AssetService.applyRepairCostRule). A staff request
+    // only counts once an administrator approves it.
+    private MaintenanceLedger checkRepairCost(MaintenanceLedger saved) {
+        if (saved.getAsset() != null && "APPROVED".equals(saved.getApprovalStatus())) {
+            assetService.applyRepairCostRule(saved.getAsset().getId(), saved.getCost());
+        }
+        return saved;
     }
 
     @PostMapping("/{id}/reject")

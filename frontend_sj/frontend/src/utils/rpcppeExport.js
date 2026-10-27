@@ -2,14 +2,12 @@
 // GSO's printed report: one form per type of PPE (category), each headed by the type, the
 // "as at" date, the fund cluster and the accountability statement, then one row per item.
 
-import { openPrintWindow } from './printWindow'
+import { printForm, toPages, esc, longDate } from './printForm'
 
 // xlsx is ~400 KB; load it only when someone exports
 const loadXlsx = () => import('xlsx')
 
-const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const money = (v) => Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const longDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '')
 
 export const RPCPPE_DEFAULTS = {
   asAt: '',
@@ -54,10 +52,23 @@ export function rpcppeRows(assets, asAt) {
 const accountability = (s) =>
   `For which ${s.officer || '________________'}, ${s.designation || '________________'}, ${s.entity || '________________'} is accountable, having assumed such accountability on ${longDate(s.assumedOn) || '________________'}.`
 
+// The printed form sets the officer and the date in bold.
+const blank = '________________'
+const accountabilityHtml = (s) =>
+  `For which <b>${esc(s.officer || blank)}, ${esc(s.designation || blank)}, ${esc(s.entity || blank)}</b> is accountable, having assumed such accountability on <b>${esc(longDate(s.assumedOn) || blank)}</b>.`
+
+// Column widths (%) measured from the GSO's printed form; a <colgroup> keeps them fixed on every page.
+const COL_WIDTHS = [7, 8, 17, 11, 8, 10, 8, 8, 6, 6, 11]
+
 const asAtText = (s) => `As at ${longDate(s.asAt) || longDate(new Date().toISOString().slice(0, 10))}`
 
+// A longer type of PPE continues on further pages (see printForm.js).
 function formHtml(group, s) {
-  const body = group.rows.map((a) => {
+  return toPages(group.rows).map((rows) => pageHtml(group, rows, s)).join('\n')
+}
+
+function pageHtml(group, rows, s) {
+  const body = rows.map((a) => {
     const l = rpcppeLine(a)
     return `<tr>
       <td>${esc(l.article)}</td><td>${esc(l.location)}</td><td>${esc(l.description)}</td>
@@ -77,70 +88,38 @@ function formHtml(group, s) {
     <p>${esc(asAtText(s))}</p>
   </div>
   <p class="fund">Fund Cluster : ${esc((s.fundCluster || '').toUpperCase())}</p>
-  <p class="acct">${esc(accountability(s))}</p>
+  <p class="acct">${accountabilityHtml(s)}</p>
   <table>
+    <colgroup>${COL_WIDTHS.map((w) => `<col style="width:${w}%">`).join('')}</colgroup>
     <thead>
       <tr>
-        <th rowspan="2" style="width:9%">ARTICLE</th>
-        <th rowspan="2" style="width:9%">LOCATION</th>
-        <th rowspan="2" style="width:16%">DESCRIPTION</th>
-        <th rowspan="2" style="width:12%">PROPERTY NUMBER</th>
-        <th rowspan="2" style="width:7%">UNIT OF MEASURE</th>
-        <th rowspan="2" style="width:9%">UNIT VALUE</th>
-        <th rowspan="2" style="width:7%">QUANTITY per PROPERTY CARD</th>
-        <th rowspan="2" style="width:7%">QUANTITY per PHYSICAL COUNT</th>
+        <th rowspan="2">ARTICLE</th>
+        <th rowspan="2">LOCATION</th>
+        <th rowspan="2">DESCRIPTION</th>
+        <th rowspan="2">PROPERTY NUMBER</th>
+        <th rowspan="2">UNIT OF MEASURE</th>
+        <th rowspan="2">UNIT VALUE</th>
+        <th rowspan="2">QUANTITY per PROPERTY CARD</th>
+        <th rowspan="2">QUANTITY per PHYSICAL COUNT</th>
         <th colspan="2">SHORTAGE/ OVERAGE</th>
-        <th rowspan="2" style="width:9%">REMARKS</th>
+        <th rowspan="2">REMARKS</th>
       </tr>
-      <tr><th style="width:6%">Quantity</th><th style="width:7%">Value</th></tr>
+      <tr><th>Quantity</th><th>Value</th></tr>
     </thead>
     <tbody>${body}</tbody>
   </table>
-  <div class="sign">
-    <div><p>Certified Correct by:</p><p class="line"></p><p class="cap">Signature over Printed Name of Inventory Committee Chair and Members</p></div>
-    <div><p>Approved by:</p><p class="line"></p><p class="cap">Signature over Printed Name of Head of Agency/Entity or Authorized Representative</p></div>
-    <div><p>Verified by:</p><p class="line"></p><p class="cap">Signature over Printed Name of COA Representative</p></div>
-  </div>
 </section>`
 }
 
+const RPCPPE_SIGNERS = [
+  { label: 'Certified Correct by:', caption: 'Signature over Printed Name of Inventory Committee Chair and Members' },
+  { label: 'Approved by:', caption: 'Signature over Printed Name of Head of Agency/Entity or Authorized Representative' },
+  { label: 'Verified by:', caption: 'Signature over Printed Name of COA Representative' },
+]
+
 export function printRpcppe(groups, settings) {
   const s = { ...RPCPPE_DEFAULTS, ...settings }
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>RPCPPE ${esc(asAtText(s))}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { color-scheme: light; }
-    @page { size: legal landscape; margin: 12mm 12mm 14mm; @bottom-right { content: counter(page); font-family: 'Times New Roman', serif; font-size: 11pt; } }
-    body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; color: #000; background: #fff; padding: 20px; }
-    .title { text-align: center; line-height: 1.3; }
-    .title h1 { font-size: 13pt; font-weight: 700; }
-    .title h2 { font-size: 12pt; font-weight: 700; }
-    .fund { font-weight: 700; margin: 14px 0 8px; }
-    .acct { text-indent: 3em; margin-bottom: 8px; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 2px solid #000; }
-    th { font-size: 10pt; font-weight: 700; border: 1px solid #000; padding: 4px 3px; text-align: center; vertical-align: middle; }
-    td { font-size: 10.5pt; border: 1px solid #000; padding: 3px 4px; vertical-align: top; word-wrap: break-word; }
-    thead { display: table-header-group; }
-    tr { page-break-inside: avoid; }
-    td.c { text-align: center; } td.r { text-align: right; white-space: nowrap; }
-    td.rem { font-style: italic; }
-    .sign { display: flex; gap: 32px; margin-top: 28px; page-break-inside: avoid; font-size: 10.5pt; }
-    .sign > div { flex: 1; }
-    .sign .line { border-bottom: 1px solid #000; height: 34px; }
-    .sign .cap { text-align: center; font-size: 9pt; margin-top: 3px; }
-    .form + .form { page-break-before: always; margin-top: 28px; }
-    @media print { body { padding: 0; } .form + .form { margin-top: 0; } }
-  </style>
-</head>
-<body>
-  ${groups.map((g) => formHtml(g, s)).join('\n')}
-  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
-</body>
-</html>`
-  openPrintWindow({ width: 1200 }).write(html)
+  printForm(`RPCPPE ${asAtText(s)}`, groups.map((g) => formHtml(g, s)), RPCPPE_SIGNERS)
 }
 
 // One sheet per type of PPE in a single workbook.

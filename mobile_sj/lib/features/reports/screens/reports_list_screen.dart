@@ -74,7 +74,7 @@ class _ReportRow extends StatelessWidget {
                   children: [
                     Text(report.title, style: TextStyle(color: c.textPrimary, fontWeight: FontWeight.w600, fontSize: 16)),
                     const SizedBox(height: 2),
-                    Text(report.subtitle,
+                    Text(report.description,
                         style: TextStyle(color: c.textTertiary, fontSize: 14, height: 1.35),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),

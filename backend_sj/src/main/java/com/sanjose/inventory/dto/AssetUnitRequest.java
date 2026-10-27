@@ -20,5 +20,5 @@ public class AssetUnitRequest {
     private String location;
     private Long personnelId;
     private Long currentUserId;
-    private String condition; // NEW | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
+    private String condition; // NEW | GOOD | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
 }
