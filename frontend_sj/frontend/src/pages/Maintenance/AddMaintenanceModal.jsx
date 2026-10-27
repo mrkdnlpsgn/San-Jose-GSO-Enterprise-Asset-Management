@@ -5,6 +5,7 @@ import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DatePicker from '../../components/common/DatePicker'
+import Select from '../../components/common/Select'
 
 const INPUT_CLASS = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
@@ -12,16 +13,7 @@ const MAINT_TYPES  = ['PREVENTIVE', 'CORRECTIVE', 'REPAIR']
 const MAINT_STATUS = ['COMPLETED', 'ONGOING', 'SCHEDULED']
 
 function SelectInput({ children, ...props }) {
-  return (
-    <div className="relative">
-      <select className={INPUT_CLASS + ' appearance-none pr-9'} {...props}>{children}</select>
-      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
-      </div>
-    </div>
-  )
+  return <Select className={INPUT_CLASS} {...props}>{children}</Select>
 }
 
 const EMPTY = { assetId: '', maintenanceType: 'PREVENTIVE', findings: '', actionsTaken: '', assignedTo: '', maintenanceDate: '', cost: '', status: 'SCHEDULED' }

@@ -6,6 +6,7 @@ import { newIdempotencyKey } from '../../utils/idempotency'
 import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
 import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
+import Select from '../../components/common/Select'
 
 const ROLES = [
   { value: 'ADMIN', label: 'Administrator' },
@@ -47,20 +48,10 @@ function TextInput({ error, ...props }) {
 
 function SelectInput({ children, ...props }) {
   return (
-    <div className="relative">
-      <select
-        className="w-full appearance-none rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 pr-9 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white
-          hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150"
-        {...props}
-      >
-        {children}
-      </select>
-      <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
-      </div>
-    </div>
+    <Select className="w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white
+      hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150" {...props}>
+      {children}
+    </Select>
   )
 }
 

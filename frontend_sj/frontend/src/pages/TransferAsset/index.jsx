@@ -13,6 +13,7 @@ import { getOffices } from '../../services/officeService'
 import { getPersonnel, inOffice } from '../../services/personnelService'
 import { getTransfers, submitTransfer, approveTransfer, rejectTransfer } from '../../services/transferService'
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
+import Select from '../../components/common/Select'
 
 // Find an asset by its QR code (or Property/PAR Number), then transfer it to another
 // office / accountable person (its location follows the office). An admin's transfer applies at once; a staff
@@ -465,7 +466,8 @@ function TransferAsset() {
               {cameras.length > 1 && (scanning || starting || cameraError) && (
                 <div className="flex items-center gap-2">
                   <label htmlFor="camera-select" className="text-xs font-semibold text-slate-500 dark:text-zinc-400 shrink-0">Camera</label>
-                  <select
+                  <Select
+                    wrapperClassName="flex-1 min-w-0"
                     id="camera-select"
                     value={cameraId}
                     onChange={(e) => switchCamera(e.target.value)}
@@ -477,7 +479,7 @@ function TransferAsset() {
                         {c.label || `Camera ${i + 1}`}{VIRTUAL_CAMERA.test(c.label) ? ' (virtual)' : ''}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
 
@@ -610,12 +612,12 @@ function TransferAsset() {
                   <form onSubmit={submitTransferForm} noValidate className="p-5 space-y-4">
                     <div>
                       <label htmlFor="to-office" className={LABEL}>Move to office<span className="text-red-500 ml-0.5">*</span></label>
-                      <select id="to-office" value={transfer.toOfficeId} onChange={setT('toOfficeId')} className={INPUT}>
+                      <Select id="to-office" value={transfer.toOfficeId} onChange={setT('toOfficeId')} className={INPUT}>
                         <option value="">Select office</option>
                         {offices.map((o) => (
                           <option key={o.id} value={o.id}>{o.officeName}{o.id === result.office?.id ? ' (current)' : ''}</option>
                         ))}
-                      </select>
+                      </Select>
                       {transferErrors.toOfficeId && <p className="text-xs text-red-500 mt-1">{transferErrors.toOfficeId}</p>}
                     </div>
 
@@ -626,10 +628,10 @@ function TransferAsset() {
                           ? <span className="text-red-500 ml-0.5">*</span>
                           : <span className="text-slate-400 font-normal"> (optional)</span>}
                       </label>
-                      <select id="to-person" value={transfer.toPersonnelId} onChange={setT('toPersonnelId')} disabled={!transfer.toOfficeId} aria-required={personRequired} className={`${INPUT} disabled:opacity-60`}>
+                      <Select id="to-person" value={transfer.toPersonnelId} onChange={setT('toPersonnelId')} disabled={!transfer.toOfficeId} aria-required={personRequired} className={`${INPUT} disabled:opacity-60`}>
                         <option value="">{!transfer.toOfficeId ? 'Choose the office first' : personRequired ? 'Select person' : 'None'}</option>
                         {officePersonnel.map((p) => <option key={p.id} value={p.id}>{p.fullName}{p.id === result.accountablePerson?.id ? ' (current)' : ''}</option>)}
-                      </select>
+                      </Select>
                       {transferErrors.toPersonnelId && <p className="text-xs text-red-500 mt-1">{transferErrors.toPersonnelId}</p>}
                       {transfer.toOfficeId && officePersonnel.length === 0 && (
                         <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">No staff are assigned to this office yet.</p>
@@ -658,19 +660,19 @@ function TransferAsset() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <label className="block">
                         <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Condition</span>
-                        <select value={statusForm.condition} onChange={(e) => setStatusForm((p) => ({ ...p, condition: e.target.value }))} className={`mt-1 ${INPUT}`}>
+                        <Select value={statusForm.condition} onChange={(e) => setStatusForm((p) => ({ ...p, condition: e.target.value }))} wrapperClassName="mt-1" className={INPUT}>
                           {Object.keys(CONDITION_BADGE).map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        </Select>
                       </label>
                       <label className="block">
                         <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Lifecycle Status</span>
-                        <select value={statusForm.lifecycleStatus} onChange={handleLifecycleChange} className={`mt-1 ${INPUT}`}>
+                        <Select value={statusForm.lifecycleStatus} onChange={handleLifecycleChange} wrapperClassName="mt-1" className={INPUT}>
                           {lifecycleOptions.map((s) => (
                             <option key={s} value={s} disabled={!isAdmin && s === 'TRANSFERRED'}>
                               {s.replace('_', ' ')}{!isAdmin && REQUEST_FOR_STATUS[s] && s !== result.lifecycleStatus ? ' (needs approval)' : ''}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                     </div>
                     {statusHint && <p className="text-xs text-amber-600 dark:text-amber-400">{statusHint}</p>}

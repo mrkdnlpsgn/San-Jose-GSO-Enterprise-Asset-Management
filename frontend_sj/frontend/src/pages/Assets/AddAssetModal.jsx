@@ -11,6 +11,7 @@ import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DatePicker from '../../components/common/DatePicker'
+import Select from '../../components/common/Select'
 
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 // The status (Assigned / Under maintenance / Disposed) isn't edited here: it follows the
@@ -431,20 +432,17 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                 {customError && <p className="field-error text-xs text-red-700 dark:text-red-300">{customError}</p>}
               </div>
             ) : (
-              <div className="relative">
-                <select
-                  className={INPUT_CLASS + ' appearance-none pr-9'}
-                  value={form.categoryId}
-                  onChange={handleCategoryChange}
-                >
-                  <option value="">Select category</option>
-                  {allCategories.map((c) => (
-                    <option key={c.id} value={String(c.id)}>{c.categoryName}</option>
-                  ))}
-                  {!staffMode && <option value="__custom__">＋ Add custom category…</option>}
-                </select>
-                <ChevronIcon />
-              </div>
+              <Select
+                className={INPUT_CLASS}
+                value={form.categoryId}
+                onChange={handleCategoryChange}
+              >
+                <option value="">Select category</option>
+                {allCategories.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.categoryName}</option>
+                ))}
+                {!staffMode && <option value="__custom__">＋ Add custom category…</option>}
+              </Select>
             )}
           {errors.categoryId && !customMode && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.categoryId}</p>}
         </div>
@@ -456,13 +454,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
               Article{categoryArticles.length > 0 && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}
             </label>
             {categoryArticles.length > 0 ? (
-              <div className="relative">
-                <select id="asset-article" className={INPUT_CLASS + ' appearance-none pr-9'} value={form.articleId} onChange={set('articleId')}>
-                  <option value="">Select article</option>
-                  {categoryArticles.map((a) => <option key={a.id} value={String(a.id)}>{a.articleName}</option>)}
-                </select>
-                <ChevronIcon />
-              </div>
+              <Select id="asset-article" className={INPUT_CLASS} value={form.articleId} onChange={set('articleId')}>
+                <option value="">Select article</option>
+                {categoryArticles.map((a) => <option key={a.id} value={String(a.id)}>{a.articleName}</option>)}
+              </Select>
             ) : (
               <p className="text-xs text-slate-600 dark:text-zinc-400">
                 This category has no articles yet. {staffMode ? 'An administrator' : 'You'} can add them (e.g. Laptop, Printer) on the Categories page.
@@ -569,13 +564,10 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                 <p className="text-xs text-slate-600 dark:text-zinc-400">Automatically set to your assigned office. Only an administrator can move an asset.</p>
               </>
             ) : (
-              <div className="relative">
-                <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.officeId} onChange={handleOfficeChange}>
-                  <option value="">Select office</option>
-                  {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
-                </select>
-                <ChevronIcon />
-              </div>
+              <Select className={INPUT_CLASS} value={form.officeId} onChange={handleOfficeChange}>
+                <option value="">Select office</option>
+                {offices.map((o) => <option key={o.id} value={String(o.id)}>{o.officeName}</option>)}
+              </Select>
             )}
             {errors.officeId && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.officeId}</p>}
           </div>
@@ -590,15 +582,12 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
                 <p className="text-xs text-slate-600 dark:text-zinc-400">You are this asset&apos;s accountable person.</p>
               </>
             ) : (
-              <div className="relative">
-                <select className={INPUT_CLASS + ' appearance-none pr-9 disabled:opacity-60 disabled:cursor-not-allowed'} value={form.personnelId} onChange={handlePersonnelChange} disabled={!form.officeId}>
-                  <option value="">{form.officeId ? 'Select accountable person' : 'Select an office first'}</option>
-                  {accountableOptions.map((p) => (
-                    <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? `: ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
-                  ))}
-                </select>
-                <ChevronIcon />
-              </div>
+              <Select className={INPUT_CLASS + ' disabled:opacity-60 disabled:cursor-not-allowed'} value={form.personnelId} onChange={handlePersonnelChange} disabled={!form.officeId}>
+                <option value="">{form.officeId ? 'Select accountable person' : 'Select an office first'}</option>
+                {accountableOptions.map((p) => (
+                  <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? `: ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
+                ))}
+              </Select>
             )}
             {errors.personnelId && <p className="field-error text-xs text-red-700 dark:text-red-300">{errors.personnelId}</p>}
             {!staffMode && form.officeId && personnelForOffice.length === 0 && (
@@ -620,26 +609,20 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">
             Current User <span className="text-slate-600 dark:text-zinc-400 font-normal">(optional, who actually has the asset, if different from the accountable person; can be anyone, from any office)</span>
           </label>
-          <div className="relative">
-            <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.currentUserId} onChange={set('currentUserId')}>
-              <option value="">Same as accountable person / unspecified</option>
-              {currentUserOptions.map((p) => (
-                <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? `: ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
-              ))}
-            </select>
-            <ChevronIcon />
-          </div>
+          <Select className={INPUT_CLASS} value={form.currentUserId} onChange={set('currentUserId')}>
+            <option value="">Same as accountable person / unspecified</option>
+            {currentUserOptions.map((p) => (
+              <option key={p.id} value={String(p.id)}>{p.fullName}{p.position ? `: ${p.position}` : ''}{p._former ? ' (inactive)' : ''}</option>
+            ))}
+          </Select>
         </div>
 
         {/* Condition */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Condition<span className="text-red-600 dark:text-red-400 ml-0.5">*</span></label>
-          <div className="relative">
-            <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.condition} onChange={set('condition')}>
-              {CONDITIONS.map(([c, label]) => <option key={c} value={c}>{label}</option>)}
-            </select>
-            <ChevronIcon />
-          </div>
+          <Select className={INPUT_CLASS} value={form.condition} onChange={set('condition')}>
+            {CONDITIONS.map(([c, label]) => <option key={c} value={c}>{label}</option>)}
+          </Select>
         </div>
 
         {conditionNote && (
@@ -693,12 +676,3 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   )
 }
 
-function ChevronIcon() {
-  return (
-    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-      </svg>
-    </div>
-  )
-}

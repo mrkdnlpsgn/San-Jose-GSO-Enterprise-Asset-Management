@@ -5,6 +5,7 @@ import { newIdempotencyKey } from '../../utils/idempotency'
 import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DatePicker from '../../components/common/DatePicker'
+import Select from '../../components/common/Select'
 
 const METHODS   = ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS']
 const STATUSES  = ['PENDING', 'APPROVED', 'COMPLETED']
@@ -94,13 +95,10 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
 
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Asset<span className="text-red-400 ml-0.5">*</span></label>
-          <div className="relative">
-            <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.assetId} onChange={set('assetId')} disabled={isEditing}>
-              <option value="">Select asset</option>
-              {selectableAssets.map((a) => <option key={a.id} value={String(a.id)}>{a.propertyNumber}: {a.description} ({a.condition})</option>)}
-            </select>
-            <Chevron />
-          </div>
+          <Select className={INPUT_CLASS} value={form.assetId} onChange={set('assetId')} disabled={isEditing}>
+            <option value="">Select asset</option>
+            {selectableAssets.map((a) => <option key={a.id} value={String(a.id)}>{a.propertyNumber}: {a.description} ({a.condition})</option>)}
+          </Select>
           {errors.assetId && <p className="text-xs text-red-400">{errors.assetId}</p>}
           <p className="text-xs text-slate-400 dark:text-zinc-500">Only assets marked REPAIRABLE or UNSERVICEABLE can be disposed.</p>
           {selectedAsset && (
@@ -126,21 +124,15 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Recommended Method<span className="text-red-400 ml-0.5">*</span></label>
-            <div className="relative">
-              <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.recommendedMethod} onChange={set('recommendedMethod')}>
-                {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <Chevron />
-            </div>
+            <Select className={INPUT_CLASS} value={form.recommendedMethod} onChange={set('recommendedMethod')}>
+              {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </Select>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Disposal Status</label>
-            <div className="relative">
-              <select className={INPUT_CLASS + ' appearance-none pr-9'} value={form.disposalStatus} onChange={set('disposalStatus')}>
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <Chevron />
-            </div>
+            <Select className={INPUT_CLASS} value={form.disposalStatus} onChange={set('disposalStatus')}>
+              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </Select>
           </div>
         </div>
 
@@ -183,12 +175,3 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
   )
 }
 
-function Chevron() {
-  return (
-    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-      </svg>
-    </div>
-  )
-}

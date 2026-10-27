@@ -6,6 +6,7 @@ import { getAssetHistory } from '../../services/assetHistoryService'
 import GroupDevicesTable from './GroupDevicesTable'
 import { getLatestRecommendation, generateRecommendation } from '../../services/aiRecommendationService'
 import { useEventStream } from '../../hooks/useEventStream'
+import Select from '../../components/common/Select'
 
 // Drawer for a group of same-model devices (assets that were added together and share
 // a groupId). Every device is still its own complete asset; this is the roll-up view:
@@ -257,17 +258,17 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
               <div className="grid grid-cols-2 gap-2">
                 <label className="flex flex-col gap-1">
                   <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Device</span>
-                  <select className={SELECT_CLASS} value={deviceFilter} onChange={(e) => setDeviceFilter(e.target.value)}>
+                  <Select className={SELECT_CLASS} value={deviceFilter} onChange={(e) => setDeviceFilter(e.target.value)}>
                     <option value="">All devices</option>
                     {members.map((m, i) => <option key={m.id} value={String(i)}>{deviceName(i)}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label className="flex flex-col gap-1">
                   <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Lifecycle event</span>
-                  <select className={SELECT_CLASS} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                  <Select className={SELECT_CLASS} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
                     <option value="">All events</option>
                     {typeOptions.map((t) => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase().replace(/_/g, ' ')}</option>)}
-                  </select>
+                  </Select>
                 </label>
               </div>
 
@@ -321,10 +322,10 @@ export default function AssetGroupDrawer({ members, exiting, onClose, renderDevi
               <div className="flex items-end gap-2">
                 <label className="flex flex-col gap-1 flex-1">
                   <span className="text-2xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Device</span>
-                  <select className={SELECT_CLASS} value={aiDevice} onChange={(e) => setAiDevice(e.target.value)}>
+                  <Select className={SELECT_CLASS} value={aiDevice} onChange={(e) => setAiDevice(e.target.value)}>
                     <option value="">All devices</option>
                     {members.map((m, i) => <option key={m.id} value={String(i)}>{deviceName(i)}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <button onClick={generateMissing} disabled={Object.values(generating).some(Boolean)}
                   className="px-3 py-2 rounded-md bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold hover:bg-brand-500/20 disabled:opacity-50 transition-all whitespace-nowrap">

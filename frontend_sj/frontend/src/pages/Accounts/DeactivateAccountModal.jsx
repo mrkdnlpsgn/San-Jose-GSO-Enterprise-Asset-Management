@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Modal from '../../components/common/Modal'
 import Button from '../../components/common/Button'
+import Select from '../../components/common/Select'
 
 // Deactivating an account (e.g. staff retired or left GSO) - accounts are never deleted, so
 // their audit logs and history stay intact. If it still has assets (as accountable person or
@@ -39,7 +40,7 @@ function DeactivateAccountModal({ user, accounts, onClose, onConfirm }) {
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">
               Transfer {user.assetCount} asset{user.assetCount !== 1 ? 's' : ''} to<span className="text-red-400 ml-0.5">*</span>
             </label>
-            <select
+            <Select
               value={transferTo}
               onChange={(e) => { setTransferTo(e.target.value); setError('') }}
               className="w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -50,7 +51,7 @@ function DeactivateAccountModal({ user, accounts, onClose, onConfirm }) {
                   {a.fullName || a.username} (@{a.username}){a.officeName ? `: ${a.officeName}` : ''}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-slate-400 dark:text-zinc-500">
               They become the accountable person (or current user) of every asset {name} holds.
             </p>
