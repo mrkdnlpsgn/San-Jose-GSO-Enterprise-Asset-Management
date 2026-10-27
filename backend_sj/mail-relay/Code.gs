@@ -26,7 +26,7 @@ function doPost(e) {
     to: req.to,
     subject: req.subject,
     htmlBody: req.html || '',
-    name: req.fromName || 'San Jose GSO Inventory Management System'
+    name: req.fromName || 'San Jose GSO Enterprise Asset Management System'
   });
   return reply({ ok: true });
 }

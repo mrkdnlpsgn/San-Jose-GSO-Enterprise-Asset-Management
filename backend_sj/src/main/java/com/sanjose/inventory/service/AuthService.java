@@ -525,7 +525,7 @@ public class AuthService {
     public String requestActionOtp(String username, String action) {
         return sendStepUpOtp(username, "Confirm: " + action,
             "<p>You are about to <strong>" + HtmlUtils.htmlEscape(action) + "</strong> in the San Jose GSO "
-                + "Inventory Management System. Enter this code to confirm:</p>",
+                + "Enterprise Asset Management System. Enter this code to confirm:</p>",
             "nothing will change without the code.", logActionOtp);
     }
 

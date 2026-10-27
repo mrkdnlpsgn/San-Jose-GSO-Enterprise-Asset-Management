@@ -71,7 +71,7 @@ public class AppVersionController {
     // GitHub's REST API allows only 60 unauthenticated calls an hour per IP, and a host like Render
     // shares its outgoing IPs with many other apps, so the limit is often used up already. The
     // plain web links have no such limit: /releases/latest redirects to /releases/tag/v<version>,
-    // and the workflow names every release's APK the same way (SJ-Inventory-v<version>.apk).
+    // and the workflow names every release's APK the same way (APK_NAMES, newest naming first).
     private Release latestRelease() {
         if (blankToNull(releasesRepo) == null || System.currentTimeMillis() < nextLookupAt) return cached;
         synchronized (this) {
@@ -84,7 +84,7 @@ public class AppVersionController {
                 if (!tag.find()) throw new IllegalStateException("GitHub answered " + latest.statusCode() + " with no release tag");
                 String version = tag.group(1);
                 String download = base + "/download/v" + version + "/";
-                cached = new Release(version, download + "SJ-Inventory-v" + version + ".apk");
+                cached = new Release(version, apkUrl(download, version));
                 nextLookupAt = System.currentTimeMillis() + FRESH_FOR.toMillis();
             } catch (Exception e) {
                 if (e instanceof InterruptedException) Thread.currentThread().interrupt();
@@ -93,6 +93,22 @@ public class AppVersionController {
             }
             return cached;
         }
+    }
+
+    // Releases up to 1.0.12 were named SJ-Inventory-v<version>.apk; later ones SJ-GSO-EAM-v<version>.apk.
+    private static final String[] APK_NAMES = { "SJ-GSO-EAM-v", "SJ-Inventory-v" };
+
+    // The first name that exists on the release (a download link answers with a redirect),
+    // or the newest naming when none can be confirmed.
+    private String apkUrl(String download, String version) throws Exception {
+        for (String name : APK_NAMES) {
+            String url = download + name + version + ".apk";
+            HttpRequest head = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5))
+                .header("User-Agent", "sjgso-backend").method("HEAD", HttpRequest.BodyPublishers.noBody()).build();
+            int status = noRedirects.send(head, HttpResponse.BodyHandlers.discarding()).statusCode();
+            if (status >= 200 && status < 400) return url;
+        }
+        return download + APK_NAMES[0] + version + ".apk";
     }
 
     private static HttpRequest get(String url) {

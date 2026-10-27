@@ -173,7 +173,7 @@ public class UserService {
         UserResponse saved = findById(newId);
         auditLogService.log("USER_CREATED", "Users", newId, "user", "Created: " + saved.getUsername());
         if (generate) {
-            String html = "<p>A San Jose GSO Inventory Management System account has been created for you.</p>"
+            String html = "<p>A San Jose GSO Enterprise Asset Management System account has been created for you.</p>"
                 + "<p><b>Username:</b> " + saved.getUsername() + "</p>"
                 + "<p><b>Temporary Password:</b> "
                 + "<span style=\"font-family:monospace;font-size:16px;\">" + plainPassword + "</span></p>"

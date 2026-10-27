@@ -320,8 +320,8 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
           />
           <div className="overflow-hidden">
             <p className="text-sm font-semibold text-gov-700 dark:text-white whitespace-nowrap leading-tight">San Jose GSO</p>
-            <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight mt-px">Inventory Management</p>
-            <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight">System</p>
+            <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight mt-px">Enterprise Asset</p>
+            <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight">Management System</p>
           </div>
         </div>
         {/* Collapse toggle - desktop only */}

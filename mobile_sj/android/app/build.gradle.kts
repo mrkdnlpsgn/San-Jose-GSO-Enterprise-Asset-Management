@@ -23,14 +23,14 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["appLabel"] = "SJ Inventory"
+        manifestPlaceholders["appLabel"] = "SJ GSO EAM"
     }
 
     buildTypes {
         debug {
             // Installs beside the deployed (release) app instead of replacing it
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = "SJ Inventory (Local)"
+            manifestPlaceholders["appLabel"] = "SJ GSO EAM (Local)"
         }
         release {
             // TODO: Add your own signing config for the release build.

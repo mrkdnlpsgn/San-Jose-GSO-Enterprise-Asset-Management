@@ -131,8 +131,8 @@ public class PersonnelService {
         boolean many = saved.getOffices().size() > 1;
         String html = "<p>Hello " + HtmlUtils.htmlEscape(saved.getFullName()) + ",</p>"
             + (previous.isEmpty()
-                ? "<p>You have been assigned to " + (many ? "offices" : "an office") + " in the San Jose GSO Inventory Management System.</p>"
-                : "<p>Your office assignment in the San Jose GSO Inventory Management System has been changed from <b>"
+                ? "<p>You have been assigned to " + (many ? "offices" : "an office") + " in the San Jose GSO Enterprise Asset Management System.</p>"
+                : "<p>Your office assignment in the San Jose GSO Enterprise Asset Management System has been changed from <b>"
                     + before + "</b>.</p>")
             + "<p><b>Assigned office" + (many ? "s" : "") + ":</b> " + offices + "</p>"
             + "<p>When you sign in, you will see and manage the assets of " + (many ? "these offices" : "this office") + ".</p>"

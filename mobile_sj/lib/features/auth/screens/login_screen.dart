@@ -197,7 +197,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'GSO Inventory Management System',
+                              'GSO Enterprise Asset Management System',
                               textAlign: TextAlign.center,
                               style: TextStyle(fontSize: 22, height: 1.25, fontWeight: FontWeight.w800, color: c.heading),
                             ),

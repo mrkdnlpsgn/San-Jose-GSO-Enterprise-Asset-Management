@@ -217,7 +217,7 @@ function Login() {
             San Jose Municipal Hall
           </p>
           <p className="mt-3 text-3xl font-extrabold text-gov-700 dark:text-white tracking-tight leading-tight animate-rise-in [animation-delay:200ms]">
-            San Jose GSO<br />Inventory Management System
+            San Jose GSO<br />Enterprise Asset Management System
           </p>
           <span className="mt-5 [@container(max-height:33.5rem)]:hidden block h-1 w-14 rounded-full bg-brand-500 origin-center animate-draw-x [animation-delay:380ms]" aria-hidden="true" />
           <p className="mt-5 [@container(max-height:44rem)]:mt-3 text-base text-slate-600 dark:text-zinc-300 animate-rise-in [animation-delay:300ms]">
@@ -277,7 +277,7 @@ function Login() {
             </div>
             <div>
               <p className="text-sm font-bold text-brand-700 dark:text-brand-400 uppercase tracking-[0.12em]">San Jose Municipal Hall</p>
-              <p className="text-lg font-extrabold text-gov-700 dark:text-white mt-1 leading-tight">GSO Inventory Management System</p>
+              <p className="text-lg font-extrabold text-gov-700 dark:text-white mt-1 leading-tight">GSO Enterprise Asset Management System</p>
               <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5">Batangas · Philippines</p>
             </div>
           </div>

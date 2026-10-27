@@ -26,7 +26,7 @@ public class EmailService {
     @Value("${mail.from:}")
     private String from;
 
-    @Value("${mail.from-name:San Jose GSO Inventory Management System}")
+    @Value("${mail.from-name:San Jose GSO Enterprise Asset Management System}")
     private String fromName;
 
     @Value("${notifications.enabled:false}")

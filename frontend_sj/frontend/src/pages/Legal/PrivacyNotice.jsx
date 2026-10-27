@@ -10,7 +10,7 @@ const TERMS_SECTIONS = [
   },
   {
     title: '2. Restricted system, authorized government use only',
-    body: 'This is a private, internal government inventory system operated by the General Services Office (GSO) of the San Jose Municipal Hall, Batangas. It is not a public service and has no public-facing features. Access is limited exclusively to GSO personnel who have been issued an account by an administrator. Attempting to access, scan, or probe this System without an authorized account is prohibited and may be referred for investigation and prosecution under the Cybercrime Prevention Act of 2012 (RA 10175) and other applicable law.',
+    body: 'This is a private, internal government asset management system operated by the General Services Office (GSO) of the San Jose Municipal Hall, Batangas. It is not a public service and has no public-facing features. Access is limited exclusively to GSO personnel who have been issued an account by an administrator. Attempting to access, scan, or probe this System without an authorized account is prohibited and may be referred for investigation and prosecution under the Cybercrime Prevention Act of 2012 (RA 10175) and other applicable law.',
   },
   {
     title: '3. Eligibility and account responsibility',
