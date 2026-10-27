@@ -57,23 +57,19 @@ void main() {
     expect(find.text('See the list'), findsOneWidget);
     expect(find.text('Rest of 2026'), findsOneWidget);
     expect(find.text('2029'), findsOneWidget);
-    expect(find.textContaining('about ₱321.9M', findRichText: true), findsOneWidget);
-    // only the top 3 types
-    expect(find.text('ICT Equipment'), findsNothing);
+    expect(find.textContaining('About ₱321.9M', findRichText: true), findsOneWidget);
+    expect(find.text('₱20.8M'), findsOneWidget);
+    expect(find.text('for 46 assets'), findsOneWidget);
     expect(find.text('Write summary'), findsOneWidget);
-    // accounting figures start folded
-    expect(find.text('What they are worth today'), findsNothing);
+    // breakdowns by type and accounting figures are in the reports, not on Home
+    expect(find.text('Motor Vehicle'), findsNothing);
+    expect(find.text('Depreciation Schedule'), findsOneWidget);
+    expect(find.textContaining('3% a year'), findsOneWidget);
   });
 
-  testWidgets('both folded sections open without overflowing, in dark mode too', (tester) async {
+  testWidgets('fits at phone width in dark mode, with a summary and a missing type', (tester) async {
     await _pump(tester, _planning(summary: 'A short note.', noLife: ['Office Supplies']), theme: AppTheme.dark);
-    await tester.tap(find.text('Asset value, for the Accounting Office'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('How these numbers are worked out'));
-    await tester.pumpAndSettle();
-    expect(find.text('What they are worth today'), findsOneWidget);
-    expect(find.text('Official term: Book value'), findsOneWidget);
-    expect(find.textContaining('552 assets have reached'), findsOneWidget);
+    expect(find.text('A short note.'), findsOneWidget);
     expect(find.textContaining('Not counted yet: Office Supplies'), findsOneWidget);
     expect(find.text('Write again'), findsOneWidget);
     expect(tester.takeException(), isNull);

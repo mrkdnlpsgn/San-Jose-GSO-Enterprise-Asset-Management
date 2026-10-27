@@ -6,10 +6,10 @@ import '../../../shared/widgets/skeleton.dart';
 import '../provider/planning_provider.dart';
 import 'ios_style.dart';
 
-/// Home's "Budget & Planning" (admins only), the same as the web's and written for GSO staff
-/// rather than accountants: one clear message first (what is due for replacement now, with a
-/// link to the list), then the coming years and where most of the cost is. The book-value
-/// figures for the Accounting Office and the "how is this counted" notes start folded.
+/// Home's "Budget & Planning" (admins only), the same as the web's and kept short for GSO staff:
+/// what is due for replacement now, what comes due in the next few years, and an optional AI
+/// summary. Breakdowns by type and the book-value figures live in the Replacement Forecast and
+/// Depreciation Schedule reports.
 class BudgetPlanningCard extends ConsumerStatefulWidget {
   const BudgetPlanningCard({super.key});
 
@@ -102,10 +102,6 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
     final thisYear = p.asOf.length >= 4 ? p.asOf.substring(0, 4) : '';
     final dueNow = p.dueNow;
     final coming = p.coming;
-    final comingAssets = coming.fold<int>(0, (n, b) => n + b.assets);
-    final comingCost = coming.fold<double>(0, (n, b) => n + b.cost);
-    final top = p.categories.take(3).toList();
-    final maxCost = top.isEmpty || top.first.cost <= 0 ? 1.0 : top.first.cost;
     final heading = TextStyle(fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: -0.3, color: c.textPrimary);
     final note = TextStyle(fontSize: 14.5, height: 1.4, color: c.textSecondary);
 
@@ -121,7 +117,7 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
                 style: note),
             const SizedBox(height: 14),
 
-            // 1. The one thing to know
+            // 1. Due now
             if (dueNow != null && dueNow.assets > 0)
               Container(
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -138,10 +134,9 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
                     const SizedBox(height: 4),
                     Text.rich(
                       TextSpan(children: [
-                        const TextSpan(text: 'Replacing them would cost about '),
+                        const TextSpan(text: 'About '),
                         TextSpan(text: _short(dueNow.cost), style: const TextStyle(fontWeight: FontWeight.w700)),
-                        const TextSpan(
-                            text: '. They have been used longer than expected, or they are broken and waiting for disposal.'),
+                        const TextSpan(text: ' to replace. They are past their expected years of use, or broken.'),
                       ]),
                       style: TextStyle(fontSize: 15, height: 1.4, color: c.textPrimary),
                     ),
@@ -157,79 +152,40 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
             else
               Text('No assets are due for replacement right now.', style: TextStyle(fontSize: 15, color: c.textPrimary)),
 
-            // 2. The coming years
-            const SizedBox(height: 20),
-            Text('Coming up', style: heading),
-            const SizedBox(height: 2),
-            Text(
-                'Assets that will reach the end of their expected years of use. '
-                'Total: ${_short(comingCost)} for ${_plural(comingAssets, 'asset', 'assets')}.',
-                style: note),
-            const SizedBox(height: 10),
-            // Two per row, each row as tall as its tallest tile, so larger text sizes still fit.
-            for (var i = 0; i < coming.length; i += 2) ...[
-              if (i > 0) const SizedBox(height: 10),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final b in coming.skip(i).take(2)) ...[
-                      if (b != coming[i]) const SizedBox(width: 10),
+            // 2. The coming years, one line each
+            if (coming.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Text('Coming up', style: heading),
+              const SizedBox(height: 4),
+              for (var i = 0; i < coming.length; i++) ...[
+                if (i > 0) Divider(height: 1, thickness: 0.5, color: Ios.separator(context)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Expanded(
-                        child: _Figure(
-                          label: b.key == thisYear ? 'Rest of ${b.key}' : b.key,
-                          value: _short(b.cost),
-                          sub: _plural(b.assets, 'asset', 'assets'),
-                        ),
+                        child: Text(coming[i].key == thisYear ? 'Rest of ${coming[i].key}' : coming[i].key,
+                            style: TextStyle(fontSize: 16, color: c.textPrimary)),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(_short(coming[i].cost),
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                          Text('for ${_plural(coming[i].assets, 'asset', 'assets')}',
+                              style: TextStyle(fontSize: 13.5, color: c.textSecondary)),
+                        ],
                       ),
                     ],
-                    if (i + 1 >= coming.length) ...[const SizedBox(width: 10), const Expanded(child: SizedBox())],
-                  ],
-                ),
-              ),
-            ],
-
-            // 3. Where the money goes
-            if (top.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Text('Where most of the cost is', style: heading),
-              const SizedBox(height: 2),
-              Text('Types of assets with the highest replacement cost, due now and coming up.', style: note),
-              const SizedBox(height: 10),
-              for (var i = 0; i < top.length; i++) ...[
-                if (i > 0) const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Text(top[i].name,
-                          maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: c.textPrimary)),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(_short(top[i].cost),
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
-                  ],
-                ),
-                Text('for ${_plural(top[i].assets, 'asset', 'assets')}', style: TextStyle(fontSize: 13.5, color: c.textSecondary)),
-                const SizedBox(height: 5),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: Container(
-                    height: 6,
-                    color: c.border.withValues(alpha: 0.5),
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: (top[i].cost / maxCost).clamp(0.0, 1.0),
-                      child: Container(
-                          decoration: BoxDecoration(color: AppTheme.brand, borderRadius: BorderRadius.circular(3))),
-                    ),
                   ),
                 ),
               ],
             ],
 
             if (p.noExpectedLife.isNotEmpty) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 'Not counted yet: ${p.noExpectedLife.join(', ')}. '
                 '${p.noExpectedLife.length == 1 ? 'This type has' : 'These types have'} no expected years of use. '
@@ -238,8 +194,8 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
               ),
             ],
 
-            // 4. Summary in plain words (AI)
-            const SizedBox(height: 18),
+            // 3. Summary (AI)
+            const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.fromLTRB(14, 6, 6, 12),
               decoration: BoxDecoration(
@@ -251,7 +207,7 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: Text('Summary in plain words', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: c.textPrimary))),
+                      Expanded(child: Text('Summary', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: c.textPrimary))),
                       _generating
                           ? const Padding(
                               padding: EdgeInsets.all(12),
@@ -264,9 +220,7 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
                     padding: const EdgeInsets.only(right: 8),
                     child: Text(
                       p.summary ??
-                          (_generating
-                              ? 'Writing the summary…'
-                              : 'The AI can explain these numbers in a few sentences, for reports and meetings.'),
+                          (_generating ? 'Writing the summary…' : 'The AI can explain these numbers in a few sentences.'),
                       style: TextStyle(
                           fontSize: p.summary != null ? 16 : 15,
                           height: 1.45,
@@ -277,135 +231,26 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
               ),
             ),
 
-            // 5. Folded away until opened
-            const SizedBox(height: 8),
-            _Fold(
-              title: 'Asset value, for the Accounting Office',
+            // More detail lives in the reports
+            const SizedBox(height: 12),
+            Text('Costs include ${p.priceIncreasePercent.toStringAsFixed(0)}% a year for price increases.', style: note),
+            Wrap(
+              spacing: 16,
               children: [
-                Text('What the assets are worth on the books after wear and tear. The full table is in the '
-                    'Depreciation Schedule report.', style: note),
-                const SizedBox(height: 10),
-                _Figure(label: 'What we paid for them', value: _short(p.totalCost),
-                    sub: _plural(p.assets, 'asset', 'assets'), term: 'Total cost'),
-                const SizedBox(height: 8),
-                _Figure(label: 'What they are worth today', value: _short(p.bookValue),
-                    sub: 'After wear and tear', term: 'Book value'),
-                const SizedBox(height: 8),
-                _Figure(
-                    label: 'Value lost so far',
-                    value: _short(p.accumulatedDepreciation),
-                    sub: p.totalCost > 0
-                        ? '${(p.accumulatedDepreciation * 100 / p.totalCost).round()}% of what we paid'
-                        : null,
-                    term: 'Accumulated depreciation'),
-                const SizedBox(height: 8),
-                _Figure(label: 'Value lost this year ($thisYear)', value: _short(p.depreciationExpense),
-                    sub: 'About ${_short(p.monthlyDepreciation)} a month', term: 'Depreciation expense'),
-                const SizedBox(height: 10),
-                Text(
-                  '${_plural(p.fullyDepreciated, 'asset has', 'assets have')} reached the end of '
-                  '${p.fullyDepreciated == 1 ? 'its' : 'their'} counted value. Only the 5% minimum value is left on '
-                  'the books (fully depreciated).',
-                  style: TextStyle(fontSize: 15, height: 1.4, color: c.textPrimary),
+                TextButton(
+                  onPressed: () => context.push('/reports/replacement'),
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  child: const Text('Replacement Forecast'),
                 ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => context.push('/reports/depreciation'),
-                    child: const Text('Open the Depreciation Schedule'),
-                  ),
+                TextButton(
+                  onPressed: () => context.push('/reports/depreciation'),
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                  child: const Text('Depreciation Schedule'),
                 ),
-              ],
-            ),
-            _Fold(
-              title: 'How these numbers are worked out',
-              children: [
-                for (final line in [
-                  'Each type of asset has an expected number of years of use, set on the Categories page (for example, 5 years for ICT Equipment).',
-                  'Due now means the asset has passed its expected years of use, or it is unserviceable and waiting for disposal.',
-                  'Replacement cost is what was paid for the asset, plus ${p.priceIncreasePercent.toStringAsFixed(0)}% a year for price increases.',
-                  "Value on the books goes down by the same amount every month until only 5% of the cost is left (straight-line depreciation, as in the Accounting Office's schedule).",
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('•  ', style: TextStyle(fontSize: 15, height: 1.4, color: c.textSecondary)),
-                        Expanded(child: Text(line, style: TextStyle(fontSize: 15, height: 1.4, color: c.textPrimary))),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// One figure in a small bordered box; [term] is the official (accounting) name, shown small.
-class _Figure extends StatelessWidget {
-  final String label;
-  final String value;
-  final String? sub;
-  final String? term;
-  const _Figure({required this.label, required this.value, this.sub, this.term});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Ios.separator(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, color: c.textSecondary)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value,
-                style: TextStyle(fontSize: 21, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: c.textPrimary)),
-          ),
-          if (sub != null) Text(sub!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: c.textSecondary)),
-          if (term != null) ...[
-            const SizedBox(height: 2),
-            Text('Official term: $term', style: TextStyle(fontSize: 12.5, color: c.textTertiary)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// A section that starts closed (iOS-style disclosure row).
-class _Fold extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-  const _Fold({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Theme(
-      // no extra divider lines above and below an opened section
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: const EdgeInsets.only(bottom: 10),
-        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-        title: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: c.textPrimary)),
-        iconColor: c.textSecondary,
-        collapsedIconColor: c.textTertiary,
-        children: children,
       ),
     );
   }
