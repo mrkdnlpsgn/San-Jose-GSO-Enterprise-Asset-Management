@@ -24,7 +24,9 @@ import { getPersonnel } from '../../services/personnelService'
 import DraftRows from '../../components/common/DraftRows'
 import { useDraftList } from '../../hooks/useFormDraft'
 
-const PAGE_SIZE = 8
+// Lazy scroll: the first rows draw at once, more are added as the user nears the end of the
+// table (every asset is already loaded, so this only limits how many rows are drawn).
+const ROW_BATCH = 40
 
 // The table keeps the physical count report's main columns, in its order, and fits the screen
 // without scrolling sideways: columns drop away on narrow screens and what they said moves into
@@ -155,7 +157,8 @@ function Assets() {
   const [deleteReason, setDeleteReason] = useState('')
   const [selected, setSelected]     = useState(null)
   const [assetDrawerExiting, setAssetDrawerExiting] = useState(false)
-  const [page, setPage]             = useState(1)
+  const [shown, setShown]           = useState(ROW_BATCH)   // rows drawn so far
+  const loadMoreRef = useRef(null)
   const [qrAsset, setQrAsset]       = useState(null)
 
   const debouncedSearch = useDebounce(search, 300)
@@ -215,7 +218,7 @@ function Assets() {
     fetchAssets(debouncedSearch, { silent: refreshCacheSilently.current })
     refreshCacheSilently.current = false
   }, [debouncedSearch, fetchAssets])
-  useEffect(() => { setPage(1) }, [debouncedSearch, filterCondition, filterLifecycle, filterCategory, filterOffice])
+  useEffect(() => { setShown(ROW_BATCH) }, [debouncedSearch, filterCondition, filterLifecycle, filterCategory, filterOffice])
 
   useEventStream('asset', ({ action, id, data }) => {
     if (action === 'DELETED') {
@@ -313,15 +316,27 @@ function Assets() {
   const filtered = useMemo(() => items.filter(matchesFilters),
     [items, filterCondition, filterLifecycle, filterCategory, filterOffice]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const visible = filtered.slice(0, shown)
+  const hasMore = shown < filtered.length
+  const showMore = useCallback(() => setShown((n) => n + ROW_BATCH), [])
+
+  // Draw the next batch when the marker under the table comes within ~2 screens of view.
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el || !hasMore) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) showMore()
+    }, { rootMargin: '0px 0px 1200px 0px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, showMore, shown])
 
   const toggleChosen = (ids, on) => setChosen((prev) => {
     const next = new Set(prev)
     ids.forEach((id) => (on ? next.add(id) : next.delete(id)))
     return next
   })
-  const pageAllChosen = paged.length > 0 && paged.every((a) => chosen.has(a.id))
+  const visibleAllChosen = visible.length > 0 && visible.every((a) => chosen.has(a.id))
   const allFilteredChosen = filtered.length > 0 && filtered.every((a) => chosen.has(a.id))
   const stopChoosing = () => { setChoosing(false); setChosen(new Set()) }
 
@@ -479,12 +494,14 @@ function Assets() {
           <div>
             <table className="w-full table-fixed text-sm divide-y divide-slate-100 dark:divide-zinc-800">
               <caption className="sr-only">Assets. Select an asset to see its complete details.</caption>
-              <thead>
+              {/* stays in view while the list scrolls; the negative top cancels <main>'s padding
+                  (p-4 sm:p-5 lg:p-6 xl:p-8 in MainLayout) so it sits flush under the top bar */}
+              <thead className="sticky -top-4 sm:-top-5 lg:-top-6 xl:-top-8 z-10 bg-white dark:bg-zinc-900 [&_th]:bg-white dark:[&_th]:bg-zinc-900 shadow-[0_1px_0_0] shadow-slate-200 dark:shadow-zinc-800">
                 <tr>
                   {choosing && (
                     <th scope="col" className="w-10 pl-4 py-3 text-left">
-                      <input type="checkbox" checked={pageAllChosen} onChange={(e) => toggleChosen(paged.map((a) => a.id), e.target.checked)}
-                        aria-label="Choose every asset on this page" className="h-4 w-4 accent-brand-600 cursor-pointer" />
+                      <input type="checkbox" checked={visibleAllChosen} onChange={(e) => toggleChosen(visible.map((a) => a.id), e.target.checked)}
+                        aria-label="Choose every asset shown" className="h-4 w-4 accent-brand-600 cursor-pointer" />
                     </th>
                   )}
                   {COLUMNS.map((c) => (
@@ -497,24 +514,25 @@ function Assets() {
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
                 {/* unsaved drafts have no QR code yet, so they step aside while choosing */}
                 {!choosing && <DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />}
-                {paged.map((a) => renderAssetRow(a))}
+                {visible.map((a) => renderAssetRow(a))}
               </tbody>
             </table>
           </div>
         )}
 
-        {!loading && filtered.length > PAGE_SIZE && (
-          <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-600 dark:text-zinc-400">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+        {!loading && filtered.length > ROW_BATCH && (
+          <div ref={loadMoreRef} className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-600 dark:text-zinc-400" aria-live="polite">
+              {hasMore
+                ? `Showing ${visible.length.toLocaleString('en-PH')} of ${filtered.length.toLocaleString('en-PH')}`
+                : `All ${filtered.length.toLocaleString('en-PH')} shown`}
             </p>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Prev</button>
-              <span className="text-xs text-slate-600 dark:text-zinc-400 px-2">Page {page} of {totalPages}</span>
-              <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
-            </div>
+            {hasMore && (
+              <button type="button" onClick={showMore}
+                className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+                Show more
+              </button>
+            )}
           </div>
         )}
       </div>
