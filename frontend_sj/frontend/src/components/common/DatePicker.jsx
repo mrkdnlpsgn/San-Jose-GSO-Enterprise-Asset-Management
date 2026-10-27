@@ -104,8 +104,13 @@ function DatePicker({ value, onChange, name, min, max, required = false, placeho
 
   useEffect(() => {
     if (!open) return
+    // A click outside only closes the calendar: the click itself is swallowed, so it can't
+    // also land on a dialog's backdrop and close the whole form (same as Select).
     const onDown = (e) => {
       if (popRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault() }
+      document.addEventListener('click', swallow, { capture: true, once: true })
+      setTimeout(() => document.removeEventListener('click', swallow, { capture: true }), 600)
       close(false)
     }
     // Capture phase on document runs before the surrounding Modal's own Escape listener,
