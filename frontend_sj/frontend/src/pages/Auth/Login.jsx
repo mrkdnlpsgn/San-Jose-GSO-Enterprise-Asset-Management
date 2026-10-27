@@ -147,7 +147,7 @@ function Login() {
       } else if (result?.requiresTwoFactor) {
         setTwoFactorPending({ identifier: form.identifier })
       } else {
-        navigate('/dashboard')
+        navigate('/home')
       }
     } catch (err) {
       const { message, lockedUntil: until } = describeLoginError(err)
@@ -160,12 +160,12 @@ function Login() {
 
   const handleForcedChangeSubmit = async (payload) => {
     await completeForcedPasswordChange(payload)
-    navigate('/dashboard')
+    navigate('/home')
   }
 
   const handleOtpSubmit = async (payload) => {
     await completeLoginOtp(payload)
-    navigate('/dashboard')
+    navigate('/home')
   }
 
   // Typing again clears the old error - it no longer describes what's on screen. A lockout

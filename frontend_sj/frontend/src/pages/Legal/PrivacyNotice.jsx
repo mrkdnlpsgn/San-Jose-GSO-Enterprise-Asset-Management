@@ -134,7 +134,7 @@ function PrivacyNotice() {
         {/* Top bar */}
         <div className="flex items-center justify-between mb-10">
           <button
-            onClick={() => navigate(isAuthenticated ? '/dashboard' : '/login')}
+            onClick={() => navigate(isAuthenticated ? '/home' : '/login')}
             className="inline-flex items-center gap-1.5 py-2 -my-2 text-sm font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors duration-150"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

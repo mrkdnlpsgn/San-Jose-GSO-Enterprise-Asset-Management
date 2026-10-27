@@ -7,7 +7,7 @@ import UserAvatar from '../common/UserAvatar'
 import { useTheme } from '../../context/ThemeContext'
 
 const pageMeta = {
-  '/dashboard':     'Dashboard',
+  '/home':          'Home',
   '/assets':        'Assets',
   '/asset-history': 'Asset History',
   '/maintenance':   'Maintenance',

@@ -18,7 +18,7 @@ const CONCEPTS = [
   },
   {
     term: 'Smart Suggestions',
-    desc: 'The Dashboard automatically flags items that need attention: overdue returns, aging equipment, high-value missing assets, devices with no maintenance record, and equipment that has never been tracked. Click any suggestion to log an action directly.',
+    desc: 'Home automatically flags items that need attention: overdue returns, aging equipment, high-value missing assets, devices with no maintenance record, and equipment that has never been tracked. Click any suggestion to log an action directly.',
   },
   {
     term: 'Item Code and QR Code',

@@ -37,7 +37,7 @@ function SessionGuard() {
         if (shown?.username !== me.username || shown?.role !== me.role) {
           dispatch(setCredentials({ user: me }))
           toastRef.current.show(`You're signed in as ${me.fullName || me.username} (signed in from another tab). Switched to that account.`, 'warning')
-          navigateRef.current('/dashboard', { replace: true })
+          navigateRef.current('/home', { replace: true })
         } else if (shown?.officeId !== me.officeId || shown?.officeName !== me.officeName) {
           dispatch(setCredentials({ user: { ...shown, officeId: me.officeId, officeName: me.officeName } }))
         }

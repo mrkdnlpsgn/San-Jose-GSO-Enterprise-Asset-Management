@@ -27,13 +27,13 @@ function ProtectedRoute({ children }) {
 function AdminRoute({ children }) {
   const { isAuthenticated, user } = useSelector((s) => s.auth)
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (user?.role !== 'ADMIN') return <Navigate to="/dashboard" replace />
+  if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />
   return children
 }
 
 function PublicRoute({ children }) {
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated)
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  if (isAuthenticated) return <Navigate to="/home" replace />
   return children
 }
 
@@ -44,7 +44,8 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/privacy" element={<PrivacyNotice />} />
 
-      <Route path="/dashboard"    element={<ProtectedRoute><Dashboard    /></ProtectedRoute>} />
+      <Route path="/home"         element={<ProtectedRoute><Dashboard    /></ProtectedRoute>} />
+      <Route path="/dashboard"    element={<Navigate to="/home" replace />} />
       <Route path="/assets"       element={<ProtectedRoute><Assets       /></ProtectedRoute>} />
       <Route path="/asset-history" element={<ProtectedRoute><AssetHistory /></ProtectedRoute>} />
       <Route path="/maintenance"  element={<ProtectedRoute><Maintenance  /></ProtectedRoute>} />
@@ -61,7 +62,7 @@ function AppRoutes() {
       <Route path="/personnel"    element={<AdminRoute><Personnel     /></AdminRoute>} />
       <Route path="/deleted-records" element={<AdminRoute><DeletedRecords /></AdminRoute>} />
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/home" replace />} />
     </Routes>
     </Suspense>
   )

@@ -897,7 +897,7 @@ function Dashboard() {
           {error && (
             <span className="text-xs text-red-700 dark:text-red-300 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
-              Couldn't load the dashboard
+              Couldn't load Home
             </span>
           )}
           <button
