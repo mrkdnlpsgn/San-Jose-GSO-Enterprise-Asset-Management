@@ -89,8 +89,11 @@ public class PlanningInsightService {
     }
 
     private static final String SYSTEM_PROMPT = """
-        You write a short plain-English budget note for the head of the General Services Office of a \
-        Philippine municipal government. You are given pre-computed facts (JSON) about the government \
+        You write a short plain-English budget note for the staff and head of the General Services \
+        Office of a Philippine municipal government. They are property custodians, not accountants: \
+        say "what the assets are worth today" instead of "book value", "value lost this year" instead \
+        of "depreciation expense", and "used longer than expected" instead of "past their expected \
+        life"; you may give the official term once in brackets. You are given pre-computed facts (JSON) about the government \
         property on hand: (1) a replacement forecast: assets due for replacement now ("NOW" = already \
         past their expected life, or unserviceable and awaiting disposal) and in each coming year, \
         with the estimated replacement cost including a yearly price increase of priceIncreasePercent; \

@@ -371,23 +371,41 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
   )
 }
 
-// "Budget & Planning" (admins only): what needs replacing and when (ReplacementForecastService)
-// next to what the assets are worth on the books (DepreciationService), with one AI summary for
-// both (PlanningInsightService). The data is loaded by Dashboard, which also uses it for the
-// Book Value tile and the "due for replacement" row in Needs attention.
-const TOP_PLANNING_CATEGORIES = 5
+// "Budget & Planning" (admins only), written for GSO staff rather than accountants: one clear
+// message first (what is due for replacement now, and a link to the list), then the coming
+// years and where most of the cost is. The book-value figures for the Accounting Office and
+// the "how is this counted" notes are folded away until opened. Data: PlanningInsightService
+// (replacement forecast + depreciation, one AI summary). Dashboard loads it and also uses it
+// for the Book Value tile and the "due for replacement" row in Needs attention.
+const TOP_PLANNING_CATEGORIES = 3
 
-function PlanningTile({ label, value, sub, highlight }) {
+function PlanningFigure({ label, value, sub, term }) {
   return (
-    <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${highlight
-      ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10'
-      : 'border-slate-200 dark:border-zinc-800'}`}>
+    <div className="rounded-lg border border-slate-200 dark:border-zinc-800 px-3 py-2.5 min-w-0">
       <p className="text-xs font-medium text-slate-600 dark:text-zinc-400 leading-tight">{label}</p>
       <p className="text-lg font-semibold text-slate-900 dark:text-white tabular-nums mt-0.5">{value}</p>
-      <p className="text-xs text-slate-600 dark:text-zinc-400 tabular-nums">{sub}</p>
+      {sub && <p className="text-xs text-slate-600 dark:text-zinc-400 tabular-nums">{sub}</p>}
+      {term && <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">Official term: {term}</p>}
     </div>
   )
 }
+
+// A section that starts closed; the arrow turns when it opens.
+function Fold({ title, children }) {
+  return (
+    <details className="group rounded-lg border border-slate-200 dark:border-zinc-800">
+      <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer list-none text-sm font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800/40 rounded-lg [&::-webkit-details-marker]:hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150 group-open:rotate-90">
+          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+        </svg>
+        {title}
+      </summary>
+      <div className="px-4 pb-4 pt-1">{children}</div>
+    </details>
+  )
+}
+
+const plural = (n, one, many) => `${fmtNum(n)} ${n === 1 ? one : many}`
 
 function BudgetPlanning({ data, loading, onChange }) {
   const [generating, setGenerating] = useState(false)
@@ -400,7 +418,7 @@ function BudgetPlanning({ data, loading, onChange }) {
       const { data } = await generatePlanningSummary(true)
       onChange(data)
     } catch (err) {
-      setAiError(err.response?.data?.message || 'Could not generate the summary.')
+      setAiError(err.response?.data?.message || 'Could not write the summary.')
     } finally {
       setGenerating(false)
     }
@@ -408,116 +426,148 @@ function BudgetPlanning({ data, loading, onChange }) {
 
   const r = data?.replacement
   const d = data?.depreciation?.total
-  const year = data?.depreciation?.asOf?.slice(0, 4)
+  const asOf = data?.depreciation?.asOf
+  const thisYear = asOf?.slice(0, 4)
+  const dueNow = r?.buckets.find((b) => b.key === 'NOW')
+  const coming = (r?.buckets || []).filter((b) => b.key !== 'NOW')
+  const comingTotal = coming.reduce((t, b) => ({ assets: t.assets + b.assets, cost: t.cost + Number(b.cost) }), { assets: 0, cost: 0 })
   const categories = (r?.byCategory || []).slice(0, TOP_PLANNING_CATEGORIES)
   const maxCost = Number(categories[0]?.cost) || 1
   const missingLife = r?.excluded?.noExpectedLife || []
-  const subhead = 'text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400'
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Budget &amp; Planning</p>
-          <p className="text-xs text-slate-600 dark:text-zinc-400 mt-px">
-            What needs replacing and what the assets are worth on the books
-            {data ? `, as of ${new Date(data.depreciation.asOf).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}` : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <Link to="/reports?report=replacement" className="text-brand-700 dark:text-brand-300 hover:underline">Replacement forecast</Link>
-          <Link to="/reports?report=depreciation" className="text-brand-700 dark:text-brand-300 hover:underline">Depreciation schedule</Link>
-        </div>
+      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800">
+        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Budget &amp; Planning</p>
+        <p className="text-xs text-slate-600 dark:text-zinc-400 mt-px">
+          Which assets are getting old, and about how much replacing them will cost
+          {asOf ? `. As of ${new Date(asOf).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}.` : '.'}
+        </p>
       </div>
 
       <div className="px-5 py-4 space-y-5">
         {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">{Array.from({ length: 5 }).map((_, i) => <Sk key={i} className="h-16" />)}</div>
-            <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Sk key={i} className="h-16" />)}</div>
+          <div className="space-y-4">
+            <Sk className="h-20" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <Sk key={i} className="h-16" />)}</div>
           </div>
         ) : !data ? (
           <p className="text-sm text-slate-600 dark:text-zinc-400">Couldn't load the budget and planning figures.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
-              <section aria-label="Replacement forecast" className="min-w-0 space-y-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <p className={subhead}>Replacement cost by year</p>
-                  <span className="text-xs font-medium text-slate-600 dark:text-zinc-400 tabular-nums">
-                    Next {r.years} years: {fmtMoney(r.total.cost)} · {fmtNum(r.total.assets)} assets
-                  </span>
+            {/* 1. The one thing to know */}
+            {dueNow?.assets > 0 ? (
+              <div className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold text-slate-900 dark:text-white">
+                    {plural(dueNow.assets, 'asset is', 'assets are')} due for replacement now
+                  </p>
+                  <p className="text-sm text-slate-700 dark:text-zinc-300 mt-0.5">
+                    Replacing them would cost about <span className="font-semibold tabular-nums">{fmtMoney(dueNow.cost)}</span>.
+                    They have been used longer than expected, or they are broken and waiting for disposal.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  {r.buckets.map((b) => (
-                    <div key={b.key} className={b.key === 'NOW' ? 'col-span-2 sm:col-span-1' : ''}>
-                      <PlanningTile label={b.label} value={fmtMoney(b.cost)} highlight={b.key === 'NOW' && b.assets > 0}
-                        sub={`${fmtNum(b.assets)} ${b.assets === 1 ? 'asset' : 'assets'}`} />
+                <Link to="/reports?report=replacement"
+                  className="shrink-0 inline-flex items-center justify-center rounded-lg bg-brand-700 hover:bg-brand-800 text-white text-sm font-semibold px-4 py-2 transition-colors">
+                  See the list
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-700 dark:text-zinc-300">No assets are due for replacement right now.</p>
+            )}
+
+            {/* 2. The coming years */}
+            <section aria-label="Coming up">
+              <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Coming up</p>
+              <p className="text-xs text-slate-600 dark:text-zinc-400 mb-3">
+                Assets that will reach the end of their expected years of use. Total: {fmtMoney(comingTotal.cost)} for {plural(comingTotal.assets, 'asset', 'assets')}.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {coming.map((b) => (
+                  <PlanningFigure key={b.key} label={b.key === thisYear ? `Rest of ${b.key}` : b.key}
+                    value={fmtMoney(b.cost)} sub={plural(b.assets, 'asset', 'assets')} />
+                ))}
+              </div>
+            </section>
+
+            {/* 3. Where the money goes */}
+            {categories.length > 0 && (
+              <section aria-label="Where most of the cost is">
+                <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Where most of the cost is</p>
+                <p className="text-xs text-slate-600 dark:text-zinc-400 mb-3">Types of assets with the highest replacement cost, due now and coming up.</p>
+                <div className="space-y-3">
+                  {categories.map((c) => (
+                    <div key={c.category}>
+                      <div className="flex items-baseline justify-between gap-3 mb-1">
+                        <span className="text-sm text-slate-700 dark:text-zinc-300 truncate min-w-0" title={c.category}>{c.category}</span>
+                        <span className="text-sm font-semibold text-slate-800 dark:text-zinc-200 tabular-nums shrink-0">
+                          {fmtMoney(c.cost)} <span className="font-normal text-slate-600 dark:text-zinc-400">for {plural(c.assets, 'asset', 'assets')}</span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
+                        <div className="h-full w-full rounded-full bg-brand-500 origin-left" style={{ transform: `scaleX(${Number(c.cost) / maxCost})` }} />
+                      </div>
                     </div>
                   ))}
                 </div>
-                {categories.length > 0 && (
-                  <div className="space-y-2.5">
-                    {categories.map((c) => (
-                      <div key={c.category}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-slate-600 dark:text-zinc-400 truncate min-w-0 flex-1" title={c.category}>
-                            {c.category} <span className="text-slate-400 dark:text-zinc-500">({c.usefulLifeYears} yrs)</span>
-                          </span>
-                          <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums ml-2">
-                            {fmtMoney(c.cost)} <span className="font-normal text-slate-600 dark:text-zinc-400">· {fmtNum(c.assets)}</span>
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                          <div className="h-full w-full rounded-full bg-brand-500 origin-left" style={{ transform: `scaleX(${Number(c.cost) / maxCost})` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </section>
+            )}
 
-              <section aria-label="Depreciation" className="min-w-0 space-y-4">
-                <p className={subhead}>Asset value on the books</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <PlanningTile label="Total cost" value={fmtMoney(d.totalCost)} sub={`${fmtNum(d.assets)} assets`} />
-                  <PlanningTile label="Book value" value={fmtMoney(d.bookValue)} sub="Cost less depreciation" />
-                  <PlanningTile label="Accumulated depreciation" value={fmtMoney(d.accumulatedDepreciation)}
-                    sub={`${fmtPct(Number(d.accumulatedDepreciation), Number(d.totalCost))} of cost`} />
-                  <PlanningTile label={`Depreciation expense ${year}`} value={fmtMoney(d.depreciationExpense)}
-                    sub={`${fmtMoney(d.monthlyDepreciation)} per month`} />
-                </div>
-                <p className="text-sm text-slate-600 dark:text-zinc-300">
-                  <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{fmtNum(d.fullyDepreciated)}</span>
-                  {' '}{d.fullyDepreciated === 1 ? 'asset is' : 'assets are'} fully depreciated (only the 5% residual value is left).
-                </p>
-              </section>
-            </div>
+            {missingLife.length > 0 && (
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                Not counted yet: {missingLife.join(', ')}. {missingLife.length === 1 ? 'This type has' : 'These types have'} no expected years of use.{' '}
+                <Link to="/categories" className="font-semibold underline">Set it on the Categories page</Link>.
+              </p>
+            )}
 
+            {/* 4. Summary in plain words (AI) */}
             <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <p className={subhead}>AI Summary</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Summary in plain words</p>
                 <button onClick={generate} disabled={generating}
-                  className="text-xs font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline disabled:opacity-50 transition-colors">
-                  {generating ? 'Generating…' : data.summary ? 'Regenerate' : 'Generate'}
+                  className="text-sm font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline disabled:opacity-50 transition-colors">
+                  {generating ? 'Writing…' : data.summary ? 'Write again' : 'Write summary'}
                 </button>
               </div>
               {aiError ? (
-                <p className="text-xs text-red-700 dark:text-red-300 mt-2">{aiError}</p>
+                <p className="text-sm text-red-700 dark:text-red-300 mt-2">{aiError}</p>
               ) : data.summary ? (
-                <p className="text-sm text-slate-600 dark:text-zinc-300 leading-relaxed mt-2">{data.summary}</p>
+                <p className="text-sm text-slate-700 dark:text-zinc-300 leading-relaxed mt-2">{data.summary}</p>
               ) : generating ? (
-                <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2" role="status">Writing a budget note…</p>
+                <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2" role="status">Writing the summary…</p>
               ) : (
-                <p className="text-xs text-slate-600 dark:text-zinc-400 mt-2">A short budget note: what to replace and when, and what the assets are worth on the books.</p>
+                <p className="text-sm text-slate-600 dark:text-zinc-400 mt-1">The AI can explain these numbers in a few sentences, for reports and meetings.</p>
               )}
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-zinc-500">
-              Due now = past its expected life, or unserviceable and awaiting disposal. Replacement costs are acquisition values plus
-              {' '}{r.priceIncreasePercent}% a year. Depreciation is straight-line to a 5% residual value. Expected life per category is set on the Categories page.
-              {missingLife.length > 0 && ` Not counted (no expected life set): ${missingLife.join(', ')}.`}
-            </p>
+            {/* 5. For the Accounting Office, folded away */}
+            <Fold title="Asset value, for the Accounting Office">
+              <p className="text-xs text-slate-600 dark:text-zinc-400 mb-3">
+                What the assets are worth on the books after wear and tear. The full table is in the{' '}
+                <Link to="/reports?report=depreciation" className="font-semibold text-brand-700 dark:text-brand-300 hover:underline">Depreciation Schedule</Link> report.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <PlanningFigure label="What we paid for them" value={fmtMoney(d.totalCost)} sub={plural(d.assets, 'asset', 'assets')} term="Total cost" />
+                <PlanningFigure label="What they are worth today" value={fmtMoney(d.bookValue)} sub="After wear and tear" term="Book value" />
+                <PlanningFigure label="Value lost so far" value={fmtMoney(d.accumulatedDepreciation)}
+                  sub={`${fmtPct(Number(d.accumulatedDepreciation), Number(d.totalCost))} of what we paid`} term="Accumulated depreciation" />
+                <PlanningFigure label={`Value lost this year (${thisYear})`} value={fmtMoney(d.depreciationExpense)}
+                  sub={`About ${fmtMoney(d.monthlyDepreciation)} a month`} term="Depreciation expense" />
+              </div>
+              <p className="text-sm text-slate-700 dark:text-zinc-300 mt-3">
+                {plural(d.fullyDepreciated, 'asset has', 'assets have')} reached the end of {d.fullyDepreciated === 1 ? 'its' : 'their'} counted value.
+                {' '}Only the 5% minimum value is left on the books (fully depreciated).
+              </p>
+            </Fold>
+
+            <Fold title="How these numbers are worked out">
+              <ul className="list-disc pl-5 space-y-1.5 text-sm text-slate-700 dark:text-zinc-300">
+                <li>Each type of asset has an expected number of years of use, set on the Categories page (for example, 5 years for ICT Equipment).</li>
+                <li><strong>Due now</strong> means the asset has passed its expected years of use, or it is unserviceable and waiting for disposal.</li>
+                <li>Replacement cost is what was paid for the asset, plus {r.priceIncreasePercent}% a year for price increases.</li>
+                <li>Value on the books goes down by the same amount every month until only 5% of the cost is left (straight-line depreciation, as in the Accounting Office's schedule).</li>
+              </ul>
+            </Fold>
           </>
         )}
       </div>
@@ -753,7 +803,6 @@ function Dashboard() {
   const noAccountable = att.noAccountable ?? { count: 0, items: [] }
   const noOffice      = att.noOffice ?? { count: 0, items: [] }
   const unserviceableNoDisposal = att.unserviceableNoDisposal ?? { count: 0, items: [] }
-  const plural = (n, one, many) => `${fmtNum(n)} ${n === 1 ? one : many}`
 
   const attention = []
   if (!isAdmin && pendingList.length > 0) attention.push({
@@ -783,12 +832,6 @@ function Dashboard() {
     key: 'no-office', tone: 'amber',
     text: `${plural(noOffice.count, 'asset is', 'assets are')} not assigned to an office`,
     assets: noOffice.items, total: noOffice.count,
-  })
-  const dueNow = planning?.replacement?.buckets?.find((b) => b.key === 'NOW')
-  if (isAdmin && dueNow?.assets > 0) attention.push({
-    key: 'replace-now', tone: 'amber',
-    text: `${plural(dueNow.assets, 'asset is', 'assets are')} due for replacement now (about ${fmtMoney(dueNow.cost)})`,
-    link: { to: '/reports?report=replacement', label: 'View' },
   })
 
   // ── Approvals ──────────────────────────────────────────────────────────────
