@@ -1,11 +1,10 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Cookie, Platform;
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../shared/widgets/action_otp_dialog.dart' show ActionOtpOutcome;
 import '../offline/offline_store.dart';
 import '../offline/response_cache.dart';
 
@@ -105,23 +104,6 @@ class ApiClient {
     // Offline: answer GETs from the saved copy, fail everything else at once.
     dio.interceptors.add(_cache);
 
-    // A status change or a decision on a staff request needs an emailed code: the server answers
-    // 428 ACTION_OTP_REQUIRED (having emailed one), the prompt asks for it and repeats the request.
-    dio.interceptors.add(InterceptorsWrapper(onError: (e, handler) async {
-      final data = e.response?.data;
-      final prompt = actionOtpPrompt;
-      if (e.response?.statusCode == 428 && data is Map && data['code'] == 'ACTION_OTP_REQUIRED'
-          && e.requestOptions.extra['otpRetry'] != true && prompt != null) {
-        final outcome = await prompt(
-          data['message']?.toString() ?? 'Enter the 6-digit code we emailed you.',
-          (code) => dio.fetch(_withActionOtp(e.requestOptions, code)),
-        );
-        if (outcome.response != null) return handler.resolve(outcome.response!);
-        return handler.next(outcome.error ?? _cancelled(e.requestOptions));
-      }
-      handler.next(e);
-    }));
-
     // Session over (the 1-hour token expired, password changed, account deactivated):
     // send the user back to sign-in instead of leaving every screen on an error.
     dio.interceptors.add(InterceptorsWrapper(onError: (e, handler) async {
@@ -132,24 +114,6 @@ class ApiClient {
 
   /// Called when a request shows the sign-in session has ended. Set by the auth provider.
   void Function()? onSessionExpired;
-
-  /// Asks for the emailed confirmation code (see the 428 interceptor). Set in main.dart.
-  Future<ActionOtpOutcome> Function(String message, Future<Response<dynamic>> Function(String? code) send)?
-      actionOtpPrompt;
-
-  static RequestOptions _withActionOtp(RequestOptions o, String? code) {
-    final headers = Map<String, dynamic>.of(o.headers)..remove('X-Action-Otp');
-    if (code != null) headers['X-Action-Otp'] = code;
-    return o.copyWith(headers: headers, extra: {...o.extra, 'otpRetry': true});
-  }
-
-  // Cancel on the code prompt, shaped like any other API error so screens show it the usual way.
-  static DioException _cancelled(RequestOptions o) => DioException(
-        requestOptions: o,
-        type: DioExceptionType.badResponse,
-        response: Response(requestOptions: o, statusCode: 499,
-            data: {'message': 'Cancelled. Nothing was changed.'}),
-      );
 
   Future<bool> _isSessionGone(DioException e) async {
     final status = e.response?.statusCode;
@@ -178,7 +142,16 @@ class ApiClient {
     dio.options.baseUrl = _urlFor(effectiveAddress);
   }
 
-  Future<void> clearCookies() async => _cookieJar.deleteAll();
+  /// Signs this phone out: drops the session cookie only. The "remember this device" cookie
+  /// (trusted_devices, see the 2-step screen) is kept, or the next sign-in would ask for the
+  /// emailed code again. A cookie saved already expired is removed from the jar.
+  Future<void> clearCookies() async {
+    await _cookieJar.saveFromResponse(Uri.parse(dio.options.baseUrl), [
+      Cookie('jwt', '')
+        ..path = '/'
+        ..maxAge = 0,
+    ]);
+  }
 
   /// Whether a sign-in cookie is still saved. The jar drops it once its 1-hour max-age
   /// passes, so this is false for a session the server would refuse anyway.

@@ -7,7 +7,6 @@ import com.sanjose.inventory.dto.EvidencePhotoResponse;
 import com.sanjose.inventory.entity.Asset;
 import com.sanjose.inventory.service.AssetOcrService;
 import com.sanjose.inventory.service.AccessService;
-import com.sanjose.inventory.service.ActionOtpService;
 import com.sanjose.inventory.service.AssetService;
 import com.sanjose.inventory.exception.ForbiddenException;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
@@ -39,7 +38,6 @@ public class AssetController {
     private final AccessService accessService;
     private final AssetQrService assetQrService;
     private final AuditLogService auditLogService;
-    private final ActionOtpService actionOtpService;
 
     // view=summary returns only what the web lists need (about a fifth of the size): the full
     // records carry specs, remarks, QR data and each office's head user, which the asset view and
@@ -242,10 +240,6 @@ public class AssetController {
     @PutMapping("/{id}")
     public Asset update(@PathVariable Long id, @RequestBody AssetRequest req) {
         accessService.requireAssetAccess(id);
-        Asset current = assetService.findById(id);
-        boolean statusChanges = changesStatus(current, req.getCondition(), req.getLifecycleStatus())
-            || (req.getUnits() != null && req.getUnits().stream().anyMatch(u -> changesStatus(current, u.getCondition(), null)));
-        if (statusChanges) actionOtpService.require("change the status of " + current.getPropertyNumber());
         if (accessService.isAdmin()) return assetService.update(id, req);
         StaffRequest requested = limitStaffEdit(id, req);
         Asset result = assetService.update(id, req);
@@ -256,10 +250,6 @@ public class AssetController {
     @PutMapping("/{id}/status")
     public Asset updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         accessService.requireAssetAccess(id);
-        Asset current = assetService.findById(id);
-        if (changesStatus(current, body.get("condition"), body.get("lifecycleStatus"))) {
-            actionOtpService.require("change the status of " + current.getPropertyNumber());
-        }
         if (accessService.isAdmin()) return assetService.updateStatus(id, body.get("condition"), body.get("lifecycleStatus"));
         Asset before = assetService.findById(id);
         StaffRequest requested = staffRequest(before, body.get("condition"), body.get("lifecycleStatus"));
@@ -274,16 +264,6 @@ public class AssetController {
     private record StaffRequest(String lifecycle, String condition) {}
 
     private static String name(Enum<?> e) { return e != null ? e.name() : null; }
-
-    // Would this edit change the asset's condition or lifecycle status? (Blank = left as is.)
-    // Such a change, by staff (as a request) or by an admin, needs an emailed code first.
-    private static boolean changesStatus(Asset current, String condition, String lifecycle) {
-        return differs(name(current.getCondition()), condition) || differs(name(current.getLifecycleStatus()), lifecycle);
-    }
-
-    private static boolean differs(String current, String asked) {
-        return asked != null && !asked.isBlank() && !asked.trim().equalsIgnoreCase(current);
-    }
 
     // Putting an asset under maintenance or up for disposal - by picking that status, or by
     // marking it REPAIRABLE / UNSERVICEABLE - is a request: the asset keeps its condition

@@ -8,7 +8,7 @@ import '../dashboard/widgets/ios_style.dart';
 import 'sync_engine.dart';
 
 /// Changes made on this phone that haven't reached the server yet: what's waiting, what needs
-/// the user (emailed code, a clash with someone else's edit, a refusal), and an Upload button.
+/// the user (a clash with someone else's edit, a refusal), and an Upload button.
 class OutboxScreen extends ConsumerWidget {
   const OutboxScreen({super.key});
 
@@ -215,7 +215,7 @@ class _ItemRow extends ConsumerWidget {
     final waitsOnOther = !item.needsAttention && RegExp(r'/-\d+(/|$)').hasMatch(item.path);
 
     final (statusText, statusColor) = switch (item.status) {
-      OutboxStatus.needsCode => (item.error ?? 'Needs the emailed code.', Ios.orange),
+      OutboxStatus.needsCode => ('Not sent yet.', Ios.orange),
       OutboxStatus.conflict => (item.error ?? 'Changed on the server.', Ios.orange),
       OutboxStatus.failed => (item.error ?? 'The server refused this change.', Ios.red),
       OutboxStatus.pending => (
@@ -225,7 +225,7 @@ class _ItemRow extends ConsumerWidget {
     };
 
     final actions = <Widget>[
-      if (item.status == OutboxStatus.needsCode) _action('Enter Code', online ? () => engine.retry(item) : null),
+      if (item.status == OutboxStatus.needsCode) _action('Try Again', online ? () => engine.retry(item) : null),
       if (item.status == OutboxStatus.conflict) _action('Review', () => _showConflict(context, ref)),
       if (item.status == OutboxStatus.failed) _action('Try Again', online ? () => engine.retry(item) : null),
       _action('Discard', () => _confirmDiscard(context, ref), destructive: true),

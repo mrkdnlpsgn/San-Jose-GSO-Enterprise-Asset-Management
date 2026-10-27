@@ -8,7 +8,7 @@ enum OutboxStatus {
   /// Waiting for a connection; uploads automatically.
   pending,
 
-  /// The server emailed a code and the user hasn't entered it yet.
+  /// Set aside by an older version that asked for an emailed code - now just sent again.
   needsCode,
 
   /// Someone changed the same record on the server since it was opened on this phone.

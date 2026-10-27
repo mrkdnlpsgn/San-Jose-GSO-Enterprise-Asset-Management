@@ -5,7 +5,6 @@ import { ToastProvider } from './context/ToastContext'
 import AppRoutes from './routes'
 import RealtimeSync from './components/RealtimeSync'
 import SessionGuard from './components/SessionGuard'
-import ActionOtpPrompt from './components/common/ActionOtpPrompt'
 
 function AppContent() {
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated)
@@ -13,7 +12,6 @@ function AppContent() {
     <>
       {isAuthenticated && <RealtimeSync />}
       {isAuthenticated && <SessionGuard />}
-      {isAuthenticated && <ActionOtpPrompt />}
       <AppRoutes />
     </>
   )

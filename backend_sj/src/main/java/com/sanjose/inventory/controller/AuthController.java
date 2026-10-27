@@ -70,9 +70,11 @@ public class AuthController {
         Map<String, Object> result = authService.verifyLoginOtp(req.identifier(), req.otp());
         setSessionCookie(response, (String) result.get("token"));
         if (Boolean.TRUE.equals(req.rememberDevice())) {
+            // The account's username, not req.identifier(): that may be the email it was signed in with.
+            String username = (String) ((Map<?, ?>) result.get("user")).get("username");
             // Only ever sent back to /api/auth (where sign-in happens), never readable by scripts.
             response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie
-                .from(TrustedDeviceService.COOKIE, trustedDeviceService.remember(req.identifier(), trustedDevices))
+                .from(TrustedDeviceService.COOKIE, trustedDeviceService.remember(username, trustedDevices))
                 .httpOnly(true).secure(cookieSecure).path("/api/auth").sameSite("Strict")
                 .maxAge(TrustedDeviceService.LIFETIME).build().toString());
         }

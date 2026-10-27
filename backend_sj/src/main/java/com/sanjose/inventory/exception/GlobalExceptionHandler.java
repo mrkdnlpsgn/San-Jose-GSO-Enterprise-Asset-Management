@@ -31,22 +31,6 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
-    // 428: the client shows its code prompt and repeats the request with the code.
-    @ExceptionHandler(ActionOtpRequiredException.class)
-    public ResponseEntity<Map<String, Object>> handleActionOtpRequired(ActionOtpRequiredException ex) {
-        ResponseEntity<Map<String, Object>> res = buildResponse(HttpStatus.PRECONDITION_REQUIRED, ex.getMessage());
-        res.getBody().put("code", "ACTION_OTP_REQUIRED");
-        res.getBody().put("email", ex.getMaskedEmail());
-        return res;
-    }
-
-    @ExceptionHandler(ActionOtpInvalidException.class)
-    public ResponseEntity<Map<String, Object>> handleActionOtpInvalid(ActionOtpInvalidException ex) {
-        ResponseEntity<Map<String, Object>> res = buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
-        res.getBody().put("code", "ACTION_OTP_INVALID");
-        return res;
-    }
-
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException ex) {
         return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage());

@@ -3,7 +3,6 @@ package com.sanjose.inventory.service;
 import com.sanjose.inventory.config.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.util.HtmlUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -66,11 +65,6 @@ public class AuthService {
 
     @Value("${auth.delete-otp-resend-cooldown-seconds:60}")
     private int deleteOtpResendCooldownSeconds;
-
-    // Local testing only, never in production: also writes action confirmation codes to the
-    // log, because a local backend usually has email turned off.
-    @Value("${auth.log-action-otp:false}")
-    private boolean logActionOtp;
 
     private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
@@ -516,17 +510,6 @@ public class AuthService {
             "<p>You requested to permanently delete a record from the San Jose GSO Enterprise Asset "
                 + "Management Recovery module. <strong>This action cannot be undone.</strong> Enter this code to confirm:</p>",
             "nothing will be deleted without the code.", false);
-    }
-
-    // The same one-time code (with the same expiry and attempt limits) confirms a change to an
-    // asset's status and an admin's decision on a staff request - see ActionOtpService. Returns
-    // the address it went to, masked, for the client's "we emailed a code to ..." prompt.
-    @Transactional
-    public String requestActionOtp(String username, String action) {
-        return sendStepUpOtp(username, "Confirm: " + action,
-            "<p>You are about to <strong>" + HtmlUtils.htmlEscape(action) + "</strong> in the San Jose GSO "
-                + "Enterprise Asset Management System. Enter this code to confirm:</p>",
-            "nothing will change without the code.", logActionOtp);
     }
 
     private String sendStepUpOtp(String username, String subject, String intro, String ignoreNote, boolean logCode) {

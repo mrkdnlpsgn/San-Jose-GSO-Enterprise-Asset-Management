@@ -28,9 +28,10 @@ android {
 
     buildTypes {
         debug {
-            // Installs beside the deployed (release) app instead of replacing it
-            applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = "SJ GSO EAM (Local)"
+            // Installs beside the deployed (release) app instead of replacing it. APP_ID_SUFFIX and
+            // APP_LABEL install another local copy beside that one too (e.g. ".fix", "SJ GSO EAM (Fix)").
+            applicationIdSuffix = System.getenv("APP_ID_SUFFIX") ?: ".dev"
+            manifestPlaceholders["appLabel"] = System.getenv("APP_LABEL") ?: "SJ GSO EAM (Local)"
         }
         release {
             // TODO: Add your own signing config for the release build.

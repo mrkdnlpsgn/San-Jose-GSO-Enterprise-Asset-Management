@@ -22,19 +22,9 @@ const api = axios.create({
   withCredentials: true, // send HttpOnly JWT cookie automatically
 })
 
-// Set by ActionOtpPrompt (mounted in App): asks for the emailed code and repeats the request.
-let actionOtpPrompt = null
-export const setActionOtpPrompt = (fn) => { actionOtpPrompt = fn }
-
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // A status change / request decision needs an emailed code: the prompt resolves with the
-    // repeated request's response, or rejects (Cancel, or the change itself failed).
-    if (error.response?.status === 428 && error.response.data?.code === 'ACTION_OTP_REQUIRED'
-        && actionOtpPrompt && !error.config?._otpRetry) {
-      return actionOtpPrompt({ info: error.response.data, config: error.config })
-    }
     const isAuthRequest = error.config?.url?.includes('/auth/')
     if (error.response?.status === 401 && !isAuthRequest) {
       window.location.href = '/login'

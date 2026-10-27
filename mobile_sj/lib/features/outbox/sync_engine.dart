@@ -35,7 +35,7 @@ class SyncState {
 /// anything is still waiting (the server may have been asleep). Also keeps the offline asset
 /// list fresh.
 ///
-/// An item the server can't take as-is (needs the emailed code, changed on the server
+/// An item the server can't take as-is (changed on the server
 /// meanwhile, refused) is set aside for the user, and anything else for the same record
 /// waits behind it - everything unrelated still goes.
 final syncEngineProvider = NotifierProvider<SyncEngine, SyncState>(SyncEngine.new);
@@ -213,15 +213,9 @@ class SyncEngine extends Notifier<SyncState> {
       if (e.response == null || const [502, 503, 504].contains(status)) return _Result.stop;
       // signed out (the session-expiry handler takes the user to sign-in) - resume after
       if (status == 401 || ref.read(authProvider).valueOrNull == null) return _Result.stop;
-      if (status == 428 || status == 499) {
-        item
-          ..status = OutboxStatus.needsCode
-          ..error = 'Needs the code emailed to you.';
-      } else {
-        item
-          ..status = OutboxStatus.failed
-          ..error = ApiException.from(e).message;
-      }
+      item
+        ..status = OutboxStatus.failed
+        ..error = ApiException.from(e).message;
       await outbox.update(item);
       return _Result.setAside;
     }
