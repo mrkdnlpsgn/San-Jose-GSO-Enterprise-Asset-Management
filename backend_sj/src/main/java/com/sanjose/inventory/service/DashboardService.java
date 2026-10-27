@@ -55,6 +55,7 @@ public class DashboardService {
             + " COALESCE(SUM(" + UNDER_REPAIR + "), 0) under_repair,"
             + " COALESCE(SUM(a.lifecycle_status = 'DISPOSED'), 0) for_disposal,"
             + " COALESCE(SUM(a.`condition` = 'NEW'), 0) is_new,"
+            + " COALESCE(SUM(a.`condition` = 'GOOD'), 0) good,"
             + " COALESCE(SUM(a.`condition` = 'SERVICEABLE'), 0) serviceable,"
             + " COALESCE(SUM(a.`condition` = 'REPAIRABLE'), 0) repairable,"
             + " COALESCE(SUM(a.`condition` = 'UNSERVICEABLE'), 0) unserviceable"
@@ -67,6 +68,7 @@ public class DashboardService {
                 out.put("forDisposal", rs.getLong("for_disposal"));
                 Map<String, Long> condition = new LinkedHashMap<>();
                 condition.put("NEW", rs.getLong("is_new"));
+                condition.put("GOOD", rs.getLong("good"));
                 condition.put("SERVICEABLE", rs.getLong("serviceable"));
                 condition.put("REPAIRABLE", rs.getLong("repairable"));
                 condition.put("UNSERVICEABLE", rs.getLong("unserviceable"));

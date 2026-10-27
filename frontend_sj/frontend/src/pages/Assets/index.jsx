@@ -378,7 +378,7 @@ function Assets() {
               options={[['ASSIGNED', 'Assigned'], ['TRANSFERRED', 'Transferred'], ['UNDER_MAINTENANCE', 'Under maintenance'], ['DISPOSED', 'Disposed']]} />
           </>}>
           <FilterSelect label="Condition" value={filterCondition} onChange={setFilterCondition}
-            options={[['NEW', 'New'], ['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable'], ['UNSERVICEABLE', 'Unserviceable']]} />
+            options={[['NEW', 'New'], ['GOOD', 'Good'], ['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable'], ['UNSERVICEABLE', 'Unserviceable']]} />
           {/* staff only ever see their own office's assets, so they get no office filter */}
           {isAdmin && (
             <FilterSelect label="Office" value={filterOffice} onChange={setFilterOffice}

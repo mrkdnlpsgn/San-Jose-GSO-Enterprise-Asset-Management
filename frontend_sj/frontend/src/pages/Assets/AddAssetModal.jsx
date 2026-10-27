@@ -15,7 +15,7 @@ import DatePicker from '../../components/common/DatePicker'
 const PREDEFINED_CATEGORIES = ['Appliances', 'Vehicle', 'Office Supplies']
 // The status (Assigned / Under maintenance / Disposed) isn't edited here: it follows the
 // condition (Repairable starts maintenance, Unserviceable starts disposal) and the Transfer page.
-const CONDITIONS  = [['NEW', 'New'], ['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable (needs repair)'], ['UNSERVICEABLE', 'Unserviceable (for disposal)']]
+const CONDITIONS  = [['NEW', 'New'], ['GOOD', 'Good'], ['SERVICEABLE', 'Serviceable'], ['REPAIRABLE', 'Repairable (needs repair)'], ['UNSERVICEABLE', 'Unserviceable (for disposal)']]
 const PAR_SERIAL_RE = /^[A-Za-z0-9-]+$/
 
 // PAR number = acquisition year-month + ':' + a serial typed by hand,

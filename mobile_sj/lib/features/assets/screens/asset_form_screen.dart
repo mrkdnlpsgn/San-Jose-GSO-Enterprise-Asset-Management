@@ -501,7 +501,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                     const SizedBox(height: 10),
                     const SectionLabel('Status'),
                     _enumDropdown('Condition', _condition,
-                      ['NEW', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
+                      ['NEW', 'GOOD', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'],
                       (v) => setState(() => _condition = v!)),
                     if (_staffRequest != null && _lifecycleStatus == widget.asset?.lifecycleStatus)
                       _requestNotice(),

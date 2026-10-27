@@ -115,6 +115,7 @@ class AppTheme {
   // Lifecycle status colors - the same mapping as the web app's asset drawer.
   static const Color statusRegistered = Color(0xFF3B82F6);     // blue
   static const Color statusAssigned = Color(0xFF10B981);       // emerald
+  static const Color conditionGood = Color(0xFF14B8A6);        // teal
   static const Color statusTransferred = Color(0xFFF97316);    // orange
   static const Color statusMaintenance = Color(0xFFF59E0B);    // amber
   static const Color statusDisposed = Color(0xFFEF4444);       // red

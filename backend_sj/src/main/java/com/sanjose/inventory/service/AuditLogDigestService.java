@@ -109,7 +109,7 @@ public class AuditLogDigestService {
         Date today = Date.valueOf(AppTime.today());
         Date yearAgo = Date.valueOf(AppTime.today().minusYears(1));
 
-        int good = count("SELECT COUNT(*) FROM assets a WHERE " + IN_USE + " AND a.`condition` IN ('NEW','SERVICEABLE')");
+        int good = count("SELECT COUNT(*) FROM assets a WHERE " + IN_USE + " AND a.`condition` IN ('NEW','GOOD','SERVICEABLE')");
         int needsRepair = count("SELECT COUNT(*) FROM assets a WHERE " + IN_USE + " AND a.`condition` = 'REPAIRABLE'");
         int broken = count("SELECT COUNT(*) FROM assets a WHERE " + IN_USE + " AND a.`condition` = 'UNSERVICEABLE'");
         int inRepair = count("SELECT COUNT(*) FROM assets a WHERE " + IN_USE + " AND a.lifecycle_status = 'UNDER_MAINTENANCE'");

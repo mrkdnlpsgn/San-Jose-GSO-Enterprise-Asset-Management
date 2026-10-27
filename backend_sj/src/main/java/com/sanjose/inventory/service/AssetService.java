@@ -180,6 +180,7 @@ public class AssetService {
         // The QR signature needs the new id, so it is issued right after the insert.
         assetQrService.reissue(newId, saved.getPropertyNumber());
         handleConditionLedger(saved);
+        ageCondition(newId);
 
         Long recorderId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
         assetHistoryService.logEvent(newId, "REGISTERED", null,
@@ -193,7 +194,7 @@ public class AssetService {
         return result;
     }
 
-    private static final Set<String> VALID_CONDITIONS = Set.of("NEW", "SERVICEABLE", "REPAIRABLE", "UNSERVICEABLE");
+    private static final Set<String> VALID_CONDITIONS = Set.of("NEW", "GOOD", "SERVICEABLE", "REPAIRABLE", "UNSERVICEABLE");
 
     // Create-only bulk import (spreadsheet → assets). Each row is validated and
     // saved independently - one bad row (unknown category, bad date, etc.) is
@@ -242,7 +243,7 @@ public class AssetService {
         String condition = row.getCondition().trim().toUpperCase();
         if (!VALID_CONDITIONS.contains(condition)) {
             throw new IllegalArgumentException(
-                "Unknown condition \"" + row.getCondition() + "\". It must be NEW, SERVICEABLE, REPAIRABLE, or UNSERVICEABLE.");
+                "Unknown condition \"" + row.getCondition() + "\". It must be NEW, GOOD, SERVICEABLE, REPAIRABLE, or UNSERVICEABLE.");
         }
 
         Long categoryId = resolveCategoryId(row.getCategoryName());
@@ -552,6 +553,7 @@ public class AssetService {
         if (oldCondition != saved.getCondition()) {
             handleConditionLedger(saved);
         }
+        ageCondition(id);
 
         Long newOfficeId = saved.getOffice() != null ? saved.getOffice().getId() : null;
         if (!java.util.Objects.equals(oldOfficeId, newOfficeId)) {
@@ -604,12 +606,18 @@ public class AssetService {
     }
 
     private void handleConditionLedger(Asset asset) {
+        handleConditionLedger(asset, false);
+    }
+
+    // bySystem: the change comes from a rule (see applyRepairCostRule), not from the person
+    // signed in, so it is carried out even for a staff account instead of becoming a request.
+    private void handleConditionLedger(Asset asset, boolean bySystem) {
         if (asset.getCondition() == null) return;
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long recorderId = getUserIdByUsername(username);
         int recId = recorderId != null ? recorderId.intValue() : 0;
 
-        if (!accessService.isAdmin()
+        if (!bySystem && !accessService.isAdmin()
                 && (asset.getCondition() == Asset.AssetCondition.REPAIRABLE
                     || asset.getCondition() == Asset.AssetCondition.UNSERVICEABLE)) {
             // Staff can't put an asset under maintenance or up for disposal directly -
@@ -664,6 +672,7 @@ public class AssetService {
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
 
         } else if (asset.getCondition() == Asset.AssetCondition.SERVICEABLE
+                || asset.getCondition() == Asset.AssetCondition.GOOD
                 || asset.getCondition() == Asset.AssetCondition.NEW) {
             boolean repaired = closeOpenMaintenance(asset.getId(), recId, "Closed, asset back in service");
             cancelOpenDisposal(asset.getId(), recId, "Cancelled, asset marked serviceable");
@@ -676,6 +685,80 @@ public class AssetService {
             sseEmitterService.emitMaintenance("CHANGED", asset.getId(), null);
             sseEmitterService.emitDisposal("CHANGED", asset.getId(), null);
         }
+    }
+
+    // ── Condition by age and repair cost ──────────────────────────────────────
+    // A working asset is NEW when it enters the inventory, GOOD once it has been in service
+    // GOOD_AFTER_YEARS, and SERVICEABLE after SERVICEABLE_AFTER_YEARS. Time in service counts
+    // from the acquisition date (the date the asset was added, when it has none). REPAIRABLE and
+    // UNSERVICEABLE assets are left alone, and an asset never moves back to a younger condition.
+    public static final int GOOD_AFTER_YEARS = 3;
+    public static final int SERVICEABLE_AFTER_YEARS = 5;
+    public static final String FULLY_DEPRECIATED_REASON = "Fully Depreciated/Ready for Complete Disposal";
+
+    private static final String AGE_SQL =
+        "SELECT asset_id, `condition`, TIMESTAMPDIFF(YEAR, COALESCE(acquisition_date, DATE(created_at)), ?) AS years "
+            + "FROM assets WHERE is_deleted = 0 AND `condition` IN ('NEW', 'GOOD')";
+
+    // Brings every working asset's condition up to its age; returns how many changed.
+    public int ageAllConditions() {
+        int changed = 0;
+        for (Map<String, Object> row : jdbcTemplate.queryForList(AGE_SQL, Date.valueOf(AppTime.today()))) {
+            if (applyAge(((Number) row.get("asset_id")).longValue(), (String) row.get("condition"), (Number) row.get("years"))) changed++;
+        }
+        return changed;
+    }
+
+    private void ageCondition(Long assetId) {
+        for (Map<String, Object> row : jdbcTemplate.queryForList(AGE_SQL + " AND asset_id = ?", Date.valueOf(AppTime.today()), assetId)) {
+            applyAge(assetId, (String) row.get("condition"), (Number) row.get("years"));
+        }
+    }
+
+    private boolean applyAge(Long assetId, String condition, Number years) {
+        if (years == null) return false;
+        String target = years.intValue() >= SERVICEABLE_AFTER_YEARS ? "SERVICEABLE"
+            : years.intValue() >= GOOD_AFTER_YEARS ? "GOOD" : condition;
+        if (target.equals(condition)) return false;
+        // a routine step every asset takes, so it isn't written to the asset's history
+        jdbcTemplate.update("UPDATE assets SET `condition` = ? WHERE asset_id = ?", target, assetId);
+        sseEmitterService.emitAsset("UPDATED", assetId, null);
+        return true;
+    }
+
+    // A repair that costs more than the asset itself isn't worth making. While the asset still
+    // has useful life left (its category's useful life, counted from the date it was added to the
+    // inventory) it is marked UNSERVICEABLE and goes up for disposal; once that life is used up
+    // it moves to the Recovery records as fully depreciated. A category with no useful life set
+    // counts as having life left. Returns what was done: "UNSERVICEABLE", "RECOVERY" or null.
+    public String applyRepairCostRule(Long assetId, BigDecimal repairCost) {
+        if (assetId == null || repairCost == null) return null;
+        List<Asset> found = jdbcTemplate.query("CALL sp_assets_get_by_id(?)", ASSET_MAPPER, assetId);
+        if (found.isEmpty()) return null;
+        Asset asset = found.get(0);
+        if (asset.getUnitValue() == null || repairCost.compareTo(asset.getUnitValue()) <= 0) return null;
+
+        LocalDate added = asset.getAcquisitionDate() != null ? asset.getAcquisitionDate()
+            : asset.getCreatedAt() != null ? asset.getCreatedAt().toLocalDate() : null;
+        Integer life = asset.getCategory() != null ? asset.getCategory().getUsefulLifeYears() : null;
+        boolean lifeLeft = life == null || added == null || added.plusYears(life).isAfter(AppTime.today());
+        String costs = "repair cost " + repairCost.toPlainString() + " exceeds unit cost " + asset.getUnitValue().toPlainString();
+
+        if (!lifeLeft) {
+            delete(assetId, FULLY_DEPRECIATED_REASON);
+            return "RECOVERY";
+        }
+        if (asset.getCondition() == Asset.AssetCondition.UNSERVICEABLE) return null;
+        jdbcTemplate.update("UPDATE assets SET `condition` = 'UNSERVICEABLE' WHERE asset_id = ?", assetId);
+        handleConditionLedger(findById(assetId), true);
+        Long recorderId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
+        assetHistoryService.logEvent(assetId, "MAINTENANCE", null, null, recorderId,
+            "Marked unserviceable automatically: " + costs);
+        auditLogService.log("ASSET_UPDATED", "Assets", assetId, "asset",
+            "Marked unserviceable: " + asset.getPropertyNumber() + ", " + costs);
+        Asset result = findById(assetId);
+        sseEmitterService.emitAsset("UPDATED", result.getId(), result);
+        return "UNSERVICEABLE";
     }
 
     private boolean hasOpenMaintenance(Long assetId) {

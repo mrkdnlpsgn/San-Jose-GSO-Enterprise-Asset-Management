@@ -1,7 +1,7 @@
 name: san_jose_eam_mobile
 description: San Jose GSO Enterprise Asset Management - Mobile App
 publish_to: 'none'
-version: 1.0.10+11
+version: 1.0.11+12
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -63,6 +63,10 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    # Tinos (Times New Roman metrics, has ₱) for the printed reports. Apache 2.0, see assets/fonts/Tinos-LICENSE.txt.
+    - assets/fonts/Tinos-Regular.ttf
+    - assets/fonts/Tinos-Bold.ttf
+    - assets/fonts/Tinos-Italic.ttf
   # Inter, the same typeface as the web app (bundled so it works offline). OFL licence in assets/fonts/OFL.txt.
   fonts:
     - family: Inter

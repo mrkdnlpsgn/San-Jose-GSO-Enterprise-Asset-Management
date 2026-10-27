@@ -1,6 +1,7 @@
 // Badge text is dark on light / light on dark so it stays readable (WCAG AA) in both themes.
 export const CONDITION_BADGE = {
   NEW:           { label: 'New',           cls: 'bg-sky-500/10 text-sky-800 dark:text-sky-300 ring-1 ring-sky-500/30' },
+  GOOD:          { label: 'Good',          cls: 'bg-teal-500/10 text-teal-800 dark:text-teal-300 ring-1 ring-teal-500/30' },
   SERVICEABLE:   { label: 'Serviceable',   cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30' },
   REPAIRABLE:    { label: 'Repairable',    cls: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 ring-1 ring-amber-500/30' },
   UNSERVICEABLE: { label: 'Unserviceable', cls: 'bg-red-500/10 text-red-700 dark:text-red-300 ring-1 ring-red-500/30' },

@@ -6,7 +6,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../provider/asset_provider.dart';
 import '../../../shared/widgets/ios_pickers.dart';
 
-const _conditions = ['NEW', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
+const _conditions = ['NEW', 'GOOD', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE'];
 const _lifecycleStatuses = ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED'];
 
 /// True if any asset filter is currently active - used to badge the filter icon.
