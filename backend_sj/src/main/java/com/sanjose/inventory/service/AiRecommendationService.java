@@ -194,6 +194,18 @@ public class AiRecommendationService {
         return years + " years (" + (end.isBefore(AppTime.today()) ? "ended " : "ends ") + end + ")";
     }
 
+    // Book value as of today, worked the same way as the Depreciation Schedule report.
+    private static String depreciation(Asset asset) {
+        Integer years = asset.getCategory() != null ? asset.getCategory().getUsefulLifeYears() : null;
+        if (years == null || asset.getAcquisitionDate() == null || asset.getUnitValue() == null
+            || asset.getUnitValue().signum() <= 0) return "not available";
+        BigDecimal cost = asset.getUnitValue().multiply(BigDecimal.valueOf(Math.max(1, asset.getQuantity() != null ? asset.getQuantity() : 1)));
+        DepreciationCalculator.Result r = DepreciationCalculator.compute(cost, asset.getAcquisitionDate(), years * 12, AppTime.today());
+        return "accumulated PHP " + r.accumulatedDepreciation() + ", book value PHP " + r.bookValue()
+            + (r.fullyDepreciated() ? " (fully depreciated, only the residual value is left)"
+                : " (" + r.remainingLifeMonths() + " of " + r.usefulLifeMonths() + " months of life left)");
+    }
+
     private static String clip(String s) {
         if (s == null || s.isBlank()) return "-";
         String flat = s.replaceAll("\\s+", " ").trim();
@@ -267,6 +279,11 @@ public class AiRecommendationService {
         is usually MONITOR or BUDGET_PRIORITY.
         - When the category has an expected useful life, compare the age with it. Nearing or past \
         that life is a reason to plan a replacement (BUDGET_PRIORITY), not on its own a reason for disposal.
+        - Book value is the asset's value on the books after straight-line depreciation (it never \
+        drops below the 5% residual value). A repair that would cost more than the book value is \
+        usually not economical unless the asset is still in good working order and needed; a fully \
+        depreciated asset that keeps failing is a strong BUDGET_PRIORITY or REVIEW_FOR_DISPOSAL case. \
+        Low book value alone is not a reason to dispose of a working asset.
         - If no maintenance is logged, that means nothing has been recorded yet, not that the asset is \
         trouble-free; do not treat it as evidence either way.
         - If a disposal record exists, say what stage it is at and what is left to do.
@@ -294,6 +311,7 @@ public class AiRecommendationService {
             Acquired: %s (%s years ago)
             Expected useful life for this category: %s
             Unit value: PHP %s
+            Depreciation: %s
             Current condition: %s (score %d/3, where 3 = serviceable, 2 = repairable, 1 = unserviceable)
             Lifecycle status: %s
             Total maintenance cost: PHP %s (%s)
@@ -305,6 +323,7 @@ public class AiRecommendationService {
                 asset.getOffice() != null ? asset.getOffice().getOfficeName() : "Unassigned",
                 clip(asset.getSpecifications()), clip(asset.getRemarks()),
                 asset.getAcquisitionDate(), ageYears, expectedLife(asset), asset.getUnitValue(),
+                depreciation(asset),
                 asset.getCondition(), conditionScore, asset.getLifecycleStatus(),
                 totalRepairCost, costShare, repairFrequency,
                 historyFor(asset.getId()));

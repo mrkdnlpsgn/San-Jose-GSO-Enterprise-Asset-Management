@@ -22,7 +22,10 @@ public class DashboardService {
 
     private final JdbcTemplate jdbcTemplate;
 
-    private static final String IN_USE =
+    // On hand: everything except archived assets and those whose disposal is completed. An asset
+    // marked DISPOSED with its disposal still pending is still here (and still on the books).
+    // Also used by ReplacementForecastService and DepreciationService so their totals match Home.
+    static final String IN_USE =
         " a.is_deleted = 0 AND a.lifecycle_status <> 'ARCHIVED'"
         + " AND NOT (a.lifecycle_status = 'DISPOSED' AND EXISTS (SELECT 1 FROM disposal_ledger d"
         + "   WHERE d.asset_id = a.asset_id AND d.is_deleted = 0 AND d.approval_status <> 'REJECTED' AND d.disposal_status = 'COMPLETED'))";

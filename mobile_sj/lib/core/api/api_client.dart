@@ -26,8 +26,10 @@ class ApiClient {
   bool get deviceOffline => _cache.deviceOffline;
   set deviceOffline(bool value) => _cache.deviceOffline = value;
 
-  /// The live deployment (Render, HTTPS) - the default, so a phone works anywhere.
-  static const String liveAddress = 'https://sjgso.onrender.com';
+  /// The live deployment - the default, so a phone works anywhere. The public web address, not
+  /// the backend host: the web server passes /api to the backend, so moving the backend to another
+  /// host never needs an app update.
+  static const String liveAddress = 'https://www.sanjosegsoeam.online';
 
   /// The local Docker backend as seen from the Android emulator (10.0.2.2 is the
   /// emulator's alias for this computer's localhost). On Windows/desktop builds it's localhost.

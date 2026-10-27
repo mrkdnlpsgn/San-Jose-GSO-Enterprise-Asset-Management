@@ -8,6 +8,7 @@ import { manilaDateKey, manilaDateTime } from '../../utils/helpers'
 import api from '../../services/api'
 import { getAssetHistory } from '../../services/assetHistoryService'
 import { getPropertyCards } from '../../services/propertyCardService'
+import { getReplacementForecast, getDepreciation } from '../../services/aiRecommendationService'
 import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 import { openPrintWindow } from '../../utils/printWindow'
 import { printRpcppe, exportRpcppeExcel, rpcppeRows, rpcppeLine, RPCPPE_DEFAULTS } from '../../utils/rpcppeExport'
@@ -285,6 +286,84 @@ const REPORTS = [
       { label: 'Total Value',     display: (r) => fmtMoney((Number(r.unitValue) || 0) * (Number(r.quantity) || 1)),                                       raw: (r) => ((Number(r.unitValue) || 0) * (Number(r.quantity) || 1)).toFixed(2) },
       { label: 'Acq. Date',       display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
       { label: 'Office',          display: (r) => r.office?.officeName || 'N/A',                                                                            raw: (r) => r.office?.officeName || '' },
+    ],
+  },
+  {
+    id: 'replacement',
+    title: 'Replacement Forecast',
+    description: 'Assets due for replacement now and in the next 3 years, with the estimated cost, for budget planning.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+      </svg>
+    ),
+    // Same settings as the Home card, so the totals match it.
+    async load() {
+      return (await getReplacementForecast({ years: 3, priceIncrease: 3, items: true })).data.items
+    },
+    dateField: 'endOfLife',
+    extraRows: (rows) => [
+      ...rows,
+      {
+        replaceIn: '', propertyNumber: 'TOTAL ESTIMATED COST', description: `${rows.length} assets`, category: '', office: '',
+        acquisitionDate: '', usefulLifeYears: '', endOfLife: '', reason: '', condition: '', unitValue: null,
+        estimatedCost: rows.reduce((s, r) => s + (Number(r.estimatedCost) || 0), 0),
+      },
+    ],
+    headers: [
+      { label: 'Replace In',      display: (r) => <span className={r.replaceIn === 'NOW' ? 'font-semibold text-amber-700 dark:text-amber-300' : ''}>{r.replaceIn === 'NOW' ? 'Now' : r.replaceIn}</span>, raw: (r) => r.replaceIn === 'NOW' ? 'Now' : r.replaceIn },
+      { label: 'Property No.',    display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                                   raw: (r) => r.propertyNumber || '' },
+      { label: 'Description',     display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>,              raw: (r) => r.description || '' },
+      { label: 'Category',        display: (r) => r.category || 'N/A',                                                                                      raw: (r) => r.category || '' },
+      { label: 'Office',          display: (r) => r.office || 'N/A',                                                                                        raw: (r) => r.office || '' },
+      { label: 'Acq. Date',       display: (r) => fmtDate(r.acquisitionDate),                                                                             raw: (r) => r.acquisitionDate || '' },
+      { label: 'Expected Life',   display: (r) => r.usefulLifeYears ? `${r.usefulLifeYears} yrs` : 'N/A',                                                  raw: (r) => r.usefulLifeYears || '' },
+      { label: 'End of Life',     display: (r) => fmtDate(r.endOfLife),                                                                                   raw: (r) => r.endOfLife || '' },
+      { label: 'Reason',          display: (r) => r.reason || 'N/A',                                                                                        raw: (r) => r.reason || '' },
+      { label: 'Condition',       display: (r) => r.condition || 'N/A',                                                                                     raw: (r) => r.condition || '' },
+      { label: 'Acq. Value',      display: (r) => fmtMoney(r.unitValue),                                                                                  raw: (r) => r.unitValue != null ? Number(r.unitValue).toFixed(2) : '' },
+      { label: 'Est. Cost',       display: (r) => <span className="font-semibold text-amber-700 dark:text-amber-300">{fmtMoney(r.estimatedCost)}</span>, raw: (r) => Number(r.estimatedCost).toFixed(2) },
+    ],
+  },
+  {
+    id: 'depreciation',
+    title: 'Depreciation Schedule',
+    description: 'Straight-line depreciation of assets in use as of today: residual value, monthly depreciation, accumulated depreciation and book value.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M12 13a1 1 0 100 2h5a1 1 0 001-1V9a1 1 0 10-2 0v2.586l-4.293-4.293a1 1 0 00-1.414 0L8 9.586 3.707 5.293a1 1 0 00-1.414 1.414l5 5a1 1 0 001.414 0L11 9.414 14.586 13H12z" clipRule="evenodd" />
+      </svg>
+    ),
+    async load() {
+      return (await getDepreciation({ items: true })).data.items
+    },
+    dateField: 'acquisitionDate',
+    extraRows: (rows) => {
+      const sum = (k) => rows.reduce((s, r) => s + (Number(r[k]) || 0), 0)
+      return [
+        ...rows,
+        {
+          propertyNumber: 'TOTAL', description: `${rows.length} assets`, category: '', acquisitionDate: '',
+          totalCost: sum('totalCost'), residualValue: sum('residualValue'), depreciableCost: sum('depreciableCost'),
+          usefulLifeMonths: '', remainingLifeMonths: '', monthlyDepreciation: sum('monthlyDepreciation'),
+          depreciationExpense: sum('depreciationExpense'), accumulatedDepreciation: sum('accumulatedDepreciation'), bookValue: sum('bookValue'),
+        },
+      ]
+    },
+    headers: [
+      { label: 'Property No.',        display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                      raw: (r) => r.propertyNumber || '' },
+      { label: 'Description',         display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>, raw: (r) => r.description || '' },
+      { label: 'Category',            display: (r) => r.category || 'N/A',                                                                         raw: (r) => r.category || '' },
+      { label: 'Acquisition Date',    display: (r) => fmtDate(r.acquisitionDate),                                                                raw: (r) => r.acquisitionDate || '' },
+      { label: 'Total Cost',          display: (r) => fmtMoney(r.totalCost),                                                                     raw: (r) => Number(r.totalCost).toFixed(2) },
+      { label: 'Residual Value',      display: (r) => fmtMoney(r.residualValue),                                                                 raw: (r) => Number(r.residualValue).toFixed(2) },
+      { label: 'Depreciable Cost',    display: (r) => fmtMoney(r.depreciableCost),                                                               raw: (r) => Number(r.depreciableCost).toFixed(2) },
+      { label: 'Useful Life (months)', display: (r) => r.usefulLifeMonths,                                                                       raw: (r) => r.usefulLifeMonths },
+      { label: 'Remaining Useful Life', display: (r) => r.remainingLifeMonths,                                                                   raw: (r) => r.remainingLifeMonths },
+      { label: 'Monthly Depreciation', display: (r) => r.monthlyDepreciation != null ? fmtMoney(r.monthlyDepreciation) : '-',                   raw: (r) => r.monthlyDepreciation != null ? Number(r.monthlyDepreciation).toFixed(2) : '-' },
+      { label: 'Depreciation Expense', display: (r) => Number(r.depreciationExpense) ? fmtMoney(r.depreciationExpense) : '-',                    raw: (r) => Number(r.depreciationExpense) ? Number(r.depreciationExpense).toFixed(2) : '-' },
+      { label: 'Accumulated Depreciation', display: (r) => fmtMoney(r.accumulatedDepreciation),                                                  raw: (r) => Number(r.accumulatedDepreciation).toFixed(2) },
+      { label: 'Book Value',          display: (r) => <span className="font-semibold text-slate-900 dark:text-white">{fmtMoney(r.bookValue)}</span>, raw: (r) => Number(r.bookValue).toFixed(2) },
     ],
   },
   {

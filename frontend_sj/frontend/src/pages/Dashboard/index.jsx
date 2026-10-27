@@ -5,10 +5,9 @@ import { getAssets } from '../../services/assetService'
 import { Link, useNavigate } from 'react-router-dom'
 import MainLayout from '../../components/layout/MainLayout'
 import { getDashboardSummary } from '../../services/dashboardService'
-import { getAssetHistory, getEditRequests } from '../../services/assetHistoryService'
+import { getEditRequests } from '../../services/assetHistoryService'
 import { getUsers } from '../../services/userService'
-import { getLifecycleInsights, generateLifecycleSummary } from '../../services/aiRecommendationService'
-import { getAssetHealth, generateAssetHealth } from '../../services/auditLogService'
+import { getPlanning, generatePlanningSummary } from '../../services/aiRecommendationService'
 import { approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
 import { approveDisposal, rejectDisposal } from '../../services/disposalService'
 import { approveTransfer, rejectTransfer } from '../../services/transferService'
@@ -74,15 +73,6 @@ function fmtPct(count, total) {
 
 const assetLink = (propertyNumber) => `/assets?search=${encodeURIComponent(propertyNumber || '')}`
 
-const EVENT_CFG = {
-  REGISTERED:   { label: 'Registered',   color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-500/10' },
-  ASSIGNED:     { label: 'Assigned',     color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-500/10' },
-  TRANSFERRED:  { label: 'Transferred',  color: 'text-violet-700 dark:text-violet-300', bg: 'bg-violet-500/10' },
-  MAINTENANCE:  { label: 'Maintenance',  color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-500/10' },
-  DISPOSAL:     { label: 'Disposal',     color: 'text-red-700 dark:text-red-300', bg: 'bg-red-500/10' },
-  ARCHIVED:     { label: 'Archived',     color: 'text-zinc-700 dark:text-zinc-300', bg: 'bg-zinc-500/10' },
-}
-
 const CONDITION_ORDER = ['NEW', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
 const CONDITION_CFG = {
   NEW:           { bar: 'bg-sky-500',     text: 'text-sky-400',     dot: 'bg-sky-400',     label: 'New' },
@@ -116,7 +106,7 @@ function StatStrip({ stats, loading }) {
       {/* Four across when there's room for 14rem each, otherwise two - measured in rem, so it
           follows the Text Size setting. The 1px gap over a tinted background draws the dividers. */}
       <div className="flex flex-wrap gap-px bg-slate-200 dark:bg-zinc-800">
-        {stats.map(({ label, value, sub, delta, href, icon }) => (
+        {stats.map(({ label, value, sub, delta, href, icon, loading: tileLoading }) => (
           <Link
             key={label}
             to={href}
@@ -127,7 +117,7 @@ function StatStrip({ stats, loading }) {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-600 dark:text-zinc-400 uppercase tracking-normal sm:tracking-wider leading-tight sm:leading-none [overflow-wrap:anywhere]">{label}</p>
-              {loading ? (
+              {loading || tileLoading ? (
                 <Sk className="h-7 w-16 mt-2 mb-1" />
               ) : (
                 <p className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white mt-1.5 leading-tight sm:leading-none tabular-nums [overflow-wrap:anywhere]">{value}</p>
@@ -380,34 +370,34 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
   )
 }
 
-// Maintenance and disposal counts for the last 30 days (LifecycleInsightService, office-scoped for
-// staff), with the on-demand AI summary. The last summary comes back with the numbers when it
-// still matches them; a new one is only written when someone presses Generate (the Gemini free
-// plan allows ~20 a day).
-// ready: false until the dashboard's main numbers are in, so this heavier request doesn't slow them.
-// showHealth: admins also get the AI Asset Health note at the bottom of the card.
-function MonthSummary({ refreshToken, ready = true, showHealth = false }) {
-  const [data, setData]             = useState(null)
-  const [loading, setLoading]       = useState(true)
+// "Budget & Planning" (admins only): what needs replacing and when (ReplacementForecastService)
+// next to what the assets are worth on the books (DepreciationService), with one AI summary for
+// both (PlanningInsightService). The data is loaded by Dashboard, which also uses it for the
+// Book Value tile and the "due for replacement" row in Needs attention.
+const TOP_PLANNING_CATEGORIES = 5
+
+function PlanningTile({ label, value, sub, highlight }) {
+  return (
+    <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${highlight
+      ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10'
+      : 'border-slate-200 dark:border-zinc-800'}`}>
+      <p className="text-xs font-medium text-slate-600 dark:text-zinc-400 leading-tight">{label}</p>
+      <p className="text-lg font-semibold text-slate-900 dark:text-white tabular-nums mt-0.5">{value}</p>
+      <p className="text-xs text-slate-600 dark:text-zinc-400 tabular-nums">{sub}</p>
+    </div>
+  )
+}
+
+function BudgetPlanning({ data, loading, onChange }) {
   const [generating, setGenerating] = useState(false)
   const [aiError, setAiError]       = useState('')
-
-  useEffect(() => {
-    if (!ready) return
-    let alive = true
-    getLifecycleInsights('month')
-      .then(({ data }) => { if (alive) setData(data) })
-      .catch(() => { if (alive) setData(null) })
-      .finally(() => { if (alive) setLoading(false) })
-    return () => { alive = false }
-  }, [refreshToken, ready])
 
   const generate = async () => {
     setGenerating(true)
     setAiError('')
     try {
-      const { data } = await generateLifecycleSummary('month', true)
-      setData(data)
+      const { data } = await generatePlanningSummary(true)
+      onChange(data)
     } catch (err) {
       setAiError(err.response?.data?.message || 'Could not generate the summary.')
     } finally {
@@ -415,34 +405,97 @@ function MonthSummary({ refreshToken, ready = true, showHealth = false }) {
     }
   }
 
-  const maintained = data?.maintenance?.assets ?? 0
-  const disposed   = data?.disposal?.assets ?? 0
+  const r = data?.replacement
+  const d = data?.depreciation?.total
+  const year = data?.depreciation?.asOf?.slice(0, 4)
+  const categories = (r?.byCategory || []).slice(0, TOP_PLANNING_CATEGORIES)
+  const maxCost = Number(categories[0]?.cost) || 1
+  const missingLife = r?.excluded?.noExpectedLife || []
+  const subhead = 'text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400'
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 flex flex-col">
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Last 30 Days</p>
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
+      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Budget &amp; Planning</p>
+          <p className="text-xs text-slate-600 dark:text-zinc-400 mt-px">
+            What needs replacing and what the assets are worth on the books
+            {data ? `, as of ${new Date(data.depreciation.asOf).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}` : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-4 text-xs font-semibold">
+          <Link to="/reports?report=replacement" className="text-brand-700 dark:text-brand-300 hover:underline">Replacement forecast</Link>
+          <Link to="/reports?report=depreciation" className="text-brand-700 dark:text-brand-300 hover:underline">Depreciation schedule</Link>
+        </div>
       </div>
-      <div className="px-5 py-4 space-y-4 flex-1">
+
+      <div className="px-5 py-4 space-y-5">
         {loading ? (
-          <div className="grid grid-cols-2 gap-4"><Sk className="h-12" /><Sk className="h-12" /></div>
+          <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">{Array.from({ length: 5 }).map((_, i) => <Sk key={i} className="h-16" />)}</div>
+            <div className="grid grid-cols-2 gap-3">{Array.from({ length: 4 }).map((_, i) => <Sk key={i} className="h-16" />)}</div>
+          </div>
         ) : !data ? (
-          <p className="text-sm text-slate-600 dark:text-zinc-400">Couldn't load the last 30 days' maintenance and disposal counts.</p>
+          <p className="text-sm text-slate-600 dark:text-zinc-400">Couldn't load the budget and planning figures.</p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4">
-              <Link to="/maintenance" className="group">
-                <p className="text-2xl font-semibold text-slate-900 dark:text-white tabular-nums">{fmtNum(maintained)}</p>
-                <p className="text-xs text-slate-600 dark:text-zinc-400 group-hover:text-slate-700 dark:group-hover:text-zinc-200">{maintained === 1 ? 'asset' : 'assets'} maintained</p>
-              </Link>
-              <Link to="/disposal" className="group">
-                <p className="text-2xl font-semibold text-slate-900 dark:text-white tabular-nums">{fmtNum(disposed)}</p>
-                <p className="text-xs text-slate-600 dark:text-zinc-400 group-hover:text-slate-700 dark:group-hover:text-zinc-200">{disposed === 1 ? 'asset' : 'assets'} disposed</p>
-              </Link>
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
+              <section aria-label="Replacement forecast" className="min-w-0 space-y-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <p className={subhead}>Replacement cost by year</p>
+                  <span className="text-xs font-medium text-slate-600 dark:text-zinc-400 tabular-nums">
+                    Next {r.years} years: {fmtMoney(r.total.cost)} · {fmtNum(r.total.assets)} assets
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {r.buckets.map((b) => (
+                    <div key={b.key} className={b.key === 'NOW' ? 'col-span-2 sm:col-span-1' : ''}>
+                      <PlanningTile label={b.label} value={fmtMoney(b.cost)} highlight={b.key === 'NOW' && b.assets > 0}
+                        sub={`${fmtNum(b.assets)} ${b.assets === 1 ? 'asset' : 'assets'}`} />
+                    </div>
+                  ))}
+                </div>
+                {categories.length > 0 && (
+                  <div className="space-y-2.5">
+                    {categories.map((c) => (
+                      <div key={c.category}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-slate-600 dark:text-zinc-400 truncate min-w-0 flex-1" title={c.category}>
+                            {c.category} <span className="text-slate-400 dark:text-zinc-500">({c.usefulLifeYears} yrs)</span>
+                          </span>
+                          <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300 tabular-nums ml-2">
+                            {fmtMoney(c.cost)} <span className="font-normal text-slate-600 dark:text-zinc-400">· {fmtNum(c.assets)}</span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
+                          <div className="h-full w-full rounded-full bg-brand-500 origin-left" style={{ transform: `scaleX(${Number(c.cost) / maxCost})` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section aria-label="Depreciation" className="min-w-0 space-y-4">
+                <p className={subhead}>Asset value on the books</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <PlanningTile label="Total cost" value={fmtMoney(d.totalCost)} sub={`${fmtNum(d.assets)} assets`} />
+                  <PlanningTile label="Book value" value={fmtMoney(d.bookValue)} sub="Cost less depreciation" />
+                  <PlanningTile label="Accumulated depreciation" value={fmtMoney(d.accumulatedDepreciation)}
+                    sub={`${fmtPct(Number(d.accumulatedDepreciation), Number(d.totalCost))} of cost`} />
+                  <PlanningTile label={`Depreciation expense ${year}`} value={fmtMoney(d.depreciationExpense)}
+                    sub={`${fmtMoney(d.monthlyDepreciation)} per month`} />
+                </div>
+                <p className="text-sm text-slate-600 dark:text-zinc-300">
+                  <span className="font-semibold text-slate-900 dark:text-white tabular-nums">{fmtNum(d.fullyDepreciated)}</span>
+                  {' '}{d.fullyDepreciated === 1 ? 'asset is' : 'assets are'} fully depreciated (only the 5% residual value is left).
+                </p>
+              </section>
             </div>
+
             <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400">AI Summary</p>
+                <p className={subhead}>AI Summary</p>
                 <button onClick={generate} disabled={generating}
                   className="text-xs font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline disabled:opacity-50 transition-colors">
                   {generating ? 'Generating…' : data.summary ? 'Regenerate' : 'Generate'}
@@ -453,134 +506,18 @@ function MonthSummary({ refreshToken, ready = true, showHealth = false }) {
               ) : data.summary ? (
                 <p className="text-sm text-slate-600 dark:text-zinc-300 leading-relaxed mt-2">{data.summary}</p>
               ) : generating ? (
-                <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2" role="status">Writing a summary of the last 30 days…</p>
+                <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2" role="status">Writing a budget note…</p>
               ) : (
-                <p className="text-xs text-slate-600 dark:text-zinc-400 mt-2">A short plain-language summary of the last 30 days' maintenance and disposal.</p>
+                <p className="text-xs text-slate-600 dark:text-zinc-400 mt-2">A short budget note: what to replace and when, and what the assets are worth on the books.</p>
               )}
             </div>
-          </>
-        )}
-        {showHealth && <AssetHealth ready={ready} />}
-      </div>
-    </div>
-  )
-}
 
-const fmtDateTime = (dt) => new Date(dt).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-
-// The AI "Asset Health" note (same one the mobile dashboard shows): how the inventory is doing
-// and what needs action, written from live counts. Nothing is generated by just opening the
-// page; the AI has a daily allowance, so it is written when someone presses Generate.
-function AssetHealth({ ready }) {
-  const [health, setHealth]         = useState(null)
-  const [loading, setLoading]       = useState(true)
-  const [notice, setNotice]         = useState('')   // e.g. the AI is paused for the day
-  const [generating, setGenerating] = useState(false)
-  const [error, setError]           = useState('')
-
-  useEffect(() => {
-    if (!ready) return
-    let alive = true
-    getAssetHealth()
-      .then(({ data }) => { if (alive) setHealth(data) })
-      .catch((err) => { if (alive) setNotice(err.response?.data?.unavailable || '') })
-      .finally(() => { if (alive) setLoading(false) })
-    return () => { alive = false }
-  }, [ready])
-
-  const generate = async () => {
-    setGenerating(true)
-    setError('')
-    try {
-      const { data } = await generateAssetHealth()
-      setHealth(data)
-      setNotice('')
-    } catch (err) {
-      setError(err.response?.data?.message || 'Could not check asset health right now.')
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  return (
-    <section aria-labelledby="asset-health-title" className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 id="asset-health-title" className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400">Asset Health</h3>
-        <button onClick={generate} disabled={generating || loading}
-          className="text-xs font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 disabled:opacity-50 transition-colors">
-          {generating ? 'Checking…' : health ? 'Check again' : 'Generate'}
-        </button>
-      </div>
-      {loading ? (
-        <div className="space-y-2 mt-2" aria-busy="true">
-          <Sk className="h-3 w-full" /><Sk className="h-3 w-5/6" /><Sk className="h-3 w-2/3" />
-        </div>
-      ) : (
-        <>
-          {error && <p className="text-xs text-red-700 dark:text-red-300 mt-2" role="alert">{error}</p>}
-          {generating && !health && (
-            <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2" role="status">Checking the assets…</p>
-          )}
-          {health ? (
-            <>
-              <p className="text-sm text-slate-700 dark:text-zinc-200 leading-relaxed mt-2 whitespace-pre-line">{health.digest}</p>
-              <p className="text-xs text-slate-600 dark:text-zinc-400 mt-2">
-                {/* the check leaves out items already marked for disposal, unlike "Assets in use" above */}
-                Based on {fmtNum(health.coveredEntries ?? 0)} assets in service, not counting items for disposal · checked {fmtDateTime(health.generatedAt)}
-              </p>
-            </>
-          ) : !generating && (
-            <p className="text-xs text-slate-600 dark:text-zinc-400 mt-2">
-              {notice || 'A short check of how the assets are doing and what needs action, written by AI from the current records.'}
+            <p className="text-xs text-slate-500 dark:text-zinc-500">
+              Due now = past its expected life, or unserviceable and awaiting disposal. Replacement costs are acquisition values plus
+              {' '}{r.priceIncreasePercent}% a year. Depreciation is straight-line to a 5% residual value. Expected life per category is set on the Categories page.
+              {missingLife.length > 0 && ` Not counted (no expected life set): ${missingLife.join(', ')}.`}
             </p>
-          )}
-        </>
-      )}
-    </section>
-  )
-}
-
-function ActivityFeed({ events, loading }) {
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 flex flex-col">
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Recent Activity</p>
-        {!loading && events.length > 0 && (
-          <Link to="/asset-history" className="text-xs text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline font-medium transition-colors duration-150">View all</Link>
-        )}
-      </div>
-      <div className="flex-1 divide-y divide-slate-100 dark:divide-zinc-800/70">
-        {loading ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="px-5 py-3.5 flex items-start gap-3">
-              <Sk className="w-14 h-5 rounded flex-shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-2"><Sk className="h-3.5 w-3/4" /><Sk className="h-3 w-1/2" /></div>
-              <Sk className="h-3 w-12 flex-shrink-0 mt-1" />
-            </div>
-          ))
-        ) : events.length === 0 ? (
-          <p className="px-5 py-10 text-sm text-center text-slate-600 dark:text-zinc-400">No activity recorded yet.</p>
-        ) : (
-          events.map((ev, i) => {
-            const cfg = EVENT_CFG[ev.eventType] || { label: ev.eventType, color: 'text-zinc-400', bg: 'bg-zinc-400/10' }
-            const performer = ev.performedBy?.fullName || ev.performedBy?.username || 'N/A'
-            return (
-              <Link key={ev.id ?? i} to={assetLink(ev.asset?.propertyNumber)}
-                className="px-5 py-3 flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                <span className={`flex-shrink-0 mt-0.5 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold leading-none whitespace-nowrap ${cfg.color} ${cfg.bg}`}>{cfg.label}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-700 dark:text-zinc-200 leading-snug truncate font-medium">
-                    {ev.asset?.propertyNumber && <span className="font-mono text-xs text-slate-600 dark:text-zinc-400 mr-1.5">{ev.asset.propertyNumber}</span>}
-                    {ev.asset?.description || 'N/A'}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-zinc-400 mt-0.5 leading-snug truncate">By: {performer}</p>
-                </div>
-                <time className="flex-shrink-0 text-xs text-slate-600 dark:text-zinc-400 whitespace-nowrap mt-1 tabular-nums">
-                  {timeAgo(ev.eventDate)}
-                </time>
-              </Link>
-            )
-          })
+          </>
         )}
       </div>
     </div>
@@ -724,34 +661,45 @@ function Dashboard() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(false)
   const [summary, setSummary]   = useState(null)   // asset numbers worked out by the server
-  const [history, setHistory]   = useState([])
   const [unassignedStaff, setUnassignedStaff] = useState([])
   const [requests, setRequests] = useState([])
   const [requestsFailed, setRequestsFailed] = useState(false)
-  const [insightToken, setInsightToken] = useState(0)   // bumps on every (re)load so the month card refetches
+  const [insightToken, setInsightToken] = useState(0)   // bumps on every quiet reload so Budget & Planning refetches
 
   const load = useCallback(({ silent = false } = {}) => {
     if (!silent) { setLoading(true); setError(false) }
     Promise.all([
       getDashboardSummary().catch(() => null),
-      getAssetHistory('', 8).catch(() => null),  // Recent Activity shows the 8 newest
       isAdmin ? getUsers().catch(() => null) : Promise.resolve(null),
       // Admin: everyone's requests. Staff: the backend returns only their own.
       getEditRequests().catch(() => null),
-    ]).then(([sumRes, histRes, userRes, reqRes]) => {
-      if (!sumRes && !histRes) {
+    ]).then(([sumRes, userRes, reqRes]) => {
+      if (!sumRes) {
         if (!silent) { setError(true); setLoading(false) }
         return
       }
       if (sumRes) setSummary(sumRes.data)
-      setHistory(histRes?.data ?? [])
       setUnassignedStaff((userRes?.data ?? []).filter((x) => x.role === 'STAFF' && x.isActive && !x.officeId && !x.officeName))
       setRequests(reqRes?.data ?? [])
       setRequestsFailed(!reqRes)
-      if (silent) setInsightToken((t) => t + 1)  // the month card loads itself on first open
+      if (silent) setInsightToken((t) => t + 1)  // Budget & Planning loads itself on first open
       if (!silent) setLoading(false)
     })
   }, [isAdmin])
+
+  // Budget & Planning (admins only), loaded after the main numbers so it doesn't slow them down.
+  // Also feeds the Book Value tile and the "due for replacement" row in Needs attention.
+  const [planning, setPlanning]               = useState(null)
+  const [planningLoading, setPlanningLoading] = useState(true)
+  useEffect(() => {
+    if (!isAdmin || loading) return
+    let alive = true
+    getPlanning()
+      .then(({ data }) => { if (alive) setPlanning(data) })
+      .catch(() => { if (alive) setPlanning(null) })
+      .finally(() => { if (alive) setPlanningLoading(false) })
+    return () => { alive = false }
+  }, [isAdmin, loading, insightToken])
 
   // Once the dashboard is in, quietly load the asset list (the slim one) so Assets and Transfer
   // Asset open at once from it and refresh in the background.
@@ -789,8 +737,6 @@ function Dashboard() {
   const condDist     = summary?.condition ?? {}
   const officeDist   = summary?.offices ?? []
   const categoryBreakdown = (summary?.categories ?? []).slice(0, 6)
-
-  const recentEvents = history.slice(0, 8)
 
   // Requests, newest first.
   const pendingList = useMemo(() => requests
@@ -837,6 +783,12 @@ function Dashboard() {
     text: `${plural(noOffice.count, 'asset is', 'assets are')} not assigned to an office`,
     assets: noOffice.items, total: noOffice.count,
   })
+  const dueNow = planning?.replacement?.buckets?.find((b) => b.key === 'NOW')
+  if (isAdmin && dueNow?.assets > 0) attention.push({
+    key: 'replace-now', tone: 'amber',
+    text: `${plural(dueNow.assets, 'asset is', 'assets are')} due for replacement now (about ${fmtMoney(dueNow.cost)})`,
+    link: { to: '/reports?report=replacement', label: 'View' },
+  })
 
   // ── Approvals ──────────────────────────────────────────────────────────────
   const approveRequest = async (r) => {
@@ -866,13 +818,20 @@ function Dashboard() {
   const animValue  = useCountUp(Math.round(totalValue), !loading)
   const animRepair = useCountUp(underRepair, !loading)
   const animDisp   = useCountUp(forDisposal, !loading)
+  const bookValue  = planning?.depreciation?.total?.bookValue
+  const animBook   = useCountUp(Math.round(Number(bookValue ?? 0)), bookValue != null)
+  // Admins see the book value (from Budget & Planning); staff, or when that failed to load, the cost.
+  const showBook   = isAdmin && (planningLoading || bookValue != null)
 
   const stats = [
     {
       label: 'Assets in use', value: fmtNum(animAssets),
       sub: isAdmin ? 'All offices' : (user?.officeName || 'Your office'), delta: newThisMonth, href: '/assets', icon: ICONS.assets,
     },
-    {
+    showBook ? {
+      label: 'Book Value', value: fmtMoney(animBook), loading: bookValue == null,
+      sub: `Of ${fmtMoney(totalValue)} acquisition cost`, href: '/reports?report=depreciation', icon: ICONS.value,
+    } : {
       label: 'Asset Value', value: fmtMoney(animValue),
       sub: 'Acquisition cost of assets in use', href: '/assets', icon: ICONS.value,
     },
@@ -925,6 +884,8 @@ function Dashboard() {
 
         {!loading && <NeedsAttention items={attention} />}
 
+        {isAdmin && <BudgetPlanning data={planning} loading={loading || planningLoading} onChange={setPlanning} />}
+
         <div className={`grid grid-cols-1 ${isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-5`}>
           <ConditionDistribution condDist={condDist} total={totalAssets} loading={loading}
             onSelect={(cond) => navigate(`/assets?condition=${cond}`)} />
@@ -934,11 +895,6 @@ function Dashboard() {
           )}
           <CategoryBreakdown breakdown={categoryBreakdown} total={totalAssets} loading={loading}
             onSelect={(categoryId) => navigate(`/assets?category=${categoryId}`)} />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
-          <ActivityFeed events={recentEvents} loading={loading} />
-          <MonthSummary refreshToken={insightToken} ready={!loading} showHealth={isAdmin} />
         </div>
       </div>
 

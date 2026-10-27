@@ -4,9 +4,18 @@ export const getLatestRecommendation = (assetId) => api.get(`/assets/${assetId}/
 export const generateRecommendation  = (assetId) => api.post(`/assets/${assetId}/recommendation`);
 export const getRecommendationSummary = () => api.get('/ai-recommendations/summary');
 
-// Maintenance / disposal activity over a period ('day' | 'week' | 'month' | 'year'), scoped to
-// the staff member's office; the summary endpoint adds an AI-written paragraph (Gemini). The server
-// reuses its last summary while the numbers are unchanged; refresh = true always writes a new one.
-export const getLifecycleInsights     = (range) => api.get('/ai-insights/lifecycle', { params: { range } });
-export const generateLifecycleSummary = (range, refresh = false) =>
-  api.post('/ai-insights/lifecycle/summary', null, { params: { range, refresh } });
+// Reports: assets due for replacement now and in each of the next `years` years, with the
+// estimated cost (priceIncrease = percent per year); items = true adds the asset list.
+export const getReplacementForecast = (params = {}) =>
+  api.get('/ai-insights/replacement-forecast', { params });
+
+// Reports: straight-line depreciation schedule as of a date (default today), same formulas as
+// the Accounting Office's printed schedule; items = true adds the asset rows.
+export const getDepreciation = (params = {}) =>
+  api.get('/ai-insights/depreciation', { params });
+
+// Home "Budget & Planning" (admins only): replacement forecast + depreciation totals, with one AI
+// summary covering both. Cached on the server while the numbers are unchanged.
+export const getPlanning = () => api.get('/ai-insights/planning');
+export const generatePlanningSummary = (refresh = false) =>
+  api.post('/ai-insights/planning/summary', null, { params: { refresh } });

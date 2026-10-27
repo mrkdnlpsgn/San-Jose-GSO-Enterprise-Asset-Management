@@ -1,0 +1,13 @@
+# Web service on Railway: build the Vite site, then serve it with Caddy (see Caddyfile), which also
+# proxies /api and /uploads to the backend. The local docker-compose setup keeps using Dockerfile.
+FROM node:20-alpine AS builder
+WORKDIR /build
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+# No VITE_API_BASE_URL: the site calls /api on its own origin and Caddy forwards it.
+RUN npm run build
+
+FROM caddy:2.10-alpine
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=builder /build/dist /srv

@@ -237,7 +237,8 @@ public class LifecycleInsightService {
     }
 
     // Small hand-rolled JSON writer - the stats are only maps, lists, strings and numbers.
-    private static String toJson(Object v) {
+    // Also used by ReplacementForecastService.
+    static String toJson(Object v) {
         if (v == null) return "null";
         if (v instanceof Map<?, ?> m) {
             return m.entrySet().stream()

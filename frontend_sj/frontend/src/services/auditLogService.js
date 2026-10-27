@@ -12,9 +12,3 @@ export const exportAuditArchive = (from, to) => api.get('/audit-logs/archive/exp
   params: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
   responseType: 'blob',
 })
-
-// "Asset Health": a short AI note on the condition of the inventory and what needs action
-// (admin). GET returns the latest one, or 404 when none was generated yet (its body may say AI
-// is paused for the day). POST writes a new one; it uses the daily AI allowance.
-export const getAssetHealth      = () => api.get('/audit-logs/digest')
-export const generateAssetHealth = () => api.post('/audit-logs/digest')
