@@ -1,9 +1,6 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
-import '../../asset_history/data/asset_history_service.dart';
-import '../../asset_history/model/asset_history_model.dart';
 
 /// One office or category and how many in-use assets it holds.
 class DashboardGroup {
@@ -99,48 +96,3 @@ final dashboardStatsProvider = FutureProvider.autoDispose<DashboardStats>((ref) 
     throw ApiException.from(e);
   }
 });
-
-/// Recent Activity - the 8 newest history events, as on the web dashboard.
-final recentActivityProvider = FutureProvider.autoDispose<List<AssetHistoryModel>>((ref) {
-  return AssetHistoryService().getAll(limit: 8);
-});
-
-/// Maintenance and disposal over the last 30 days, with the AI summary if one still matches
-/// the numbers (web: "Last 30 Days").
-class MonthSummary {
-  final int maintained;
-  final int disposed;
-  final String? summary;
-  const MonthSummary({required this.maintained, required this.disposed, this.summary});
-
-  factory MonthSummary.fromJson(Map<String, dynamic> json) => MonthSummary(
-        maintained: ((json['maintenance'] as Map?)?['assets'] as num?)?.toInt() ?? 0,
-        disposed: ((json['disposal'] as Map?)?['assets'] as num?)?.toInt() ?? 0,
-        summary: json['summary'] as String?,
-      );
-}
-
-class MonthSummaryService {
-  final Dio _dio = ApiClient.instance.dio;
-
-  Future<MonthSummary> get() async {
-    try {
-      final res = await _dio.get('/ai-insights/lifecycle', queryParameters: {'range': 'month'});
-      return MonthSummary.fromJson(res.data as Map<String, dynamic>);
-    } catch (e) {
-      throw ApiException.from(e);
-    }
-  }
-
-  // Writes a new AI summary - the AI has a small daily allowance, so only on request.
-  Future<MonthSummary> generate() async {
-    try {
-      final res = await _dio.post('/ai-insights/lifecycle/summary', queryParameters: {'range': 'month', 'refresh': true});
-      return MonthSummary.fromJson(res.data as Map<String, dynamic>);
-    } catch (e) {
-      throw ApiException.from(e);
-    }
-  }
-}
-
-final monthSummaryProvider = FutureProvider.autoDispose<MonthSummary>((ref) => MonthSummaryService().get());

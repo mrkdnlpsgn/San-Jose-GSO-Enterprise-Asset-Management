@@ -13,12 +13,12 @@ import '../../../shared/widgets/staggered_entrance.dart';
 import '../../../shared/widgets/main_shell.dart';
 import '../../../shared/widgets/auto_refresh_ticker.dart';
 import '../../../shared/widgets/user_avatar.dart';
-import '../../asset_history/model/asset_history_model.dart';
-import '../../audit_log/provider/audit_log_digest_provider.dart';
 import '../provider/dashboard_provider.dart';
+import '../provider/planning_provider.dart';
 import '../../reports/utils/formatters.dart' show fmtMoney;
 import '../widgets/home_header.dart';
 import '../widgets/attention_card.dart';
+import '../widgets/budget_planning_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -30,9 +30,7 @@ class DashboardScreen extends ConsumerWidget {
 
     void refreshAll() {
       ref.invalidate(dashboardStatsProvider);
-      ref.invalidate(recentActivityProvider);
-      ref.invalidate(monthSummaryProvider);
-      ref.invalidate(auditLogDigestProvider);
+      if (isAdmin) ref.invalidate(planningProvider);
       ref.invalidate(attentionProvider);
     }
 
@@ -274,6 +272,12 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
             const SizedBox(height: 28),
             const IosSectionHeader('Overview'),
             overview,
+            // budget planning is the GSO head's job; staff Home stays on their own work
+            if (isAdmin) ...[
+              const SizedBox(height: 28),
+              const IosSectionHeader('Budget & Planning'),
+              const BudgetPlanningCard(),
+            ],
             const SizedBox(height: 28),
             const IosSectionHeader('Summary'),
             charts,
@@ -294,8 +298,6 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
                 ],
                 const SizedBox(height: 12),
                 const _DistributionCardSkeleton(rows: 4),
-                const SizedBox(height: 12),
-                const _DigestCardSkeleton(),
               ],
             ),
           ),
@@ -356,9 +358,6 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
         shareOf: stats.inUse,
         emptyMessage: 'No assets yet.',
       ),
-      const _RecentActivityCard(),
-      const _MonthSummaryCard(),
-      if (isAdmin) const _AuditLogDigestCard(),
     ];
 
     return withModules(
@@ -379,97 +378,6 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
             maybeStagger(i + 1, cards[i]),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _AuditLogDigestCard extends ConsumerStatefulWidget {
-  const _AuditLogDigestCard();
-
-  @override
-  ConsumerState<_AuditLogDigestCard> createState() => _AuditLogDigestCardState();
-}
-
-class _AuditLogDigestCardState extends ConsumerState<_AuditLogDigestCard> {
-  bool _generating = false;
-
-  Future<void> _generate() async {
-    setState(() => _generating = true);
-    try {
-      await ref.read(auditLogDigestServiceProvider).generate();
-      ref.invalidate(auditLogDigestProvider);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: Colors.red.shade800,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _generating = false);
-    }
-  }
-
-  String _fmtDateTime(String raw) {
-    try {
-      final dt = DateTime.parse(raw).toLocal();
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return raw;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final digestAsync = ref.watch(auditLogDigestProvider);
-    final c = context.colors;
-
-    return _SummaryCard(
-      icon: Icons.auto_awesome_rounded,
-      accent: Ios.indigo,
-      title: 'AI Asset Health',
-      // a worded button, like the web dashboard's "Generate summary"
-      trailing: _generating
-          ? const Padding(
-              padding: EdgeInsets.all(12),
-              child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-            )
-          : TextButton(onPressed: _generate, child: const Text('Generate')),
-      child: digestAsync.when(
-        loading: () => const Shimmer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Bone(width: double.infinity, height: 14),
-              SizedBox(height: 8),
-              Bone(width: double.infinity, height: 14),
-              SizedBox(height: 8),
-              Bone(width: 160, height: 14),
-              SizedBox(height: 12),
-              Bone(width: 140, height: 12),
-            ],
-          ),
-        ),
-        error: (e, _) => Text(e.toString(), style: TextStyle(color: c.textSecondary, fontSize: 14)),
-        data: (digest) {
-          if (digest == null) {
-            return Text('No insights yet. Tap Generate for a short check of how the assets are doing and what needs action.',
-                style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45));
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(digest.digest, style: TextStyle(color: c.textPrimary, fontSize: 16, height: 1.5, letterSpacing: -0.2)),
-              const SizedBox(height: 10),
-              Text(
-                'Covers ${digest.coveredEntries} assets in use · generated ${_fmtDateTime(digest.generatedAt)}',
-                style: TextStyle(color: c.textTertiary, fontSize: 13),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
@@ -728,31 +636,6 @@ class _DistributionCardSkeleton extends StatelessWidget {
               ),
               if (i != rows - 1) const SizedBox(height: 10),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DigestCardSkeleton extends StatelessWidget {
-  const _DigestCardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Bone(width: 130, height: 12),
-            SizedBox(height: 14),
-            Bone(width: double.infinity, height: 13),
-            SizedBox(height: 8),
-            Bone(width: double.infinity, height: 13),
-            SizedBox(height: 8),
-            Bone(width: 160, height: 13),
           ],
         ),
       ),
@@ -1058,250 +941,6 @@ class _BarListCard extends StatelessWidget {
                 ],
               ],
             ),
-    );
-  }
-}
-
-/// History event labels and colours - the web dashboard's EVENT_CFG.
-({String label, Color color}) _eventStyle(String type) => switch (type) {
-      'REGISTERED' => (label: 'Registered', color: AppTheme.statusRegistered),
-      'ASSIGNED' => (label: 'Assigned', color: AppTheme.statusAssigned),
-      'TRANSFERRED' => (label: 'Transferred', color: Ios.purple),
-      'MAINTENANCE' => (label: 'Maintenance', color: AppTheme.statusMaintenance),
-      'DISPOSAL' => (label: 'Disposal', color: AppTheme.statusDisposed),
-      'ARCHIVED' => (label: 'Archived', color: AppTheme.statusArchived),
-      _ => (label: type, color: Ios.gray),
-    };
-
-/// "Just now", "5m ago", "3h ago", "2d ago", then the date - as on the web dashboard.
-String _timeAgo(String raw) {
-  final dt = DateTime.tryParse(raw)?.toLocal();
-  if (dt == null) return '';
-  final m = DateTime.now().difference(dt).inMinutes;
-  if (m < 1) return 'Just now';
-  if (m < 60) return '${m}m ago';
-  final h = m ~/ 60;
-  if (h < 24) return '${h}h ago';
-  final d = h ~/ 24;
-  if (d < 7) return '${d}d ago';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-}
-
-class _RecentActivityCard extends ConsumerWidget {
-  const _RecentActivityCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final c = context.colors;
-    final events = ref.watch(recentActivityProvider);
-    final hasEvents = events.valueOrNull?.isNotEmpty ?? false;
-
-    return _SummaryCard(
-      icon: Icons.history_rounded,
-      accent: Ios.teal,
-      title: 'Recent Activity',
-      // History is a bottom-bar tab - switch to it
-      trailing: hasEvents ? TextButton(onPressed: () => context.go('/asset-history'), child: const Text('View all')) : null,
-      child: events.when(
-        loading: () => Shimmer(
-          child: Column(
-            children: [
-              for (var i = 0; i < 4; i++)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Bone(width: 72, height: 20),
-                      SizedBox(width: 10),
-                      Expanded(child: Bone(width: double.infinity, height: 14)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-        error: (e, _) => Text('Could not load recent activity.', style: TextStyle(color: c.textSecondary, fontSize: 15)),
-        data: (list) => list.isEmpty
-            ? Text('No activity recorded yet.', style: TextStyle(color: c.textSecondary, fontSize: 15))
-            : Column(
-                children: [
-                  for (var i = 0; i < list.length; i++) ...[
-                    if (i > 0) const Divider(height: 1),
-                    _ActivityRow(event: list[i]),
-                  ],
-                ],
-              ),
-      ),
-    );
-  }
-}
-
-class _ActivityRow extends StatelessWidget {
-  final AssetHistoryModel event;
-  const _ActivityRow({required this.event});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    final style = _eventStyle(event.eventType);
-    final performer = event.performedBy.fullName.isNotEmpty ? event.performedBy.fullName : event.performedBy.username;
-    final when = _timeAgo(event.eventDate);
-
-    return InkWell(
-      onTap: () => context.push('/assets/${event.asset.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 1),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: style.color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(style.label,
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: style.color)),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${event.asset.propertyNumber}  ${event.asset.description.isNotEmpty ? event.asset.description : 'N/A'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w500, letterSpacing: -0.2, color: c.textPrimary),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'By: $performer${when.isEmpty ? '' : ' · $when'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13.5, color: c.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Last 30 Days: assets maintained and disposed, with the on-demand AI summary (web: MonthSummary).
-class _MonthSummaryCard extends ConsumerStatefulWidget {
-  const _MonthSummaryCard();
-
-  @override
-  ConsumerState<_MonthSummaryCard> createState() => _MonthSummaryCardState();
-}
-
-class _MonthSummaryCardState extends ConsumerState<_MonthSummaryCard> {
-  bool _generating = false;
-
-  Future<void> _generate() async {
-    setState(() => _generating = true);
-    try {
-      await MonthSummaryService().generate();
-      // the summary is saved with the numbers, so a fresh read now returns it
-      ref.invalidate(monthSummaryProvider);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: Colors.red.shade800,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _generating = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    final month = ref.watch(monthSummaryProvider);
-    final data = month.valueOrNull;
-
-    Widget count(int n, String noun, String route) => Expanded(
-          child: InkWell(
-            onTap: () => context.push(route),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_fmtCount(n),
-                      style: TextStyle(
-                          fontSize: 28, height: 1.1, fontWeight: FontWeight.w700, letterSpacing: -0.8, color: c.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text('${n == 1 ? 'asset' : 'assets'} $noun', style: TextStyle(fontSize: 14.5, color: c.textSecondary)),
-                ],
-              ),
-            ),
-          ),
-        );
-
-    return _SummaryCard(
-      icon: Icons.calendar_month_rounded,
-      accent: Ios.orange,
-      title: 'Last 30 Days',
-      trailing: data == null
-          ? null
-          : _generating
-              ? const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              : TextButton(onPressed: _generate, child: Text(data.summary != null ? 'Regenerate' : 'Generate')),
-      child: month.when(
-        loading: () => const Shimmer(
-          child: Row(
-            children: [
-              Expanded(child: Bone(width: double.infinity, height: 48)),
-              SizedBox(width: 16),
-              Expanded(child: Bone(width: double.infinity, height: 48)),
-            ],
-          ),
-        ),
-        error: (e, _) => Text("Couldn't load the last 30 days' maintenance and disposal counts.",
-            style: TextStyle(color: c.textSecondary, fontSize: 15)),
-        data: (d) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                count(d.maintained, 'maintained', '/maintenance'),
-                const SizedBox(width: 16),
-                count(d.disposed, 'disposed', '/disposal'),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            Text('AI SUMMARY',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, letterSpacing: 0.6, color: c.textTertiary)),
-            const SizedBox(height: 6),
-            Text(
-              d.summary ??
-                  (_generating
-                      ? 'Writing a summary of the last 30 days…'
-                      : "Tap Generate for a short plain-language summary of the last 30 days' maintenance and disposal."),
-              style: TextStyle(
-                  fontSize: d.summary != null ? 16 : 15,
-                  height: 1.45,
-                  letterSpacing: d.summary != null ? -0.2 : 0,
-                  color: d.summary != null ? c.textPrimary : c.textSecondary),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

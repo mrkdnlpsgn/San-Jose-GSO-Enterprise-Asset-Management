@@ -19,6 +19,12 @@ Future<List<ReportRow>> _fetch(String path, {bool paged = true}) async {
   return [for (final r in res.data as List) Map<String, dynamic>.from(r as Map)];
 }
 
+// The forecast and depreciation endpoints answer with totals plus an `items` list (the rows).
+Future<List<ReportRow>> _fetchItems(String path, Map<String, dynamic> params) async {
+  final res = await ApiClient.instance.dio.get(path, queryParameters: {...params, 'items': true});
+  return [for (final r in (res.data as Map)['items'] as List) Map<String, dynamic>.from(r as Map)];
+}
+
 num _lineAmount(ReportRow r) => toNum(r['unitValue']) * toNum(r['quantity'], 1);
 String _uniqueJoined(List<ReportRow> rows, Object? Function(ReportRow) pick) =>
     {for (final r in rows) str(pick(r))}.where((s) => s.isNotEmpty).join(', ');
@@ -518,6 +524,71 @@ List<ReportDefinition> buildReportDefinitions() => [
         certification: const [
           Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
           Signer('Approved by:', 'Signature over Printed Name of Municipal General Services Officer'),
+        ],
+      ),
+      ReportDefinition(
+        id: 'replacement',
+        title: 'Replacement Forecast',
+        printTitle: 'REPLACEMENT FORECAST OF PROPERTY, PLANT AND EQUIPMENT',
+        description: 'Assets due for replacement now and in the next 3 years, with the estimated cost, for budget planning.',
+        icon: Icons.event_repeat_outlined,
+        // Same settings as Home's Budget & Planning, so the totals match it.
+        load: () => _fetchItems('/ai-insights/replacement-forecast', {'years': 3, 'priceIncrease': 3}),
+        dateField: 'endOfLife',
+        headers: [
+          ReportColumn('Replace In',
+              display: (r) => r['replaceIn'] == 'NOW' ? 'Now' : str(r['replaceIn']),
+              raw: (r) => r['replaceIn'] == 'NOW' ? 'Now' : str(r['replaceIn'])),
+          ReportColumn('Property No.', display: (r) => _orNa(r['propertyNumber']), raw: (r) => str(r['propertyNumber'])),
+          ReportColumn('Description', display: (r) => _orNa(r['description']), raw: (r) => str(r['description'])),
+          ReportColumn('Category', display: (r) => _orNa(r['category']), raw: (r) => str(r['category'])),
+          ReportColumn('Office', display: (r) => _orNa(r['office']), raw: (r) => str(r['office'])),
+          ReportColumn('Acq. Date', display: (r) => rDate(r['acquisitionDate']), raw: (r) => str(r['acquisitionDate'])),
+          ReportColumn('Expected Life',
+              display: (r) => r['usefulLifeYears'] != null ? '${r['usefulLifeYears']} yrs' : 'N/A',
+              raw: (r) => str(r['usefulLifeYears'])),
+          ReportColumn('End of Life', display: (r) => rDate(r['endOfLife']), raw: (r) => str(r['endOfLife'])),
+          ReportColumn('Reason', display: (r) => _orNa(r['reason']), raw: (r) => str(r['reason'])),
+          ReportColumn('Condition', display: (r) => _orNa(r['condition']), raw: (r) => str(r['condition'])),
+          ReportColumn('Acq. Value', display: (r) => rMoney(r['unitValue']), raw: (r) => _fixed(r['unitValue'])),
+          ReportColumn('Est. Cost', display: (r) => rMoney(r['estimatedCost']), raw: (r) => _fixed(r['estimatedCost'])),
+        ],
+        certification: const [
+          Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
+          Signer('Approved by:', 'Signature over Printed Name of Municipal General Services Officer'),
+        ],
+      ),
+      ReportDefinition(
+        id: 'depreciation',
+        title: 'Depreciation Schedule',
+        printTitle: 'SCHEDULE OF DEPRECIATION OF PROPERTY, PLANT AND EQUIPMENT',
+        description: 'Straight-line depreciation of assets in use as of today: residual value, monthly depreciation, accumulated depreciation and book value.',
+        icon: Icons.trending_down_rounded,
+        load: () => _fetchItems('/ai-insights/depreciation', const {}),
+        dateField: 'acquisitionDate',
+        headers: [
+          ReportColumn('Property No.', display: (r) => _orNa(r['propertyNumber']), raw: (r) => str(r['propertyNumber'])),
+          ReportColumn('Description', display: (r) => _orNa(r['description']), raw: (r) => str(r['description'])),
+          ReportColumn('Category', display: (r) => _orNa(r['category']), raw: (r) => str(r['category'])),
+          ReportColumn('Acquisition Date', display: (r) => rDate(r['acquisitionDate']), raw: (r) => str(r['acquisitionDate'])),
+          ReportColumn('Total Cost', display: (r) => rMoney(r['totalCost']), raw: (r) => _fixed(r['totalCost'])),
+          ReportColumn('Residual Value', display: (r) => rMoney(r['residualValue']), raw: (r) => _fixed(r['residualValue'])),
+          ReportColumn('Depreciable Cost', display: (r) => rMoney(r['depreciableCost']), raw: (r) => _fixed(r['depreciableCost'])),
+          ReportColumn('Useful Life (months)', display: (r) => str(r['usefulLifeMonths']), raw: (r) => r['usefulLifeMonths']),
+          ReportColumn('Remaining Useful Life', display: (r) => str(r['remainingLifeMonths']), raw: (r) => r['remainingLifeMonths']),
+          ReportColumn('Monthly Depreciation',
+              display: (r) => r['monthlyDepreciation'] != null ? rMoney(r['monthlyDepreciation']) : '-',
+              raw: (r) => r['monthlyDepreciation'] != null ? _fixed(r['monthlyDepreciation']) : '-'),
+          ReportColumn('Depreciation Expense',
+              display: (r) => toNum(r['depreciationExpense']) != 0 ? rMoney(r['depreciationExpense']) : '-',
+              raw: (r) => toNum(r['depreciationExpense']) != 0 ? _fixed(r['depreciationExpense']) : '-'),
+          ReportColumn('Accumulated Depreciation',
+              display: (r) => rMoney(r['accumulatedDepreciation']), raw: (r) => _fixed(r['accumulatedDepreciation'])),
+          ReportColumn('Book Value', display: (r) => rMoney(r['bookValue']), raw: (r) => _fixed(r['bookValue'])),
+        ],
+        certification: const [
+          Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
+          Signer('Certified Correct by:', 'Signature over Printed Name of Municipal Accountant'),
         ],
       ),
       ReportDefinition(
