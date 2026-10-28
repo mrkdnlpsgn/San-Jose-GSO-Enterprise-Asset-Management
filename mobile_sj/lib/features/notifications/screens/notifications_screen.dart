@@ -167,13 +167,19 @@ class _NotificationRow extends StatelessWidget {
                     // its kind, as on the web bell; NEW in front when it is unread
                     Padding(
                       padding: const EdgeInsets.only(bottom: 3),
-                      child: Text.rich(TextSpan(children: [
-                        if (isNew)
-                          const TextSpan(
-                              text: 'NEW  ',
-                              style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4, color: Ios.blue)),
-                        TextSpan(text: item.category.label, style: TextStyle(color: c.textTertiary)),
-                      ]), style: const TextStyle(fontSize: 12.5)),
+                      child: Row(children: [
+                        if (isNew) ...[
+                          const Text('NEW',
+                              style: TextStyle(
+                                  fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: Ios.blue)),
+                          const SizedBox(width: 8),
+                        ],
+                        Flexible(
+                          child: Text(item.category.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12.5, color: c.textTertiary)),
+                        ),
+                      ]),
                     ),
                     Text(item.title,
                         style: TextStyle(
