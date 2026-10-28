@@ -36,7 +36,8 @@ const FORM_CSS = `
     .acct { text-indent: 3em; margin-bottom: 8px; }
     .title + table { margin-top: 14px; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 2px solid #000; }
-    th { font-size: 10pt; font-weight: 700; border: 1px solid #000; padding: 4px 3px; text-align: center; vertical-align: middle; }
+    /* a long heading wraps inside its column instead of running into the next one */
+    th { font-size: 10pt; font-weight: 700; border: 1px solid #000; padding: 4px 3px; text-align: center; vertical-align: middle; overflow-wrap: anywhere; hyphens: auto; }
     td { font-size: calc(10.5pt * var(--fit, 1)); border: 1px solid #000; padding: 3px 4px; vertical-align: top; word-wrap: break-word; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }

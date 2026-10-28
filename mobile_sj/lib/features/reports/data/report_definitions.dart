@@ -431,6 +431,7 @@ Future<void> printTable(ReportDefinition report, List<ReportRow> rows, String fr
   final columns = [
     for (var c = 0; c < report.headers.length; c++)
       FormColumn(report.headers[c].label.toUpperCase(),
+          width: report.headers[c].printWidth ?? 1,
           align: cells.map((r) => r[c]).firstWhere((v) => v.$1.isNotEmpty, orElse: () => ('', 'l')).$2),
   ];
   final title = report.printTitle ?? report.title.toUpperCase();
@@ -712,24 +713,24 @@ List<ReportDefinition> buildReportDefinitions() => [
         load: () => _fetch('/disposal'),
         dateField: 'inspectionDate',
         headers: [
-          ReportColumn('Date Acquired', display: (r) => rDate(at(r, 'asset.acquisitionDate')), raw: (r) => str(at(r, 'asset.acquisitionDate'))),
-          ReportColumn('Particulars/Article', display: (r) => _orNa(at(r, 'asset.description')), raw: (r) => str(at(r, 'asset.description'))),
-          ReportColumn('Property No.', display: (r) => _orNa(at(r, 'asset.propertyNumber')), raw: (r) => str(at(r, 'asset.propertyNumber'))),
-          ReportColumn('PAR No.', display: (r) => _orNa(at(r, 'asset.parNumber')), raw: (r) => str(at(r, 'asset.parNumber'))),
-          ReportColumn('Qty.', display: (r) => str(at(r, 'asset.quantity') ?? 1), raw: (r) => at(r, 'asset.quantity') ?? 1),
-          ReportColumn('Unit Cost', display: (r) => rMoney(at(r, 'asset.unitValue')), raw: (r) => _fixed(at(r, 'asset.unitValue'))),
-          ReportColumn('Total Cost',
+          ReportColumn('Date Acquired', printWidth: 6.5, display: (r) => rDate(at(r, 'asset.acquisitionDate')), raw: (r) => str(at(r, 'asset.acquisitionDate'))),
+          ReportColumn('Particulars/Article', printWidth: 12, display: (r) => _orNa(at(r, 'asset.description')), raw: (r) => str(at(r, 'asset.description'))),
+          ReportColumn('Property No.', printWidth: 9.5, display: (r) => _orNa(at(r, 'asset.propertyNumber')), raw: (r) => str(at(r, 'asset.propertyNumber'))),
+          ReportColumn('PAR No.', printWidth: 8, display: (r) => _orNa(at(r, 'asset.parNumber')), raw: (r) => str(at(r, 'asset.parNumber'))),
+          ReportColumn('Qty.', printWidth: 4, display: (r) => str(at(r, 'asset.quantity') ?? 1), raw: (r) => at(r, 'asset.quantity') ?? 1),
+          ReportColumn('Unit Cost', printWidth: 7, display: (r) => rMoney(at(r, 'asset.unitValue')), raw: (r) => _fixed(at(r, 'asset.unitValue'))),
+          ReportColumn('Total Cost', printWidth: 7,
               display: (r) => rMoney(_lineAmount(_assetOf(r))),
               raw: (r) => _lineAmount(_assetOf(r)).toStringAsFixed(2)),
-          ReportColumn('Remarks', display: (r) => _orNa(r['inspectionFindings']), raw: (r) => str(r['inspectionFindings'])),
-          for (final (label, method) in [('Sale', 'SALE'), ('Transfer', 'TRANSFER'), ('Destruction', 'DESTRUCTION'), ('Others (Specify)', 'OTHERS')])
-            ReportColumn(label,
+          ReportColumn('Remarks', printWidth: 10, display: (r) => _orNa(r['inspectionFindings']), raw: (r) => str(r['inspectionFindings'])),
+          for (final (label, method, width) in [('Sale', 'SALE', 4.0), ('Transfer', 'TRANSFER', 6.5), ('Destruction', 'DESTRUCTION', 8.5), ('Others (Specify)', 'OTHERS', 6.0)])
+            ReportColumn(label, printWidth: width,
                 display: (r) => r['recommendedMethod'] == method ? str(at(r, 'asset.quantity') ?? 1) : 'N/A',
                 raw: (r) => r['recommendedMethod'] == method ? (at(r, 'asset.quantity') ?? 1) : ''),
-          ReportColumn('Total', display: (r) => str(at(r, 'asset.quantity') ?? 1), raw: (r) => at(r, 'asset.quantity') ?? 1),
-          ReportColumn('Appraised Value', display: (r) => rMoney(r['appraisedValue']), raw: (r) => _fixed(r['appraisedValue'])),
-          ReportColumn('OR No.', display: (r) => _orNa(r['orNumber']), raw: (r) => str(r['orNumber'])),
-          ReportColumn('Amount', display: (r) => rMoney(r['amount']), raw: (r) => _fixed(r['amount'])),
+          ReportColumn('Total', printWidth: 5, display: (r) => str(at(r, 'asset.quantity') ?? 1), raw: (r) => at(r, 'asset.quantity') ?? 1),
+          ReportColumn('Appraised Value', printWidth: 6.5, display: (r) => rMoney(r['appraisedValue']), raw: (r) => _fixed(r['appraisedValue'])),
+          ReportColumn('OR No.', printWidth: 5, display: (r) => _orNa(r['orNumber']), raw: (r) => str(r['orNumber'])),
+          ReportColumn('Amount', printWidth: 6.5, display: (r) => rMoney(r['amount']), raw: (r) => _fixed(r['amount'])),
         ],
         certification: const [
           Signer('Inspected by:', 'Signature over Printed Name of GSO Inspector'),

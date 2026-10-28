@@ -462,22 +462,22 @@ const REPORTS = [
     },
     dateField: 'inspectionDate',
     headers: [
-      { label: 'Date Acquired',                 display: (r) => fmtDate(r.asset?.acquisitionDate),                                                                raw: (r) => r.asset?.acquisitionDate || '' },
-      { label: 'Particulars/Article',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || 'N/A'}</span>, raw: (r) => r.asset?.description || '' },
-      { label: 'Property No.',                  display: (r) => <span className="font-mono text-xs">{r.asset?.propertyNumber || 'N/A'}</span>,                     raw: (r) => r.asset?.propertyNumber || '' },
-      { label: 'PAR No.',                     display: (r) => <span className="font-mono text-xs">{r.asset?.parNumber || 'N/A'}</span>,                     raw: (r) => r.asset?.parNumber || '' },
-      { label: 'Qty.',                          display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
-      { label: 'Unit Cost',                     display: (r) => fmtMoney(r.asset?.unitValue),                                                                     raw: (r) => r.asset?.unitValue != null ? Number(r.asset.unitValue).toFixed(2) : '' },
-      { label: 'Total Cost',                    display: (r) => fmtMoney((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)),                   raw: (r) => ((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)).toFixed(2) },
-      { label: 'Remarks',                       display: (r) => r.inspectionFindings ? <span className="max-w-[11.25rem] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : 'N/A', raw: (r) => r.inspectionFindings || '' },
-      { label: 'Sale',                          display: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '' },
-      { label: 'Transfer',                      display: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '' },
-      { label: 'Destruction',                   display: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : '' },
-      { label: 'Others (Specify)',              display: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : '' },
-      { label: 'Total',                         display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
-      { label: 'Appraised Value',               display: (r) => fmtMoney(r.appraisedValue),                                                                       raw: (r) => r.appraisedValue != null ? Number(r.appraisedValue).toFixed(2) : '' },
-      { label: 'OR No.',                        display: (r) => r.orNumber || 'N/A',                                                                                raw: (r) => r.orNumber || '' },
-      { label: 'Amount',                        display: (r) => fmtMoney(r.amount),                                                                               raw: (r) => r.amount != null ? Number(r.amount).toFixed(2) : '' },
+      { label: 'Date Acquired', printWidth: 6.5,                 display: (r) => fmtDate(r.asset?.acquisitionDate),                                                                raw: (r) => r.asset?.acquisitionDate || '' },
+      { label: 'Particulars/Article', printWidth: 12,           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || 'N/A'}</span>, raw: (r) => r.asset?.description || '' },
+      { label: 'Property No.', printWidth: 9.5,                  display: (r) => <span className="font-mono text-xs">{r.asset?.propertyNumber || 'N/A'}</span>,                     raw: (r) => r.asset?.propertyNumber || '' },
+      { label: 'PAR No.', printWidth: 8,                     display: (r) => <span className="font-mono text-xs">{r.asset?.parNumber || 'N/A'}</span>,                     raw: (r) => r.asset?.parNumber || '' },
+      { label: 'Qty.', printWidth: 4,                          display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
+      { label: 'Unit Cost', printWidth: 7,                     display: (r) => fmtMoney(r.asset?.unitValue),                                                                     raw: (r) => r.asset?.unitValue != null ? Number(r.asset.unitValue).toFixed(2) : '' },
+      { label: 'Total Cost', printWidth: 7,                    display: (r) => fmtMoney((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)),                   raw: (r) => ((Number(r.asset?.unitValue) || 0) * (Number(r.asset?.quantity) || 1)).toFixed(2) },
+      { label: 'Remarks', printWidth: 10,                       display: (r) => r.inspectionFindings ? <span className="max-w-[11.25rem] truncate block" title={r.inspectionFindings}>{r.inspectionFindings}</span> : 'N/A', raw: (r) => r.inspectionFindings || '' },
+      { label: 'Sale', printWidth: 4,                          display: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'SALE'        ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Transfer', printWidth: 6.5,                      display: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'TRANSFER'    ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Destruction', printWidth: 8.5,                   display: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'DESTRUCTION' ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Others (Specify)', printWidth: 6,              display: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : 'N/A',                           raw: (r) => r.recommendedMethod === 'OTHERS'      ? (r.asset?.quantity ?? 1) : '' },
+      { label: 'Total', printWidth: 5,                         display: (r) => r.asset?.quantity ?? 1,                                                                           raw: (r) => r.asset?.quantity ?? 1 },
+      { label: 'Appraised Value', printWidth: 6.5,               display: (r) => fmtMoney(r.appraisedValue),                                                                       raw: (r) => r.appraisedValue != null ? Number(r.appraisedValue).toFixed(2) : '' },
+      { label: 'OR No.', printWidth: 5,                        display: (r) => r.orNumber || 'N/A',                                                                                raw: (r) => r.orNumber || '' },
+      { label: 'Amount', printWidth: 6.5,                        display: (r) => fmtMoney(r.amount),                                                                               raw: (r) => r.amount != null ? Number(r.amount).toFixed(2) : '' },
     ],
     certification: [
       { label: 'Inspected by:',          caption: 'Signature over Printed Name of GSO Inspector' },
@@ -528,7 +528,11 @@ function exportPDF(rows, report, { from, to }, settings) {
   const period = from
     ? `For the period ${longDate(from)} to ${longDate(to || today)}`
     : `As at ${longDate(to || today)}`
-  const headerCells = report.headers.map((h) => `<th>${esc(h.label.toUpperCase())}</th>`).join('')
+  // a heading may break after a slash ("PARTICULARS/ ARTICLE") rather than mid-word
+  const headerCells = report.headers.map((h) => `<th>${esc(h.label.toUpperCase()).replace(/\//g, '/<wbr>')}</th>`).join('')
+  // column widths in proportion to `printWidth` where a report gives them; otherwise equal
+  const widthTotal = report.headers.reduce((t, h) => t + (h.printWidth || 0), 0)
+  const cols = widthTotal ? `<colgroup>${report.headers.map((h) => `<col style="width:${((h.printWidth || 0) / widthTotal * 100).toFixed(2)}%">`).join('')}</colgroup>` : ''
   const pages = toPages(rows).map((pageRows) => `<section class="form${report.headers.length > 12 ? ' dense' : ''}">
   <div class="title">
     <h1>${esc(report.printTitle || report.title.toUpperCase())}</h1>
@@ -537,6 +541,7 @@ function exportPDF(rows, report, { from, to }, settings) {
   </div>
   <p class="fund">Fund Cluster : ${esc((s.fundCluster || '').toUpperCase())}</p>
   <table>
+    ${cols}
     <thead><tr>${headerCells}</tr></thead>
     <tbody>${pageRows.map((row) => `<tr>${report.headers.map(({ raw }) => printCell(raw(row))).join('')}</tr>`).join('')}</tbody>
   </table>

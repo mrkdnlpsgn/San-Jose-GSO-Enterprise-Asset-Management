@@ -10,8 +10,10 @@ class ReportColumn {
   final String label;
   final String Function(ReportRow row) display;
   final Object? Function(ReportRow row) raw;
+  /// Relative column width on the printed form; columns without one share the rest equally.
+  final double? printWidth;
 
-  const ReportColumn(this.label, {required this.display, required this.raw});
+  const ReportColumn(this.label, {required this.display, required this.raw, this.printWidth});
 }
 
 /// A signature line on a printed report.
