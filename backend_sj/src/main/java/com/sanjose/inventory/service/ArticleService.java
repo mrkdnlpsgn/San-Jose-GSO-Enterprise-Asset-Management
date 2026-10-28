@@ -63,6 +63,57 @@ public class ArticleService {
                     + "enum('NEW','GOOD','SERVICEABLE','REPAIRABLE','UNSERVICEABLE') COLLATE utf8mb4_general_ci NOT NULL");
             }
         }
+        seedDefaults();
+    }
+
+    // The usual articles under each standard category: "Article|description pattern|...". Each
+    // pattern (a LIKE, the article name when none) links the existing assets of that category
+    // whose description matches it; the first matching article in the list wins.
+    private static final Map<String, List<String>> DEFAULT_ARTICLES = Map.of(
+        "Appliances", List.of("Air Conditioner|%air condition%", "Electric Fan", "Refrigerator", "Microwave Oven",
+            "Water Dispenser|%dispenser%", "Electric Kettle", "Vacuum Cleaner", "Television"),
+        "ICT Equipment", List.of("Desktop Computer|%desktop%", "Laptop", "Monitor", "Printer", "Scanner", "Projector",
+            "Network Switch|%switch%", "Router", "UPS|ups %|% ups|%(ups)%|%uninterruptible%", "External Hard Drive", "Tablet"),
+        "Office Furniture", List.of("Office Desk|%desk%", "Office Chair|%office chair%", "Visitor's Chair|%visitor%",
+            "Filing Cabinet", "Steel Locker|%locker%", "Bookshelf", "Conference Table", "Partition Panel|%partition%"),
+        "Office Equipment", List.of("Photocopier", "Binding Machine", "Laminating Machine", "Paper Shredder|%shredder%",
+            "Typewriter", "Fax Machine", "Calculator", "Cash Counting Machine", "Bulletin Board"),
+        "Motor Vehicle", List.of("Ambulance", "Van|%van%|%hiace%", "Pick-up Truck|%pick-up%|%pickup%|%hilux%",
+            "Dump Truck", "Sedan|%sedan%", "Motorcycle", "Utility Vehicle|%innova%"),
+        "Heavy Equipment", List.of("Backhoe Loader|%backhoe%", "Bulldozer", "Road Roller", "Concrete Mixer",
+            "Generator Set|%generator%", "Water Tanker Truck|%tanker%", "Grass Cutter"),
+        "Communication Equipment", List.of("Base Radio|%base radio%|%vhf base%", "Two-Way Radio", "Megaphone", "Telephone|%phone%|%pabx%",
+            "CCTV Camera", "DVR/NVR|%dvr%|%nvr%"),
+        "Medical Equipment", List.of("Blood Pressure Monitor", "Nebulizer", "Autoclave", "Weighing Scale", "Thermal Scanner",
+            "Oxygen Tank", "Stretcher", "Wheelchair"),
+        "Agricultural Equipment", List.of("Hand Tractor", "Tractor", "Rice Thresher|%thresher%", "Water Pump", "Sprayer",
+            "Farm Tool Kit|%tool kit%", "Seedling Tray|%seedling%", "Brush Cutter"),
+        "Disaster & Rescue Equipment", List.of("Rescue Boat|%boat%", "Life Vest", "Rescue Rope|%rope%",
+            "Emergency Light Tower|%light tower%", "Fire Extinguisher", "Chainsaw", "Metal Detector")
+    );
+
+    // Runs once, while no category has articles yet, so articles an admin later removes stay removed.
+    // A category added under another name gets none; its articles are added on the Categories page.
+    private void seedDefaults() {
+        Integer any = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM articles", Integer.class);
+        if (any != null && any > 0) return;
+        DEFAULT_ARTICLES.forEach((category, entries) -> {
+            List<Long> ids = jdbcTemplate.query("SELECT category_id FROM categories WHERE LOWER(category_name) = LOWER(?)",
+                (rs, rn) -> rs.getLong(1), category);
+            if (ids.isEmpty()) return;
+            Long categoryId = ids.get(0);
+            for (String entry : entries) {
+                String[] parts = entry.split("\\|");
+                String name = parts[0];
+                jdbcTemplate.update("INSERT IGNORE INTO articles (category_id, article_name) VALUES (?, ?)", categoryId, name);
+                Long articleId = idByName(categoryId, name);
+                List<String> patterns = parts.length > 1 ? List.of(parts).subList(1, parts.length) : List.of("%" + name + "%");
+                for (String pattern : patterns) {
+                    jdbcTemplate.update("UPDATE assets SET article_id = ? WHERE category_id = ? AND article_id IS NULL "
+                        + "AND LOWER(description) LIKE ?", articleId, categoryId, pattern.toLowerCase());
+                }
+            }
+        });
     }
 
     private boolean columnExists(String table, String column) {
