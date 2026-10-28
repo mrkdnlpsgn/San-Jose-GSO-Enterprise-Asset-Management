@@ -371,12 +371,32 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
   )
 }
 
-// "Budget & Planning" (admins only), kept short for GSO staff: what is due for replacement
-// now, what comes due in the next few years, and an optional AI summary. Breakdowns by type
-// and the Accounting Office's book-value figures live in the Replacement Forecast and
-// Depreciation Schedule reports. Data: PlanningInsightService (replacement forecast +
-// depreciation, one AI summary). Dashboard loads it and also uses it for the Book Value tile.
+// "Budget & Planning" (admins only), laid out for reading at a glance, including by older
+// staff: large figures with a plain label above each, money written as "₱321.9 million" with
+// the exact amount under it, and the coming years as a table with a total. Breakdowns by
+// type and the book-value figures live in the Replacement Forecast and Depreciation
+// Schedule reports. Data: PlanningInsightService (replacement forecast + depreciation, one AI
+// summary). Dashboard loads it and also uses it for the Book Value tile.
 const plural = (n, one, many) => `${fmtNum(n)} ${n === 1 ? one : many}`
+
+// ₱321,868,619.98 -> "₱321.9 million"; smaller amounts in full, without centavos.
+const pesoExact = (v) => '₱' + Math.round(Number(v) || 0).toLocaleString('en-PH')
+function pesoWords(v) {
+  const n = Number(v) || 0
+  if (n >= 1_000_000_000) return `₱${(n / 1_000_000_000).toFixed(1)} billion`
+  if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)} million`
+  return pesoExact(n)
+}
+
+function BigFigure({ label, value, exact }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">{label}</p>
+      <p className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums leading-tight mt-1">{value}</p>
+      {exact && <p className="text-sm text-slate-700 dark:text-zinc-300 tabular-nums mt-0.5">Exact: {exact}</p>}
+    </div>
+  )
+}
 
 function BudgetPlanning({ data, loading, onChange }) {
   const [generating, setGenerating] = useState(false)
@@ -400,98 +420,121 @@ function BudgetPlanning({ data, loading, onChange }) {
   const thisYear = asOf?.slice(0, 4)
   const dueNow = r?.buckets.find((b) => b.key === 'NOW')
   const coming = (r?.buckets || []).filter((b) => b.key !== 'NOW')
+  const comingTotal = coming.reduce((t, b) => ({ assets: t.assets + b.assets, cost: t.cost + Number(b.cost) }), { assets: 0, cost: 0 })
   const missingLife = r?.excluded?.noExpectedLife || []
+  const link = 'font-semibold text-brand-700 dark:text-brand-300 underline underline-offset-2 hover:text-brand-800 dark:hover:text-brand-200'
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Budget &amp; Planning</p>
-        <p className="text-xs text-slate-600 dark:text-zinc-400 mt-px">
-          Which assets are getting old, and about how much replacing them will cost
+      <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Budget &amp; Planning</h2>
+        <p className="text-sm text-slate-700 dark:text-zinc-300 mt-0.5">
+          Assets that need replacing, and about how much it will cost
           {asOf ? `. As of ${new Date(asOf).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}.` : '.'}
         </p>
       </div>
 
-      <div className="px-5 py-4 space-y-4">
+      <div className="px-5 py-5 space-y-6">
         {loading ? (
-          <div className="space-y-3">
-            <Sk className="h-16" />
-            {Array.from({ length: 3 }).map((_, i) => <Sk key={i} className="h-5" />)}
+          <div className="space-y-4">
+            <Sk className="h-32" />
+            {Array.from({ length: 4 }).map((_, i) => <Sk key={i} className="h-7" />)}
           </div>
         ) : !data ? (
-          <p className="text-sm text-slate-600 dark:text-zinc-400">Couldn't load the budget and planning figures.</p>
+          <p className="text-base text-slate-700 dark:text-zinc-300">Couldn't load the budget and planning figures.</p>
         ) : (
           <>
-            {/* 1. The one thing to know */}
+            {/* 1. Due now */}
             {dueNow?.assets > 0 ? (
-              <div className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-semibold text-slate-900 dark:text-white">
-                    {plural(dueNow.assets, 'asset is', 'assets are')} due for replacement now
-                  </p>
-                  <p className="text-sm text-slate-700 dark:text-zinc-300 mt-0.5">
-                    About <span className="font-semibold tabular-nums">{fmtMoney(dueNow.cost)}</span> to replace. They are past their expected years of use, or broken.
-                  </p>
+              <section aria-label="Due for replacement now"
+                className="rounded-lg border border-amber-300 dark:border-amber-500/40 border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-500/10 px-5 py-4">
+                <h3 className="text-base font-semibold text-amber-900 dark:text-amber-200">Due for replacement now</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                  <BigFigure label="Number of assets" value={fmtNum(dueNow.assets)} />
+                  <BigFigure label="Estimated cost to replace" value={pesoWords(dueNow.cost)}
+                    exact={Number(dueNow.cost) >= 1_000_000 ? pesoExact(dueNow.cost) : null} />
                 </div>
+                <p className="text-base text-slate-800 dark:text-zinc-200 mt-4">
+                  These assets are past their expected years of use, or broken and waiting for disposal.
+                </p>
                 <Link to="/reports?report=replacement"
-                  className="shrink-0 inline-flex items-center justify-center rounded-lg bg-brand-700 hover:bg-brand-800 text-white text-sm font-semibold px-4 py-2 transition-colors">
-                  See the list
+                  className="mt-4 inline-flex items-center justify-center rounded-lg bg-brand-700 hover:bg-brand-800 text-white text-base font-semibold px-5 py-2.5 min-h-[44px] transition-colors">
+                  See the list of assets
                 </Link>
-              </div>
+              </section>
             ) : (
-              <p className="text-sm text-slate-700 dark:text-zinc-300">No assets are due for replacement right now.</p>
+              <p className="text-base text-slate-800 dark:text-zinc-200">No assets are due for replacement right now.</p>
             )}
 
-            {/* 2. The coming years, one line each */}
+            {/* 2. The coming years */}
             {coming.length > 0 && (
-              <section aria-label="Coming up">
-                <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200 mb-1">Coming up</p>
-                <ul className="divide-y divide-slate-100 dark:divide-zinc-800/70">
-                  {coming.map((b) => (
-                    <li key={b.key} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-                      <span className="text-slate-700 dark:text-zinc-300">{b.key === thisYear ? `Rest of ${b.key}` : b.key}</span>
-                      <span className="tabular-nums text-right">
-                        <span className="font-semibold text-slate-900 dark:text-white">{fmtMoney(b.cost)}</span>
-                        <span className="text-slate-600 dark:text-zinc-400"> for {plural(b.assets, 'asset', 'assets')}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+              <section aria-label="Coming up" className="max-w-2xl">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Coming up in the next years</h3>
+                <table className="w-full mt-2 text-base tabular-nums">
+                  <thead>
+                    <tr className="border-b-2 border-slate-200 dark:border-zinc-700 text-sm text-slate-700 dark:text-zinc-300">
+                      <th scope="col" className="text-left font-semibold py-2">Year</th>
+                      <th scope="col" className="text-right font-semibold py-2 px-3">Assets</th>
+                      <th scope="col" className="text-right font-semibold py-2">Estimated cost</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
+                    {coming.map((b) => (
+                      <tr key={b.key}>
+                        <th scope="row" className="text-left font-medium text-slate-800 dark:text-zinc-200 py-3">
+                          {b.key === thisYear ? `Rest of ${b.key}` : b.key}
+                        </th>
+                        <td className="text-right text-slate-800 dark:text-zinc-200 py-3 px-3">{fmtNum(b.assets)}</td>
+                        <td className="text-right font-semibold text-slate-900 dark:text-white py-3" title={pesoExact(b.cost)}>{pesoWords(b.cost)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white">
+                      <th scope="row" className="text-left py-3">Total</th>
+                      <td className="text-right py-3 px-3">{fmtNum(comingTotal.assets)}</td>
+                      <td className="text-right py-3" title={pesoExact(comingTotal.cost)}>{pesoWords(comingTotal.cost)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+                <p className="text-sm text-slate-700 dark:text-zinc-300 mt-2">
+                  Costs include {r.priceIncreasePercent}% a year for price increases.
+                </p>
               </section>
             )}
 
             {missingLife.length > 0 && (
-              <p className="text-sm text-amber-800 dark:text-amber-300">
+              <p className="text-base text-amber-900 dark:text-amber-200">
                 Not counted yet: {missingLife.join(', ')}. {missingLife.length === 1 ? 'This type has' : 'These types have'} no expected years of use.{' '}
                 <Link to="/categories" className="font-semibold underline">Set it on the Categories page</Link>.
               </p>
             )}
 
-            {/* 3. Summary in plain words (AI) */}
-            <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Summary</p>
+            {/* 3. Summary (AI) */}
+            <section aria-label="Summary" className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Summary</h3>
                 <button onClick={generate} disabled={generating}
-                  className="text-sm font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline disabled:opacity-50 transition-colors">
+                  className="rounded-lg border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-4 py-2 min-h-[40px] text-sm font-semibold text-slate-800 dark:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors">
                   {generating ? 'Writing…' : data.summary ? 'Write again' : 'Write summary'}
                 </button>
               </div>
               {aiError ? (
-                <p className="text-sm text-red-700 dark:text-red-300 mt-2">{aiError}</p>
+                <p className="text-base text-red-700 dark:text-red-300 mt-2">{aiError}</p>
               ) : data.summary ? (
-                <p className="text-sm text-slate-700 dark:text-zinc-300 leading-relaxed mt-2">{data.summary}</p>
+                <p className="text-base text-slate-800 dark:text-zinc-200 leading-relaxed mt-2">{data.summary}</p>
               ) : generating ? (
-                <p className="text-sm text-slate-600 dark:text-zinc-400 mt-2" role="status">Writing the summary…</p>
+                <p className="text-base text-slate-700 dark:text-zinc-300 mt-2" role="status">Writing the summary…</p>
               ) : (
-                <p className="text-sm text-slate-600 dark:text-zinc-400 mt-1">The AI can explain these numbers in a few sentences.</p>
+                <p className="text-base text-slate-700 dark:text-zinc-300 mt-2">Press "Write summary" and the AI will explain these numbers in a few sentences.</p>
               )}
-            </div>
+            </section>
 
-            <p className="text-sm text-slate-600 dark:text-zinc-400">
-              Costs include {r.priceIncreasePercent}% a year for price increases. More detail:{' '}
-              <Link to="/reports?report=replacement" className="font-semibold text-brand-700 dark:text-brand-300 hover:underline">Replacement Forecast</Link>
-              {' · '}
-              <Link to="/reports?report=depreciation" className="font-semibold text-brand-700 dark:text-brand-300 hover:underline">Depreciation Schedule</Link>
+            <p className="text-base text-slate-800 dark:text-zinc-200">
+              More detail:{' '}
+              <Link to="/reports?report=replacement" className={link}>Replacement Forecast</Link>
+              {' and '}
+              <Link to="/reports?report=depreciation" className={link}>Depreciation Schedule</Link>
             </p>
           </>
         )}

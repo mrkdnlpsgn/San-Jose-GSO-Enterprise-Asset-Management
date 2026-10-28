@@ -53,13 +53,19 @@ Future<void> _pump(WidgetTester tester, Planning p, {required ThemeData theme}) 
 void main() {
   testWidgets('leads with what is due now, in plain words', (tester) async {
     await _pump(tester, _planning(), theme: AppTheme.light);
-    expect(find.text('810 assets are due for replacement now'), findsOneWidget);
-    expect(find.text('See the list'), findsOneWidget);
+    expect(find.text('Due for replacement now'), findsOneWidget);
+    expect(find.text('810'), findsOneWidget);
+    expect(find.text('₱321.9 million'), findsOneWidget);
+    expect(find.text('Exact: ₱321,868,620'), findsOneWidget);
+    expect(find.text('See the list of assets'), findsOneWidget);
     expect(find.text('Rest of 2026'), findsOneWidget);
     expect(find.text('2029'), findsOneWidget);
-    expect(find.textContaining('About ₱321.9M', findRichText: true), findsOneWidget);
-    expect(find.text('₱20.8M'), findsOneWidget);
-    expect(find.text('for 46 assets'), findsOneWidget);
+    expect(find.text('₱20.8 million'), findsOneWidget);
+    expect(find.text('46'), findsOneWidget);
+    // the table's total row: 46 + 222 + 201 + 184 assets
+    expect(find.text('Total'), findsOneWidget);
+    expect(find.text('653'), findsOneWidget);
+    expect(find.text('₱254.8 million'), findsOneWidget);
     expect(find.text('Write summary'), findsOneWidget);
     // breakdowns by type and accounting figures are in the reports, not on Home
     expect(find.text('Motor Vehicle'), findsNothing);
@@ -72,6 +78,24 @@ void main() {
     expect(find.text('A short note.'), findsOneWidget);
     expect(find.textContaining('Not counted yet: Office Supplies'), findsOneWidget);
     expect(find.text('Write again'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('fits a small phone with the largest text size', (tester) async {
+    tester.view.physicalSize = const Size(320, 3600);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [planningProvider.overrideWith((ref) async => _planning())],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(body: SingleChildScrollView(padding: EdgeInsets.all(16), child: BudgetPlanningCard())),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('₱321.9 million'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
