@@ -43,7 +43,9 @@ List<ReportRow> _applyDateFilter(List<ReportRow> rows, String? field, String fro
 
 class ReportPreviewScreen extends ConsumerStatefulWidget {
   final String reportId;
-  const ReportPreviewScreen({super.key, required this.reportId});
+  /// Replacement Forecast only: open on one "Replace in" group ('NOW' or a year), e.g. from Home.
+  final String? replaceIn;
+  const ReportPreviewScreen({super.key, required this.reportId, this.replaceIn});
 
   @override
   ConsumerState<ReportPreviewScreen> createState() => _ReportPreviewScreenState();
@@ -52,6 +54,7 @@ class ReportPreviewScreen extends ConsumerStatefulWidget {
 class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
   final _search = TextEditingController();
   String _from = '', _to = '', _query = '';
+  late String _replaceIn = widget.replaceIn ?? ''; // '' = all
   int _page = 1;
   final Set<String> _picked = {};
   String? _expanded;
@@ -118,10 +121,17 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
             final q = _query.trim().toLowerCase();
             display = q.isEmpty ? pickItems : pickItems.where((it) => pick.search(it, q)).toList();
           } else {
-            final filtered = _applyDateFilter(data, report.dateField, _from, _to);
+            var filtered = _applyDateFilter(data, report.dateField, _from, _to);
+            if (report.id == 'replacement' && _replaceIn.isNotEmpty) {
+              filtered = filtered.where((r) => r['replaceIn'] == _replaceIn).toList();
+            }
             display = report.transform != null ? report.transform!(filtered) : filtered;
           }
-          final dateFiltered = _from.isNotEmpty || _to.isNotEmpty;
+          final dateFiltered = _from.isNotEmpty || _to.isNotEmpty || _replaceIn.isNotEmpty;
+          // "Replace in" choices for the Replacement Forecast, in the order the backend sends them
+          final replaceInOptions = report.id == 'replacement'
+              ? data.map((r) => str(r['replaceIn'])).where((k) => k.isNotEmpty).toSet().toList()
+              : const <String>[];
           final pickedItems = pickItems.where((it) => _picked.contains(it.key)).toList();
           final exportDisabled = pick != null && pickedItems.isEmpty;
           final count = pick != null && pickedItems.isNotEmpty ? ' (${pickedItems.length})' : '';
@@ -192,6 +202,22 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                   title: Text('Select all ${pick.noun.$2} on this page', style: TextStyle(color: c.textSecondary, fontSize: 14)),
                 ),
             ],
+            if (replaceInOptions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  Text('Replace in:', style: TextStyle(color: c.textSecondary, fontSize: 15, fontWeight: FontWeight.w600)),
+                  for (final key in ['', ...replaceInOptions])
+                    ChoiceChip(
+                      label: Text(key.isEmpty ? 'All' : key == 'NOW' ? 'Now' : key),
+                      selected: _replaceIn == key,
+                      onSelected: (_) => setState(() {
+                        _replaceIn = key;
+                        _page = 1;
+                      }),
+                    ),
+                ]),
+              ),
             if (report.dateField != null && data.isNotEmpty) _DateFilter(from: _from, to: _to, onChange: _setDates),
           ];
 

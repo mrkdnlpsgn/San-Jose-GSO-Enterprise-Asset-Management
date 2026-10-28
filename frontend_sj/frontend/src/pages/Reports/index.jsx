@@ -842,6 +842,8 @@ function Reports() {
   const [loading, setLoading]       = useState(false)
   const [dateFrom, setDateFrom]     = useState('')
   const [dateTo, setDateTo]         = useState('')
+  // Replacement Forecast only: show one "Replace in" group ('NOW' or a year); '' = all
+  const [replaceIn, setReplaceIn]   = useState('')
   const [page, setPage]             = useState(1)
   // Pick-and-export reports (PAR, Property Card): search text, ticked item keys, expanded row
   const [pickSearch, setPickSearch]   = useState('')
@@ -865,6 +867,7 @@ function Reports() {
   const resetFilters = () => {
     setDateFrom('')
     setDateTo('')
+    setReplaceIn('')
     setPickSearch('')
     setPicked(new Set())
     setExpandedKey(null)
@@ -896,11 +899,15 @@ function Reports() {
 
   // Dashboard's "Reports" quick action links straight into a specific COA
   // report, e.g. /reports?report=rpcppe, instead of leaving the user to find
-  // it among the cards themselves.
+  // it among the cards themselves. Home's Budget & Planning cards also pass
+  // &replaceIn=NOW or &replaceIn=<year> to open the forecast on one group.
   useEffect(() => {
-    const reportId = new URLSearchParams(location.search).get('report')
-    const report = REPORTS.find((r) => r.id === reportId)
-    if (report) handleGenerate(report)
+    const params = new URLSearchParams(location.search)
+    const report = REPORTS.find((r) => r.id === params.get('report'))
+    if (report) {
+      handleGenerate(report)
+      if (report.id === 'replacement' && params.get('replaceIn')) setReplaceIn(params.get('replaceIn'))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -916,11 +923,18 @@ function Reports() {
       const q = pickSearch.trim().toLowerCase()
       return q ? pickItems.filter((it) => pick.search(it, q)) : pickItems
     }
-    const filtered = applyDateFilter(reportData, activeReport.dateField, dateFrom, dateTo)
+    let filtered = applyDateFilter(reportData, activeReport.dateField, dateFrom, dateTo)
+    if (activeReport.id === 'replacement' && replaceIn) filtered = filtered.filter((r) => r.replaceIn === replaceIn)
     return activeReport.transform ? activeReport.transform(filtered) : filtered
-  }, [reportData, activeReport, dateFrom, dateTo, pick, pickItems, pickSearch])
+  }, [reportData, activeReport, dateFrom, dateTo, replaceIn, pick, pickItems, pickSearch])
 
-  const isDateFiltered = Boolean(dateFrom || dateTo)
+  // "Replace in" choices for the Replacement Forecast, in the order the backend sends them
+  const replaceInOptions = useMemo(
+    () => (activeReport?.id === 'replacement' ? [...new Set(reportData.map((r) => r.replaceIn).filter(Boolean))] : []),
+    [activeReport, reportData],
+  )
+
+  const isDateFiltered = Boolean(dateFrom || dateTo || replaceIn)
   // Kept in list order so exported forms come out in the same order as the table.
   const pickedItems = pickItems.filter((it) => picked.has(it.key))
   const canExport = !loading && reportData.length > 0
@@ -1067,7 +1081,24 @@ function Reports() {
           )}
 
           {!loading && reportData.length > 0 && activeReport?.dateField && (
-            <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/20">
+            <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-800/20 space-y-3">
+              {replaceInOptions.length > 0 && (
+                <div role="group" aria-label="Replace in" className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-zinc-300 mr-1">Replace in:</span>
+                  {['', ...replaceInOptions].map((key) => {
+                    const on = replaceIn === key
+                    return (
+                      <button key={key || 'all'} type="button" aria-pressed={on}
+                        onClick={() => { setReplaceIn(key); setPage(1) }}
+                        className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${on
+                          ? 'bg-brand-700 border-brand-700 text-white'
+                          : 'bg-white dark:bg-zinc-900 border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-brand-600 hover:text-brand-800 dark:hover:text-brand-200'}`}>
+                        {key === '' ? 'All' : key === 'NOW' ? 'Now' : key}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
               <DateRangeFilter from={dateFrom} to={dateTo} onChange={handleDateChange} />
             </div>
           )}

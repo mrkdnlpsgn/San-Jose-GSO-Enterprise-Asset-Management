@@ -7,10 +7,10 @@ import '../provider/planning_provider.dart';
 import 'ios_style.dart';
 
 /// Home's "Budget & Planning" (admins only), the same as the web's and laid out for reading at a
-/// glance, including by older staff: large figures with a plain label above each, money written
-/// as "₱321.9 million" with the exact amount under it, and the coming years as a table with a
-/// total. Breakdowns by type and the book-value figures live in the Replacement Forecast and
-/// Depreciation Schedule reports.
+/// glance, including by older staff: a form-style "due now" panel with large figures, money written
+/// as "₱321.9 million" with the exact amount under it, and one tappable card per coming year that
+/// opens the forecast on that year. Breakdowns by type and the book-value figures live in the
+/// Replacement Forecast and Depreciation Schedule reports.
 class BudgetPlanningCard extends ConsumerStatefulWidget {
   const BudgetPlanningCard({super.key});
 
@@ -121,38 +121,77 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
             Text('Assets that need replacing, and about how much it will cost. As of ${_longDate(p.asOf)}.', style: note),
             const SizedBox(height: 14),
 
-            // 1. Due now
+            // 1. Due now, laid out like a form: a titled header row, the two figures, and the
+            //    explanation with the action at the bottom
             if (dueNow != null && dueNow.assets > 0)
               Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: Ios.orange.withValues(alpha: context.isLight ? 0.10 : 0.16),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Ios.orange.withValues(alpha: 0.45)),
+                  border: Border.all(color: c.border),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Due for replacement now', style: heading),
-                    const SizedBox(height: 12),
-                    _BigFigure(label: 'Number of assets', value: _count(dueNow.assets)),
-                    const SizedBox(height: 14),
-                    _BigFigure(
-                      label: 'Estimated cost to replace',
-                      value: _pesoWords(dueNow.cost),
-                      exact: dueNow.cost >= 1000000 ? _pesoExact(dueNow.cost) : null,
-                    ),
-                    const SizedBox(height: 14),
-                    Text('These assets are past their expected years of use, or broken and waiting for disposal.', style: body),
-                    const SizedBox(height: 14),
-                    FilledButton(
-                      onPressed: () => context.push('/reports/replacement'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.brandButton,
-                        minimumSize: const Size.fromHeight(48),
-                        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                    Container(
+                      color: Ios.groupedBg(context),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                      child: Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          Text('Due for replacement now', style: heading),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Ios.orange.withValues(alpha: context.isLight ? 0.14 : 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text('Needs budget',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.isLight ? const Color(0xFF8A4B00) : const Color(0xFFFFC56B))),
+                          ),
+                        ],
                       ),
-                      child: const Text('See the list of assets'),
+                    ),
+                    Divider(height: 1, thickness: 1, color: c.border),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                      child: _BigFigure(label: 'Number of assets', value: _count(dueNow.assets)),
+                    ),
+                    Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: Ios.separator(context)),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                      child: _BigFigure(
+                        label: 'Estimated cost to replace',
+                        value: _pesoWords(dueNow.cost),
+                        exact: dueNow.cost >= 1000000 ? _pesoExact(dueNow.cost) : null,
+                      ),
+                    ),
+                    Divider(height: 1, thickness: 1, color: c.border),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('These assets are past their expected years of use, or broken and waiting for disposal.',
+                              style: body),
+                          const SizedBox(height: 14),
+                          FilledButton(
+                            onPressed: () => context.push('/reports/replacement?replaceIn=NOW'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.brandButton,
+                              minimumSize: const Size.fromHeight(48),
+                              textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                            ),
+                            child: const Text('See the list of assets'),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -160,36 +199,44 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
             else
               Text('No assets are due for replacement right now.', style: body),
 
-            // 2. The coming years, as a table with a total
+            // 2. The coming years: one card per year, each opens the forecast on that year
             if (coming.isNotEmpty) ...[
               const SizedBox(height: 22),
               Text('Coming up in the next years', style: heading),
-              const SizedBox(height: 6),
-              _YearRow(
-                year: 'Year',
-                assets: 'Assets',
-                cost: 'Estimated cost',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: c.textSecondary),
-              ),
-              Divider(height: 2, thickness: 2, color: Ios.separator(context)),
-              for (var i = 0; i < coming.length; i++) ...[
-                if (i > 0) Divider(height: 1, thickness: 0.5, color: Ios.separator(context)),
-                _YearRow(
-                  year: coming[i].key == thisYear ? 'Rest of ${coming[i].key}' : coming[i].key,
-                  assets: _count(coming[i].assets),
-                  cost: _pesoWords(coming[i].cost),
-                  style: TextStyle(fontSize: 17, color: c.textPrimary),
-                  costBold: true,
-                ),
-              ],
-              Divider(height: 2, thickness: 2, color: Ios.separator(context)),
-              _YearRow(
-                year: 'Total',
-                assets: _count(comingAssets),
-                cost: _pesoWords(comingCost),
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: c.textPrimary),
-              ),
               const SizedBox(height: 4),
+              Text.rich(
+                TextSpan(children: [
+                  const TextSpan(text: 'Total: '),
+                  TextSpan(text: _pesoWords(comingCost), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  TextSpan(text: ' for ${_count(comingAssets)} ${comingAssets == 1 ? 'asset' : 'assets'}'),
+                ]),
+                style: body,
+              ),
+              Text('Tap a year to see its assets.', style: note),
+              const SizedBox(height: 10),
+              LayoutBuilder(builder: (context, box) {
+                // two per row, or one per row when the screen is narrow or the text is large
+                final scale = MediaQuery.textScalerOf(context).scale(1);
+                final perRow = box.maxWidth / scale >= 300 ? 2 : 1;
+                final width = (box.maxWidth - 10 * (perRow - 1)) / perRow;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final b in coming)
+                      SizedBox(
+                        width: width,
+                        child: _YearCard(
+                          label: b.key == thisYear ? 'Rest of ${b.key}' : b.key,
+                          cost: _pesoWords(b.cost),
+                          assets: '${_count(b.assets)} ${b.assets == 1 ? 'asset' : 'assets'}',
+                          onTap: () => context.push('/reports/replacement?replaceIn=${Uri.encodeQueryComponent(b.key)}'),
+                        ),
+                      ),
+                  ],
+                );
+              }),
+              const SizedBox(height: 6),
               Text('Costs include ${p.priceIncreasePercent.toStringAsFixed(0)}% a year for price increases.', style: note),
             ],
 
@@ -304,28 +351,61 @@ class _BigFigure extends StatelessWidget {
   }
 }
 
-/// One row of the "Coming up" table: year on the left, asset count and cost right-aligned.
-class _YearRow extends StatelessWidget {
-  final String year;
-  final String assets;
+
+/// One year in "Coming up": the whole card opens the Replacement Forecast on that year.
+class _YearCard extends StatelessWidget {
+  final String label;
   final String cost;
-  final TextStyle style;
-  final bool costBold;
-  const _YearRow({required this.year, required this.assets, required this.cost, required this.style, this.costBold = false});
+  final String assets;
+  final VoidCallback onTap;
+  const _YearCard({required this.label, required this.cost, required this.assets, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final costStyle = costBold ? style.copyWith(fontWeight: FontWeight.w700) : style;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(flex: 4, child: Text(year, style: style)),
-          Expanded(flex: 3, child: Text(assets, textAlign: TextAlign.right, style: style)),
-          const SizedBox(width: 8),
-          Expanded(flex: 5, child: Text(cost, textAlign: TextAlign.right, style: costStyle)),
-        ],
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      label: '$label: $assets, about $cost. View the list.',
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: c.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: c.textPrimary)),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(cost,
+                      style: TextStyle(fontSize: 22, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: c.textPrimary)),
+                ),
+                Text(assets, style: TextStyle(fontSize: 15.5, color: c.textSecondary)),
+                const SizedBox(height: 8),
+                Divider(height: 1, thickness: 0.5, color: Ios.separator(context)),
+                const SizedBox(height: 8),
+                const Row(
+                  children: [
+                    Flexible(
+                      child: Text('View assets',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.brandButton)),
+                    ),
+                    Icon(Icons.chevron_right_rounded, size: 20, color: AppTheme.brandButton),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

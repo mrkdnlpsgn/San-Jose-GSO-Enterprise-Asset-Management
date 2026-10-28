@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:san_jose_eam_mobile/core/theme/app_theme.dart';
 import 'package:san_jose_eam_mobile/features/dashboard/provider/planning_provider.dart';
 import 'package:san_jose_eam_mobile/features/dashboard/widgets/budget_planning_card.dart';
@@ -51,6 +52,37 @@ Future<void> _pump(WidgetTester tester, Planning p, {required ThemeData theme}) 
 }
 
 void main() {
+  testWidgets('a year card and the due-now button open the forecast on that group', (tester) async {
+    tester.view.physicalSize = const Size(390, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const Scaffold(body: SingleChildScrollView(padding: EdgeInsets.all(16), child: BudgetPlanningCard())),
+      ),
+      GoRoute(
+        path: '/reports/:id',
+        builder: (_, s) => Scaffold(body: Text('opened ${s.pathParameters['id']} ${s.uri.queryParameters['replaceIn']}')),
+      ),
+    ]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [planningProvider.overrideWith((ref) async => _planning())],
+      child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('2027'));
+    await tester.pumpAndSettle();
+    expect(find.text('opened replacement 2027'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('See the list of assets'));
+    await tester.pumpAndSettle();
+    expect(find.text('opened replacement NOW'), findsOneWidget);
+  });
+
   testWidgets('leads with what is due now, in plain words', (tester) async {
     await _pump(tester, _planning(), theme: AppTheme.light);
     expect(find.text('Due for replacement now'), findsOneWidget);
@@ -58,14 +90,15 @@ void main() {
     expect(find.text('₱321.9 million'), findsOneWidget);
     expect(find.text('Exact: ₱321,868,620'), findsOneWidget);
     expect(find.text('See the list of assets'), findsOneWidget);
+    expect(find.text('Needs budget'), findsOneWidget);
+    // one card per coming year
     expect(find.text('Rest of 2026'), findsOneWidget);
     expect(find.text('2029'), findsOneWidget);
     expect(find.text('₱20.8 million'), findsOneWidget);
-    expect(find.text('46'), findsOneWidget);
-    // the table's total row: 46 + 222 + 201 + 184 assets
-    expect(find.text('Total'), findsOneWidget);
-    expect(find.text('653'), findsOneWidget);
-    expect(find.text('₱254.8 million'), findsOneWidget);
+    expect(find.text('46 assets'), findsOneWidget);
+    expect(find.text('View assets'), findsNWidgets(4));
+    // total of 46 + 222 + 201 + 184 assets
+    expect(find.textContaining('₱254.8 million for 653 assets', findRichText: true), findsOneWidget);
     expect(find.text('Write summary'), findsOneWidget);
     // breakdowns by type and accounting figures are in the reports, not on Home
     expect(find.text('Motor Vehicle'), findsNothing);

@@ -167,7 +167,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/reports', pageBuilder: (c, s) => fadeThroughPage(c, s, const ReportsListScreen())),
       GoRoute(
         path: '/reports/:id',
-        pageBuilder: (c, s) => fadeThroughPage(c, s, ReportPreviewScreen(reportId: s.pathParameters['id']!)),
+        pageBuilder: (c, s) => fadeThroughPage(c, s, ReportPreviewScreen(
+            reportId: s.pathParameters['id']!, replaceIn: s.uri.queryParameters['replaceIn'])),
       ),
       // Transfer Asset (web parity). /transfers/new takes the AssetModel being moved as `extra`.
       GoRoute(path: '/transfers', pageBuilder: (c, s) => fadeThroughPage(c, s, const TransferListScreen())),

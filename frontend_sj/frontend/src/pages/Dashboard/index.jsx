@@ -390,11 +390,27 @@ function pesoWords(v) {
 
 function BigFigure({ label, value, exact }) {
   return (
-    <div className="min-w-0">
-      <p className="text-sm font-semibold text-slate-700 dark:text-zinc-300">{label}</p>
-      <p className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums leading-tight mt-1">{value}</p>
-      {exact && <p className="text-sm text-slate-700 dark:text-zinc-300 tabular-nums mt-0.5">Exact: {exact}</p>}
+    <div className="min-w-0 px-5 py-4">
+      <dt className="text-sm font-semibold text-slate-700 dark:text-zinc-300">{label}</dt>
+      <dd className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums leading-tight mt-1">{value}</dd>
+      {exact && <dd className="text-sm text-slate-700 dark:text-zinc-300 tabular-nums mt-0.5">Exact: {exact}</dd>}
     </div>
+  )
+}
+
+// One year in "Coming up": the whole card opens the Replacement Forecast on that year.
+function YearCard({ bucket, label }) {
+  return (
+    <Link to={`/reports?report=replacement&replaceIn=${encodeURIComponent(bucket.key)}`}
+      aria-label={`${label}: ${plural(bucket.assets, 'asset', 'assets')}, about ${pesoWords(bucket.cost)}. View the list.`}
+      className="group flex flex-col rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3.5 transition-colors duration-150 hover:border-brand-600 hover:bg-slate-50 dark:hover:border-brand-400 dark:hover:bg-zinc-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900">
+      <span className="text-base font-semibold text-slate-800 dark:text-zinc-200">{label}</span>
+      <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-tight mt-2" title={pesoExact(bucket.cost)}>{pesoWords(bucket.cost)}</span>
+      <span className="text-base text-slate-700 dark:text-zinc-300 tabular-nums">{plural(bucket.assets, 'asset', 'assets')}</span>
+      <span className="mt-3 pt-2.5 border-t border-slate-200 dark:border-zinc-800 text-sm font-semibold text-brand-700 dark:text-brand-300 group-hover:underline underline-offset-2">
+        View assets <span aria-hidden="true" className="inline-block transition-transform duration-150 group-hover:translate-x-0.5">›</span>
+      </span>
+    </Link>
   )
 }
 
@@ -446,21 +462,27 @@ function BudgetPlanning({ data, loading, onChange }) {
           <>
             {/* 1. Due now */}
             {dueNow?.assets > 0 ? (
-              <section aria-label="Due for replacement now"
-                className="rounded-lg border border-amber-300 dark:border-amber-500/40 border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-500/10 px-5 py-4">
-                <h3 className="text-base font-semibold text-amber-900 dark:text-amber-200">Due for replacement now</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+              // Laid out like a form: a titled header row, the two figures side by side, and the
+              // explanation with the action in a footer row.
+              <section aria-labelledby="bp-due-now" className="rounded-lg border border-slate-300 dark:border-zinc-700 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-300 dark:border-zinc-700">
+                  <h3 id="bp-due-now" className="text-base font-semibold text-slate-900 dark:text-white">Due for replacement now</h3>
+                  <span className="text-sm font-semibold px-2.5 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200">Needs budget</span>
+                </div>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 dark:divide-zinc-800">
                   <BigFigure label="Number of assets" value={fmtNum(dueNow.assets)} />
                   <BigFigure label="Estimated cost to replace" value={pesoWords(dueNow.cost)}
                     exact={Number(dueNow.cost) >= 1_000_000 ? pesoExact(dueNow.cost) : null} />
+                </dl>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 border-t border-slate-200 dark:border-zinc-800">
+                  <p className="flex-1 text-base text-slate-800 dark:text-zinc-200">
+                    These assets are past their expected years of use, or broken and waiting for disposal.
+                  </p>
+                  <Link to="/reports?report=replacement&replaceIn=NOW"
+                    className="shrink-0 inline-flex items-center justify-center rounded-lg bg-brand-700 hover:bg-brand-800 text-white text-base font-semibold px-5 py-2.5 min-h-[44px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900">
+                    See the list of assets
+                  </Link>
                 </div>
-                <p className="text-base text-slate-800 dark:text-zinc-200 mt-4">
-                  These assets are past their expected years of use, or broken and waiting for disposal.
-                </p>
-                <Link to="/reports?report=replacement"
-                  className="mt-4 inline-flex items-center justify-center rounded-lg bg-brand-700 hover:bg-brand-800 text-white text-base font-semibold px-5 py-2.5 min-h-[44px] transition-colors">
-                  See the list of assets
-                </Link>
               </section>
             ) : (
               <p className="text-base text-slate-800 dark:text-zinc-200">No assets are due for replacement right now.</p>
@@ -468,35 +490,19 @@ function BudgetPlanning({ data, loading, onChange }) {
 
             {/* 2. The coming years */}
             {coming.length > 0 && (
-              <section aria-label="Coming up" className="max-w-2xl">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">Coming up in the next years</h3>
-                <table className="w-full mt-2 text-base tabular-nums">
-                  <thead>
-                    <tr className="border-b-2 border-slate-200 dark:border-zinc-700 text-sm text-slate-700 dark:text-zinc-300">
-                      <th scope="col" className="text-left font-semibold py-2">Year</th>
-                      <th scope="col" className="text-right font-semibold py-2 px-3">Assets</th>
-                      <th scope="col" className="text-right font-semibold py-2">Estimated cost</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
-                    {coming.map((b) => (
-                      <tr key={b.key}>
-                        <th scope="row" className="text-left font-medium text-slate-800 dark:text-zinc-200 py-3">
-                          {b.key === thisYear ? `Rest of ${b.key}` : b.key}
-                        </th>
-                        <td className="text-right text-slate-800 dark:text-zinc-200 py-3 px-3">{fmtNum(b.assets)}</td>
-                        <td className="text-right font-semibold text-slate-900 dark:text-white py-3" title={pesoExact(b.cost)}>{pesoWords(b.cost)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white">
-                      <th scope="row" className="text-left py-3">Total</th>
-                      <td className="text-right py-3 px-3">{fmtNum(comingTotal.assets)}</td>
-                      <td className="text-right py-3" title={pesoExact(comingTotal.cost)}>{pesoWords(comingTotal.cost)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+              <section aria-labelledby="bp-coming">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <h3 id="bp-coming" className="text-base font-semibold text-slate-900 dark:text-white">Coming up in the next years</h3>
+                  <p className="text-base text-slate-800 dark:text-zinc-200 tabular-nums">
+                    Total: <span className="font-bold" title={pesoExact(comingTotal.cost)}>{pesoWords(comingTotal.cost)}</span> for {plural(comingTotal.assets, 'asset', 'assets')}
+                  </p>
+                </div>
+                <p className="text-sm text-slate-700 dark:text-zinc-300 mt-0.5">Choose a year to see its assets.</p>
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+                  {coming.map((b) => (
+                    <YearCard key={b.key} bucket={b} label={b.key === thisYear ? `Rest of ${b.key}` : b.key} />
+                  ))}
+                </div>
                 <p className="text-sm text-slate-700 dark:text-zinc-300 mt-2">
                   Costs include {r.priceIncreasePercent}% a year for price increases.
                 </p>
