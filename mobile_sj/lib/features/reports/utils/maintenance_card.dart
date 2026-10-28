@@ -37,7 +37,12 @@ String _qty(Object? v) {
   return n == n.roundToDouble() ? n.toInt().toString() : n.toString();
 }
 
-bool _counted(Map r) => r['approvalStatus'] == null || r['approvalStatus'] == 'APPROVED';
+// A repair goes on the card once it is approved and something was done: it is completed, or it has
+// a cost or parts and labor. The placeholder opened when an asset is marked repairable ("Pending
+// review and assignment", no cost) stays off until the repair is recorded. Same as the web.
+bool _counted(Map r) =>
+    (r['approvalStatus'] == null || r['approvalStatus'] == 'APPROVED') &&
+    (r['status'] == 'COMPLETED' || r['cost'] != null || (r['items'] as List? ?? const []).isNotEmpty);
 int _byDate(Map a, Map b) {
   final c = str(a['maintenanceDate']).compareTo(str(b['maintenanceDate']));
   return c != 0 ? c : toNum(a['id']).compareTo(toNum(b['id']));
@@ -168,8 +173,10 @@ Future<Uint8List> buildMaintenanceCardPdf(String title, List<Map<String, dynamic
                 text(str(l['total']), align: pw.TextAlign.right),
                 pw.SizedBox(),
               ]),
-      // ruled blank lines for repairs written in by hand
-      for (var i = 0; i < 5; i++) pw.TableRow(children: [for (var k = 0; k < 7; k++) pw.SizedBox(height: 16)]),
+      // ruled blank lines for repairs written in by hand, down to the bottom of a one-page card
+      // (about 26 lines fit under the header), like the paper card
+      for (var i = 0; i < (lines.length < 23 ? 26 - lines.length : 3); i++)
+        pw.TableRow(children: [for (var k = 0; k < 7; k++) pw.SizedBox(height: 16)]),
     ];
 
     doc.addPage(pw.MultiPage(

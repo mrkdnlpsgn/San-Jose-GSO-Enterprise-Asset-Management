@@ -18,6 +18,12 @@ void main() {
     {'id': 1, 'asset': {'id': 7, 'propertyNumber': '2021-05-090-726-1101', 'description': 'Toyota Hilux-Pick Up 4X4 Conquest'},
      'maintenanceDate': '2022-02-17', 'actionsTaken': '5,000 KM Periodic Maintenance Service - Toyota Lipa', 'cost': 9177.56, 'approvalStatus': 'APPROVED', 'items': []},
     {'id': 3, 'asset': {'id': 7}, 'maintenanceDate': '2024-01-01', 'actionsTaken': 'Waiting', 'cost': 1, 'approvalStatus': 'PENDING_APPROVAL'},
+    // the placeholder opened when an asset is marked repairable: nothing done yet
+    {'id': 4, 'asset': {'id': 7}, 'maintenanceDate': '2024-02-01', 'actionsTaken': 'Pending review and assignment', 'cost': null,
+     'status': 'ONGOING', 'approvalStatus': 'APPROVED', 'items': []},
+    // an asset whose only record is such a placeholder has no card
+    {'id': 5, 'asset': {'id': 8}, 'maintenanceDate': '2024-02-01', 'actionsTaken': 'Pending review and assignment', 'cost': null,
+     'status': 'ONGOING', 'approvalStatus': 'APPROVED'},
   ];
   final assets = <Map<String, dynamic>>[
     {'id': 7, 'unitValue': 2498500, 'office': {'officeName': "Mayor's Office"}},

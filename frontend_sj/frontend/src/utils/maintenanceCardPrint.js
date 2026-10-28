@@ -11,7 +11,11 @@ export const TITLE = 'REPAIR AND MAINTENANCE CARD (MACHINERIES & EQUIPMENT)'
 const money = (v) => (v == null || v === '' ? '' : Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 export const repairDate = (d) => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: '2-digit' }) : '')
 const qty = (v) => (v == null ? '' : Number(v).toLocaleString('en-PH', { maximumFractionDigits: 2 }))
-const isCounted = (r) => !r.approvalStatus || r.approvalStatus === 'APPROVED'
+// A repair goes on the card once it is approved and something was done: it is completed, or it
+// has a cost or parts and labor. The placeholder opened when an asset is marked repairable
+// ("Pending review and assignment", no cost) stays off until the repair is recorded.
+const isCounted = (r) => (!r.approvalStatus || r.approvalStatus === 'APPROVED')
+  && (r.status === 'COMPLETED' || r.cost != null || (r.items || []).length > 0)
 const byDate = (a, b) => String(a.maintenanceDate).localeCompare(String(b.maintenanceDate)) || a.id - b.id
 
 // A card's lines, top to bottom: each repair, then its parts, "Labor:" and the labor. Every line
@@ -61,6 +65,8 @@ const CSS = `
   body { font-family: Calibri, Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; background: #fff; }
   .card { border: 1.5px solid #000; }
   .card + .card { page-break-before: always; break-before: page; }
+  /* one printed page: landscape long bond less the margins (the fill script rules lines down to it) */
+  :root { --page: 195.9mm; }
   .head { padding: 8px 12px 10px; border-bottom: 1.5px solid #000; }
   .head h1 { font-size: 13pt; font-weight: 700; text-align: center; margin-bottom: 8px; }
   .head .row { display: flex; justify-content: space-between; gap: 24px; line-height: 1.5; }
@@ -82,8 +88,8 @@ function cardHtml({ asset, records }) {
   const rows = cardLines(records).map((l) => (l.kind === 'repair'
     ? `<tr><td class="date">${l.date}</td><td colspan="5">${esc(l.particular)}</td><td class="r">${l.cost}</td></tr>`
     : `<tr><td></td><td class="${l.kind === 'laborHead' ? 'labor' : 'item'}">${esc(l.particular)}</td><td class="c">${esc(l.unit)}</td><td class="c">${l.quantity}</td><td class="r">${l.unitCost}</td><td class="r">${l.total}</td><td></td></tr>`))
-  // a few ruled blank lines at the end, for repairs written in by hand
-  const blanks = Array.from({ length: 5 }, () => '<tr class="empty"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')
+  // ruled blank lines for repairs written in by hand; the fill script adds more, down to the page bottom
+  const blanks = Array.from({ length: 3 }, () => '<tr class="empty"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')
   return `<div class="card">
     <div class="head">
       <h1>${esc(TITLE)}</h1>
@@ -108,7 +114,22 @@ export function maintenanceCardsHtml(cards) {
 <html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style></head>
 <body>
   ${cards.map(cardHtml).join('\n')}
-  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
+  <script>window.onload = () => {
+    // like the paper card, the ruled lines run down to the bottom of each card's last page
+    const page = document.createElement('div')
+    page.style.height = 'var(--page)'
+    document.body.appendChild(page)
+    const pageH = page.offsetHeight
+    page.remove()
+    document.querySelectorAll('.card').forEach((card) => {
+      const body = card.querySelector('tbody'), proto = body.querySelector('tr.empty')
+      if (!proto) return
+      const rowH = proto.offsetHeight
+      const used = card.offsetHeight % pageH || pageH
+      for (let n = Math.floor((pageH - used - 4) / rowH); n > 0; n--) body.appendChild(proto.cloneNode(true))
+    })
+    window.print(); window.onafterprint = () => window.close()
+  }<\/script>
 </body></html>`
 }
 
