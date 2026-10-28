@@ -23,6 +23,10 @@ public class MaintenanceLedger {
     @Column(name = "maintenance_id")
     private Long id;
 
+    // Parts and labor lines (maintenance_items), as on the Repair and Maintenance Card
+    @Transient
+    private java.util.List<com.sanjose.inventory.dto.MaintenanceItem> items;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "asset_id", nullable = false, columnDefinition = "INT")
     @JsonIgnoreProperties({"category", "office", "accountablePerson", "remarks", "qrCodePath", "sha256Hash"})

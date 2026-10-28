@@ -1,6 +1,7 @@
 package com.sanjose.inventory.service;
 
 import com.sanjose.inventory.config.SpHelper;
+import com.sanjose.inventory.dto.MaintenanceItem;
 import com.sanjose.inventory.dto.MaintenanceLedgerRequest;
 import com.sanjose.inventory.entity.Asset;
 import com.sanjose.inventory.entity.Personnel;
@@ -29,6 +30,7 @@ public class MaintenanceLedgerService {
     private final AssetHistoryService assetHistoryService;
     private final SseEmitterService sseEmitterService;
     private final AccessService accessService;
+    private final MaintenanceItemService itemService;
 
     private static final RowMapper<MaintenanceLedger> MAINT_MAPPER = (rs, rn) -> {
         MaintenanceLedger m = new MaintenanceLedger();
@@ -92,8 +94,8 @@ public class MaintenanceLedgerService {
 
     public List<MaintenanceLedger> findAll(String search, int page, int size,
                                             String maintenanceType, String status, Long officeId) {
-        return jdbcTemplate.query("CALL sp_maintenance_list(?, ?, ?, ?, ?, ?)", MAINT_MAPPER,
-            search, size, page * size, maintenanceType, status, officeId);
+        return itemService.attach(jdbcTemplate.query("CALL sp_maintenance_list(?, ?, ?, ?, ?, ?)", MAINT_MAPPER,
+            search, size, page * size, maintenanceType, status, officeId));
     }
 
     public long count(String search, String maintenanceType, String status, Long officeId) {
@@ -102,19 +104,20 @@ public class MaintenanceLedgerService {
     }
 
     public List<MaintenanceLedger> findByAsset(Long assetId) {
-        return jdbcTemplate.query("CALL sp_maintenance_get_by_asset(?)", MAINT_MAPPER, assetId);
+        return itemService.attach(jdbcTemplate.query("CALL sp_maintenance_get_by_asset(?)", MAINT_MAPPER, assetId));
     }
 
     public MaintenanceLedger findById(Long id) {
         List<MaintenanceLedger> list = jdbcTemplate.query(
             "CALL sp_maintenance_get_by_id(?)", MAINT_MAPPER, id);
         if (list.isEmpty()) throw new ResourceNotFoundException("Maintenance record not found: " + id);
-        return list.get(0);
+        return itemService.attach(list).get(0);
     }
 
     public MaintenanceLedger create(MaintenanceLedgerRequest req) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long recorderId = getUserIdByUsername(username);
+        List<MaintenanceItem> items = itemService.clean(req.getItems());
 
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
             "CALL sp_maintenance_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -124,9 +127,10 @@ public class MaintenanceLedgerService {
             req.getActionsTaken(),
             req.getAssignedTo(),
             req.getMaintenanceDate(),
-            req.getCost(),
+            costOf(items, req.getCost()),
             req.getStatus(),
             recorderId != null ? recorderId.intValue() : 0);
+        if (items != null) itemService.replace(newId, items);
 
         if (!accessService.isAdmin()) {
             // Staff add records as a request - it waits for an admin to approve it before
@@ -156,6 +160,7 @@ public class MaintenanceLedgerService {
                 ? "This request was rejected by an administrator and can't be edited."
                 : "This request is waiting for an administrator's approval. It can be edited once approved.");
         }
+        List<MaintenanceItem> items = itemService.clean(req.getItems());
         jdbcTemplate.update("CALL sp_maintenance_update(?, ?, ?, ?, ?, ?, ?, ?)",
             id,
             req.getMaintenanceType(),
@@ -163,8 +168,9 @@ public class MaintenanceLedgerService {
             req.getActionsTaken(),
             req.getAssignedTo(),
             req.getMaintenanceDate(),
-            req.getCost(),
+            costOf(items != null ? items : itemService.forRecord(id), req.getCost()),
             req.getStatus());
+        if (items != null) itemService.replace(id, items);
         MaintenanceLedger saved = findById(id);
         auditLogService.log("MAINTENANCE_UPDATED", "Maintenance", id, "maintenance",
             "Updated maintenance for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : ""));
@@ -229,6 +235,12 @@ public class MaintenanceLedgerService {
             "Rejected maintenance request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + ": " + note.trim());
         sseEmitterService.emitMaintenance("REJECTED", saved.getId(), saved);
         return saved;
+    }
+
+    // A record with parts and labor lines costs their sum (the card's "Cost of Repair");
+    // one without keeps the cost typed in.
+    private static java.math.BigDecimal costOf(List<MaintenanceItem> items, java.math.BigDecimal typed) {
+        return items != null && !items.isEmpty() ? MaintenanceItemService.total(items) : typed;
     }
 
     private MaintenanceLedger requirePending(Long id) {

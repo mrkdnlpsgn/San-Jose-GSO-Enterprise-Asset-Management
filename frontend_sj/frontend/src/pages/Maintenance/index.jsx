@@ -14,8 +14,10 @@ import {
 import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
 import AddMaintenanceModal from './AddMaintenanceModal'
 import EvidenceModal from './EvidenceModal'
-import { getMaintenance, updateMaintenance, deleteMaintenance, approveMaintenance, rejectMaintenance, getMaintenanceById } from '../../services/maintenanceService'
-import { getAssets } from '../../services/assetService'
+import { getMaintenance, updateMaintenance, deleteMaintenance, approveMaintenance, rejectMaintenance, getMaintenanceById, getMaintenanceByAsset } from '../../services/maintenanceService'
+import { getAssets, getAssetById } from '../../services/assetService'
+import MaintenanceLines from '../../components/common/MaintenanceLines'
+import { printMaintenanceCard, openMaintenanceCardWindow } from '../../utils/maintenanceCardPrint'
 import { getUsers } from '../../services/userService'
 import DraftRows from '../../components/common/DraftRows'
 import { useDraftList } from '../../hooks/useFormDraft'
@@ -252,6 +254,15 @@ function Maintenance() {
               <ModalAction label="Approve request" icon={ICON.check} tone="primary" onClick={() => handleApprove(v)} />
               <ModalAction label="Reject" icon={ICON.x} tone="danger" onClick={() => setRejecting(v)} />
             </>}
+            {v.asset?.id && (
+              <ModalAction label="Print maintenance card" onClick={() => {
+                // the window opens on the click; the asset and all its records are loaded after
+                const win = openMaintenanceCardWindow()
+                Promise.all([getAssetById(v.asset.id), getMaintenanceByAsset(v.asset.id)])
+                  .then(([a, m]) => printMaintenanceCard(a.data, m.data, win))
+                  .catch(() => { win.close(); toast.show('Could not load the maintenance card.', 'error') })
+              }} />
+            )}
             {v.asset?.propertyNumber && (
               <ModalAction label="Open asset" onClick={() => navigate(`/assets?search=${encodeURIComponent(v.asset.propertyNumber)}`)} />
             )}
@@ -272,8 +283,13 @@ function Maintenance() {
             </DetailSection>
             <DetailSection title="Findings & actions" wide>
               <DetailField label="Findings" value={v.findings} />
-              <DetailField label="Actions taken" value={v.actionsTaken} />
+              <DetailField label="Particular (work done)" value={v.actionsTaken} />
             </DetailSection>
+            {v.items?.length > 0 && (
+              <DetailSection title="Parts and labor" wide>
+                <MaintenanceLines items={v.items} cost={v.cost} />
+              </DetailSection>
+            )}
             {(v.requestedByName || v.reviewNote || v.approvalStatus !== 'APPROVED') && (
               <DetailSection title="Request" wide>
                 <DetailField label="Requested by" value={v.requestedByName} />

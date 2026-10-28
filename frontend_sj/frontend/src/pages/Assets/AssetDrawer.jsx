@@ -13,6 +13,8 @@ import AssetQrModal from './AssetQrModal'
 import { Badge, CONDITION_BADGE, LIFECYCLE_BADGE } from './assetBadges'
 import EvidenceModal from '../../components/common/EvidenceModal'
 import ReturnPapers, { hasReturnPapers } from '../../components/common/ReturnPapers'
+import MaintenanceLines from '../../components/common/MaintenanceLines'
+import { printMaintenanceCard } from '../../utils/maintenanceCardPrint'
 import { getReturnPapers } from '../../services/transferService'
 
 const TAB_LABELS = { details: 'Details', history: 'Lifecycle', specs: 'Specifications', ai: 'AI Insight', maintenance: 'Maintenance', papers: 'PARs & Return Slips' }
@@ -489,6 +491,18 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
 
           {tab === 'maintenance' && (
             <div className="space-y-2">
+              {maintenance.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/40 px-3 py-2.5 mb-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Repair and Maintenance Card</p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400">Every repair, with its parts, labor and cost.</p>
+                  </div>
+                  <button type="button" onClick={() => printMaintenanceCard(asset, maintenance)}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-semibold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors">
+                    Print / PDF
+                  </button>
+                </div>
+              )}
               {maintenance.length === 0
                 ? <p className="text-sm text-slate-600 dark:text-zinc-400 py-8 text-center">No maintenance records.</p>
                 : maintenance.map((m) => (
@@ -500,8 +514,10 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
                         m.status === 'ONGOING'   ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'    : 'bg-blue-500/10 text-blue-700 dark:text-blue-300'
                       }`}>{m.status}</span>
                     </div>
+                    {m.actionsTaken && <p className="text-sm text-slate-700 dark:text-zinc-200 mt-1">{m.actionsTaken}</p>}
                     <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 line-clamp-2">{m.findings}</p>
                     <p className="text-xs text-slate-600 dark:text-zinc-400 mt-0.5">{fmt(m.maintenanceDate)}{m.cost != null ? ` · ${php(m.cost)}` : ''}</p>
+                    {m.items?.length > 0 && <div className="mt-2"><MaintenanceLines items={m.items} cost={m.cost} /></div>}
                   </div>
                 ))
               }
