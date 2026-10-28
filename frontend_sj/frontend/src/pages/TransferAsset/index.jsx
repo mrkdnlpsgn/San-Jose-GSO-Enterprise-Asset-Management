@@ -11,7 +11,7 @@ import { useToast } from '../../context/ToastContext'
 import { getAssets, updateAssetStatus, verifyAssetQr, getAssetById } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
 import { getPersonnel, inOffice } from '../../services/personnelService'
-import { getTransfers, submitTransfer, approveTransfer, rejectTransfer, getReturnPapers } from '../../services/transferService'
+import { getTransfers, submitTransfer, approveTransfer, rejectTransfer, getReturnPapers, getRecentReturnPapers } from '../../services/transferService'
 import { printReturnSlip, printPar, PAPERS_OFFICER_DEFAULTS } from '../../utils/returnPapersPrint'
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
 import Select from '../../components/common/Select'
@@ -107,6 +107,59 @@ function printAssetQR(asset) {
   const svgEl = document.getElementById('qr-result-svg')
   if (!svgEl) return
   printQrSticker({ qrHtml: svgEl.outerHTML, propertyNumber: asset.propertyNumber })
+}
+
+// Property Return Slips and PARs with a Print button each, newest first. `showAsset` adds the
+// property number and description (the page-wide list, where the papers are for many assets).
+function PapersCard({ id, heading, intro, papers, officer, onOfficerChange, showAsset = false, emptyText }) {
+  const rows = [
+    ...papers.returnSlips.map((s) => ({ key: `s${s.id}`, at: s.createdAt, kind: 'Return Slip', number: s.slipNumber,
+      asset: `${s.propertyNumber}: ${s.description}`,
+      detail: `Returned by ${s.returnedByName} · ${fmt(s.returnDate)}`, print: () => printReturnSlip(s, officer) })),
+    ...papers.pars.map((p) => ({ key: `p${p.id}`, at: p.createdAt, kind: 'PAR', number: `${p.parNumber}${p.original ? ' (original)' : ''}`,
+      asset: `${p.propertyNumber}: ${p.description}`,
+      detail: `Issued to ${p.personnelName || 'no end user'} · ${fmt(p.issueDate)}`, print: () => printPar(p, officer) })),
+  ].sort((a, b) => String(b.at).localeCompare(String(a.at)) || a.key.localeCompare(b.key))
+
+  return (
+    <section className={`${CARD} overflow-hidden`} aria-labelledby={`${id}-heading`}>
+      <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800">
+        <h2 id={`${id}-heading`} className="text-base font-semibold text-slate-800 dark:text-zinc-100">{heading}</h2>
+        <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">{intro}</p>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-5 py-6 text-sm text-slate-400 dark:text-zinc-500 text-center">{emptyText}</p>
+      ) : (
+        <ul className="divide-y divide-slate-100 dark:divide-zinc-800 max-h-[28rem] overflow-y-auto">
+          {rows.map((d) => (
+            <li key={d.key} className="px-5 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">
+                  {d.kind} <span className="font-mono">{d.number}</span>
+                </p>
+                {showAsset && <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5 truncate">{d.asset}</p>}
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{d.detail}</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={d.print}>Print</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <details className="border-t border-slate-200 dark:border-zinc-800">
+        <summary className="px-5 py-3 text-xs font-semibold text-slate-500 dark:text-zinc-400 cursor-pointer select-none">Signed for the GSO by {officer.name || 'N/A'}</summary>
+        <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block">
+            <span className={LABEL}>Name</span>
+            <input value={officer.name} onChange={onOfficerChange('name')} className={INPUT} />
+          </label>
+          <label className="block">
+            <span className={LABEL}>Position</span>
+            <input value={officer.position} onChange={onOfficerChange('position')} className={INPUT} />
+          </label>
+        </div>
+      </details>
+    </section>
+  )
 }
 
 function TransferAsset() {
@@ -307,6 +360,12 @@ function TransferAsset() {
     getReturnPapers(assetId).then(({ data }) => setPapers(data)).catch(() => setPapers({ returnSlips: [], pars: [] }))
   }, [])
   useEffect(() => { loadPapers(result?.id) }, [result?.id, loadPapers])
+  // the latest papers across all assets, always shown on the page
+  const [recentPapers, setRecentPapers] = useState({ returnSlips: [], pars: [] })
+  const loadRecentPapers = useCallback(() => {
+    getRecentReturnPapers().then(({ data }) => setRecentPapers(data)).catch(() => {})
+  }, [])
+  useEffect(() => { loadRecentPapers() }, [loadRecentPapers])
   const setOfficerField = (key) => (e) => {
     const next = { ...officer, [key]: e.target.value }
     setOfficer(next)
@@ -368,6 +427,7 @@ function TransferAsset() {
       if (data.status === 'APPLIED') {
         applyAssetUpdate(data.asset)
         loadPapers(data.asset.id)
+        loadRecentPapers()
         show(makesReturnSlip || needsNewPar
           ? `Asset transferred. ${makesReturnSlip ? 'The Property Return Slip' : ''}${makesReturnSlip && needsNewPar ? ' and the new PAR are' : makesReturnSlip ? ' is' : 'The new PAR is'} ready to print below.`
           : `Asset transferred to ${data.asset.office?.officeName || 'the new office'}.`, 'success')
@@ -405,6 +465,7 @@ function TransferAsset() {
       const { data } = await approveTransfer(r.id, changesEndUser(r) ? approvePar.trim() : null)
       dispatch(updateAssetInStore(data))
       if (result?.id === data.id) { setResult(data); loadPapers(data.id) }
+      loadRecentPapers()
       setParForId(null)
       setApprovePar('')
       show(`Approved: ${r.propertyNumber} moved to ${r.toOfficeName}.${changesEndUser(r) ? ' Its return slip and new PAR are on the asset.' : ''}`, 'success')
@@ -736,43 +797,16 @@ function TransferAsset() {
                 )}
               </section>
 
-              {/* Return slips and PARs from end-user changes, for printing */}
+              {/* Return slips and PARs from this asset's end-user changes */}
               {(papers.returnSlips.length > 0 || papers.pars.length > 0) && (
-                <section className={`${CARD} overflow-hidden`} aria-labelledby="papers-heading">
-                  <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800">
-                    <h2 id="papers-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">Return slips and PARs</h2>
-                    <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">Made each time this asset changed end user. Print them for signing.</p>
-                  </div>
-                  <ul className="divide-y divide-slate-100 dark:divide-zinc-800">
-                    {[
-                      ...papers.returnSlips.map((s) => ({ key: `s${s.id}`, at: s.createdAt, title: `Property Return Slip ${s.slipNumber}`,
-                        detail: `Returned by ${s.returnedByName} · ${fmt(s.returnDate)}`, print: () => printReturnSlip(s, officer) })),
-                      ...papers.pars.map((p) => ({ key: `p${p.id}`, at: p.createdAt, title: `PAR ${p.parNumber}${p.original ? ' (original)' : ''}`,
-                        detail: `${p.personnelName || 'No end user'} · ${fmt(p.issueDate)}`, print: () => printPar(p, officer) })),
-                    ].sort((a, b) => String(b.at).localeCompare(String(a.at)) || a.key.localeCompare(b.key)).map((d) => (
-                      <li key={d.key} className="px-5 py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">{d.title}</p>
-                          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{d.detail}</p>
-                        </div>
-                        <Button variant="secondary" size="sm" onClick={d.print}>Print</Button>
-                      </li>
-                    ))}
-                  </ul>
-                  <details className="border-t border-slate-200 dark:border-zinc-800">
-                    <summary className="px-5 py-3 text-xs font-semibold text-slate-500 dark:text-zinc-400 cursor-pointer select-none">Signed for the GSO by {officer.name || 'N/A'}</summary>
-                    <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label className="block">
-                        <span className={LABEL}>Name</span>
-                        <input value={officer.name} onChange={setOfficerField('name')} className={INPUT} />
-                      </label>
-                      <label className="block">
-                        <span className={LABEL}>Position</span>
-                        <input value={officer.position} onChange={setOfficerField('position')} className={INPUT} />
-                      </label>
-                    </div>
-                  </details>
-                </section>
+                <PapersCard
+                  id="asset-papers"
+                  heading="Return slips and PARs"
+                  intro="Made each time this asset changed end user. Print them for signing."
+                  papers={papers}
+                  officer={officer}
+                  onOfficerChange={setOfficerField}
+                />
               )}
 
               {/* Update Status (as on the old QR Scanner) */}
@@ -933,6 +967,19 @@ function TransferAsset() {
               </ul>
             )}
           </section>
+
+          <div className="mt-5">
+            <PapersCard
+              id="recent-papers"
+              heading="Return slips and PARs"
+              intro="When an asset goes to a new end user, the old one returns it on a Property Return Slip and the new one gets a new PAR. The latest are here to print."
+              papers={recentPapers}
+              officer={officer}
+              onOfficerChange={setOfficerField}
+              showAsset
+              emptyText="None yet. They are made when a transfer changes the accountable person."
+            />
+          </div>
         </div>
       </div>
     </MainLayout>

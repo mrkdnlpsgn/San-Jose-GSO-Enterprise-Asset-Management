@@ -168,6 +168,18 @@ public class ReturnSlipService {
             jdbcTemplate.query(PAR_SQL + " WHERE i.asset_id = ? ORDER BY i.par_id DESC", PAR_MAPPER, assetId));
     }
 
+    // The latest papers across all assets (the Transfer Asset page's list); staff see their own offices' assets'.
+    public AssetPapers recent() {
+        AccessService.StaffScope scope = accessService.staffScope();
+        String visible = scope == null ? ""
+            : " WHERE EXISTS (SELECT 1 FROM assets a WHERE a.asset_id = %s.asset_id AND " + scope.sql("a") + ")";
+        Object[] args = scope == null ? new Object[0] : scope.args();
+        return new AssetPapers(
+            jdbcTemplate.query(SLIP_SQL + visible.formatted("s") + " ORDER BY s.slip_id DESC LIMIT 50", SLIP_MAPPER, args),
+            jdbcTemplate.query(PAR_SQL + (visible.isEmpty() ? " WHERE" : visible.formatted("i") + " AND")
+                + " i.is_original = 0 ORDER BY i.par_id DESC LIMIT 50", PAR_MAPPER, args));
+    }
+
     public ReturnSlip slip(Long id) {
         List<ReturnSlip> rows = jdbcTemplate.query(SLIP_SQL + " WHERE s.slip_id = ?", SLIP_MAPPER, id);
         if (rows.isEmpty()) throw new ResourceNotFoundException("Property Return Slip not found.");
