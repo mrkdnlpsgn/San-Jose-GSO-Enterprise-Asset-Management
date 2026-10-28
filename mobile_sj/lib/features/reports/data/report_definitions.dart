@@ -9,6 +9,7 @@ import '../../../core/api/api_client.dart';
 import '../model/report_definition.dart';
 import '../utils/export_excel.dart';
 import '../utils/forms_pdf.dart';
+import '../utils/maintenance_card.dart';
 import '../utils/print_form.dart';
 import '../utils/report_format.dart';
 
@@ -591,30 +592,46 @@ List<ReportDefinition> buildReportDefinitions() => [
           Signer('Certified Correct by:', 'Signature over Printed Name of Municipal Accountant'),
         ],
       ),
+      // Was the Maintenance Ledger; now the GSO's Repair and Maintenance Card, one per asset.
       ReportDefinition(
         id: 'maintenance',
-        title: 'Maintenance Ledger',
-        printTitle: 'MAINTENANCE AND REPAIR LEDGER',
-        description: 'All maintenance and repair records for GSO assets.',
+        title: 'Repair and Maintenance Card',
+        description: 'A card for each asset that has been repaired: every repair in date order, with its parts, labor and cost of repair.',
         icon: Icons.build_outlined,
-        load: () => _fetch('/maintenance'),
-        dateField: 'maintenanceDate',
-        headers: [
-          ReportColumn('Asset', display: (r) => _orNa(at(r, 'asset.description')), raw: (r) => str(at(r, 'asset.description'))),
-          ReportColumn('Type', display: (r) => _orNa(r['maintenanceType']), raw: (r) => str(r['maintenanceType'])),
-          ReportColumn('Findings', display: (r) => _orNa(r['findings']), raw: (r) => str(r['findings'])),
-          ReportColumn('Status', display: (r) => _orNa(r['status']), raw: (r) => str(r['status'])),
-          ReportColumn('Assigned To', display: (r) => _orNa(r['assignedTo']), raw: (r) => str(r['assignedTo'])),
-          ReportColumn('Cost', display: (r) => r['cost'] != null ? rMoney(r['cost']) : 'N/A', raw: (r) => _fixed(r['cost'])),
-          ReportColumn('Date', display: (r) => rDate(r['maintenanceDate']), raw: (r) => str(r['maintenanceDate'])),
-          ReportColumn('Recorded By',
-              display: (r) => _orNa(str(at(r, 'recordedBy.fullName')).isNotEmpty ? at(r, 'recordedBy.fullName') : at(r, 'recordedBy.username')),
-              raw: (r) => str(at(r, 'recordedBy.fullName')).isNotEmpty ? str(at(r, 'recordedBy.fullName')) : str(at(r, 'recordedBy.username'))),
-        ],
-        certification: const [
-          Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
-          Signer('Approved by:', 'Signature over Printed Name of Municipal General Services Officer'),
-        ],
+        // the maintenance records carry the asset's number and name; the acquisition cost and
+        // department come from the asset list
+        load: () async {
+          final both = await Future.wait([_fetch('/maintenance'), _fetch('/assets')]);
+          return maintenanceCardsOf(both[0], both[1]);
+        },
+        pick: PickConfig(
+          toItems: (cards, _) => [for (final c in cards) PickItem(str(c['assetId']), c)],
+          noun: ('maintenance card', 'maintenance cards'),
+          placeholder: 'Search property No., asset, department, repair',
+          hint: 'Tick one or more assets to export their repair and maintenance cards.',
+          none: 'No approved maintenance records yet, so there are no cards.',
+          search: (c, q) => [
+            c['propertyNumber'], c['description'], c['department'],
+            for (final r in c['records'] as List) (r as Map)['actionsTaken'],
+            for (final r in c['records'] as List) for (final i in ((r as Map)['items'] as List? ?? const [])) (i as Map)['particular'],
+          ].any((v) => str(v).toLowerCase().contains(q)),
+          label: (c) => 'maintenance card ${c['propertyNumber']}',
+          columns: [
+            PickColumn('Property No.', (c) => str(c['propertyNumber'])),
+            PickColumn('Machine / Equipment', (c) => _orNa(c['description'])),
+            PickColumn('Department', (c) => _orNa(c['department'])),
+            PickColumn('Repairs', (c) => str(c['repairs']), right: true),
+            PickColumn('Cost of Repairs', (c) => rMoney(c['totalCost']), right: true),
+            PickColumn('Last Repair', (c) => rDate(c['lastRepair'])),
+          ],
+          expandLabel: 'card lines',
+          expandedHeaders: maintenanceCardHeaders,
+          expandedRows: (c) => maintenanceCardLines(c['records'] as List? ?? const []),
+          summary: (items) =>
+              '${items.fold<num>(0, (n, c) => n + toNum(c['repairs']))} repairs · Cost of repairs ${rMoney(items.fold<num>(0, (n, c) => n + toNum(c['totalCost'])))}',
+          exportExcel: (items, _) => exportMaintenanceCardsExcel(items),
+          exportPdf: (items, _) => printMaintenanceCards(items),
+        ),
       ),
       ReportDefinition(
         id: 'par',

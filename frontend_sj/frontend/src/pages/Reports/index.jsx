@@ -12,6 +12,7 @@ import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/proper
 import { openPrintWindow } from '../../utils/printWindow'
 import { printForm, toPages, longDate } from '../../utils/printForm'
 import { printRpcppe, exportRpcppeExcel, rpcppeRows, rpcppeLine, RPCPPE_DEFAULTS } from '../../utils/rpcppeExport'
+import { maintenanceCardsOf, cardLines, printMaintenanceCards, exportMaintenanceCardsExcel } from '../../utils/maintenanceCardPrint'
 
 // Reports need the full dataset, not a paginated page. getAssets()/getDisposal()/getMaintenance()
 // default to the backend's page size of 20 - fine for list pages, wrong here, so fetch directly
@@ -105,6 +106,18 @@ const RPCPPE_HEADERS = [
 ]
 
 // One RPCPPE form per type of PPE (category), with the items on hand as at the report date.
+// A Repair and Maintenance Card's columns, for the preview under each picked asset
+const MAINTENANCE_CARD_HEADERS = [
+  { label: 'Date of Repair', display: (l) => l.date },
+  { label: 'Particular',     display: (l) => (l.kind === 'repair' ? <span className="font-medium text-slate-900 dark:text-white">{l.particular}</span>
+    : <span className={`pl-3 ${l.kind === 'laborHead' ? 'italic' : ''}`}>{l.particular}</span>) },
+  { label: 'Unit',           display: (l) => l.unit },
+  { label: 'Quantity',       display: (l) => l.quantity },
+  { label: 'Unit Cost',      display: (l) => l.unitCost },
+  { label: 'Total Cost',     display: (l) => l.total },
+  { label: 'Cost of Repair', display: (l) => (l.cost ? <span className="font-semibold">{l.cost}</span> : '') },
+]
+
 function rpcppeGroupsOf(assets, settings) {
   const byCat = new Map()
   rpcppeRows(assets, settings?.asAt).forEach((a) => {
@@ -314,29 +327,47 @@ const REPORTS = [
     ],
   },
   {
+    // Was the Maintenance Ledger; now the GSO's Repair and Maintenance Card, one per asset (the
+    // same ?report=maintenance link).
     id: 'maintenance',
-    title: 'Maintenance Ledger',
-    printTitle: 'MAINTENANCE AND REPAIR LEDGER',
-    description: 'All maintenance and repair records for GSO assets.',
+    title: 'Repair and Maintenance Card',
+    description: 'A card for each asset that has been repaired: every repair in date order, with its parts, labor and cost of repair.',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
       </svg>
     ),
     async load() {
-      return (await getAllMaintenance()).data
+      // the maintenance records carry the asset's number and name; the acquisition cost and
+      // department come from the asset list
+      const [maintenance, assets] = await Promise.all([getAllMaintenance(), getAllAssets()])
+      return maintenanceCardsOf(maintenance.data, assets.data)
     },
-    dateField: 'maintenanceDate',
-    headers: [
-      { label: 'Asset',           display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.asset?.description || 'N/A'}</span>,       raw: (r) => r.asset?.description || '' },
-      { label: 'Type',            display: (r) => r.maintenanceType || 'N/A',                                                                               raw: (r) => r.maintenanceType || '' },
-      { label: 'Findings',        display: (r) => r.findings ? <span className="max-w-[11.25rem] truncate block" title={r.findings}>{r.findings}</span> : 'N/A', raw: (r) => r.findings || '' },
-      { label: 'Status',          display: (r) => r.status || 'N/A',                                                                                        raw: (r) => r.status || '' },
-      { label: 'Assigned To',     display: (r) => r.assignedTo || 'N/A',                                                                                     raw: (r) => r.assignedTo || '' },
-      { label: 'Cost',            display: (r) => r.cost != null ? fmtMoney(r.cost) : 'N/A',                                                               raw: (r) => r.cost != null ? Number(r.cost).toFixed(2) : '' },
-      { label: 'Date',            display: (r) => fmtDate(r.maintenanceDate),                                                                             raw: (r) => r.maintenanceDate || '' },
-      { label: 'Recorded By',     display: (r) => r.recordedBy?.fullName || r.recordedBy?.username || 'N/A',                                               raw: (r) => r.recordedBy?.fullName || r.recordedBy?.username || '' },
-    ],
+    selectable: {
+      toItems: (cards) => cards,
+      noun: ['maintenance card', 'maintenance cards'],
+      placeholder: 'Search property No., asset, department, repair',
+      hint: 'Tick one or more assets to export their repair and maintenance cards.',
+      none: 'No approved maintenance records yet, so there are no cards.',
+      search: (c, q) => [c.asset.propertyNumber, c.asset.description, c.asset.office?.officeName,
+        ...c.records.map((r) => r.actionsTaken), ...c.records.flatMap((r) => (r.items || []).map((i) => i.particular))]
+        .some((v) => String(v || '').toLowerCase().includes(q)),
+      label: (c) => `maintenance card ${c.asset.propertyNumber}`,
+      columns: [
+        { label: 'Property No.',    cell: (c) => <span className="font-mono text-xs text-slate-900 dark:text-white whitespace-nowrap">{c.asset.propertyNumber}</span> },
+        { label: 'Machine / Equipment', cell: (c) => c.asset.description || 'N/A' },
+        { label: 'Department',      cell: (c) => c.asset.office?.officeName || 'N/A' },
+        { label: 'Repairs',         cell: (c) => c.repairs, right: true },
+        { label: 'Cost of Repairs', cell: (c) => fmtMoney(c.totalCost), right: true },
+        { label: 'Last Repair',     cell: (c) => <span className="whitespace-nowrap">{fmtDate(c.lastRepair)}</span> },
+      ],
+      expandLabel: 'card lines',
+      expanded: (c) => <MiniTable headers={MAINTENANCE_CARD_HEADERS} rows={cardLines(c.records)} rowKey={(l, i) => i} />,
+      summary: (items) => `${items.reduce((n, c) => n + c.repairs, 0)} repairs · Cost of repairs ${fmtMoney(items.reduce((n, c) => n + c.totalCost, 0))}`,
+      exportExcel: (items) => exportMaintenanceCardsExcel(items),
+      exportPdf: (items) => printMaintenanceCards(items),
+    },
+    headers: [],
   },
   {
     id: 'par',
