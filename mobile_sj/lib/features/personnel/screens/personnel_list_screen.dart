@@ -12,7 +12,7 @@ final personnelListProvider = FutureProvider.autoDispose<List<PersonnelRecord>>(
 
 /// Personnel - mirrors the web page: every account with its office and contact info, and
 /// "Assign office" / "Change office". [needsOfficeOnly] opens it filtered to accounts
-/// without an office (from Home's "Needs your attention").
+/// without an office (from the notifications screen).
 class PersonnelListScreen extends ConsumerStatefulWidget {
   final bool needsOfficeOnly;
   const PersonnelListScreen({super.key, this.needsOfficeOnly = false});

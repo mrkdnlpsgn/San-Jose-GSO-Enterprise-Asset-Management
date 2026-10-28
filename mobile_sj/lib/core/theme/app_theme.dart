@@ -207,6 +207,9 @@ class AppTheme {
         color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        // list rows paint their own square background (listTileTheme.tileColor), which would
+        // cover the rounded corners without this
+        clipBehavior: Clip.antiAlias,
       ),
       // iOS grouped-form field: a white row on the grey page (dark: #1C1C1E on black), with a
       // faint hairline so it still reads inside white cards; a tint ring while focused (kept

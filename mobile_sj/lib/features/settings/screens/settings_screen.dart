@@ -63,6 +63,18 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
+          _sectionLabel(context, 'NOTIFICATIONS'),
+          const SizedBox(height: 12),
+          Card(
+            child: SwitchListTile(
+              value: settings.notificationSound,
+              onChanged: notifier.setNotificationSound,
+              title: Text('Notification sound', style: TextStyle(color: context.colors.textPrimary)),
+              subtitle: Text("Play the phone's notification sound when something new needs your attention.",
+                  style: TextStyle(color: context.colors.textTertiary)),
+            ),
+          ),
+          const SizedBox(height: 24),
           _sectionLabel(context, 'ABOUT'),
           const SizedBox(height: 12),
           Card(

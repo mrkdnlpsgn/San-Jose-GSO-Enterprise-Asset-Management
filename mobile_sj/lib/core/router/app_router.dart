@@ -25,6 +25,7 @@ import '../../features/categories/screens/category_list_screen.dart';
 import '../../features/categories/screens/category_form_screen.dart';
 import '../../features/offices/screens/office_list_screen.dart';
 import '../../features/offices/screens/office_form_screen.dart';
+import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/reports/screens/reports_list_screen.dart';
 import '../../features/asset_history/screens/asset_history_screen.dart';
 import '../../features/reports/screens/report_preview_screen.dart';
@@ -180,6 +181,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/audit-logs', pageBuilder: (c, s) => fadeThroughPage(c, s, const AuditLogScreen())),
       GoRoute(path: '/outbox', pageBuilder: (c, s) => fadeThroughPage(c, s, const OutboxScreen())),
       GoRoute(path: '/account', pageBuilder: (c, s) => fadeThroughPage(c, s, const AccountScreen())),
+      GoRoute(path: '/notifications', pageBuilder: (c, s) => fadeThroughPage(c, s, const NotificationsScreen())),
       GoRoute(path: '/legal', pageBuilder: (c, s) => fadeThroughPage(c, s, const LegalScreen())),
       GoRoute(
         path: '/acknowledge-privacy',

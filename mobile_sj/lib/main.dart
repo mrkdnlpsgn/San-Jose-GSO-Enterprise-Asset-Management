@@ -5,6 +5,7 @@ import 'core/api/api_client.dart';
 import 'core/offline/outbox.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/notifications/widgets/notification_watcher.dart';
 import 'features/settings/provider/settings_provider.dart';
 import 'features/outbox/sync_engine.dart';
 import 'shared/widgets/offline_banner.dart';
@@ -50,7 +51,7 @@ class EamApp extends ConsumerWidget {
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(systemScale * settings.textSize.scaleFactor),
           ),
-          child: UpdateCheckGuard(child: IdleTimeoutGuard(child: OfflineBanner(child: child!))),
+          child: UpdateCheckGuard(child: IdleTimeoutGuard(child: OfflineBanner(child: NotificationWatcher(child: child!)))),
         );
       },
     );

@@ -17,7 +17,8 @@ import '../provider/dashboard_provider.dart';
 import '../provider/planning_provider.dart';
 import '../../reports/utils/formatters.dart' show fmtMoney;
 import '../widgets/home_header.dart';
-import '../widgets/attention_card.dart';
+import '../../notifications/provider/notifications_provider.dart';
+import '../../notifications/widgets/notification_bell.dart';
 import '../widgets/budget_planning_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -31,7 +32,7 @@ class DashboardScreen extends ConsumerWidget {
     void refreshAll() {
       ref.invalidate(dashboardStatsProvider);
       if (isAdmin) ref.invalidate(planningProvider);
-      ref.invalidate(attentionProvider);
+      ref.invalidate(notificationsProvider);
     }
 
     // iOS look on Home: grouped grey background, borderless rounded sections, a large
@@ -77,19 +78,26 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    trailing: Semantics(
-                      button: true,
-                      label: 'My Account',
-                      excludeSemantics: true,
-                      child: PressScale(
-                        scale: 0.9,
-                        child: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(36, 36),
-                          onPressed: () => context.push('/account'),
-                          child: UserAvatar(user: user, size: 32),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const NotificationBell(),
+                        const SizedBox(width: 4),
+                        Semantics(
+                          button: true,
+                          label: 'My Account',
+                          excludeSemantics: true,
+                          child: PressScale(
+                            scale: 0.9,
+                            child: CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(36, 36),
+                              onPressed: () => context.push('/account'),
+                              child: UserAvatar(user: user, size: 32),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                   CupertinoSliverRefreshControl(onRefresh: () async => refreshAll()),
@@ -97,9 +105,9 @@ class DashboardScreen extends ConsumerWidget {
                     padding: EdgeInsets.fromLTRB(16, 4, 16, 28 + context.mainShellBottomInset),
                     sliver: SliverList.list(
                       children: [
-                        // who is signed in + date/time, then anything waiting on them, then the shortcuts
+                        // who is signed in + date/time, then the shortcuts; anything waiting on them is
+                        // behind the bell in the top bar
                         const HomeHeader(),
-                        const AttentionCard(),
                         const SizedBox(height: 26),
                         _DashboardStatsSection(modules: _ModuleList(isAdmin: isAdmin)),
                       ],

@@ -23,20 +23,28 @@ class SettingsState {
   final ThemeMode themeMode;
   final TextSizeOption textSize;
   final String serverAddress; // effective host:port the app currently talks to
+  final bool notificationSound; // play the phone's notification sound when a new notification comes
 
-  const SettingsState({required this.themeMode, required this.textSize, required this.serverAddress});
+  const SettingsState({
+    required this.themeMode,
+    required this.textSize,
+    required this.serverAddress,
+    this.notificationSound = true,
+  });
 
-  SettingsState copyWith({ThemeMode? themeMode, TextSizeOption? textSize, String? serverAddress}) {
+  SettingsState copyWith({ThemeMode? themeMode, TextSizeOption? textSize, String? serverAddress, bool? notificationSound}) {
     return SettingsState(
       themeMode: themeMode ?? this.themeMode,
       textSize: textSize ?? this.textSize,
       serverAddress: serverAddress ?? this.serverAddress,
+      notificationSound: notificationSound ?? this.notificationSound,
     );
   }
 }
 
 const _kThemeModeKey = 'settings.themeMode';
 const _kTextSizeKey = 'settings.textSize';
+const _kNotificationSoundKey = 'settings.notificationSound';
 
 final settingsProvider = NotifierProvider<SettingsNotifier, SettingsState>(SettingsNotifier.new);
 
@@ -63,7 +71,13 @@ class SettingsNotifier extends Notifier<SettingsState> {
       themeMode: themeMode,
       textSize: textSize,
       serverAddress: ApiClient.instance.effectiveAddress,
+      notificationSound: _prefs.getBool(_kNotificationSoundKey) ?? true,
     );
+  }
+
+  Future<void> setNotificationSound(bool on) async {
+    state = state.copyWith(notificationSound: on);
+    await _prefs.setBool(_kNotificationSoundKey, on);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

@@ -9,7 +9,7 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../reports/utils/formatters.dart';
-import '../../dashboard/widgets/attention_card.dart';
+import '../../notifications/provider/notifications_provider.dart';
 import '../data/transfer_service.dart';
 import '../model/transfer_model.dart';
 import '../provider/transfer_provider.dart';
@@ -130,7 +130,7 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
     try {
       await action();
       ref.invalidate(transfersProvider);
-      ref.invalidate(attentionProvider);
+      ref.invalidate(notificationsProvider);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(done)));
     } on ApiException catch (e) {
       if (mounted) {
