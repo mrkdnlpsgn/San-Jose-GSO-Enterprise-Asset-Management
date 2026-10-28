@@ -7,7 +7,9 @@ import DraftNotice from '../../components/common/DraftNotice'
 import DatePicker from '../../components/common/DatePicker'
 import Select from '../../components/common/Select'
 
-const METHODS   = ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS']
+// Every property flagged for disposal goes to public bidding, so the method is always SALE. A record
+// made before that keeps its old method (shown, not changeable).
+const METHOD_LABEL = { SALE: 'Sale (public bidding)', TRANSFER: 'Transfer', DESTRUCTION: 'Destruction', OTHERS: 'Others' }
 const STATUSES  = ['PENDING', 'APPROVED', 'COMPLETED']
 const DISPOSABLE_CONDITIONS = ['REPAIRABLE', 'UNSERVICEABLE']
 
@@ -123,10 +125,9 @@ export default function AddDisposalModal({ onClose, onSave, initial = null, asse
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Recommended Method<span className="text-red-400 ml-0.5">*</span></label>
-            <Select className={INPUT_CLASS} value={form.recommendedMethod} onChange={set('recommendedMethod')}>
-              {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-            </Select>
+            <label htmlFor="disposal-method" className="text-sm font-medium text-slate-700 dark:text-zinc-300">Recommended Method</label>
+            <input id="disposal-method" readOnly value={METHOD_LABEL[form.recommendedMethod] || form.recommendedMethod}
+              className={`${INPUT_CLASS} bg-slate-50 dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 cursor-default`} />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Disposal Status</label>

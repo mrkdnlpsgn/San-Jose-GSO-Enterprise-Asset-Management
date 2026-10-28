@@ -152,7 +152,7 @@ public class DisposalLedgerService {
             req.getAssetId(),
             req.getReason(),
             req.getInspectionFindings(),
-            req.getRecommendedMethod(),
+            methodFor(req, null),
             req.getDisposalStatus() != null ? req.getDisposalStatus() : "PENDING",
             req.getInspectionDate(),
             req.getApprovedBy(),
@@ -175,11 +175,22 @@ public class DisposalLedgerService {
 
         DisposalLedger saved = findById(newId);
         assetHistoryService.logEvent(req.getAssetId(), "DISPOSAL", null, null, recorderId,
-            "Disposal logged (" + req.getRecommendedMethod() + "): " + req.getReason());
+            "Disposal logged (" + saved.getRecommendedMethod() + "): " + req.getReason());
         auditLogService.log("DISPOSAL_CREATED", "Disposal", newId, "disposal",
             "Disposal for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : req.getAssetId()));
         sseEmitterService.emitDisposal("CREATED", saved.getId(), saved);
         return saved;
+    }
+
+    // Every property flagged for disposal goes to public bidding, so new records are always SALE.
+    // A record made before that rule keeps its method when an older form sends it back unchanged.
+    private static String methodFor(DisposalLedgerRequest req, DisposalLedger current) {
+        String sent = req.getRecommendedMethod();
+        if (current != null && current.getRecommendedMethod() != null
+                && current.getRecommendedMethod().name().equals(sent)) {
+            return sent;
+        }
+        return DisposalLedger.DisposalMethod.SALE.name();
     }
 
     public DisposalLedger update(Long id, DisposalLedgerRequest req) {
@@ -193,7 +204,7 @@ public class DisposalLedgerService {
             id,
             req.getReason(),
             req.getInspectionFindings(),
-            req.getRecommendedMethod(),
+            methodFor(req, current),
             req.getDisposalStatus() != null ? req.getDisposalStatus() : "PENDING",
             req.getInspectionDate(),
             req.getApprovedBy(),
