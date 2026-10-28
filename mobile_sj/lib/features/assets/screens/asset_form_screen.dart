@@ -398,7 +398,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                         _suggestedCategory = null;
                       }),
                     ),
-                    if (_categoryId != null && articles != null) _articlePicker(articles),
+                    _articlePicker(articles),
                     AnimatedSize(
                       duration: AppTheme.motionFast,
                       curve: AppTheme.motionCurve,
@@ -690,7 +690,20 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
 
   // Article: the kind of item within the chosen category, as on the physical count report.
   // Required once the category has articles.
-  Widget _articlePicker(List<ArticleModel> all) {
+  Widget _articlePicker(List<ArticleModel>? all) {
+    // shown from the start so it's clear an article comes with the category
+    if (_categoryId == null || all == null) {
+      return _dropdown<ArticleModel>(
+        label: 'Article',
+        value: null,
+        items: const [],
+        itemLabel: (a) => a.articleName,
+        onChanged: (_) {},
+        required: false,
+        enabled: false,
+        hint: _categoryId == null ? 'Select a category first' : 'Loading articles…',
+      );
+    }
     final options = all.where((a) => a.categoryId == _categoryId).toList()
       ..sort((a, b) => a.articleName.toLowerCase().compareTo(b.articleName.toLowerCase()));
     if (options.isEmpty) {

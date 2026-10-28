@@ -448,12 +448,16 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
         </div>
 
         {/* Article: the kind of item within the category, as on the physical count report */}
-        {form.categoryId && !customMode && (
+        {!customMode && (
           <div className="flex flex-col gap-1.5">
             <label htmlFor="asset-article" className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-              Article{categoryArticles.length > 0 && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}
+              Article{(!form.categoryId || categoryArticles.length > 0) && <span className="text-red-600 dark:text-red-400 ml-0.5">*</span>}
             </label>
-            {categoryArticles.length > 0 ? (
+            {!form.categoryId ? (
+              <Select id="asset-article" className={INPUT_CLASS} value="" disabled>
+                <option value="">Select a category first</option>
+              </Select>
+            ) : categoryArticles.length > 0 ? (
               <Select id="asset-article" className={INPUT_CLASS} value={form.articleId} onChange={set('articleId')}>
                 <option value="">Select article</option>
                 {categoryArticles.map((a) => <option key={a.id} value={String(a.id)}>{a.articleName}</option>)}
