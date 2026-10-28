@@ -97,6 +97,9 @@ services:
       AI_FALLBACK_BASE_URL: ${AI_FALLBACK_BASE_URL:-https://api.groq.com/openai/v1}
       AI_FALLBACK_MODEL: ${AI_FALLBACK_MODEL:-openai/gpt-oss-120b}
       AI_FALLBACK_VISION_MODEL: ${AI_FALLBACK_VISION_MODEL:-}
+      # the vision model's own service when it isn't the one above (e.g. https://openrouter.ai/api/v1)
+      AI_FALLBACK_VISION_BASE_URL: ${AI_FALLBACK_VISION_BASE_URL:-}
+      AI_FALLBACK_VISION_API_KEY: ${AI_FALLBACK_VISION_API_KEY:-}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     networks:

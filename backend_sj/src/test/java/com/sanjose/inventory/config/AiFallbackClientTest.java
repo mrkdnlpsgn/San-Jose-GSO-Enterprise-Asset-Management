@@ -102,17 +102,54 @@ class AiFallbackClientTest {
     @Test
     void aPhotoGoesToTheVisionModelAsADataUrl() {
         Content photo = Content.fromParts(Part.fromText("Read the label."), Part.fromBytes(new byte[] {1, 2, 3}, "image/png"));
-        assertFalse(client.canRead(photo), "no vision model set");
-        assertTrue(client.canRead(Content.fromParts(Part.fromText("text only"))));
+        assertFalse(client.canAnswer(photo), "no vision model set");
+        assertTrue(client.canAnswer(Content.fromParts(Part.fromText("text only"))));
 
         ReflectionTestUtils.setField(client, "visionModel", "vision-model");
-        assertTrue(client.canRead(photo));
+        assertTrue(client.canAnswer(photo));
         client.generate("Test", photo, null);
 
         JsonNode body = received.get();
         assertEquals("vision-model", body.get("model").asText());
         assertEquals("Read the label.", body.at("/messages/0/content/0/text").asText());
         assertEquals("data:image/png;base64,AQID", body.at("/messages/0/content/1/image_url/url").asText());
+    }
+
+    @Test
+    void photosCanGoToASecondService() throws Exception {
+        // the text service is elsewhere; the vision model is on this (fake) one, with its own key
+        HttpServer other = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        other.start();
+        try {
+            String here = (String) ReflectionTestUtils.getField(client, "baseUrl");
+            ReflectionTestUtils.setField(client, "baseUrl", "http://127.0.0.1:" + other.getAddress().getPort() + "/v1");
+            ReflectionTestUtils.setField(client, "visionBaseUrl", here);
+            ReflectionTestUtils.setField(client, "visionApiKey", "vision-key");
+            ReflectionTestUtils.setField(client, "visionModel", "vision-model");
+
+            Content photo = Content.fromParts(Part.fromText("Read the label."), Part.fromBytes(new byte[] {1}, "image/jpeg"));
+            assertEquals("Hello from the fallback", client.generate("Test", photo, null).text());
+            assertEquals("Bearer vision-key", authorization.get());
+            assertEquals("vision-model", received.get().get("model").asText());
+
+            // a busy vision service pauses photos only, not text
+            status = 429;
+            assertThrows(IllegalStateException.class, () -> client.generate("Test", photo, null));
+            assertFalse(client.canAnswer(photo));
+            assertTrue(client.isAvailable());
+        } finally {
+            other.stop(0);
+        }
+    }
+
+    @Test
+    void onlyAVisionServiceSetUp() {
+        ReflectionTestUtils.setField(client, "apiKey", "");
+        ReflectionTestUtils.setField(client, "visionApiKey", "vision-key");
+        ReflectionTestUtils.setField(client, "visionModel", "vision-model");
+        assertTrue(client.isConfigured());
+        assertFalse(client.isAvailable(), "no text service");
+        assertTrue(client.canAnswer(Content.fromParts(Part.fromBytes(new byte[] {1}, "image/jpeg"))));
     }
 
     @Test

@@ -25,9 +25,12 @@ import java.util.List;
 
 // The AI used when Gemini can't answer (both models out of quota, or Google down): any service with
 // an OpenAI-style chat API - Groq (the default, free tier), OpenRouter, Mistral, OpenAI... - set on
-// the server with AI_FALLBACK_API_KEY, and optionally AI_FALLBACK_BASE_URL, AI_FALLBACK_MODEL and
-// AI_FALLBACK_VISION_MODEL. Off while no key is set. It takes the same request the services build
-// for Gemini and hands back a Gemini-shaped response, so the services don't change.
+// the server with AI_FALLBACK_API_KEY, and optionally AI_FALLBACK_BASE_URL and AI_FALLBACK_MODEL.
+// Off while no key is set. Requests with a photo go to AI_FALLBACK_VISION_MODEL, which may be on a
+// second service (AI_FALLBACK_VISION_BASE_URL / AI_FALLBACK_VISION_API_KEY, e.g. OpenRouter, since
+// Groq has no vision model); no vision model means photos have no fallback. It takes the same
+// request the services build for Gemini and hands back a Gemini-shaped response, so the services
+// don't change.
 @Slf4j
 @Component
 public class AiFallbackClient {
@@ -45,39 +48,56 @@ public class AiFallbackClient {
     @Value("${ai.fallback.vision-model:}")
     private String visionModel;
 
+    // The service the vision model is on, when not the one above; blank = the same
+    @Value("${ai.fallback.vision-base-url:}")
+    private String visionBaseUrl = "";
+
+    @Value("${ai.fallback.vision-api-key:}")
+    private String visionApiKey = "";
+
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    // A 429 from the fallback pauses it too, so a busy spell isn't hammered
+    // A 429 pauses that service (text or vision, each on its own), so a busy spell isn't hammered
     private volatile Instant pausedUntil = Instant.EPOCH;
+    private volatile Instant visionPausedUntil = Instant.EPOCH;
 
+    private String visionKey() { return visionApiKey.isBlank() ? apiKey : visionApiKey; }
+    private String visionUrl() { return visionBaseUrl.isBlank() ? baseUrl : visionBaseUrl; }
+
+    // Either service set up
     public boolean isConfigured() {
-        return !apiKey.isBlank();
+        return !apiKey.isBlank() || (!visionModel.isBlank() && !visionKey().isBlank());
     }
 
+    // The text service can answer now (what most AI features need)
     public boolean isAvailable() {
-        return isConfigured() && Instant.now().isAfter(pausedUntil);
+        return !apiKey.isBlank() && Instant.now().isAfter(pausedUntil);
     }
 
-    public boolean canRead(Content content) {
-        return !hasImage(content) || !visionModel.isBlank();
+    // This request can be answered now: a photo by the vision service, the rest by the text one
+    public boolean canAnswer(Content content) {
+        if (!hasImage(content)) return isAvailable();
+        return !visionModel.isBlank() && !visionKey().isBlank() && Instant.now().isAfter(visionPausedUntil);
     }
 
     public GenerateContentResponse generate(String what, Content content, GenerateContentConfig config) {
         boolean image = hasImage(content);
         String useModel = image ? visionModel : model;
+        String url = image ? visionUrl() : baseUrl;
         try {
-            HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl.replaceAll("/+$", "") + "/chat/completions"))
+            HttpRequest req = HttpRequest.newBuilder(URI.create(url.replaceAll("/+$", "") + "/chat/completions"))
                 .timeout(Duration.ofSeconds(90))
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + (image ? visionKey() : apiKey))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(body(useModel, content, config))))
                 .build();
             HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
             if (res.statusCode() == 429) {
                 long wait = res.headers().firstValue("retry-after").map(AiFallbackClient::seconds).orElse(60L);
-                pausedUntil = Instant.now().plusSeconds(Math.max(wait, 10));
-                log.warn("{}: fallback AI ({}) is rate-limited; not calling it until {}", what, useModel, pausedUntil);
+                Instant until = Instant.now().plusSeconds(Math.max(wait, 10));
+                if (image) visionPausedUntil = until; else pausedUntil = until;
+                log.warn("{}: fallback AI ({}) is rate-limited; not calling it until {}", what, useModel, until);
                 throw new IllegalStateException("The AI assistant is busy right now. Please try again in a minute.");
             }
             if (res.statusCode() / 100 != 2) {

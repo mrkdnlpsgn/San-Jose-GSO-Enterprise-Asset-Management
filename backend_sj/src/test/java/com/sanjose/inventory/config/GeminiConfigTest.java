@@ -32,7 +32,7 @@ class GeminiConfigTest {
         int asked;
         @Override public boolean isConfigured() { return on; }
         @Override public boolean isAvailable() { return on; }
-        @Override public boolean canRead(Content content) { return vision || content.parts().orElseThrow().stream().noneMatch(p -> p.inlineData().isPresent()); }
+        @Override public boolean canAnswer(Content content) { return on && (vision || content.parts().orElseThrow().stream().noneMatch(p -> p.inlineData().isPresent())); }
         @Override public GenerateContentResponse generate(String what, Content content, GenerateContentConfig config) {
             asked++;
             return GenerateContentResponse.builder().modelVersion("fallback").build();

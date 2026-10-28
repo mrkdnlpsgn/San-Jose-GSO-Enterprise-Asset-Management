@@ -154,7 +154,7 @@ public class GeminiConfig {
                 }
             }
         }
-        if (fallback.isAvailable() && fallback.canRead(content)) {
+        if (fallback.canAnswer(content)) {
             return fallback.generate(what, content, config);
         }
         if (googleDown != null) throw googleDown;
