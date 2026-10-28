@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../model/asset_model.dart';
+import '../data/return_papers_service.dart';
+import '../widgets/return_papers_card.dart';
 import '../provider/asset_provider.dart';
 import '../data/asset_service.dart';
 import '../provider/ai_recommendation_provider.dart';
@@ -36,6 +38,7 @@ class AssetDetailScreen extends ConsumerWidget {
       ref.invalidate(assetHistoryProvider(assetId));
       ref.invalidate(maintenanceByAssetProvider(assetId));
       ref.invalidate(disposalByAssetProvider(assetId));
+      ref.invalidate(returnPapersProvider(assetId));
     }
 
     Future<void> delete() async {
@@ -230,7 +233,10 @@ class _DetailsTab extends ConsumerWidget {
                   style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                   onPressed: () async {
                     final moved = await context.push<bool>('/transfers/new', extra: asset);
-                    if (moved == true) ref.invalidate(assetDetailProvider(asset.id));
+                    if (moved == true) {
+                      ref.invalidate(assetDetailProvider(asset.id));
+                      ref.invalidate(returnPapersProvider(asset.id));
+                    }
                   },
                 ),
               ],
@@ -254,6 +260,7 @@ class _DetailsTab extends ConsumerWidget {
             _row(context, 'Qty (Physical Count)', asset.physicalCount.toString()),
           ..._shortageOverageRows(context, asset),
         ]),
+        ReturnPapersCard(assetId: asset.id),
         const SizedBox(height: 12),
         _card(context, 'Financial', [
           _row(context, 'Unit Value', fmtMoney(asset.unitValue)),
