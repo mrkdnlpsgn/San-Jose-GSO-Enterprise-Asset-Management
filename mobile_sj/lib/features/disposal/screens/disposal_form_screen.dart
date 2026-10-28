@@ -146,18 +146,8 @@ class _DisposalFormScreenState extends ConsumerState<DisposalFormScreen> {
             _assetSelector(),
             if (_selectedAsset != null) _assetCostPreview(),
             const SizedBox(height: 14),
-            // Every property flagged for disposal goes to public bidding, so the method is always
-            // SALE; a record made before that keeps (and shows) its old method.
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: TextFormField(
-                key: ValueKey(_recommendedMethod),
-                initialValue: _recommendedMethod == 'SALE' ? 'Sale (public bidding)' : _recommendedMethod,
-                readOnly: true,
-                enabled: false,
-                decoration: const InputDecoration(labelText: 'Recommended Method'),
-              ),
-            ),
+            _enumDropdown('Recommended Method', _recommendedMethod,
+              ['SALE', 'TRANSFER', 'DESTRUCTION', 'OTHERS'], (v) => setState(() => _recommendedMethod = v!)),
             _enumDropdown('Status', _disposalStatus,
               ['PENDING', 'APPROVED', 'COMPLETED'], (v) => setState(() => _disposalStatus = v!)),
             _datePicker(),
