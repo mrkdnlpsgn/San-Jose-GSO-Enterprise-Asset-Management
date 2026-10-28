@@ -5,7 +5,6 @@ import ConfirmDialog from '../common/ConfirmDialog'
 import SettingsMenu from '../common/SettingsMenu'
 import NotificationBell from '../common/NotificationBell'
 import UserAvatar from '../common/UserAvatar'
-import { useTheme } from '../../context/ThemeContext'
 import { roleLabel as labelOfRole } from '../../utils/roles'
 
 const pageMeta = {
@@ -30,11 +29,6 @@ function Header({ onMenuOpen }) {
   const { user, signOut } = useAuth()
   const { pathname } = useLocation()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
-  // At the two biggest text sizes a phone or tablet header can't fit the title plus every
-  // control: labels collapse to icons below desktop width, and on phones the avatar link
-  // steps aside (My Account stays in the menu).
-  const { textSize } = useTheme()
-  const bigText = textSize === 'larger' || textSize === 'largest'
 
   const title = pageMeta[pathname] ?? 'San Jose GSO'
   const name = user?.fullName ?? user?.username ?? 'Administrator'
@@ -57,36 +51,32 @@ function Header({ onMenuOpen }) {
         <h1 className="text-base font-semibold text-gov-700 dark:text-white leading-tight truncate">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+      {/* Icons only: page tools (notifications, display settings), then the account (My Account,
+          sign out). Names and roles show as tooltips. */}
+      <div className="flex items-center gap-1 flex-shrink-0">
         <NotificationBell />
+        <SettingsMenu iconOnly />
+
+        <div className="w-px h-6 bg-slate-200 dark:bg-zinc-800 mx-1.5" aria-hidden="true" />
 
         <Link
           to="/my-account"
-          className={`${bigText ? 'hidden sm:flex' : 'flex'} items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors duration-150 group`}
+          title={`${name} (${roleLabel}) - My Account`}
+          aria-label={`My Account: ${name}, ${roleLabel}`}
+          className="flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150 group"
         >
-          <div className={`text-right hidden ${bigText ? 'lg:block' : 'sm:block'}`}>
-            <p className="text-sm font-medium text-slate-700 dark:text-zinc-200 group-hover:text-slate-900 dark:group-hover:text-white leading-tight transition-colors duration-150">{name}</p>
-            <p className="text-xs text-slate-400 dark:text-zinc-500 leading-tight mt-px">{roleLabel}</p>
-          </div>
           <UserAvatar user={user} className="w-8 h-8 text-xs ring-2 ring-transparent group-hover:ring-brand-400 transition-all duration-150" />
         </Link>
-
-        <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-zinc-800 mx-1" />
-
-        <SettingsMenu compact={bigText} />
-
-        <div className="hidden sm:block w-px h-5 bg-slate-200 dark:bg-zinc-800 mx-1" />
 
         <button
           onClick={() => setShowLogoutConfirm(true)}
           title="Sign Out"
           aria-label="Sign Out"
-          className="flex items-center justify-center gap-1.5 min-w-[2.5rem] min-h-[2.5rem] px-2 -mr-2 rounded-md text-xs text-slate-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 transition-colors duration-150 font-medium"
+          className="flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] -mr-2 rounded-md text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
-          <span className={`hidden ${bigText ? 'lg:inline' : 'sm:inline'}`}>Sign Out</span>
         </button>
       </div>
 
