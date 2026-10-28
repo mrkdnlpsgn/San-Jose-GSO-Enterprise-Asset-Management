@@ -142,8 +142,15 @@ class _MaintenanceFormScreenState extends ConsumerState<MaintenanceFormScreen> {
             const SizedBox(height: 14),
             _enumDropdown('Type', _maintenanceType,
               ['PREVENTIVE', 'CORRECTIVE', 'REPAIR'], (v) => setState(() => _maintenanceType = v!)),
+            // a new record can't start as Completed: its photos are added after it is saved
             _enumDropdown('Status', _status,
-              ['SCHEDULED', 'ONGOING', 'COMPLETED'], (v) => setState(() => _status = v!)),
+              ['SCHEDULED', 'ONGOING', if (_isEdit) 'COMPLETED'], (v) => setState(() => _status = v!)),
+            if (_status == 'COMPLETED' && widget.maintenance?.status != 'COMPLETED')
+              const Padding(
+                padding: EdgeInsets.only(bottom: 14),
+                child: Callout('Marking it Completed needs at least one pre-maintenance and one post-maintenance photo (Photos).',
+                    tone: CalloutTone.info),
+              ),
             _datePicker(),
             _field(_findings, 'Findings', required: true, maxLines: 3),
             _field(_actionsTaken, 'Actions Taken', required: true, maxLines: 3),

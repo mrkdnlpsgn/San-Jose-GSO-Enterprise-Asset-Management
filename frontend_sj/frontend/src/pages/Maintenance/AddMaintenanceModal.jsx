@@ -145,8 +145,12 @@ function AddMaintenanceModal({ onClose, onSave, initial = null, assets = [], use
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Status<span className="text-red-400 ml-0.5">*</span></label>
             <SelectInput value={form.status} onChange={set('status')}>
-              {MAINT_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {/* a new record can't start as Completed: its photos are added after it is saved */}
+              {MAINT_STATUS.filter((s) => isEditing || s !== 'COMPLETED').map((s) => <option key={s} value={s}>{s}</option>)}
             </SelectInput>
+            {form.status === 'COMPLETED' && initial?.status !== 'COMPLETED' && (
+              <p className="text-xs text-slate-500 dark:text-zinc-400">Needs at least one pre-maintenance and one post-maintenance photo (Photos).</p>
+            )}
           </div>
         </div>
 

@@ -115,6 +115,10 @@ public class MaintenanceLedgerService {
     }
 
     public MaintenanceLedger create(MaintenanceLedgerRequest req) {
+        if ("COMPLETED".equals(req.getStatus())) {
+            throw new IllegalArgumentException("Save the record as Ongoing first and add its pre- and post-maintenance photos. "
+                + "It can be marked Completed once both are there.");
+        }
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long recorderId = getUserIdByUsername(username);
         List<MaintenanceItem> items = itemService.clean(req.getItems());
@@ -155,6 +159,9 @@ public class MaintenanceLedgerService {
 
     public MaintenanceLedger update(Long id, MaintenanceLedgerRequest req) {
         MaintenanceLedger current = findById(id);
+        if ("COMPLETED".equals(req.getStatus()) && current.getStatus() != MaintenanceLedger.MaintenanceStatus.COMPLETED) {
+            requireBeforeAndAfterPhotos(id);
+        }
         if (!accessService.isAdmin() && !"APPROVED".equals(current.getApprovalStatus())) {
             throw new IllegalStateException("REJECTED".equals(current.getApprovalStatus())
                 ? "This request was rejected by an administrator and can't be edited."
@@ -235,6 +242,21 @@ public class MaintenanceLedgerService {
             "Rejected maintenance request for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : "") + ": " + note.trim());
         sseEmitterService.emitMaintenance("REJECTED", saved.getId(), saved);
         return saved;
+    }
+
+    // A repair is marked Completed only with its evidence: at least one pre-maintenance photo (the
+    // asset as found) and one post-maintenance photo (the finished work). Records completed by the
+    // system (a condition change closing open maintenance) and ones already completed aren't held to it.
+    private void requireBeforeAndAfterPhotos(Long id) {
+        Map<String, Integer> counts = new java.util.HashMap<>();
+        jdbcTemplate.query("SELECT stage, COUNT(*) FROM maintenance_photos WHERE maintenance_id = ? AND stage IS NOT NULL GROUP BY stage",
+            rs -> { counts.put(rs.getString(1), rs.getInt(2)); }, id);
+        boolean before = counts.getOrDefault("BEFORE", 0) > 0, after = counts.getOrDefault("AFTER", 0) > 0;
+        if (!before || !after) {
+            String missing = !before && !after ? "a pre-maintenance and a post-maintenance photo"
+                : !before ? "a pre-maintenance photo" : "a post-maintenance photo";
+            throw new IllegalArgumentException("Add " + missing + " before marking this repair Completed (Photos).");
+        }
     }
 
     // A record with parts and labor lines costs their sum (the card's "Cost of Repair");
