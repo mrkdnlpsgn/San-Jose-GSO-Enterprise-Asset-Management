@@ -323,6 +323,21 @@ public class AssetService {
         return par;
     }
 
+    // The PAR issued when an asset goes to a new end user (Transfer Asset page): same format and
+    // acquisition-month rule as any PAR, and no other asset may hold it.
+    public String checkNewParNumber(String raw, Asset asset) {
+        if (isBlank(raw)) throw new IllegalArgumentException("Enter the new PAR No. for the new end user.");
+        String par = normalizeParNumber(raw, asset.getAcquisitionDate());
+        if (par.equalsIgnoreCase(asset.getParNumber() == null ? "" : asset.getParNumber().trim())) {
+            throw new IllegalArgumentException("The new PAR No. must differ from the current one (" + par + ").");
+        }
+        if (existsElsewhere("par_number", par, asset.getId())) {
+            throw new IllegalArgumentException(
+                "PAR Number \"" + par + "\" is already used by another asset. Each asset needs its own.");
+        }
+        return par;
+    }
+
     // Turns a create/update request into one fully-resolved AssetRequest for the single
     // device it registers. Qty (Property Card) and Qty (Physical Count) are always 1 -
     // one asset row is always exactly one physical item. Property Number, PAR Number,

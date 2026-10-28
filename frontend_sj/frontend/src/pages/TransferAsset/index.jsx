@@ -11,7 +11,8 @@ import { useToast } from '../../context/ToastContext'
 import { getAssets, updateAssetStatus, verifyAssetQr, getAssetById } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
 import { getPersonnel, inOffice } from '../../services/personnelService'
-import { getTransfers, submitTransfer, approveTransfer, rejectTransfer } from '../../services/transferService'
+import { getTransfers, submitTransfer, approveTransfer, rejectTransfer, getReturnPapers } from '../../services/transferService'
+import { printReturnSlip, printPar, PAPERS_OFFICER_DEFAULTS } from '../../utils/returnPapersPrint'
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
 import Select from '../../components/common/Select'
 
@@ -90,7 +91,17 @@ function php(v) {
   if (v == null) return 'N/A'
   return '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 }
+const EMPTY_TRANSFER = { toOfficeId: '', toPersonnelId: '', reason: '', newParNumber: '' }
 const isTouchDevice = () => window.matchMedia?.('(pointer: coarse)').matches
+
+// Who signs the return slips and PARs for the GSO, remembered in this browser.
+const OFFICER_KEY = 'return-papers-officer'
+const readOfficer = () => {
+  try { return { ...PAPERS_OFFICER_DEFAULTS, ...JSON.parse(localStorage.getItem(OFFICER_KEY) || '{}') } } catch { return { ...PAPERS_OFFICER_DEFAULTS } }
+}
+const saveOfficer = (o) => { try { localStorage.setItem(OFFICER_KEY, JSON.stringify(o)) } catch { /* not remembered */ } }
+// a PAR No. starts with the asset's acquisition year-month (YYYY-MM:SERIAL)
+const parPrefix = (acquisitionDate) => (acquisitionDate ? `${String(acquisitionDate).slice(0, 7)}:` : '')
 
 function printAssetQR(asset) {
   const svgEl = document.getElementById('qr-result-svg')
@@ -278,15 +289,29 @@ function TransferAsset() {
   }
 
   // ── Transfer form ──────────────────────────────────────────────────────────
-  const [transfer, setTransfer]         = useState({ toOfficeId: '', toPersonnelId: '', reason: '' })
+  const [transfer, setTransfer]         = useState(EMPTY_TRANSFER)
   const [transferErrors, setTransferErrors] = useState({})
   const [submitting, setSubmitting]     = useState(false)
   const pendingForResult = result && requests.find((r) => r.assetId === result.id && r.status === 'PENDING_APPROVAL')
 
   useEffect(() => {
-    setTransfer({ toOfficeId: '', toPersonnelId: '', reason: '' })
+    setTransfer(EMPTY_TRANSFER)
     setTransferErrors({})
-  }, [result?.id])
+  }, [result?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Property Return Slips and PARs from this asset's earlier end-user changes
+  const [papers, setPapers]   = useState({ returnSlips: [], pars: [] })
+  const [officer, setOfficer] = useState(readOfficer)
+  const loadPapers = useCallback((assetId) => {
+    if (!assetId) { setPapers({ returnSlips: [], pars: [] }); return }
+    getReturnPapers(assetId).then(({ data }) => setPapers(data)).catch(() => setPapers({ returnSlips: [], pars: [] }))
+  }, [])
+  useEffect(() => { loadPapers(result?.id) }, [result?.id, loadPapers])
+  const setOfficerField = (key) => (e) => {
+    const next = { ...officer, [key]: e.target.value }
+    setOfficer(next)
+    saveOfficer(next)
+  }
 
   // Staff: their own offices (one of which, for an asset they can see, is the asset's office). Moving
   // the asset within them keeps the current accountable person by default; moving it anywhere else
@@ -300,10 +325,20 @@ function TransferAsset() {
     return personnel.some((p) => p.id === current && inOffice(p, officeId)) ? String(current) : ''
   }
   const personRequired = !isAdmin && !!transfer.toOfficeId && !isOwnOffice(transfer.toOfficeId)
+  // A new end user: the current one returns the asset on a Property Return Slip and the new one
+  // gets a new PAR, whose number the admin types (for a staff request, at approval).
+  const currentPersonId = result?.accountablePerson?.id
+  const endUserChanges = !!transfer.toOfficeId && String(transfer.toPersonnelId || '') !== String(currentPersonId || '')
+  const makesReturnSlip = endUserChanges && !!currentPersonId
+  const needsNewPar = endUserChanges && !!transfer.toPersonnelId
 
   const setT = (key) => (e) => {
     const value = e.target.value
-    setTransfer((p) => ({ ...p, [key]: value, ...(key === 'toOfficeId' ? { toPersonnelId: defaultPersonFor(value) } : {}) }))
+    setTransfer((p) => {
+      const next = { ...p, [key]: value, ...(key === 'toOfficeId' ? { toPersonnelId: defaultPersonFor(value) } : {}) }
+      if (!next.newParNumber && next.toPersonnelId) next.newParNumber = parPrefix(result?.acquisitionDate)
+      return next
+    })
     setTransferErrors((p) => { const n = { ...p }; delete n[key]; if (key === 'toOfficeId') delete n.toPersonnelId; return n })
   }
 
@@ -314,6 +349,10 @@ function TransferAsset() {
     const errs = {}
     if (!transfer.toOfficeId) errs.toOfficeId = 'Choose the office the asset is moving to.'
     if (personRequired && !transfer.toPersonnelId) errs.toPersonnelId = 'Choose who will be accountable for it in the new office.'
+    const typedPar = transfer.newParNumber.trim()
+    if (isAdmin && needsNewPar && (!typedPar || typedPar === parPrefix(result.acquisitionDate))) {
+      errs.newParNumber = 'Enter the new PAR No. for the new end user.'
+    }
     setTransferErrors(errs)
     if (Object.keys(errs).length) return
 
@@ -324,14 +363,18 @@ function TransferAsset() {
         toOfficeId: Number(transfer.toOfficeId),
         toPersonnelId: transfer.toPersonnelId ? Number(transfer.toPersonnelId) : null,
         reason: transfer.reason.trim() || null,
+        newParNumber: isAdmin && needsNewPar ? typedPar : null,
       })
       if (data.status === 'APPLIED') {
         applyAssetUpdate(data.asset)
-        show(`Asset transferred to ${data.asset.office?.officeName || 'the new office'}.`, 'success')
+        loadPapers(data.asset.id)
+        show(makesReturnSlip || needsNewPar
+          ? `Asset transferred. ${makesReturnSlip ? 'The Property Return Slip' : ''}${makesReturnSlip && needsNewPar ? ' and the new PAR are' : makesReturnSlip ? ' is' : 'The new PAR is'} ready to print below.`
+          : `Asset transferred to ${data.asset.office?.officeName || 'the new office'}.`, 'success')
       } else {
         show('Transfer request sent. An administrator needs to approve it.', 'success')
       }
-      setTransfer({ toOfficeId: '', toPersonnelId: '', reason: '' })
+      setTransfer(EMPTY_TRANSFER)
       loadRequests()
     } catch (err) {
       show(err.response?.data?.message || 'Failed to transfer the asset.', 'error')
@@ -344,14 +387,27 @@ function TransferAsset() {
   const [rejectingId, setRejectingId] = useState(null)
   const [rejectNote, setRejectNote]   = useState('')
   const [reviewingId, setReviewingId] = useState(null)
+  // approving a request that changes the end user asks for the new PAR No. first
+  const [parForId, setParForId]       = useState(null)
+  const [approvePar, setApprovePar]   = useState('')
+  const changesEndUser = (r) => !!r.toPersonnelId && r.toPersonnelId !== r.currentPersonnelId
 
   const approve = async (r) => {
+    if (changesEndUser(r) && parForId !== r.id) {
+      const asset = assetItems.find((a) => a.id === r.assetId)
+      setParForId(r.id)
+      setApprovePar(parPrefix(asset?.acquisitionDate))
+      setRejectingId(null)
+      return
+    }
     setReviewingId(r.id)
     try {
-      const { data } = await approveTransfer(r.id)
+      const { data } = await approveTransfer(r.id, changesEndUser(r) ? approvePar.trim() : null)
       dispatch(updateAssetInStore(data))
-      if (result?.id === data.id) setResult(data)
-      show(`Approved: ${r.propertyNumber} moved to ${r.toOfficeName}.`, 'success')
+      if (result?.id === data.id) { setResult(data); loadPapers(data.id) }
+      setParForId(null)
+      setApprovePar('')
+      show(`Approved: ${r.propertyNumber} moved to ${r.toOfficeName}.${changesEndUser(r) ? ' Its return slip and new PAR are on the asset.' : ''}`, 'success')
       loadRequests()
     } catch (err) {
       show(err.response?.data?.message || 'Failed to approve the request.', 'error')
@@ -638,6 +694,34 @@ function TransferAsset() {
                       )}
                     </div>
 
+                    {endUserChanges && (makesReturnSlip || needsNewPar) && (
+                      <div className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 px-4 py-3 space-y-3">
+                        <p className="text-sm text-slate-700 dark:text-zinc-300">
+                          {makesReturnSlip && <>A <strong>Property Return Slip</strong> will be made for {result.accountablePerson.fullName}, who returns the asset to the GSO.</>}
+                          {makesReturnSlip && needsNewPar && ' '}
+                          {needsNewPar && <>The new end user receives it on a <strong>new PAR</strong>{isAdmin ? '.' : ', which the GSO issues when it approves this transfer.'}</>}
+                        </p>
+                        {isAdmin && needsNewPar && (
+                          <div>
+                            <label htmlFor="new-par" className={LABEL}>New PAR No.<span className="text-red-500 ml-0.5">*</span></label>
+                            <input
+                              id="new-par"
+                              value={transfer.newParNumber}
+                              onChange={setT('newParNumber')}
+                              maxLength={50}
+                              placeholder={`${parPrefix(result.acquisitionDate) || 'YYYY-MM:'}SERIAL`}
+                              aria-describedby="new-par-hint"
+                              className={`${INPUT} font-mono`}
+                            />
+                            <p id="new-par-hint" className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                              Format YYYY-MM:SERIAL, starting with the acquisition month.{result.parNumber ? ` Replaces ${result.parNumber}.` : ''}
+                            </p>
+                            {transferErrors.newParNumber && <p className="text-xs text-red-500 mt-1">{transferErrors.newParNumber}</p>}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div>
                       <label htmlFor="to-reason" className={LABEL}>Reason <span className="text-slate-400 font-normal">(optional)</span></label>
                       <textarea id="to-reason" value={transfer.reason} onChange={setT('reason')} rows={2} maxLength={500} placeholder="e.g. Reassigned to the new Records Officer" className={INPUT} />
@@ -651,6 +735,45 @@ function TransferAsset() {
                   </form>
                 )}
               </section>
+
+              {/* Return slips and PARs from end-user changes, for printing */}
+              {(papers.returnSlips.length > 0 || papers.pars.length > 0) && (
+                <section className={`${CARD} overflow-hidden`} aria-labelledby="papers-heading">
+                  <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800">
+                    <h2 id="papers-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">Return slips and PARs</h2>
+                    <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">Made each time this asset changed end user. Print them for signing.</p>
+                  </div>
+                  <ul className="divide-y divide-slate-100 dark:divide-zinc-800">
+                    {[
+                      ...papers.returnSlips.map((s) => ({ key: `s${s.id}`, at: s.createdAt, title: `Property Return Slip ${s.slipNumber}`,
+                        detail: `Returned by ${s.returnedByName} · ${fmt(s.returnDate)}`, print: () => printReturnSlip(s, officer) })),
+                      ...papers.pars.map((p) => ({ key: `p${p.id}`, at: p.createdAt, title: `PAR ${p.parNumber}${p.original ? ' (original)' : ''}`,
+                        detail: `${p.personnelName || 'No end user'} · ${fmt(p.issueDate)}`, print: () => printPar(p, officer) })),
+                    ].sort((a, b) => String(b.at).localeCompare(String(a.at)) || a.key.localeCompare(b.key)).map((d) => (
+                      <li key={d.key} className="px-5 py-3 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">{d.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{d.detail}</p>
+                        </div>
+                        <Button variant="secondary" size="sm" onClick={d.print}>Print</Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <details className="border-t border-slate-200 dark:border-zinc-800">
+                    <summary className="px-5 py-3 text-xs font-semibold text-slate-500 dark:text-zinc-400 cursor-pointer select-none">Signed for the GSO by {officer.name || 'N/A'}</summary>
+                    <div className="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className={LABEL}>Name</span>
+                        <input value={officer.name} onChange={setOfficerField('name')} className={INPUT} />
+                      </label>
+                      <label className="block">
+                        <span className={LABEL}>Position</span>
+                        <input value={officer.position} onChange={setOfficerField('position')} className={INPUT} />
+                      </label>
+                    </div>
+                  </details>
+                </section>
+              )}
 
               {/* Update Status (as on the old QR Scanner) */}
               <div className={`${CARD} p-5`}>
@@ -764,7 +887,25 @@ function TransferAsset() {
                       )}
                     </div>
 
-                    {isAdmin && (rejectingId === r.id ? (
+                    {isAdmin && parForId === r.id && (
+                      <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); approve(r) }}>
+                        <p className="text-xs text-slate-600 dark:text-zinc-300">
+                          {r.currentPersonnelName ? `${r.currentPersonnelName} returns the asset on a Property Return Slip. ` : ''}
+                          Enter the PAR No. for {r.toPersonnelName}.
+                        </p>
+                        <label htmlFor={`par-${r.id}`} className="sr-only">New PAR No.</label>
+                        <input id={`par-${r.id}`} value={approvePar} onChange={(e) => setApprovePar(e.target.value)} maxLength={50}
+                          placeholder="YYYY-MM:SERIAL" className={`${INPUT} font-mono`} autoFocus />
+                        <div className="flex gap-2">
+                          <Button type="submit" size="sm" disabled={reviewingId === r.id || !approvePar.includes(':') || approvePar.trim().endsWith(':')}>
+                            {reviewingId === r.id ? 'Approving…' : 'Approve with this PAR'}
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => { setParForId(null); setApprovePar('') }}>Cancel</Button>
+                        </div>
+                      </form>
+                    )}
+
+                    {isAdmin && parForId !== r.id && (rejectingId === r.id ? (
                       <div className="flex flex-col sm:flex-row gap-2">
                         <label htmlFor={`reject-${r.id}`} className="sr-only">Reason for rejecting</label>
                         <input
@@ -784,7 +925,7 @@ function TransferAsset() {
                         <Button size="sm" onClick={() => approve(r)} disabled={reviewingId === r.id}>
                           {reviewingId === r.id ? 'Approving…' : 'Approve'}
                         </Button>
-                        <Button variant="secondary" size="sm" onClick={() => setRejectingId(r.id)} disabled={reviewingId === r.id}>Reject</Button>
+                        <Button variant="secondary" size="sm" onClick={() => { setRejectingId(r.id); setParForId(null) }} disabled={reviewingId === r.id}>Reject</Button>
                       </div>
                     ))}
                   </li>

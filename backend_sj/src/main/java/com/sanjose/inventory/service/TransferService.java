@@ -32,11 +32,16 @@ public class TransferService {
     private final OfficeAssignmentService officeAssignments;
     private final PropertyNumberService propertyNumberService;
     private final AssetQrService assetQrService;
+    private final ReturnSlipService returnSlipService;
 
-    public record TransferRequest(Long assetId, Long toOfficeId, Long toPersonnelId, String toLocation, String reason) {}
+    // newParNumber: the PAR issued to the new end user, needed when the accountable person changes
+    // (an admin types it here; for a staff request, at approval).
+    public record TransferRequest(Long assetId, Long toOfficeId, Long toPersonnelId, String toLocation, String reason,
+                                  String newParNumber) {}
 
     public record TransferView(
         Long id, Long assetId, String propertyNumber, String assetDescription,
+        Long currentPersonnelId, String currentPersonnelName,
         Long fromOfficeId, String fromOfficeName, Long toOfficeId, String toOfficeName,
         Long toPersonnelId, String toPersonnelName, String toLocation, String reason,
         String status, String reviewNote,
@@ -117,7 +122,7 @@ public class TransferService {
         Long transferId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
         if (me.admin()) {
-            Asset result = apply(transferId, me.id());
+            Asset result = apply(transferId, me.id(), req.newParNumber());
             return Map.of("status", "APPLIED", "asset", result);
         }
         auditLogService.log("TRANSFER_REQUESTED", "Assets", req.assetId(), "asset",
@@ -139,11 +144,11 @@ public class TransferService {
     }
 
     @Transactional
-    public Asset approve(Long transferId) {
+    public Asset approve(Long transferId, String newParNumber) {
         accessService.requireAdmin("approve transfer requests");
         TransferView t = findView(transferId);
         if (!"PENDING_APPROVAL".equals(t.status())) throw new IllegalStateException("This request was already " + t.status().toLowerCase() + ".");
-        return apply(transferId, accessService.current().id());
+        return apply(transferId, accessService.current().id(), newParNumber);
     }
 
     @Transactional
@@ -162,12 +167,23 @@ public class TransferService {
         return findView(transferId);
     }
 
-    // Moves the asset and records it in Asset History, the audit log and the live feed.
-    private Asset apply(Long transferId, Long reviewerId) {
+    // Moves the asset and records it in Asset History, the audit log and the live feed. When the
+    // end user (accountable person) changes, the old one returns the asset on a Property Return
+    // Slip and the new one receives it on a new PAR.
+    private Asset apply(Long transferId, Long reviewerId, String newParNumber) {
         TransferView t = findView(transferId);
         Asset before = assetService.findById(t.assetId());
         Long fromOfficeId = before.getOffice() != null ? before.getOffice().getId() : null;
         boolean officeChanges = !Objects.equals(fromOfficeId, t.toOfficeId());
+        Long fromPersonnelId = before.getAccountablePerson() != null ? before.getAccountablePerson().getId() : null;
+        boolean endUserChanges = !Objects.equals(fromPersonnelId, t.toPersonnelId());
+        String newPar = null;
+        if (endUserChanges && t.toPersonnelId() != null) {
+            newPar = assetService.checkNewParNumber(newParNumber, before);
+            returnSlipService.requireUnusedPar(newPar);
+        }
+        Long slipId = endUserChanges && fromPersonnelId != null
+            ? returnSlipService.recordReturn(before, transferId, reviewerId) : null;
 
         jdbcTemplate.update("""
             UPDATE assets SET office_id = ?, personnel_id = ?, location = ?,
@@ -187,12 +203,19 @@ public class TransferService {
             jdbcTemplate.update("UPDATE assets SET property_number = ? WHERE asset_id = ?", newNumber, t.assetId());
             assetQrService.reissue(t.assetId(), newNumber);
         }
+        if (newPar != null) {
+            jdbcTemplate.update("UPDATE assets SET par_number = ? WHERE asset_id = ?", newPar, t.assetId());
+            returnSlipService.issuePar(before, assetService.findById(t.assetId()), newPar, t.toPersonnelId(),
+                transferId, slipId, reviewerId);
+        }
 
         String note = "Transferred from " + (t.fromOfficeName() != null ? t.fromOfficeName() : "unassigned")
             + " to " + t.toOfficeName() + " (" + t.toLocation() + ")"
             + (t.toPersonnelName() != null ? ", accountable: " + t.toPersonnelName() : "")
             + (t.reason() != null ? ". Reason: " + t.reason() : "")
-            + (renumbered ? ". Property number changed from " + before.getPropertyNumber() + " to " + newNumber : "");
+            + (renumbered ? ". Property number changed from " + before.getPropertyNumber() + " to " + newNumber : "")
+            + (slipId != null ? ". Returned by " + before.getAccountablePerson().getFullName() + " on a Property Return Slip" : "")
+            + (newPar != null ? ". New PAR " + newPar + (before.getParNumber() != null ? " replaces " + before.getParNumber() : "") : "");
         assetHistoryService.logEvent(t.assetId(), "TRANSFERRED", fromOfficeId, t.toOfficeId(), reviewerId, note);
         auditLogService.log("ASSET_TRANSFERRED", "Assets", t.assetId(), "asset",
             "Transferred " + t.propertyNumber() + " to " + t.toOfficeName());
@@ -234,6 +257,7 @@ public class TransferService {
 
     private static final String VIEW_SQL = """
         SELECT t.transfer_id, t.asset_id, a.property_number, a.description,
+               a.personnel_id AS current_personnel_id, cp.full_name AS current_personnel_name,
                t.from_office_id, fo.office_name AS from_office_name,
                t.to_office_id, tof.office_name AS to_office_name,
                t.to_personnel_id, p.full_name AS to_personnel_name,
@@ -245,12 +269,14 @@ public class TransferService {
         LEFT JOIN offices fo  ON fo.office_id = t.from_office_id
         LEFT JOIN offices tof ON tof.office_id = t.to_office_id
         LEFT JOIN personnel p ON p.personnel_id = t.to_personnel_id
+        LEFT JOIN personnel cp ON cp.personnel_id = a.personnel_id
         LEFT JOIN users ru    ON ru.user_id = t.requested_by
         LEFT JOIN users rv    ON rv.user_id = t.reviewed_by
         """;
 
     private static final org.springframework.jdbc.core.RowMapper<TransferView> VIEW_MAPPER = (rs, rn) -> new TransferView(
         rs.getLong("transfer_id"), rs.getLong("asset_id"), rs.getString("property_number"), rs.getString("description"),
+        rs.getObject("current_personnel_id", Long.class), rs.getString("current_personnel_name"),
         rs.getObject("from_office_id", Long.class), rs.getString("from_office_name"),
         rs.getLong("to_office_id"), rs.getString("to_office_name"),
         rs.getObject("to_personnel_id", Long.class), rs.getString("to_personnel_name"),

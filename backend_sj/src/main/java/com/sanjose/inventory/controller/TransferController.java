@@ -29,9 +29,9 @@ public class TransferController {
     }
 
     @PostMapping("/{id}/approve")
-    public Asset approve(@PathVariable Long id) {
+    public Asset approve(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
         accessService.requireAdmin("approve transfer requests");
-        return transferService.approve(id);
+        return transferService.approve(id, body != null ? body.get("newParNumber") : null);
     }
 
     @PostMapping("/{id}/reject")

@@ -149,6 +149,17 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
     await _review(() => TransferService().reject(t.id, note), 'Rejected the transfer of ${t.propertyNumber}.');
   }
 
+  Future<void> _approve() async {
+    final t = widget.item;
+    String? par;
+    if (t.changesEndUser) {
+      par = await showDialog<String>(context: context, builder: (_) => _ParDialog(item: t));
+      if (par == null) return;
+    }
+    await _review(() => TransferService().approve(t.id, newParNumber: par),
+        'Approved: ${t.propertyNumber} moved to ${t.toOfficeName ?? 'the new office'}.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = widget.item;
@@ -227,10 +238,7 @@ class _TransferCardState extends ConsumerState<_TransferCard> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: _busy
-                            ? null
-                            : () => _review(() => TransferService().approve(t.id),
-                                'Approved: ${t.propertyNumber} moved to ${t.toOfficeName ?? 'the new office'}.'),
+                        onPressed: _busy ? null : _approve,
                         icon: _busy
                             ? const SizedBox(
                                 width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -321,6 +329,66 @@ class _RejectDialogState extends State<_RejectDialog> {
           onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
           child: const Text('Reject'),
         ),
+      ],
+    );
+  }
+}
+
+/// Approving a transfer to a new end user: the PAR No. the GSO issues them.
+class _ParDialog extends StatefulWidget {
+  final TransferModel item;
+  const _ParDialog({required this.item});
+
+  @override
+  State<_ParDialog> createState() => _ParDialogState();
+}
+
+class _ParDialogState extends State<_ParDialog> {
+  final _ctrl = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final t = _ctrl.text.trim();
+    if (!t.contains(':') || t.endsWith(':')) {
+      setState(() => _error = 'Enter the PAR No. as YYYY-MM:SERIAL.');
+      return;
+    }
+    Navigator.pop(context, t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.item;
+    return AlertDialog(
+      title: const Text('New PAR No.'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+              '${t.currentPersonnelName != null ? '${t.currentPersonnelName} returns the asset on a Property Return Slip. ' : ''}'
+              'Enter the PAR No. for ${t.toPersonnelName ?? 'the new end user'}.',
+              style: TextStyle(color: context.colors.textSecondary, fontSize: 15, height: 1.45)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            maxLength: 50,
+            style: const TextStyle(fontSize: 16, fontFamily: 'monospace'),
+            decoration: InputDecoration(labelText: 'PAR No.', hintText: 'YYYY-MM:SERIAL', errorText: _error),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: _submit, child: const Text('Approve')),
       ],
     );
   }

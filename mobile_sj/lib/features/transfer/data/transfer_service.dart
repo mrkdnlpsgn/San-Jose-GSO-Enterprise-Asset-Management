@@ -24,11 +24,13 @@ class TransferService {
     required int toOfficeId,
     int? toPersonnelId,
     String? reason,
+    String? newParNumber,
     String? idempotencyKey,
   }) async {
     try {
       final res = await _dio.post('/transfers',
-          data: body(assetId: assetId, toOfficeId: toOfficeId, toPersonnelId: toPersonnelId, reason: reason),
+          data: body(
+              assetId: assetId, toOfficeId: toOfficeId, toPersonnelId: toPersonnelId, reason: reason, newParNumber: newParNumber),
           options: idempotencyKey != null ? Options(headers: {'Idempotency-Key': idempotencyKey}) : null);
       return (res.data as Map<String, dynamic>)['status'] as String? ?? 'APPLIED';
     } catch (e) {
@@ -37,17 +39,21 @@ class TransferService {
   }
 
   /// The request body - also what the outbox saves when the phone is offline.
-  static Map<String, dynamic> body({required int assetId, required int toOfficeId, int? toPersonnelId, String? reason}) => {
+  /// newParNumber: the PAR issued to a new end user (admin only); the old one gets a Property Return Slip.
+  static Map<String, dynamic> body(
+          {required int assetId, required int toOfficeId, int? toPersonnelId, String? reason, String? newParNumber}) =>
+      {
         'assetId': assetId,
         'toOfficeId': toOfficeId,
         'toPersonnelId': toPersonnelId,
         // no toLocation: the server sets the asset's location to the new office's name
         'reason': (reason == null || reason.trim().isEmpty) ? null : reason.trim(),
+        'newParNumber': (newParNumber == null || newParNumber.trim().isEmpty) ? null : newParNumber.trim(),
       };
 
-  Future<void> approve(int id) async {
+  Future<void> approve(int id, {String? newParNumber}) async {
     try {
-      await _dio.post('/transfers/$id/approve');
+      await _dio.post('/transfers/$id/approve', data: {if (newParNumber != null) 'newParNumber': newParNumber});
     } catch (e) {
       throw ApiException.from(e);
     }

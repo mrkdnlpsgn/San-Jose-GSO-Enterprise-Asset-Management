@@ -31,6 +31,10 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
   final String _idempotencyKey = newIdempotencyKey();
   final _formKey = GlobalKey<FormState>();
   final _reason = TextEditingController();
+  // a PAR No. starts with the acquisition year-month (YYYY-MM:SERIAL)
+  late final String _parPrefix =
+      widget.asset.acquisitionDate.length >= 7 ? '${widget.asset.acquisitionDate.substring(0, 7)}:' : '';
+  late final _newPar = TextEditingController(text: _parPrefix);
   int? _toOfficeId;
   int? _toPersonnelId;
   bool _submitting = false;
@@ -39,6 +43,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
   @override
   void dispose() {
     _reason.dispose();
+    _newPar.dispose();
     super.dispose();
   }
 
@@ -50,6 +55,11 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
     final me = ref.read(authProvider).valueOrNull;
     return (me?.officeIds.contains(officeId) ?? false) || officeId == me?.officeId || officeId == widget.asset.office.id;
   }
+
+  // A new end user: the current one returns the asset on a Property Return Slip, the new one gets a new PAR.
+  bool get _endUserChanges => _toOfficeId != null && _toPersonnelId != widget.asset.accountablePerson?.id;
+  bool get _makesReturnSlip => _endUserChanges && widget.asset.accountablePerson != null;
+  bool get _needsNewPar => _endUserChanges && _toPersonnelId != null;
 
   bool _personRequired(bool isAdmin) => !isAdmin && _toOfficeId != null && !_isOwnOffice(_toOfficeId);
 
@@ -63,6 +73,8 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
+    final isAdmin = ref.read(authProvider).valueOrNull?.isAdmin ?? false;
+    final newPar = isAdmin && _needsNewPar ? _newPar.text.trim() : null;
     try {
       final status = await sendOrQueue<String>(
         ref,
@@ -71,6 +83,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
           toOfficeId: _toOfficeId!,
           toPersonnelId: _toPersonnelId,
           reason: _reason.text,
+          newParNumber: newPar,
           idempotencyKey: _idempotencyKey,
         ),
         queue: () => Outbox.instance.add(
@@ -78,7 +91,11 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
           method: 'POST',
           path: '/transfers',
           body: TransferService.body(
-              assetId: widget.asset.id, toOfficeId: _toOfficeId!, toPersonnelId: _toPersonnelId, reason: _reason.text),
+              assetId: widget.asset.id,
+              toOfficeId: _toOfficeId!,
+              toPersonnelId: _toPersonnelId,
+              reason: _reason.text,
+              newParNumber: newPar),
           label: 'Transfer ${widget.asset.propertyNumber}',
           idempotencyKey: _idempotencyKey,
         ),
@@ -95,6 +112,7 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(status == 'APPLIED'
             ? 'Transferred: ${widget.asset.propertyNumber} has been moved.'
+                '${_makesReturnSlip || _needsNewPar ? ' Print its return slip and PAR from the web Transfer page.' : ''}'
             : 'Request sent. An administrator will review the transfer.'),
       ));
       context.pop(true);
@@ -231,6 +249,38 @@ class _TransferFormScreenState extends ConsumerState<TransferFormScreen> {
                 );
               },
             ),
+            if (_makesReturnSlip || _needsNewPar) ...[
+              const SizedBox(height: 16),
+              Callout(
+                [
+                  if (_makesReturnSlip)
+                    'A Property Return Slip will be made for ${asset.accountablePerson!.fullName}, who returns the asset to the GSO.',
+                  if (_needsNewPar)
+                    isAdmin
+                        ? 'The new end user receives it on a new PAR.'
+                        : 'The new end user receives it on a new PAR, which the GSO issues when it approves this transfer.',
+                ].join(' '),
+                tone: CalloutTone.info,
+              ),
+            ],
+            if (isAdmin && _needsNewPar) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _newPar,
+                maxLength: 50,
+                style: const TextStyle(fontSize: 16, fontFamily: 'monospace'),
+                decoration: InputDecoration(
+                  labelText: 'New PAR No. (required)',
+                  hintText: '${_parPrefix.isEmpty ? 'YYYY-MM:' : _parPrefix}SERIAL',
+                  helperText: 'Starts with the acquisition month.'
+                      '${asset.parNumber != null && asset.parNumber!.isNotEmpty ? ' Replaces ${asset.parNumber}.' : ''}',
+                ),
+                validator: (v) {
+                  final t = (v ?? '').trim();
+                  return t.isEmpty || t == _parPrefix || t.endsWith(':') ? 'Enter the new PAR No. for the new end user.' : null;
+                },
+              ),
+            ],
             const SizedBox(height: 16),
             TextFormField(
               controller: _reason,
