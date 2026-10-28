@@ -109,38 +109,58 @@ function printAssetQR(asset) {
   printQrSticker({ qrHtml: svgEl.outerHTML, propertyNumber: asset.propertyNumber })
 }
 
-// Property Return Slips and PARs with a Print button each, newest first. `showAsset` adds the
-// property number and description (the page-wide list, where the papers are for many assets).
-function PapersCard({ id, heading, intro, papers, officer, onOfficerChange, showAsset = false, emptyText }) {
+// Property Return Slips and PARs, one row per end-user change: the old end user's return slip and
+// the new one's PAR, each with its own Print button. An asset's original PAR (kept when it was first
+// reissued) is a row of its own, under the changes. `showAsset` adds the property number and
+// description (the page-wide list, where the papers are for many assets).
+function PapersCard({ heading, intro, papers, officer, onOfficerChange, showAsset = false, emptyText }) {
+  const byTransfer = new Map()
+  const rowFor = (transferId, at, asset) => {
+    if (!byTransfer.has(transferId)) byTransfer.set(transferId, { key: `t${transferId}`, at, asset })
+    return byTransfer.get(transferId)
+  }
+  papers.returnSlips.forEach((s) => { rowFor(s.transferId ?? `s${s.id}`, s.createdAt, s).slip = s })
+  const originals = []
+  papers.pars.forEach((p) => {
+    if (p.original || p.transferId == null) originals.push({ key: `p${p.id}`, at: p.createdAt, asset: p, par: p, original: true })
+    else rowFor(p.transferId, p.createdAt, p).par = p
+  })
   const rows = [
-    ...papers.returnSlips.map((s) => ({ key: `s${s.id}`, at: s.createdAt, kind: 'Return Slip', number: s.slipNumber,
-      asset: `${s.propertyNumber}: ${s.description}`,
-      detail: `Returned by ${s.returnedByName} · ${fmt(s.returnDate)}`, print: () => printReturnSlip(s, officer) })),
-    ...papers.pars.map((p) => ({ key: `p${p.id}`, at: p.createdAt, kind: 'PAR', number: `${p.parNumber}${p.original ? ' (original)' : ''}`,
-      asset: `${p.propertyNumber}: ${p.description}`,
-      detail: `Issued to ${p.personnelName || 'no end user'} · ${fmt(p.issueDate)}`, print: () => printPar(p, officer) })),
-  ].sort((a, b) => String(b.at).localeCompare(String(a.at)) || a.key.localeCompare(b.key))
+    ...[...byTransfer.values()].sort((x, y) => String(y.at).localeCompare(String(x.at))),
+    ...originals.sort((x, y) => String(y.at).localeCompare(String(x.at))),
+  ]
 
   return (
-    <section className={`${CARD} overflow-hidden`} aria-labelledby={`${id}-heading`}>
+    <section className={`${CARD} overflow-hidden`} aria-labelledby="papers-heading">
       <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800">
-        <h2 id={`${id}-heading`} className="text-base font-semibold text-slate-800 dark:text-zinc-100">{heading}</h2>
+        <h2 id="papers-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">{heading}</h2>
         <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">{intro}</p>
       </div>
       {rows.length === 0 ? (
         <p className="px-5 py-6 text-sm text-slate-400 dark:text-zinc-500 text-center">{emptyText}</p>
       ) : (
         <ul className="divide-y divide-slate-100 dark:divide-zinc-800 max-h-[28rem] overflow-y-auto">
-          {rows.map((d) => (
-            <li key={d.key} className="px-5 py-3 flex items-center justify-between gap-3">
+          {rows.map((r) => (
+            <li key={r.key} className="px-5 py-3.5 space-y-2">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">
-                  {d.kind} <span className="font-mono">{d.number}</span>
+                  {r.original
+                    ? `Original PAR, issued to ${r.par.personnelName || 'no end user'}`
+                    : <>{r.slip?.returnedByName || 'No end user'} <span aria-hidden="true">→</span><span className="sr-only">to</span> {r.par?.personnelName || 'no end user'}</>}
                 </p>
-                {showAsset && <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5 truncate">{d.asset}</p>}
-                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">{d.detail}</p>
+                {showAsset && (
+                  <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5 truncate">{r.asset.propertyNumber}: {r.asset.description}</p>
+                )}
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                  {fmt(r.original ? r.par.issueDate : (r.slip?.returnDate || r.par?.issueDate))}
+                  {r.slip && ` · Return Slip ${r.slip.slipNumber}`}
+                  {r.par && ` · PAR ${r.par.parNumber}`}
+                </p>
               </div>
-              <Button variant="secondary" size="sm" onClick={d.print}>Print</Button>
+              <div className="flex flex-wrap gap-2">
+                {r.slip && <Button variant="secondary" size="sm" onClick={() => printReturnSlip(r.slip, officer)}>Print Return Slip</Button>}
+                {r.par && <Button variant="secondary" size="sm" onClick={() => printPar(r.par, officer)}>Print PAR</Button>}
+              </div>
             </li>
           ))}
         </ul>
@@ -797,17 +817,6 @@ function TransferAsset() {
                 )}
               </section>
 
-              {/* Return slips and PARs from this asset's end-user changes */}
-              {(papers.returnSlips.length > 0 || papers.pars.length > 0) && (
-                <PapersCard
-                  id="asset-papers"
-                  heading="Return slips and PARs"
-                  intro="Made each time this asset changed end user. Print them for signing."
-                  papers={papers}
-                  officer={officer}
-                  onOfficerChange={setOfficerField}
-                />
-              )}
 
               {/* Update Status (as on the old QR Scanner) */}
               <div className={`${CARD} p-5`}>
@@ -969,16 +978,26 @@ function TransferAsset() {
           </section>
 
           <div className="mt-5">
-            <PapersCard
-              id="recent-papers"
-              heading="Return slips and PARs"
-              intro="When an asset goes to a new end user, the old one returns it on a Property Return Slip and the new one gets a new PAR. The latest are here to print."
-              papers={recentPapers}
-              officer={officer}
-              onOfficerChange={setOfficerField}
-              showAsset
-              emptyText="None yet. They are made when a transfer changes the accountable person."
-            />
+            {result ? (
+              <PapersCard
+                heading={`Return slips and PARs for ${result.propertyNumber}`}
+                intro="Made each time this asset changed end user. Print them for signing."
+                papers={papers}
+                officer={officer}
+                onOfficerChange={setOfficerField}
+                emptyText="This asset has none yet. They are made when a transfer changes its accountable person."
+              />
+            ) : (
+              <PapersCard
+                heading="Return slips and PARs"
+                intro="When an asset goes to a new end user, the old one returns it on a Property Return Slip and the new one gets a new PAR. The latest are here to print."
+                papers={recentPapers}
+                officer={officer}
+                onOfficerChange={setOfficerField}
+                showAsset
+                emptyText="None yet. They are made when a transfer changes the accountable person."
+              />
+            )}
           </div>
         </div>
       </div>
