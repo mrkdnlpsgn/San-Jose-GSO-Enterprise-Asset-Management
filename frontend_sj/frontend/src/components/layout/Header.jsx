@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { useLocation, Link } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import ConfirmDialog from '../common/ConfirmDialog'
-import SettingsMenu from '../common/SettingsMenu'
 import NotificationBell from '../common/NotificationBell'
-import UserAvatar from '../common/UserAvatar'
+import AccountMenu from '../common/AccountMenu'
 import { roleLabel as labelOfRole } from '../../utils/roles'
 
 const pageMeta = {
@@ -51,33 +50,10 @@ function Header({ onMenuOpen }) {
         <h1 className="text-base font-semibold text-gov-700 dark:text-white leading-tight truncate">{title}</h1>
       </div>
 
-      {/* Icons only: page tools (notifications, display settings), then the account (My Account,
-          sign out). Names and roles show as tooltips. */}
+      {/* Icons only: notifications, then the account menu (My Account, Appearance, Sign Out) */}
       <div className="flex items-center gap-1 flex-shrink-0">
         <NotificationBell />
-        <SettingsMenu iconOnly />
-
-        <div className="w-px h-6 bg-slate-200 dark:bg-zinc-800 mx-1.5" aria-hidden="true" />
-
-        <Link
-          to="/my-account"
-          title={`${name} (${roleLabel}) - My Account`}
-          aria-label={`My Account: ${name}, ${roleLabel}`}
-          className="flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150 group"
-        >
-          <UserAvatar user={user} className="w-8 h-8 text-xs ring-2 ring-transparent group-hover:ring-brand-400 transition-all duration-150" />
-        </Link>
-
-        <button
-          onClick={() => setShowLogoutConfirm(true)}
-          title="Sign Out"
-          aria-label="Sign Out"
-          className="flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] -mr-2 rounded-md text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-        </button>
+        <AccountMenu user={user} name={name} roleLabel={roleLabel} onSignOut={() => setShowLogoutConfirm(true)} />
       </div>
 
       {showLogoutConfirm && (
