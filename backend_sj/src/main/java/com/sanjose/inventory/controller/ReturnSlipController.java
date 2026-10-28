@@ -16,11 +16,6 @@ public class ReturnSlipController {
         return returnSlipService.forAsset(assetId);
     }
 
-    @GetMapping("/api/return-slips")
-    public ReturnSlipService.AssetPapers recent() {
-        return returnSlipService.recent();
-    }
-
     @GetMapping("/api/return-slips/{id}")
     public ReturnSlipService.ReturnSlip slip(@PathVariable Long id) {
         return returnSlipService.slip(id);

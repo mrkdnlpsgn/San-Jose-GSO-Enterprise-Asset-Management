@@ -9,4 +9,3 @@ export const rejectTransfer  = (id, note) => api.post(`/transfers/${id}/reject`,
 
 // Property Return Slips and PARs made when an asset changed end user.
 export const getReturnPapers = (assetId)  => api.get(`/assets/${assetId}/return-papers`);
-export const getRecentReturnPapers = ()   => api.get('/return-slips');

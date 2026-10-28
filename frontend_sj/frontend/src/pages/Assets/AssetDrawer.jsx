@@ -12,10 +12,12 @@ import { useEventStream } from '../../hooks/useEventStream'
 import AssetQrModal from './AssetQrModal'
 import { Badge, CONDITION_BADGE, LIFECYCLE_BADGE } from './assetBadges'
 import EvidenceModal from '../../components/common/EvidenceModal'
+import ReturnPapers, { hasReturnPapers } from '../../components/common/ReturnPapers'
+import { getReturnPapers } from '../../services/transferService'
 
-const TAB_LABELS = { details: 'Details', history: 'Lifecycle', specs: 'Specifications', ai: 'AI Insight', maintenance: 'Maintenance' }
+const TAB_LABELS = { details: 'Details', history: 'Lifecycle', specs: 'Specifications', ai: 'AI Insight', maintenance: 'Maintenance', papers: 'PARs & Return Slips' }
 // Shorter labels for phones so every tab fits on one row at any Text Size
-const TAB_LABELS_SHORT = { details: 'Details', history: 'History', specs: 'Specs', ai: 'AI', maintenance: 'Repairs' }
+const TAB_LABELS_SHORT = { details: 'Details', history: 'History', specs: 'Specs', ai: 'AI', maintenance: 'Repairs', papers: 'PARs' }
 
 const RECOMMENDATION_BADGE = {
   MAINTAIN:            'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/20',
@@ -62,6 +64,7 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
   const [maintenance, setMaintenance] = useState([])
   const [disposal, setDisposal]       = useState([])
   const [history, setHistory]         = useState([])
+  const [papers, setPapers]           = useState(null) // return slips and PARs from end-user changes
   const [tab, setTab]                 = useState('details')
   const [recommendation, setRecommendation] = useState(null)
   const [aiLoading, setAiLoading]     = useState(false)
@@ -96,6 +99,7 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
 
     const fetchAssetData = () => {
       getHistoryByAsset(asset.id).then(({ data }) => setHistory(data)).catch(() => {})
+      getReturnPapers(asset.id).then(({ data }) => setPapers(data)).catch(() => setPapers(null))
       // Loaded whatever the current condition, so a repaired asset still shows its records.
       getMaintenanceByAsset(asset.id).then(({ data }) => setMaintenance(data)).catch(() => setMaintenance([]))
       getDisposalByAsset(asset.id).then(({ data }) => setDisposal(data)).catch(() => setDisposal([]))
@@ -166,6 +170,7 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
 
   const tabs = ['details', 'history', 'specs', 'ai',
     ...(asset.condition === 'REPAIRABLE' || maintenance.length > 0 ? ['maintenance'] : []),
+    ...(hasReturnPapers(papers) ? ['papers'] : []),
   ]
   const so = (v) => (v > 0 ? `+${v}` : String(v))
 
@@ -393,6 +398,8 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
               </div>
             )
           })()}
+
+          {tab === 'papers' && hasReturnPapers(papers) && <ReturnPapers papers={papers} />}
 
           {full && tab === 'specs' && (
             asset.specifications ? (
