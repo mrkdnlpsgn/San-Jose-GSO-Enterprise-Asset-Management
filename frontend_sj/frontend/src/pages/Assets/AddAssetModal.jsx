@@ -125,7 +125,7 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
   const officeCode = offices.find((o) => String(o.id) === String(form.officeId))?.propertyCode
   // The auto-generated number, part by part: real values where known, a plain word where not.
   const numberPreview = [
-    { label: 'year-month', value: form.acquisitionDate ? form.acquisitionDate.slice(0, 7) : null },
+    { label: 'year',       value: form.acquisitionDate ? form.acquisitionDate.slice(0, 4) : null },
     { label: 'category',   value: catCode || null },
     { label: 'no.',        value: null },   // the next free serial, given when the asset is saved
     { label: 'office',     value: officeCode || null },

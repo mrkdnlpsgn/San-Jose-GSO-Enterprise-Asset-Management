@@ -73,7 +73,7 @@ function OfficeModal({ onClose, onSave, onDelete, initial = null }) {
           <input id="pn-code" className={INPUT_CLASS + ' max-w-[10rem] font-mono'} placeholder="e.g. 1061" maxLength={10}
             value={form.propertyCode} onChange={set('propertyCode')} aria-describedby="pn-code-hint" aria-invalid={!!errors.propertyCode} />
           <p id="pn-code-hint" className="text-xs text-slate-600 dark:text-zinc-400">
-            The office part of property numbers (YEAR-MONTH-CATEGORY-SERIAL-OFFICE). Letters and numbers only. Changing it doesn&apos;t change numbers already given.
+            The office part of property numbers (YEAR-CATEGORY-SERIAL-OFFICE). Letters and numbers only. Changing it doesn&apos;t change numbers already given.
           </p>
           {errors.propertyCode && <p className="text-xs text-red-700 dark:text-red-300">{errors.propertyCode}</p>}
         </div>

@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-// Renumbering existing assets to YEAR-MONTH-CATEGORY-SERIAL-OFFICE (admin only, see SecurityConfig).
+// Renumbering existing assets to YEAR-CATEGORY-SERIAL-OFFICE (admin only, see SecurityConfig).
 @RestController
 @RequestMapping("/api/property-numbers")
 @RequiredArgsConstructor

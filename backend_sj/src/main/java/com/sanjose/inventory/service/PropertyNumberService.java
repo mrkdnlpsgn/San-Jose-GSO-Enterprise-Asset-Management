@@ -17,8 +17,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// Property numbers: YEAR-MONTH-CATEGORY CODE-SERIAL-OFFICE CODE, e.g. 2014-05-020-376-8751.
-// Year-month is the acquisition date; the category and office codes are set by an admin on the
+// Property numbers: YEAR-CATEGORY CODE-SERIAL-OFFICE CODE, e.g. 2024-05030-012-1011.
+// The year is the acquisition year; the category and office codes are set by an admin on the
 // Categories and Offices pages; the serial counts up per category and is never reused (deleted
 // assets keep theirs). The office code follows the asset when it moves to another office.
 @Service
@@ -31,9 +31,9 @@ public class PropertyNumberService {
     private final AuditLogService auditLogService;
     private final SseEmitterService sseEmitterService;
 
-    // year-month, category code, serial, office code
-    private static final Pattern FORMAT = Pattern.compile("^(\\d{4}-\\d{2})-([A-Za-z0-9]+)-(\\d+)-([A-Za-z0-9]+)$");
-    private static final String FORMAT_SQL = "^[0-9]{4}-[0-9]{2}-[A-Za-z0-9]+-[0-9]+-[A-Za-z0-9]+$";
+    // year, category code, serial, office code
+    private static final Pattern FORMAT = Pattern.compile("^(\\d{4})-([A-Za-z0-9]+)-(\\d+)-([A-Za-z0-9]+)$");
+    private static final String FORMAT_SQL = "^[0-9]{4}-[A-Za-z0-9]+-[0-9]+-[A-Za-z0-9]+$";
     private static final Pattern CODE = Pattern.compile("^[A-Za-z0-9]{1,10}$");
 
     // Created here rather than in a migration script so a fresh or hosted database
@@ -48,6 +48,54 @@ public class PropertyNumberService {
                 jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN property_code VARCHAR(10) NULL");
             }
         }
+        seedDefaultCodes();
+    }
+
+    // The usual codes, filled in once while no category or office has a code yet (a fresh or
+    // hosted database); after that they are an admin's to change on the Categories and Offices pages.
+    // Categories: the COA account of the kind of property (1-06-05-030 ICT Equipment -> 05030).
+    // Offices: the LGU office codes used in the budget (1011 Office of the Mayor...).
+    private static final Map<String, String> DEFAULT_CATEGORY_CODES = Map.of(
+        "Appliances", "05990",                  // Other Machinery and Equipment
+        "ICT Equipment", "05030",
+        "Office Furniture", "07010",            // Furniture and Fixtures
+        "Office Equipment", "05020",
+        "Motor Vehicle", "06010",
+        "Heavy Equipment", "05080",             // Construction and Heavy Equipment
+        "Communication Equipment", "05070",
+        "Medical Equipment", "05110",
+        "Agricultural Equipment", "05040",      // Agricultural and Forestry Equipment
+        "Disaster & Rescue Equipment", "05090"  // Disaster Response and Rescue Equipment
+    );
+    private static final Map<String, String> DEFAULT_OFFICE_CODES = Map.ofEntries(
+        Map.entry("Office of the Mayor", "1011"),
+        Map.entry("Office of the Vice Mayor", "1016"),
+        Map.entry("Sangguniang Bayan Office", "1021"),
+        Map.entry("Human Resource Management Office", "1032"),
+        Map.entry("Municipal Planning and Development Office", "1041"),
+        Map.entry("Civil Registrar's Office", "1051"),
+        Map.entry("General Services Office", "1061"),
+        Map.entry("Budget Office", "1071"),
+        Map.entry("Accounting Office", "1081"),
+        Map.entry("Treasury Office", "1091"),
+        Map.entry("Assessor's Office", "1101"),
+        Map.entry("Information and Communications Technology Office", "1012"),
+        Map.entry("Municipal Health Office", "4411"),
+        Map.entry("Municipal Social Welfare and Development Office", "7611"),
+        Map.entry("Municipal Agriculture Office", "8711"),
+        Map.entry("Municipal Engineering Office", "8751"),
+        Map.entry("Disaster Risk Reduction and Management Office", "9911")
+    );
+
+    private void seedDefaultCodes() {
+        Integer any = jdbcTemplate.queryForObject(
+            "SELECT (SELECT COUNT(*) FROM categories WHERE property_code IS NOT NULL) + (SELECT COUNT(*) FROM offices WHERE property_code IS NOT NULL)",
+            Integer.class);
+        if (any != null && any > 0) return;
+        DEFAULT_CATEGORY_CODES.forEach((name, code) -> jdbcTemplate.update(
+            "UPDATE categories SET property_code = ? WHERE LOWER(category_name) = LOWER(?) AND property_code IS NULL", code, name));
+        DEFAULT_OFFICE_CODES.forEach((name, code) -> jdbcTemplate.update(
+            "UPDATE offices SET property_code = ? WHERE LOWER(office_name) = LOWER(?) AND property_code IS NULL", code, name));
     }
 
     // --- codes ---
@@ -124,13 +172,13 @@ public class PropertyNumberService {
 
     private static String format(LocalDate date, String cat, int serial, String office) {
         LocalDate d = date != null ? date : com.sanjose.inventory.config.AppTime.today();
-        return String.format("%d-%02d-%s-%03d-%s", d.getYear(), d.getMonthValue(), cat, serial, office);
+        return String.format("%d-%s-%03d-%s", d.getYear(), cat, serial, office);
     }
 
     // Highest serial any asset of the category has had (deleted ones too), plus one.
     private int nextSerial(Long categoryId) {
         Integer max = jdbcTemplate.queryForObject(
-            "SELECT MAX(CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(property_number, '-', 4), '-', -1) AS UNSIGNED)) "
+            "SELECT MAX(CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(property_number, '-', 3), '-', -1) AS UNSIGNED)) "
                 + "FROM assets WHERE category_id = ? AND property_number REGEXP ?",
             Integer.class, categoryId, FORMAT_SQL);
         return (max != null ? max : 0) + 1;
@@ -207,7 +255,7 @@ public class PropertyNumberService {
         }
         if (renumbered > 0) {
             auditLogService.log("ASSETS_RENUMBERED", "Assets", null, "asset",
-                "Renumbered " + renumbered + " asset(s) to YEAR-MONTH-CATEGORY-SERIAL-OFFICE, e.g. " + String.join(", ", changes.subList(0, Math.min(3, changes.size()))));
+                "Renumbered " + renumbered + " asset(s) to YEAR-CATEGORY-SERIAL-OFFICE, e.g. " + String.join(", ", changes.subList(0, Math.min(3, changes.size()))));
             sseEmitterService.emitAsset("CHANGED", null, null);
         }
         Map<String, Object> out = status();

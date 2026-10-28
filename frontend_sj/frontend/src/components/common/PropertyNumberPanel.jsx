@@ -47,8 +47,8 @@ export default function PropertyNumberPanel({ refreshKey }) {
         <div className="flex-1 min-w-0 space-y-1.5">
           <h2 id="pn-heading" className="text-sm font-semibold text-slate-800 dark:text-zinc-200">Property number format</h2>
           <p className="text-sm text-slate-700 dark:text-zinc-300">
-            <span className="font-mono">YEAR-MONTH-CATEGORY-SERIAL-OFFICE</span>, e.g. <span className="font-mono">2014-05-020-376-8751</span>.
-            {' '}The year and month come from the acquisition date, the serial counts up per category, and the office code changes when an asset is transferred.
+            <span className="font-mono">YEAR-CATEGORY-SERIAL-OFFICE</span>, e.g. <span className="font-mono">2024-05030-012-1011</span>.
+            {' '}The year comes from the acquisition date, the serial counts up per category, and the office code changes when an asset is transferred.
           </p>
           {status && (
             <>
