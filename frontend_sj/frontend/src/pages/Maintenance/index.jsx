@@ -8,7 +8,7 @@ import MainLayout from '../../components/layout/MainLayout'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { RejectRequestModal, isApproved } from '../../components/common/ApprovalControls'
 import {
-  SearchBox, FilterSelect, FilterToggle, FilterBar, ScopeNotice, ListCard, RefreshButton, Pager,
+  SearchBox, FilterSelect, FilterToggle, FilterBar, ScopeNotice, ListCard, RefreshButton, LazyFooter, useLazyRows,
   ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, MappedBadge, ICON, fmtDate, fmtPeso, personName,
 } from '../../components/common/ListKit'
 import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
@@ -39,7 +39,6 @@ const APPROVAL = {
   REJECTED:         { label: 'Request rejected',  tone: 'red' },
 }
 
-const PAGE_SIZE = 5
 
 // The table keeps what tells records apart; findings, actions taken, cost, the request trail
 // and photos are in the window a row opens.
@@ -73,7 +72,7 @@ function Maintenance() {
   // ?pending=1 (e.g. from the dashboard's Pending Approvals) opens with only requests awaiting approval
   const [pendingOnly, setPendingOnly] = useState(() => new URLSearchParams(window.location.search).get('pending') === '1')
   const [moreFilters, setMoreFilters] = useState(false)
-  const [page, setPage]         = useState(1)
+  const lazy = useLazyRows()
   const [viewing, setViewing]   = useState(null)   // record whose details window is open
   const [editing, setEditing]   = useState(null)
   const [deleting, setDeleting] = useState(null)
@@ -125,7 +124,7 @@ function Maintenance() {
   }, [editing, formListsLoaded])
 
   useEffect(() => { fetchRecords(debouncedSearch) }, [debouncedSearch, fetchRecords])
-  useEffect(() => { setPage(1) }, [debouncedSearch, filterStatus, filterType, assetFilter, pendingOnly])
+  useEffect(() => { lazy.reset() }, [debouncedSearch, filterStatus, filterType, assetFilter, pendingOnly])
   useEffect(() => { if (filterType) setMoreFilters(true) }, [filterType])
 
   const upsert = (data) => {
@@ -190,7 +189,7 @@ function Maintenance() {
     return true
   }), [records, pendingOnly, filterStatus, filterType, assetFilter])
 
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = filtered.slice(0, lazy.shown)
   const activeFilters = [search.trim(), filterStatus, filterType, pendingOnly].filter(Boolean).length
   const clearFilters = () => { setSearch(''); setFilterStatus(''); setFilterType(''); setPendingOnly(false) }
 
@@ -221,7 +220,7 @@ function Maintenance() {
       <ListCard title={activeFilters > 0 || assetFilter ? 'Matching records' : 'Maintenance records'} filtered={filtered.length !== records.length}
         count={filtered.length} total={records.length} loading={loading}
         actions={<RefreshButton onClick={() => fetchRecords(search)} />}
-        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={filtered.length} />}>
         {loading ? <ListSkeleton /> : filtered.length === 0 && drafts.length === 0 ? (
           <ListEmpty>{records.length === 0 ? 'No maintenance records yet.' : 'No records match your search or filters.'}</ListEmpty>
         ) : (

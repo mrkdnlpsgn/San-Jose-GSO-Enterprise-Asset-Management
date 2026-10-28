@@ -9,7 +9,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useEventStream } from '../../hooks/useEventStream'
 import { RejectRequestModal } from '../../components/common/ApprovalControls'
 import {
-  SearchBox, FilterSelect, FilterBar, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty,
+  SearchBox, FilterSelect, FilterBar, ListCard, RefreshButton, LazyFooter, useLazyRows, ListSkeleton, ListEmpty,
   DataTable, PrimaryCell, MutedCell, MappedBadge, ICON, fmtDate, personName, HighlightNotice,
 } from '../../components/common/ListKit'
 import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
@@ -43,7 +43,6 @@ const REQUEST_STATUS = {
 
 const WHEN = [['today', 'Today'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days']]
 
-const PAGE_SIZE = 5
 
 function withinDate(dt, dateFilter, now) {
   if (!dateFilter) return true
@@ -118,7 +117,7 @@ function AssetHistory() {
   const [moreFilters, setMoreFilters] = useState(false)
   const [viewing, setViewing]     = useState(null)
   const [rejecting, setRejecting] = useState(null)
-  const [page, setPage]           = useState(1)
+  const lazy = useLazyRows()
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -200,7 +199,7 @@ function AssetHistory() {
   useEventStream('maintenance', () => refresh(true))
   useEventStream('disposal', () => refresh(true))
 
-  useEffect(() => { setPage(1) }, [view, debouncedSearch, filterType, filterStatus, dateFilter, performer, highlight.ids])
+  useEffect(() => { lazy.reset() }, [view, debouncedSearch, filterType, filterStatus, dateFilter, performer, highlight.ids])
   useEffect(() => { if (performer) setMoreFilters(true) }, [performer])
 
   const now = Date.now()
@@ -227,7 +226,7 @@ function AssetHistory() {
   const isHistory = view === 'history'
   const rows   = isHistory ? filteredHistory : requestRows
   const total  = isHistory ? history.length : requests.length
-  const paged  = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged  = rows.slice(0, lazy.shown)
   const activeFilters = [search.trim(), isHistory ? filterType : filterStatus, dateFilter, performer].filter(Boolean).length
   const clearFilters = () => { setSearch(''); setFilterType(''); setFilterStatus(''); setDateFilter(''); setPerformer('') }
   const requestsLabel = seesAll ? 'Staff requests' : 'My requests'
@@ -268,7 +267,7 @@ function AssetHistory() {
       <ListCard title={isHistory ? 'Asset history' : requestsLabel} filtered={rows.length !== total}
         count={rows.length} total={total} noun={isHistory ? 'entry' : 'request'} loading={loading}
         actions={<RefreshButton onClick={() => refresh()} />}
-        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={rows.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={rows.length} />}>
         {loading ? <ListSkeleton /> : rows.length === 0 ? (
           <ListEmpty>{total === 0 ? (isHistory ? 'No history recorded yet.' : 'No requests yet.') : 'Nothing matches your search or filters.'}</ListEmpty>
         ) : isHistory ? (

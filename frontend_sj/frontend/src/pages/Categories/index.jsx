@@ -13,9 +13,8 @@ import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
 import PropertyNumberPanel from '../../components/common/PropertyNumberPanel'
-import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
+import { SearchBox, ListCard, RefreshButton, LazyFooter, useLazyRows, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
 
-const PAGE_SIZE = 5
 
 const lifeText = (years) => (years ? `${years} year${years === 1 ? '' : 's'}` : 'Not set')
 
@@ -234,7 +233,7 @@ function Categories() {
   ]
   const [deleting, setDeleting]     = useState(null)
   const [blockedDelete, setBlockedDelete] = useState(null)
-  const [page, setPage]             = useState(1)
+  const lazy = useLazyRows()
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -251,7 +250,7 @@ function Categories() {
   }, [toast])
 
   useEffect(() => { fetchCategories(debouncedSearch) }, [debouncedSearch, fetchCategories])
-  useEffect(() => { setPage(1) }, [debouncedSearch])
+  useEffect(() => { lazy.reset() }, [debouncedSearch])
 
   const handleCreate = async (payload, idempotencyKey) => {
     const { data } = await createCategory(payload, idempotencyKey)
@@ -283,7 +282,7 @@ function Categories() {
   }
 
   const filtered = categories
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = filtered.slice(0, lazy.shown)
 
   // A row opens the category's form (name and description), which also holds Delete.
   const columns = [
@@ -312,7 +311,7 @@ function Categories() {
 
       <ListCard title={search.trim() ? 'Matching categories' : 'All categories'} count={filtered.length} noun="category" loading={loading}
         actions={<RefreshButton onClick={() => fetchCategories(debouncedSearch)} />}
-        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={filtered.length} />}>
         {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 && drafts.length === 0 ? (
           <ListEmpty>{search.trim() ? 'No categories match your search.' : 'No categories yet.'}</ListEmpty>
         ) : (

@@ -1,12 +1,14 @@
-import { useId, useState, useEffect } from 'react'
+import { useId, useState, useEffect, useCallback } from 'react'
 import Select, { isTouch } from './Select'
 import { HIGHLIGHT_ROW } from '../../hooks/useHighlight'
 
 // Shared pieces for every module's list page, so they all look and behave the same:
 //   SearchBox + FilterSelect / FilterBar  - one search box, a few plainly labelled filters,
 //                                           extra ones behind "More filters", and "Clear all"
-//   ListCard + ListAction + Pager          - the card around the table: title, count, the
-//                                           list's own actions (Excel, Import, Refresh), paging
+//   ListCard + ListAction                  - the card around the table: title, count, the
+//                                           list's own actions (Excel, Import, Refresh)
+//   useLazyRows + LazyFooter               - lazy scroll: more rows are drawn as the list nears
+//                                           its end
 //   DataTable                              - never scrolls sideways: columns drop away on narrow
 //                                           screens; a row opens its details by click or keyboard
 //   StatusBadge / AssetCell                - readable badges and the usual "asset" cell
@@ -235,20 +237,47 @@ export function ListCard({ title, filtered = false, count, total, noun = 'record
   )
 }
 
-export function Pager({ page, pageSize, total, onPage }) {
-  const pages = Math.max(1, Math.ceil(total / pageSize))
-  if (total <= pageSize) return null
-  const btn = 'px-3 py-1.5 text-sm rounded-md border border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+// Lazy scroll: the first rows draw at once and more are added as the user nears the end of the
+// list (every row is already loaded; this only limits how many are drawn). Draw
+// rows.slice(0, lazy.shown), put <LazyFooter lazy={lazy} total={rows.length} /> under them, and
+// call lazy.reset() when the search or filters change.
+const LAZY_BATCH = 25
+
+export function useLazyRows(batch = LAZY_BATCH) {
+  const [shown, setShown] = useState(batch)
+  const more  = useCallback(() => setShown((n) => n + batch), [batch])
+  const reset = useCallback(() => setShown(batch), [batch])
+  return { shown, more, reset, batch }
+}
+
+export function LazyFooter({ lazy, total }) {
+  const [marker, setMarker] = useState(null)
+  const hasMore = lazy.shown < total
+  const { more, shown } = lazy
+
+  // Draw the next batch when the footer comes within ~2 screens of view.
+  useEffect(() => {
+    if (!marker || !hasMore) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) more()
+    }, { rootMargin: '0px 0px 1200px 0px' })
+    observer.observe(marker)
+    return () => observer.disconnect()
+  }, [marker, hasMore, more, shown])
+
+  if (total <= lazy.batch) return null
+  const n = (v) => v.toLocaleString('en-PH')
   return (
-    <div className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-      <p className={`text-sm ${MUTED}`}>
-        {((page - 1) * pageSize + 1).toLocaleString('en-PH')}–{Math.min(page * pageSize, total).toLocaleString('en-PH')} of {total.toLocaleString('en-PH')}
+    <div ref={setMarker} className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+      <p className={`text-xs ${MUTED}`} aria-live="polite">
+        {hasMore ? `Showing ${n(Math.min(shown, total))} of ${n(total)}` : `All ${n(total)} shown`}
       </p>
-      <div className="flex items-center gap-1.5">
-        <button onClick={() => onPage(Math.max(1, page - 1))} disabled={page === 1} className={btn}>Previous</button>
-        <span className={`text-sm ${MUTED} px-1`}>Page {page} of {pages}</span>
-        <button onClick={() => onPage(Math.min(pages, page + 1))} disabled={page === pages} className={btn}>Next</button>
-      </div>
+      {hasMore && (
+        <button type="button" onClick={more}
+          className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+          Show more
+        </button>
+      )}
     </div>
   )
 }

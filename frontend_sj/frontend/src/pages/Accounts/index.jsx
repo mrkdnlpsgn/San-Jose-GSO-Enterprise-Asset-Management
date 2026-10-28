@@ -16,7 +16,7 @@ import { getAuditLogs, getAuditArchiveSummary, runAuditArchive, exportAuditArchi
 import DraftRows from '../../components/common/DraftRows'
 import { useDraftList } from '../../hooks/useFormDraft'
 import {
-  SearchBox, FilterSelect, FilterBar, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty,
+  SearchBox, FilterSelect, FilterBar, ListCard, RefreshButton, LazyFooter, useLazyRows, ListSkeleton, ListEmpty,
   DataTable, PrimaryCell, MutedCell, MappedBadge, StatusBadge, ICON,
 } from '../../components/common/ListKit'
 import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
@@ -62,8 +62,6 @@ const MODULE = {
   Offices:      { label: 'Offices',       tone: 'blue' },
   Categories:   { label: 'Categories',    tone: 'blue' },
 }
-const AUDIT_PAGE_SIZE = 5
-const ACCOUNTS_PAGE_SIZE = 5
 
 const roleBadge = (u) => <StatusBadge tone={u.role === 'ADMIN' ? 'green' : u.role === 'ADMIN_STAFF' ? 'blue' : 'slate'}>{roleLabel(u.role)}</StatusBadge>
 const NO_OFFICE = <span className="italic text-amber-800 dark:text-amber-300">Not assigned</span>
@@ -111,7 +109,7 @@ function AccountsTab() {
   const [viewing, setViewing]       = useState(null)
   const [filterRole, setFilterRole] = useState('')
   const [filterActive, setFilterActive] = useState('')
-  const [page, setPage]             = useState(1)
+  const lazy = useLazyRows()
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -163,14 +161,14 @@ function AccountsTab() {
     toast.show(`Password reset for "${resetting.fullName || resetting.username}".`, 'success')
   }
 
-  useEffect(() => { setPage(1) }, [debouncedSearch, filterRole, filterActive])
+  useEffect(() => { lazy.reset() }, [debouncedSearch, filterRole, filterActive])
   const filtered = useMemo(() => users.filter((u) => {
     if (filterRole && u.role !== filterRole) return false
     if (filterActive === 'ACTIVE' && u.isActive === false) return false
     if (filterActive === 'INACTIVE' && u.isActive !== false) return false
     return true
   }), [users, filterRole, filterActive])
-  const paged = filtered.slice((page - 1) * ACCOUNTS_PAGE_SIZE, page * ACCOUNTS_PAGE_SIZE)
+  const paged = filtered.slice(0, lazy.shown)
   const activeFilters = [search.trim(), filterRole, filterActive].filter(Boolean).length
   const v = viewing
 
@@ -193,7 +191,7 @@ function AccountsTab() {
       <ListCard title={activeFilters > 0 ? 'Matching accounts' : 'All accounts'} filtered={filtered.length !== users.length}
         count={filtered.length} total={users.length} noun="account" loading={loading}
         actions={<RefreshButton onClick={() => fetchUsers(debouncedSearch)} />}
-        footer={!loading && <Pager page={page} pageSize={ACCOUNTS_PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={filtered.length} />}>
         {loading ? <ListSkeleton rows={4} /> : filtered.length === 0 && drafts.length === 0 ? (
           <ListEmpty>{users.length === 0 ? 'No accounts yet. Add one with the button above.' : 'No accounts match your search or filters.'}</ListEmpty>
         ) : (
@@ -375,7 +373,7 @@ function AuditLogsTab() {
   const [actionFilter, setActionFilter] = useState('')
   const [viewing, setViewing]           = useState(null)
   const [search, setSearch]             = useState('')
-  const [page, setPage]                 = useState(1)
+  const lazy = useLazyRows()
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -401,9 +399,9 @@ function AuditLogsTab() {
     return true
   })
 
-  useEffect(() => { setPage(1) }, [debouncedSearch, moduleFilter, actionFilter])
+  useEffect(() => { lazy.reset() }, [debouncedSearch, moduleFilter, actionFilter])
 
-  const paged = filtered.slice((page - 1) * AUDIT_PAGE_SIZE, page * AUDIT_PAGE_SIZE)
+  const paged = filtered.slice(0, lazy.shown)
 
   const activeFilters = [search.trim(), moduleFilter, actionFilter].filter(Boolean).length
 
@@ -421,7 +419,7 @@ function AuditLogsTab() {
 
       <ListCard title="Audit logs" filtered={filtered.length !== logs.length} count={filtered.length} total={logs.length} noun="entry" loading={loading}
         actions={<RefreshButton onClick={() => fetchLogs(debouncedSearch)} />}
-        footer={!loading && <Pager page={page} pageSize={AUDIT_PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={filtered.length} />}>
         {loading ? <ListSkeleton /> : filtered.length === 0 ? (
           <ListEmpty>{logs.length === 0 ? 'No activity recorded yet.' : 'No entries match your search or filters.'}</ListEmpty>
         ) : (

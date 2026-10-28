@@ -12,9 +12,8 @@ import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
 import PropertyNumberPanel from '../../components/common/PropertyNumberPanel'
-import { SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
+import { SearchBox, ListCard, RefreshButton, LazyFooter, useLazyRows, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, Icon, ICON } from '../../components/common/ListKit'
 
-const PAGE_SIZE = 5
 
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
@@ -116,7 +115,7 @@ function Offices() {
   ]
   const [deleting, setDeleting] = useState(null)
   const [blockedDelete, setBlockedDelete] = useState(null)
-  const [page, setPage]         = useState(1)
+  const lazy = useLazyRows()
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -133,7 +132,7 @@ function Offices() {
   }, [toast])
 
   useEffect(() => { fetchOffices(debouncedSearch) }, [debouncedSearch, fetchOffices])
-  useEffect(() => { setPage(1) }, [debouncedSearch])
+  useEffect(() => { lazy.reset() }, [debouncedSearch])
 
   const handleCreate = async (payload, idempotencyKey) => {
     const { data } = await createOffice(payload, idempotencyKey)
@@ -164,7 +163,7 @@ function Offices() {
   }
 
   const filtered = offices
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = filtered.slice(0, lazy.shown)
 
   // A row opens the office's form (it only has a name), which also holds Delete.
   const columns = [
@@ -187,7 +186,7 @@ function Offices() {
 
       <ListCard title={search.trim() ? 'Matching offices' : 'All offices'} count={filtered.length} noun="office" loading={loading}
         actions={<RefreshButton onClick={() => fetchOffices(debouncedSearch)} />}
-        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={filtered.length} />}>
         {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 && drafts.length === 0 ? (
           <ListEmpty>{search.trim() ? 'No offices match your search.' : 'No offices yet.'}</ListEmpty>
         ) : (

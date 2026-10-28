@@ -13,6 +13,7 @@ import { openPrintWindow } from '../../utils/printWindow'
 import { printForm, toPages, longDate } from '../../utils/printForm'
 import { printRpcppe, exportRpcppeExcel, rpcppeRows, rpcppeLine, RPCPPE_DEFAULTS } from '../../utils/rpcppeExport'
 import { maintenanceCardsOf, cardLines, printMaintenanceCards, exportMaintenanceCardsExcel } from '../../utils/maintenanceCardPrint'
+import { LazyFooter, useLazyRows } from '../../components/common/ListKit'
 
 // Reports need the full dataset, not a paginated page. getAssets()/getDisposal()/getMaintenance()
 // default to the backend's page size of 20 - fine for list pages, wrong here, so fetch directly
@@ -727,7 +728,7 @@ function SelectTable({ config, items, selected, onToggle, onToggleAll, expanded,
         <thead className="bg-slate-50 dark:bg-zinc-900">
           <tr>
             <th className="pl-4 pr-2 py-3 w-8">
-              <input type="checkbox" aria-label={`Select all ${config.noun[1]} on this page`} className={CHECKBOX_CLASS}
+              <input type="checkbox" aria-label={`Select all ${config.noun[1]} shown`} className={CHECKBOX_CLASS}
                 checked={allChecked} ref={(el) => { if (el) el.indeterminate = someChecked }}
                 onChange={() => onToggleAll(items, !allChecked)} />
             </th>
@@ -793,7 +794,6 @@ function MiniTable({ headers, rows, rowKey }) {
 }
 
 // ── Date range filter ─────────────────────────────────────────────────────────
-const PAGE_SIZE = 5
 
 const DATE_INPUT_CLASS ='rounded-md border border-slate-200 dark:border-zinc-700 px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:border-slate-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
@@ -880,7 +880,7 @@ function Reports() {
   const [dateTo, setDateTo]         = useState('')
   // Replacement Forecast only: show one "Replace in" group ('NOW' or a year); '' = all
   const [replaceIn, setReplaceIn]   = useState('')
-  const [page, setPage]             = useState(1)
+  const lazy = useLazyRows()
   // Pick-and-export reports (PAR, Property Card): search text, ticked item keys, expanded row
   const [pickSearch, setPickSearch]   = useState('')
   const [picked, setPicked]           = useState(() => new Set())
@@ -898,7 +898,7 @@ function Reports() {
 
   const activeReport = REPORTS.find((r) => r.id === activeId)
 
-  const handleDateChange = ({ from, to }) => { setDateFrom(from); setDateTo(to); setPage(1) }
+  const handleDateChange = ({ from, to }) => { setDateFrom(from); setDateTo(to); lazy.reset() }
 
   const resetFilters = () => {
     setDateFrom('')
@@ -907,7 +907,7 @@ function Reports() {
     setPickSearch('')
     setPicked(new Set())
     setExpandedKey(null)
-    setPage(1)
+    lazy.reset()
   }
 
   const handleGenerate = async (report) => {
@@ -991,9 +991,8 @@ function Reports() {
   })
 
   // Every asset is its own row, same as the Assets table - no grouping by model.
-  // Pick-and-export reports page through their items (PARs, cards) instead.
-  const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE))
-  const pagedRows = displayRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  // Lazy scroll, as on the list pages; pick-and-export reports draw their items (PARs, cards) the same way.
+  const pagedRows = displayRows.slice(0, lazy.shown)
 
   const renderReportRow = (row, key) => (
     <tr key={key} className="hover:bg-slate-50 dark:hover:bg-zinc-800/50 transition-colors duration-100">
@@ -1097,7 +1096,7 @@ function Reports() {
                 id="pick-search"
                 type="search"
                 value={pickSearch}
-                onChange={(e) => { setPickSearch(e.target.value); setPage(1) }}
+                onChange={(e) => { setPickSearch(e.target.value); lazy.reset() }}
                 placeholder={pick.placeholder}
                 className="w-80 max-w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
@@ -1125,7 +1124,7 @@ function Reports() {
                     const on = replaceIn === key
                     return (
                       <button key={key || 'all'} type="button" aria-pressed={on}
-                        onClick={() => { setReplaceIn(key); setPage(1) }}
+                        onClick={() => { setReplaceIn(key); lazy.reset() }}
                         className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${on
                           ? 'bg-brand-700 border-brand-700 text-white'
                           : 'bg-white dark:bg-zinc-900 border-slate-300 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:border-brand-600 hover:text-brand-800 dark:hover:text-brand-200'}`}>
@@ -1182,26 +1181,13 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-zinc-950 divide-y divide-slate-100 dark:divide-zinc-800/60">
-                    {pagedRows.map((row, i) => renderReportRow(row, `r:${(page - 1) * PAGE_SIZE + i}`))}
+                    {pagedRows.map((row, i) => renderReportRow(row, `r:${i}`))}
                   </tbody>
                 </table>
               </div>
             )}
 
-            {!loading && displayRows.length > PAGE_SIZE && (
-              <div className="pt-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-400 dark:text-zinc-500">
-                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, displayRows.length)} of {displayRows.length}
-                </p>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                    className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Prev</button>
-                  <span className="text-xs text-slate-400 px-2">{page} / {totalPages}</span>
-                  <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                    className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next</button>
-                </div>
-              </div>
-            )}
+            {!loading && <div className="-mx-4 -mb-4 mt-4"><LazyFooter lazy={lazy} total={displayRows.length} /></div>}
           </div>
         </div>
       )}

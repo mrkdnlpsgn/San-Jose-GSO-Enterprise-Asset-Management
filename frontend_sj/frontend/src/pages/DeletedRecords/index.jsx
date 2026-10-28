@@ -10,7 +10,7 @@ import {
 import { useDebounce } from '../../hooks/useDebounce'
 import { usePolling } from '../../hooks/usePolling'
 import {
-  SearchBox, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, MappedBadge, ICON, fmtDate,
+  SearchBox, ListCard, RefreshButton, LazyFooter, useLazyRows, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, MappedBadge, ICON, fmtDate,
 } from '../../components/common/ListKit'
 import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
 
@@ -152,7 +152,6 @@ const DISPOSAL_METHOD = {
   DESTRUCTION: { label: 'Destruction', tone: 'red' },
   OTHERS:      { label: 'Others',      tone: 'slate' },
 }
-const PAGE_SIZE = 5
 
 function fmtDateTime(dt) {
   if (!dt) return 'N/A'
@@ -172,7 +171,7 @@ function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, d
   const [viewing, setViewing]     = useState(null)
   const [restoring, setRestoring] = useState(null) // row pending confirmation
   const [deleting, setDeleting]   = useState(null) // row pending permanent-delete 2FA
-  const [page, setPage]           = useState(1)
+  const lazy = useLazyRows()
   const debouncedSearch       = useDebounce(search)
 
   const load = () => fetcher().then(({ data }) => setRows(data)).catch(() => {})
@@ -196,8 +195,8 @@ function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, d
     return rows.filter((r) => matches(r, q))
   }, [rows, debouncedSearch, matches])
 
-  useEffect(() => { setPage(1) }, [debouncedSearch])
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  useEffect(() => { lazy.reset() }, [debouncedSearch])
+  const paged = filtered.slice(0, lazy.shown)
 
   const handleRestore = async () => {
     const row = restoring
@@ -231,7 +230,7 @@ function DeletedTab({ fetcher, restoreFn, permanentDeleteFn, columns, matches, d
 
       <ListCard title="Recovery" filtered={filtered.length !== rows.length} count={filtered.length} total={rows.length} loading={loading}
         actions={<RefreshButton onClick={load} />}
-        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={filtered.length} />}>
         {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 ? (
           <ListEmpty>{rows.length === 0 ? emptyMessage : 'No records match your search.'}</ListEmpty>
         ) : (

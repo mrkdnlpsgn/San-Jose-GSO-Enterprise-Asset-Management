@@ -9,11 +9,10 @@ import { getOffices } from '../../services/officeService'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
-import { SearchBox, FilterBar, FilterToggle, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, StatusBadge, HighlightNotice } from '../../components/common/ListKit'
+import { SearchBox, FilterBar, FilterToggle, ListCard, RefreshButton, LazyFooter, useLazyRows, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, StatusBadge, HighlightNotice } from '../../components/common/ListKit'
 import { roleLabel } from '../../utils/roles'
 import { useHighlight, highlightedFirst } from '../../hooks/useHighlight'
 
-const PAGE_SIZE = 5
 
 const INPUT_CLASS ='w-full rounded-md border border-slate-200 dark:border-zinc-700 px-3.5 py-2.5 text-sm bg-white dark:bg-zinc-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 
@@ -159,7 +158,7 @@ function Personnel() {
     return { ...base, contactInfo: d.data.contactInfo, officeName: offices.filter((o) => ids.includes(String(o.id))).map((o) => o.officeName).join(', ') }
   }
   const draftColumns = COLUMNS.map((c) => ({ className: `px-4 py-3 align-top ${c.className || ''}`, render: (p) => c.cell(p) }))
-  const [page, setPage]             = useState(1)
+  const lazy = useLazyRows()
   const [needsOffice, setNeedsOffice] = useState(false)
   // Accounts a notification pointed to (by user id), e.g. staff with no office.
   const highlight = useHighlight()
@@ -179,7 +178,7 @@ function Personnel() {
   }, [toast])
 
   useEffect(() => { fetchPersonnel(debouncedSearch) }, [debouncedSearch, fetchPersonnel])
-  useEffect(() => { setPage(1) }, [debouncedSearch, needsOffice, highlight.ids])
+  useEffect(() => { lazy.reset() }, [debouncedSearch, needsOffice, highlight.ids])
   useEffect(() => { getOffices().then(({ data }) => setOffices(data)).catch(() => {}) }, [])
 
   const handleUpdate = async (payload) => {
@@ -196,7 +195,7 @@ function Personnel() {
   const highlightKeys = useMemo(() => new Set(filtered.filter((p) => p.userId != null && highlight.ids.has(String(p.userId))).map((p) => String(p.id))),
     [filtered, highlight.ids])
   const activeFilters = [search.trim(), needsOffice].filter(Boolean).length
-  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paged = filtered.slice(0, lazy.shown)
 
   return (
     <MainLayout>
@@ -220,7 +219,7 @@ function Personnel() {
       <ListCard title={activeFilters > 0 ? 'Matching personnel' : 'All personnel'} filtered={filtered.length !== personnel.length}
         count={filtered.length} total={personnel.length} noun="person" loading={loading}
         actions={<RefreshButton onClick={() => fetchPersonnel(debouncedSearch)} />}
-        footer={!loading && <Pager page={page} pageSize={PAGE_SIZE} total={filtered.length} onPage={setPage} />}>
+        footer={!loading && <LazyFooter lazy={lazy} total={filtered.length} />}>
         {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 && drafts.length === 0 ? (
           <ListEmpty>{activeFilters > 0 ? 'No personnel match your search.' : 'No accounts yet. Create one on the Accounts page.'}</ListEmpty>
         ) : (
