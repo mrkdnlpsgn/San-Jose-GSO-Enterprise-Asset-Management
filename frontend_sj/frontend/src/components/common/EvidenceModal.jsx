@@ -15,13 +15,17 @@ function formatSize(bytes) {
 
 // Evidence photos for any record. `path` is the record's photo endpoint, e.g. /maintenance/5/photos,
 // /assets/5/evidence or /disposal/5/evidence - GET lists, POST uploads a `file`, DELETE {path}/{photoId}.
-function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
+// `stages` splits the photos into sections, each with its own upload (sent as `stage`), e.g. a
+// maintenance record's pre- and post-maintenance photos: [{ key, label, hint }]. Photos with no
+// stage (taken before the split) are shown under "Other photos".
+function EvidenceModal({ path, title = 'Evidence', subtitle, onClose, stages = null }) {
   const toast = useToast()
   const fileInputRef = useRef(null)
 
   const [photos, setPhotos]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
+  const [uploading, setUploading] = useState(null) // the stage being uploaded to ('' without stages)
+  const [uploadStage, setUploadStage] = useState('')
   const [deleting, setDeleting]   = useState(null) // photo pending delete confirmation
   const [preview, setPreview]     = useState(null) // photo being viewed full-size
 
@@ -36,7 +40,7 @@ function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path])
 
-  const handleFiles = async (fileList) => {
+  const handleFiles = async (fileList, stage) => {
     const files = Array.from(fileList || [])
     if (files.length === 0) return
 
@@ -49,16 +53,17 @@ function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
         toast.show(`${file.name}: exceeds the 10 MB limit.`, 'error')
         continue
       }
-      setUploading(true)
+      setUploading(stage)
       try {
         const formData = new FormData()
         formData.append('file', file)
+        if (stage) formData.append('stage', stage)
         const { data } = await api.post(path, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
         setPhotos((prev) => [data, ...prev])
       } catch (err) {
         toast.show(err.response?.data?.message || `Failed to upload ${file.name}.`, 'error')
       } finally {
-        setUploading(false)
+        setUploading(null)
       }
     }
   }
@@ -82,30 +87,14 @@ function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
       onClose={onClose}
     >
       <div className="space-y-4">
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPTED.join(',')}
-            multiple
-            className="hidden"
-            onChange={(e) => { handleFiles(e.target.files); e.target.value = '' }}
-          />
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 dark:border-zinc-700 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-all duration-150 py-6 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 text-slate-400 dark:text-zinc-500 ${uploading ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 8.25L12 3.75m0 0L7.5 8.25M12 3.75v12.75" />
-            </svg>
-            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">
-              {uploading ? 'Uploading…' : 'Click to upload evidence photos'}
-            </span>
-            <span className="text-2xs text-slate-400 dark:text-zinc-600">JPEG, PNG, WEBP, or HEIC, up to 10 MB each</span>
-          </button>
-        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED.join(',')}
+          multiple
+          className="hidden"
+          onChange={(e) => { handleFiles(e.target.files, uploadStage); e.target.value = '' }}
+        />
 
         {loading ? (
           <div className="grid grid-cols-3 gap-3">
@@ -113,36 +102,44 @@ function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
               <div key={i} className="animate-pulse aspect-square rounded-lg bg-slate-200 dark:bg-zinc-800" />
             ))}
           </div>
-        ) : photos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-9 w-9 text-slate-200 dark:text-zinc-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 16.5l5.379-5.379a2.25 2.25 0 013.182 0l5.94 5.94M14.25 12l1.379-1.379a2.25 2.25 0 013.182 0L21 12.75M3 6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25V6.75zM9.75 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-            </svg>
-            <p className="text-sm text-slate-400 dark:text-zinc-600">No evidence photos yet.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {photos.map((photo) => (
-              <div key={photo.id} className="group relative aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700">
-                <img
-                  src={resolveUploadUrl(photo.url)}
-                  alt={photo.originalFilename || 'Evidence photo'}
-                  className="w-full h-full object-cover cursor-pointer transition-transform duration-150 group-hover:scale-105"
-                  onClick={() => setPreview(photo)}
+        ) : stages ? (
+          <>
+            {stages.map((st) => (
+              <section key={st.key} aria-labelledby={`stage-${st.key}`} className="space-y-2">
+                <div>
+                  <h3 id={`stage-${st.key}`} className="text-sm font-semibold text-slate-800 dark:text-zinc-100">{st.label}</h3>
+                  {st.hint && <p className="text-xs text-slate-500 dark:text-zinc-400">{st.hint}</p>}
+                </div>
+                <UploadButton
+                  label={`Add ${st.label.toLowerCase()} photos`}
+                  busy={uploading === st.key}
+                  disabled={uploading != null}
+                  onClick={() => { setUploadStage(st.key); fileInputRef.current?.click() }}
                 />
-                <button
-                  type="button"
-                  title="Delete photo"
-                  onClick={() => setDeleting(photo)}
-                  className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all duration-150"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
+                <PhotoGrid photos={photos.filter((p) => p.stage === st.key)} onOpen={setPreview} onDelete={setDeleting}
+                  empty={`No ${st.label.toLowerCase()} photos yet.`} />
+              </section>
             ))}
-          </div>
+            {photos.some((p) => !stages.some((st) => st.key === p.stage)) && (
+              <section aria-labelledby="stage-other" className="space-y-2">
+                <div>
+                  <h3 id="stage-other" className="text-sm font-semibold text-slate-800 dark:text-zinc-100">Other photos</h3>
+                  <p className="text-xs text-slate-500 dark:text-zinc-400">Added before photos were sorted into pre- and post-maintenance.</p>
+                </div>
+                <PhotoGrid photos={photos.filter((p) => !stages.some((st) => st.key === p.stage))} onOpen={setPreview} onDelete={setDeleting} />
+              </section>
+            )}
+          </>
+        ) : (
+          <>
+            <UploadButton
+              label="Click to upload evidence photos"
+              busy={uploading != null}
+              disabled={uploading != null}
+              onClick={() => { setUploadStage(''); fileInputRef.current?.click() }}
+            />
+            <PhotoGrid photos={photos} onOpen={setPreview} onDelete={setDeleting} empty="No evidence photos yet." big />
+          </>
         )}
       </div>
 
@@ -168,6 +165,62 @@ function EvidenceModal({ path, title = 'Evidence', subtitle, onClose }) {
         />
       )}
     </Modal>
+  )
+}
+
+function UploadButton({ label, busy, disabled, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="w-full flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 dark:border-zinc-700 hover:border-brand-500/50 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-all duration-150 py-5 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 text-slate-400 dark:text-zinc-500 ${busy ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 8.25L12 3.75m0 0L7.5 8.25M12 3.75v12.75" />
+      </svg>
+      <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">{busy ? 'Uploading…' : label}</span>
+      <span className="text-2xs text-slate-400 dark:text-zinc-600">JPEG, PNG, WEBP, or HEIC, up to 10 MB each</span>
+    </button>
+  )
+}
+
+function PhotoGrid({ photos, onOpen, onDelete, empty, big = false }) {
+  if (photos.length === 0) {
+    if (!empty) return null
+    return big ? (
+      <div className="flex flex-col items-center justify-center py-10 gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-9 w-9 text-slate-200 dark:text-zinc-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 16.5l5.379-5.379a2.25 2.25 0 013.182 0l5.94 5.94M14.25 12l1.379-1.379a2.25 2.25 0 013.182 0L21 12.75M3 6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25V6.75zM9.75 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+        </svg>
+        <p className="text-sm text-slate-400 dark:text-zinc-600">{empty}</p>
+      </div>
+    ) : <p className="text-xs text-slate-400 dark:text-zinc-500">{empty}</p>
+  }
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {photos.map((photo) => (
+        <div key={photo.id} className="group relative aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700">
+          <img
+            src={resolveUploadUrl(photo.url)}
+            alt={photo.originalFilename || 'Evidence photo'}
+            className="w-full h-full object-cover cursor-pointer transition-transform duration-150 group-hover:scale-105"
+            onClick={() => onOpen(photo)}
+          />
+          <button
+            type="button"
+            title="Delete photo"
+            aria-label="Delete photo"
+            onClick={() => onDelete(photo)}
+            className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-red-600 transition-all duration-150"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      ))}
+    </div>
   )
 }
 

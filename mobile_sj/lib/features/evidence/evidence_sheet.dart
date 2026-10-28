@@ -17,12 +17,15 @@ const _maxBytes = 10 * 1024 * 1024; // matches the backend's 10 MB limit
 
 /// Bottom sheet for a record's evidence photos: take a photo or pick from the gallery to upload,
 /// tap a photo to view it full-size, and remove one with the ✕.
-/// `path` is the record's photo endpoint (see [EvidenceService]).
+/// `path` is the record's photo endpoint (see [EvidenceService]). `stages` splits the photos, e.g.
+/// a maintenance record's pre- and post-maintenance photos: a switch picks which ones are shown and
+/// where new photos go. Photos from before the split show under "Other".
 Future<void> showEvidenceSheet(
   BuildContext context, {
   required String path,
   required String title,
   String? subtitle,
+  List<(String, String)>? stages,
 }) {
   return showModalBottomSheet<void>(
     useRootNavigator: true, // above the bottom bar, not behind it
@@ -32,7 +35,7 @@ Future<void> showEvidenceSheet(
     showDragHandle: true,
     builder: (_) => FractionallySizedBox(
       heightFactor: 0.85,
-      child: _EvidenceSheet(service: EvidenceService(path), title: title, subtitle: subtitle),
+      child: _EvidenceSheet(service: EvidenceService(path), title: title, subtitle: subtitle, stages: stages),
     ),
   );
 }
@@ -41,8 +44,9 @@ class _EvidenceSheet extends ConsumerStatefulWidget {
   final EvidenceService service;
   final String title;
   final String? subtitle;
+  final List<(String, String)>? stages;
 
-  const _EvidenceSheet({required this.service, required this.title, this.subtitle});
+  const _EvidenceSheet({required this.service, required this.title, this.subtitle, this.stages});
 
   @override
   ConsumerState<_EvidenceSheet> createState() => _EvidenceSheetState();
@@ -52,6 +56,10 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
   List<EvidencePhoto>? _photos;
   Object? _error;
   bool _uploading = false;
+  // the stage shown and uploaded to; '' is "Other" (photos with no stage, no uploads)
+  late String? _stage = widget.stages?.first.$1;
+  bool get _canUpload => widget.stages == null || (_stage?.isNotEmpty ?? false);
+  String get _uploadPath => widget.service.uploadPath(widget.stages == null ? null : _stage);
 
   @override
   void initState() {
@@ -100,7 +108,7 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
           ref,
           // a record added offline has no server copy to attach to yet
           forceQueue: RegExp(r'/-\d+/').hasMatch(widget.service.path),
-          send: () => widget.service.upload(f.path, f.name),
+          send: () => widget.service.upload(f.path, f.name, stage: widget.stages == null ? null : _stage),
           queue: () => _keepOnPhone(f),
         );
         if (photo == null) {
@@ -129,7 +137,7 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
     await Outbox.instance.add(
       kind: 'photo.upload',
       method: 'POST',
-      path: widget.service.path,
+      path: _uploadPath,
       label: 'Photo · ${widget.title}${widget.subtitle != null ? ' · ${widget.subtitle}' : ''}',
       filePath: copy.path,
       fileName: f.name,
@@ -244,8 +252,16 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final photos = _photos;
-    final waiting = ref.watch(outboxProvider).photosFor(widget.service.path);
+    final stages = widget.stages;
+    final known = {for (final s in stages ?? const <(String, String)>[]) s.$1};
+    final hasOther = stages != null && (_photos ?? const []).any((p) => !known.contains(p.stage));
+    final photos = stages == null
+        ? _photos
+        : _photos?.where((p) => _stage == '' ? !known.contains(p.stage) : p.stage == _stage).toList();
+    final waiting = _canUpload ? ref.watch(outboxProvider).photosFor(_uploadPath) : <OutboxItem>[];
+    final emptyText = stages == null
+        ? 'No evidence photos yet.'
+        : 'No ${stages.firstWhere((s) => s.$1 == _stage, orElse: () => ('', 'other')).$2.toLowerCase()} photos yet.';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -264,7 +280,23 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
             ],
           ),
         ),
-        Padding(
+        if (stages != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: [
+                  for (final s in stages) ButtonSegment(value: s.$1, label: Text(s.$2)),
+                  if (hasOther) const ButtonSegment(value: '', label: Text('Other')),
+                ],
+                selected: {_stage ?? ''},
+                onSelectionChanged: (v) => setState(() => _stage = v.first),
+              ),
+            ),
+          ),
+        if (_canUpload) Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
@@ -291,7 +323,10 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
           const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator(color: AppTheme.brand)),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-          child: Text('JPEG, PNG, WEBP, or HEIC, up to 10 MB each',
+          child: Text(
+              _canUpload
+                  ? 'JPEG, PNG, WEBP, or HEIC, up to 10 MB each'
+                  : 'Added before photos were sorted into pre- and post-maintenance.',
               style: TextStyle(color: context.colors.textTertiary, fontSize: 13)),
         ),
         if (_error != null)
@@ -310,7 +345,7 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
                         children: [
                           Icon(Icons.image_outlined, size: 40, color: context.colors.textTertiary),
                           const SizedBox(height: 8),
-                          Text('No evidence photos yet.', style: TextStyle(color: context.colors.textTertiary)),
+                          Text(emptyText, style: TextStyle(color: context.colors.textTertiary)),
                         ],
                       ),
                     )

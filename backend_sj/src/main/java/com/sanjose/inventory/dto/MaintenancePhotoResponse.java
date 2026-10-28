@@ -12,6 +12,8 @@ public class MaintenancePhotoResponse {
     private Long fileSize;
     private String uploadedByName;
     private LocalDateTime uploadedAt;
+    // BEFORE (pre-maintenance) or AFTER (post-maintenance); null for photos from before the split
+    private String stage;
 
     public static MaintenancePhotoResponse from(MaintenancePhoto photo) {
         MaintenancePhotoResponse r = new MaintenancePhotoResponse();

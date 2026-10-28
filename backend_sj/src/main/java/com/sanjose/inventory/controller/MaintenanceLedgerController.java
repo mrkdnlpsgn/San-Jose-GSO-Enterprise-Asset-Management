@@ -120,9 +120,10 @@ public class MaintenanceLedgerController {
     }
 
     @PostMapping("/{id}/photos")
-    public MaintenancePhotoResponse uploadPhoto(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+    public MaintenancePhotoResponse uploadPhoto(@PathVariable Long id, @RequestParam("file") MultipartFile file,
+                                                @RequestParam(value = "stage", required = false) String stage) {
         accessService.requireMaintenanceAccess(id);
-        return maintenancePhotoService.upload(id, file);
+        return maintenancePhotoService.upload(id, file, stage);
     }
 
     @DeleteMapping("/{id}/photos/{photoId}")

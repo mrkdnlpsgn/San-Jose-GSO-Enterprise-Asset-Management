@@ -10,6 +10,9 @@ class EvidencePhoto {
   final int? fileSize;
   final String? uploadedByName;
   final String? uploadedAt;
+  /// Maintenance photos: BEFORE (pre-maintenance) or AFTER (post-maintenance); null otherwise,
+  /// and for photos from before the split.
+  final String? stage;
 
   const EvidencePhoto({
     required this.id,
@@ -18,6 +21,7 @@ class EvidencePhoto {
     this.fileSize,
     this.uploadedByName,
     this.uploadedAt,
+    this.stage,
   });
 
   factory EvidencePhoto.fromJson(Map<String, dynamic> json) => EvidencePhoto(
@@ -27,6 +31,7 @@ class EvidencePhoto {
         fileSize: (json['fileSize'] as num?)?.toInt(),
         uploadedByName: json['uploadedByName'] as String?,
         uploadedAt: json['uploadedAt'] as String?,
+        stage: json['stage'] as String?,
       );
 
   /// Full URL for Image.network - uploads are served from the backend root, outside /api.
@@ -65,12 +70,16 @@ class EvidenceService {
     };
   }
 
-  Future<EvidencePhoto> upload(String filePath, String filename) async {
+  /// Where a photo goes: the stage rides on the address (?stage=BEFORE), so a photo kept on the
+  /// phone until it is back online keeps its stage too.
+  String uploadPath(String? stage) => stage == null ? path : '$path?stage=$stage';
+
+  Future<EvidencePhoto> upload(String filePath, String filename, {String? stage}) async {
     try {
       final form = FormData.fromMap({
         'file': await MultipartFile.fromFile(filePath, filename: filename, contentType: _mediaTypeFor(filename)),
       });
-      final res = await _dio.post(path, data: form);
+      final res = await _dio.post(uploadPath(stage), data: form);
       return EvidencePhoto.fromJson(res.data as Map<String, dynamic>);
     } catch (e) {
       throw ApiException.from(e);

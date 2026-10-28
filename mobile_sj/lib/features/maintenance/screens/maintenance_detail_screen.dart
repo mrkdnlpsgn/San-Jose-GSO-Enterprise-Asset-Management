@@ -146,7 +146,8 @@ class _Body extends StatelessWidget {
                         onPressed: () => showEvidenceSheet(
                           context,
                           path: '/maintenance/${item.id}/photos',
-                          title: 'Inspection Evidence',
+                          title: 'Maintenance Photos',
+                          stages: const [('BEFORE', 'Pre-maintenance'), ('AFTER', 'Post-maintenance')],
                           subtitle: '${item.asset.propertyNumber}: ${item.asset.description}',
                         ),
                       ),
