@@ -16,6 +16,8 @@ import '../data/asset_history_service.dart';
 import '../model/asset_history_model.dart';
 import '../model/edit_request_model.dart';
 import '../../../shared/widgets/ios_pickers.dart';
+import '../../../core/highlight/highlight_provider.dart';
+import '../../../core/highlight/highlight_style.dart';
 
 // Inventory changes ("History") and staff maintenance/disposal requests ("Requests"),
 // mirrors web's Asset History page. An admin sees everything and can narrow it to one
@@ -38,10 +40,32 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
   List<AccountModel> _users = const [];
   Object? _error;
   bool _loading = true;
-  int? _performerId; // admin only - null = everyone
+  int? _performerId; // admin / Admin-Staff only - null = everyone
   String? _requestStatus; // null = all
 
-  bool get _isAdmin => ref.read(authProvider).valueOrNull?.isAdmin ?? false;
+  // Admin and Admin-Staff see everyone's history and requests (only an admin reviews them).
+  bool get _isAdmin => ref.read(authProvider).valueOrNull?.seesAllAssets ?? false;
+  // Admin-Staff can't review a request, but can remind an administrator about a pending one.
+  bool get _canRemind => ref.read(authProvider).valueOrNull?.isAdminStaff ?? false;
+  final Set<String> _reminding = {};
+
+  Future<void> _remind(EditRequestModel r) async {
+    final key = '${r.kind}-${r.recordId}';
+    setState(() => _reminding.add(key));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _service.remindAdmin(r.kind, r.recordId);
+      messenger.showSnackBar(SnackBar(
+        content: Text('Administrators were notified about the request for ${r.propertyNumber}.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      await _load(silent: true);
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message), behavior: SnackBarBehavior.floating));
+    } finally {
+      if (mounted) setState(() => _reminding.remove(key));
+    }
+  }
 
   @override
   void initState() {
@@ -95,6 +119,10 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = _isAdmin;
+    // A notification opened while this screen is already open: fetch, so its requests are in the list.
+    ref.listen(highlightProvider, (_, next) {
+      if (next?.target == HighlightTarget.requests) _load(silent: true);
+    });
     return DefaultTabController(
       length: 2,
       initialIndex: widget.initialTab,
@@ -153,7 +181,7 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
                 for (final u in _users)
                   DropdownMenuItem<int?>(
                     value: u.id,
-                    child: Text('${u.fullName}${u.role == 'ADMIN' ? ' (Admin)' : ''}', overflow: TextOverflow.ellipsis),
+                    child: Text('${u.fullName}${u.role == 'ADMIN' ? ' (Admin)' : u.role == 'ADMIN_STAFF' ? ' (Admin-Staff)' : ''}', overflow: TextOverflow.ellipsis),
                   ),
               ],
               onChanged: (v) {
@@ -185,9 +213,21 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
   }
 
   Widget _requestsTab() {
-    final items = _filteredRequests;
+    // Requests a notification pointed to: tinted and listed first until cleared.
+    final hl = highlightFor(ref, HighlightTarget.requests);
+    String keyOf(EditRequestModel r) => '${r.kind}-${r.recordId}';
+    final items = highlightedFirst(_filteredRequests, hl, keyOf);
+    final highlightedCount = hl == null ? 0 : items.where((r) => hl.has(keyOf(r))).length;
     return Column(
       children: [
+        if (hl != null)
+          HighlightBanner(
+            count: highlightedCount,
+            noun: 'request',
+            plural: 'requests',
+            title: hl.title,
+            onClear: () => ref.read(highlightProvider.notifier).state = null,
+          ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -219,7 +259,14 @@ class _AssetHistoryScreenState extends ConsumerState<AssetHistoryScreen> {
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 24 + context.mainShellBottomInset),
                     itemCount: items.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, i) => _RequestCard(item: items[i]),
+                    itemBuilder: (context, i) => _RequestCard(
+                      item: items[i],
+                      highlighted: hl?.has(keyOf(items[i])) ?? false,
+                      onRemind: _canRemind && items[i].approvalStatus == 'PENDING_APPROVAL'
+                          ? () => _remind(items[i])
+                          : null,
+                      reminding: _reminding.contains(keyOf(items[i])),
+                    ),
                   ),
           ),
         ),
@@ -304,7 +351,11 @@ class _HistoryCard extends StatelessWidget {
 
 class _RequestCard extends StatelessWidget {
   final EditRequestModel item;
-  const _RequestCard({required this.item});
+  final bool highlighted;
+  /// "Notify admin" - only for an Admin-Staff account on a pending request.
+  final VoidCallback? onRemind;
+  final bool reminding;
+  const _RequestCard({required this.item, this.highlighted = false, this.onRemind, this.reminding = false});
 
   @override
   Widget build(BuildContext context) {
@@ -319,6 +370,7 @@ class _RequestCard extends StatelessWidget {
         StatusBadge.approval(item.approvalStatus) ?? const StatusBadge(label: 'Approved', color: AppTheme.brand);
     final rejected = item.approvalStatus == 'REJECTED';
     return RecordCard(
+      highlighted: highlighted,
       onTap: () => context.push(route),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,6 +406,24 @@ class _RequestCard extends StatelessWidget {
             Callout(item.reviewNote!,
                 title: rejected ? 'Reason for rejection' : 'Reviewer note',
                 tone: rejected ? CalloutTone.error : CalloutTone.info),
+          ],
+          if (item.reminderCount > 0) ...[
+            const SizedBox(height: 4),
+            MetaLine(
+                Icons.notifications_active_rounded,
+                'Admin reminded ${item.reminderCount == 1 ? 'once' : '${item.reminderCount} times'}'
+                ' · ${_fmtDate(item.lastRemindedAt)}'),
+          ],
+          if (onRemind != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: reminding ? null : onRemind,
+              icon: reminding
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.notifications_active_outlined, size: 20),
+              label: Text(reminding ? 'Notifying…' : 'Notify admin'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+            ),
           ],
         ],
       ),

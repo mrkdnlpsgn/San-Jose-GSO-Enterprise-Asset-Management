@@ -8,10 +8,9 @@ import { useFormDraft } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import Select from '../../components/common/Select'
 
-const ROLES = [
-  { value: 'ADMIN', label: 'Administrator' },
-  { value: 'STAFF', label: 'GSO Staff' },
-]
+import { ROLE_OPTIONS } from '../../utils/roles'
+
+const ROLES = ROLE_OPTIONS
 
 // Markers that LastPass, 1Password and Bitwarden respect to skip a field.
 const NO_EXTENSION_AUTOFILL = { 'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true' }

@@ -15,6 +15,10 @@ class EditRequestModel {
   final int requestedById;
   final String? requestedByName;
   final String? reviewedByName;
+  /// Times an Admin-Staff account reminded an administrator about it ("Notify admin").
+  final int reminderCount;
+  final String? lastRemindedAt;
+  final String? lastRemindedByName;
 
   const EditRequestModel({
     required this.kind,
@@ -31,6 +35,9 @@ class EditRequestModel {
     required this.requestedById,
     this.requestedByName,
     this.reviewedByName,
+    this.reminderCount = 0,
+    this.lastRemindedAt,
+    this.lastRemindedByName,
   });
 
   factory EditRequestModel.fromJson(Map<String, dynamic> json) => EditRequestModel(
@@ -48,5 +55,8 @@ class EditRequestModel {
         requestedById: json['requestedById'] as int,
         requestedByName: json['requestedByName'] as String?,
         reviewedByName: json['reviewedByName'] as String?,
+        reminderCount: (json['reminderCount'] as num?)?.toInt() ?? 0,
+        lastRemindedAt: json['lastRemindedAt'] as String?,
+        lastRemindedByName: json['lastRemindedByName'] as String?,
       );
 }

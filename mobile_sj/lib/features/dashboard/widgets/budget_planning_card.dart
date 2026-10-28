@@ -4,9 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../provider/planning_provider.dart';
+import '../../auth/provider/auth_provider.dart';
 import 'ios_style.dart';
 
-/// Home's "Budget & Planning" (admins only), the same as the web's and laid out for reading at a
+/// Home's "Budget & Planning" (admins and Admin-Staff), the same as the web's and laid out for reading at a
 /// glance, including by older staff: a form-style "due now" panel with large figures, money written
 /// as "₱321.9 million" with the exact amount under it, and one tappable card per coming year that
 /// opens the forecast on that year. Breakdowns by type and the book-value figures live in the
@@ -245,7 +246,7 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
               Text(
                 'Not counted yet: ${p.noExpectedLife.join(', ')}. '
                 '${p.noExpectedLife.length == 1 ? 'This type has' : 'These types have'} no expected years of use. '
-                'Set it on the Categories page.',
+                '${(ref.watch(authProvider).valueOrNull?.isAdmin ?? false) ? 'Set it' : 'An administrator can set it'} on the Categories page.',
                 style: const TextStyle(fontSize: 16, height: 1.4, color: Ios.orange),
               ),
             ],

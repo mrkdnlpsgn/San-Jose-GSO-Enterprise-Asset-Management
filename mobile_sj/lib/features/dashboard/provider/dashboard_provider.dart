@@ -14,7 +14,9 @@ class DashboardGroup {
 class DashboardAttention {
   final int count;
   final List<({int id, String propertyNumber, String description})> items;
-  const DashboardAttention(this.count, this.items);
+  /// Every matching asset's id (items is only the first few), for highlighting them all.
+  final List<int> ids;
+  const DashboardAttention(this.count, this.items, [this.ids = const []]);
 
   static const empty = DashboardAttention(0, []);
 
@@ -30,6 +32,7 @@ class DashboardAttention {
             description: m['description']?.toString() ?? '',
           ),
       ],
+      [for (final id in (json['ids'] as List? ?? const [])) (id as num).toInt()],
     );
   }
 }

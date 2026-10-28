@@ -35,7 +35,7 @@ public class User {
     private String fullName;
 
     @Column(nullable = false, length = 20)
-    private String role; // "ADMIN" or "STAFF"
+    private String role; // "ADMIN", "ADMIN_STAFF" (Admin-Staff) or "STAFF"
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "office_id", columnDefinition = "INT")

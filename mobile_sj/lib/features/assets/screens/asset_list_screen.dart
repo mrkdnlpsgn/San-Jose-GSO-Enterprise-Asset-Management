@@ -19,6 +19,16 @@ import '../widgets/asset_filter_sheet.dart';
 import '../widgets/asset_qr_sheet.dart' show showQrExportSheet;
 import '../../auth/provider/auth_provider.dart';
 import '../../../shared/widgets/ios_touch.dart';
+import '../../../core/highlight/highlight_provider.dart';
+import '../../../core/highlight/highlight_style.dart';
+
+/// The assets a notification is about, by id ("1,5,9"). The list screen pages from the server, so
+/// these come from the whole list (the same download the offline copy is made of) instead.
+final _highlightedAssetsProvider = FutureProvider.autoDispose.family<List<AssetModel>, String>((ref, ids) async {
+  final wanted = ids.split(',').toSet();
+  final all = await AssetService().getAll(size: 100000);
+  return all.where((a) => wanted.contains('${a.id}')).toList();
+});
 
 class AssetListScreen extends ConsumerStatefulWidget {
   const AssetListScreen({super.key});
@@ -150,6 +160,8 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
     final state = ref.watch(assetsPagedProvider(search));
     final countAsync = ref.watch(assetCountProvider(search));
     final filtersActive = assetFiltersActive(ref);
+    // Opened from a notification: show the assets it is about, tinted, until cleared.
+    final hl = highlightFor(ref, HighlightTarget.assets);
 
     Future<void> addAsset() async {
       final result = await context.push<bool>('/assets/new');
@@ -273,7 +285,7 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
           ),
         ),
       ),
-      body: Stack(
+      body: hl != null ? _highlightedBody(hl) : Stack(
         children: [
           AutoRefreshTicker(
             interval: const Duration(seconds: 30),
@@ -326,6 +338,50 @@ class _AssetListScreenState extends ConsumerState<AssetListScreen> {
     );
   }
 
+  Widget _highlightedBody(Highlight hl) {
+    final key = (hl.ids.toList()..sort()).join(',');
+    final async = ref.watch(_highlightedAssetsProvider(key));
+    void clear() => ref.read(highlightProvider.notifier).state = null;
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Column(children: [
+        HighlightBanner(count: 0, noun: 'asset', plural: 'assets', title: hl.title, clearLabel: 'Show all', onClear: clear),
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(e is ApiException ? e.message : "Couldn't load these assets.",
+              style: TextStyle(color: context.colors.textSecondary, fontSize: 15)),
+        ),
+      ]),
+      data: (assets) => Column(
+        children: [
+          HighlightBanner(
+            count: assets.length,
+            noun: 'asset',
+            plural: 'assets',
+            title: hl.title,
+            clearLabel: 'Show all',
+            onClear: clear,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => ref.invalidate(_highlightedAssetsProvider(key)),
+              child: ListView.separated(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + context.mainShellBottomInset),
+                itemCount: assets.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, i) => _AssetCard(
+                  asset: assets[i],
+                  highlighted: true,
+                  onTap: () => context.push('/assets/${assets[i].id}'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   ButtonStyle _toolbarButton(BuildContext context, {bool active = false}) =>
       toolbarButtonStyle(context, active: active);
 }
@@ -337,8 +393,10 @@ class _AssetCard extends StatelessWidget {
   // yet, e.g. added offline and not on the server).
   final bool choosing;
   final bool? chosen;
+  /// A notification pointed to this asset.
+  final bool highlighted;
 
-  const _AssetCard({required this.asset, required this.onTap, this.choosing = false, this.chosen});
+  const _AssetCard({required this.asset, required this.onTap, this.choosing = false, this.chosen, this.highlighted = false});
 
   @override
   Widget build(BuildContext context) {
@@ -351,6 +409,8 @@ class _AssetCard extends StatelessWidget {
       scale: 0.98,
       child: Card(
         margin: EdgeInsets.zero,
+        color: highlighted ? highlightTint(context) : null,
+        shape: highlighted ? highlightShape() : null,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),

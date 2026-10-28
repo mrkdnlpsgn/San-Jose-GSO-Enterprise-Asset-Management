@@ -13,3 +13,6 @@ export const getHistoryByAsset  = (id)    => api.get(`/asset-history/asset/${id}
 // Staff maintenance/disposal requests and their outcome. Admin: userId narrows to one
 // person (omit for everyone). Staff: the backend always returns only their own.
 export const getEditRequests    = (userId) => api.get('/asset-history/requests', { params: userId ? { userId } : {} });
+// "Notify admin" (Admin-Staff only): reminds the administrators about a pending request.
+// kind: MAINTENANCE | DISPOSAL | TRANSFER. At most once an hour per request.
+export const remindAdmin        = (kind, recordId) => api.post(`/asset-history/requests/${kind}/${recordId}/remind`);

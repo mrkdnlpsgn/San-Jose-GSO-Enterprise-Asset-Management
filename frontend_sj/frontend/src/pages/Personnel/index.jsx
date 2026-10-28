@@ -9,7 +9,9 @@ import { getOffices } from '../../services/officeService'
 import { useFormDraft, useDraftList } from '../../hooks/useFormDraft'
 import DraftNotice from '../../components/common/DraftNotice'
 import DraftRows from '../../components/common/DraftRows'
-import { SearchBox, FilterBar, FilterToggle, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, StatusBadge } from '../../components/common/ListKit'
+import { SearchBox, FilterBar, FilterToggle, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty, DataTable, PrimaryCell, MutedCell, StatusBadge, HighlightNotice } from '../../components/common/ListKit'
+import { roleLabel } from '../../utils/roles'
+import { useHighlight, highlightedFirst } from '../../hooks/useHighlight'
 
 const PAGE_SIZE = 5
 
@@ -116,7 +118,7 @@ function PersonnelModal({ onClose, onSave, initial, offices = [] }) {
 }
 
 const roleBadge = (p) => (<>
-  {p.userRole && <StatusBadge tone={p.userRole === 'ADMIN' ? 'green' : 'slate'}>{p.userRole === 'ADMIN' ? 'Administrator' : 'GSO Staff'}</StatusBadge>}
+  {p.userRole && <StatusBadge tone={p.userRole === 'ADMIN' ? 'green' : 'slate'}>{roleLabel(p.userRole)}</StatusBadge>}
   {p.userActive === false && <StatusBadge tone="red">Inactive</StatusBadge>}
 </>)
 const officeText = (p) => p.officeName ?? officeNames(p)
@@ -159,6 +161,8 @@ function Personnel() {
   const draftColumns = COLUMNS.map((c) => ({ className: `px-4 py-3 align-top ${c.className || ''}`, render: (p) => c.cell(p) }))
   const [page, setPage]             = useState(1)
   const [needsOffice, setNeedsOffice] = useState(false)
+  // Accounts a notification pointed to (by user id), e.g. staff with no office.
+  const highlight = useHighlight()
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -175,7 +179,7 @@ function Personnel() {
   }, [toast])
 
   useEffect(() => { fetchPersonnel(debouncedSearch) }, [debouncedSearch, fetchPersonnel])
-  useEffect(() => { setPage(1) }, [debouncedSearch, needsOffice])
+  useEffect(() => { setPage(1) }, [debouncedSearch, needsOffice, highlight.ids])
   useEffect(() => { getOffices().then(({ data }) => setOffices(data)).catch(() => {}) }, [])
 
   const handleUpdate = async (payload) => {
@@ -186,7 +190,11 @@ function Personnel() {
 
   const unassigned = (p) => !p.office && p.userActive !== false
   const unassignedCount = personnel.filter(unassigned).length
-  const filtered = useMemo(() => (needsOffice ? personnel.filter(unassigned) : personnel), [personnel, needsOffice])
+  const filtered = useMemo(() => highlightedFirst(needsOffice ? personnel.filter(unassigned) : personnel, highlight.ids, (p) => p.userId),
+    [personnel, needsOffice, highlight.ids])
+  // the table keys rows by personnel id; the notification names accounts
+  const highlightKeys = useMemo(() => new Set(filtered.filter((p) => p.userId != null && highlight.ids.has(String(p.userId))).map((p) => String(p.id))),
+    [filtered, highlight.ids])
   const activeFilters = [search.trim(), needsOffice].filter(Boolean).length
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
@@ -205,6 +213,10 @@ function Personnel() {
         )}
       </div>
 
+      {highlight.active && !loading && (
+        <HighlightNotice count={highlightKeys.size} noun="person" title={highlight.title} onClear={highlight.clear} />
+      )}
+
       <ListCard title={activeFilters > 0 ? 'Matching personnel' : 'All personnel'} filtered={filtered.length !== personnel.length}
         count={filtered.length} total={personnel.length} noun="person" loading={loading}
         actions={<RefreshButton onClick={() => fetchPersonnel(debouncedSearch)} />}
@@ -212,7 +224,7 @@ function Personnel() {
         {loading ? <ListSkeleton rows={5} /> : filtered.length === 0 && drafts.length === 0 ? (
           <ListEmpty>{activeFilters > 0 ? 'No personnel match your search.' : 'No accounts yet. Create one on the Accounts page.'}</ListEmpty>
         ) : (
-          <DataTable columns={COLUMNS} rows={paged} rowKey={(p) => p.id} onOpen={setEditing} wideEnd={drafts.length > 0}
+          <DataTable columns={COLUMNS} rows={paged} rowKey={(p) => p.id} onOpen={setEditing} wideEnd={drafts.length > 0} highlightKeys={highlightKeys}
             caption="Personnel. Select a person to assign their offices."
             leading={<DraftRows drafts={drafts} columns={draftColumns} toRecord={draftRecord} onContinue={continueDraft} onDiscard={discardDraft} />} />
         )}

@@ -15,8 +15,10 @@ class PersonnelRecord {
   final String? officeName;
   final List<int> officeIds;
   final String? contactInfo;
-  final String? userRole; // ADMIN | STAFF
+  final String? userRole; // ADMIN | ADMIN_STAFF | STAFF
   final bool userActive;
+  /// The account this person is (null for a personnel record without one).
+  final int? userId;
 
   const PersonnelRecord({
     required this.id,
@@ -29,6 +31,7 @@ class PersonnelRecord {
     this.contactInfo,
     this.userRole,
     this.userActive = true,
+    this.userId,
   });
 
   factory PersonnelRecord.fromJson(Map<String, dynamic> json) {
@@ -48,6 +51,7 @@ class PersonnelRecord {
       contactInfo: json['contactInfo'] as String?,
       userRole: json['userRole'] as String?,
       userActive: json['userActive'] != false,
+      userId: (json['userId'] as num?)?.toInt(),
     );
   }
 

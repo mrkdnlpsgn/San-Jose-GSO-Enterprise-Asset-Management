@@ -1,5 +1,9 @@
-// How a role is shown to people (the stored value stays ADMIN / STAFF).
-String roleLabel(String role) => role == 'ADMIN' ? 'Administrator' : 'GSO Staff';
+// How a role is shown to people (the stored value stays ADMIN / ADMIN_STAFF / STAFF).
+String roleLabel(String role) => switch (role) {
+      'ADMIN' => 'Administrator',
+      'ADMIN_STAFF' => 'Admin-Staff',
+      _ => 'GSO Staff',
+    };
 
 class UserModel {
   final int? id;
@@ -10,7 +14,7 @@ class UserModel {
   final int? officeId;
   /// Every office assigned (primary first); staff see the assets of all of them.
   final List<int> officeIds;
-  final String role; // ADMIN | STAFF
+  final String role; // ADMIN | ADMIN_STAFF | STAFF
   final String? privacyAcknowledgedAt;
   /// Root-relative, e.g. /uploads/avatars/3-<uuid>.jpg - null when no picture is set.
   final String? avatarUrl;
@@ -80,6 +84,13 @@ class UserModel {
       };
 
   bool get isAdmin => role == 'ADMIN';
+
+  /// Admin-Staff: works like staff (its changes are requests, it can't approve or reject),
+  /// but sees the entire inventory and every staff request.
+  bool get isAdminStaff => role == 'ADMIN_STAFF';
+
+  /// Sees every office's assets and everyone's requests.
+  bool get seesAllAssets => isAdmin || isAdminStaff;
 
   /// Full name when the account has one, otherwise the username.
   String get displayName => (fullName != null && fullName!.trim().isNotEmpty) ? fullName!.trim() : username;

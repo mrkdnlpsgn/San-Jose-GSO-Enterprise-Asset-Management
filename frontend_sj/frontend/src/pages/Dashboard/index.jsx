@@ -1,19 +1,11 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { setAssets } from '../../store/slices/assetSlice'
 import { getAssets } from '../../services/assetService'
 import { Link, useNavigate } from 'react-router-dom'
 import MainLayout from '../../components/layout/MainLayout'
 import { getDashboardSummary } from '../../services/dashboardService'
-import { getEditRequests } from '../../services/assetHistoryService'
-import { getUsers } from '../../services/userService'
 import { getPlanning, generatePlanningSummary } from '../../services/aiRecommendationService'
-import { approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
-import { approveDisposal, rejectDisposal } from '../../services/disposalService'
-import { approveTransfer, rejectTransfer } from '../../services/transferService'
-import { useToast } from '../../context/ToastContext'
-import { RejectRequestModal } from '../../components/common/ApprovalControls'
-import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { useEventStream } from '../../hooks/useEventStream'
 
 // ── Count-up hook ─────────────────────────────────────────────────────────────
@@ -71,8 +63,6 @@ function fmtPct(count, total) {
   return pct === 0 ? '<1%' : `${pct}%`
 }
 
-const assetLink = (propertyNumber) => `/assets?search=${encodeURIComponent(propertyNumber || '')}`
-
 const CONDITION_ORDER = ['NEW', 'GOOD', 'SERVICEABLE', 'REPAIRABLE', 'UNSERVICEABLE']
 const CONDITION_CFG = {
   NEW:           { bar: 'bg-sky-500',     text: 'text-sky-400',     dot: 'bg-sky-400',     label: 'New' },
@@ -82,15 +72,6 @@ const CONDITION_CFG = {
   UNSERVICEABLE: { bar: 'bg-red-500',     text: 'text-red-400',     dot: 'bg-red-400',     label: 'Unserviceable' },
 }
 
-// Staff requests (maintenance / disposal / transfer) come from /asset-history/requests in one
-// shape; kind is upper-case there. The API calls and wording for each kind:
-const REQUEST_KIND = {
-  MAINTENANCE: { label: 'Maintenance', badge: 'text-amber-700 dark:text-amber-300 bg-amber-500/10',  approve: approveMaintenance, reject: rejectMaintenance },
-  DISPOSAL:    { label: 'Disposal',    badge: 'text-red-700 dark:text-red-300 bg-red-500/10',      approve: approveDisposal,    reject: rejectDisposal },
-  TRANSFER:    { label: 'Transfer',    badge: 'text-violet-700 dark:text-violet-300 bg-violet-500/10', approve: approveTransfer,    reject: rejectTransfer },
-}
-const REQUESTS_LINK = (status) => `/asset-history?view=requests&status=${status}`
-const REJECTED_RECENT_DAYS = 14
 
 const TOP_OFFICES = 6
 
@@ -134,64 +115,6 @@ function StatStrip({ stats, loading }) {
             </div>
           </Link>
         ))}
-      </div>
-    </div>
-  )
-}
-
-// "Needs attention": one row per problem, shown only when there is something to do. A row
-// can list the assets behind its count (each opens that asset), since the Assets page has
-// no filter for things like "no accountable person".
-// assets: the first few matching assets (the server sends up to 10); total: how many match.
-function AttentionRow({ tone, text, link, assets, total = assets?.length ?? 0 }) {
-  const [open, setOpen] = useState(false)
-  const dot = tone === 'red' ? 'bg-red-500' : 'bg-amber-500'
-  return (
-    <div className="px-5 py-3">
-      <div className="flex items-center gap-3">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
-        <p className="flex-1 min-w-0 text-sm text-slate-700 dark:text-zinc-200">{text}</p>
-        {assets?.length > 0 && (
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
-            aria-label={`${open ? 'Hide' : 'Show'} the list: ${text}`}
-            className="flex-shrink-0 -my-1 px-2 py-1 rounded-md text-sm font-medium text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline transition-colors">
-            {open ? 'Hide' : 'Show'}
-          </button>
-        )}
-        {link && (
-          <Link to={link.to} aria-label={`${link.label}: ${text}`} className="flex-shrink-0 -my-1 px-2 py-1 rounded-md text-sm font-medium text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline transition-colors">
-            {link.label}
-          </Link>
-        )}
-      </div>
-      {open && (
-        <ul className="mt-2 ml-5 space-y-1">
-          {assets.map((a) => (
-            <li key={a.id} className="text-xs truncate">
-              <Link to={assetLink(a.propertyNumber)} className="text-slate-600 dark:text-zinc-300 hover:text-brand-600 dark:hover:text-brand-400">
-                <span className="font-mono text-slate-600 dark:text-zinc-400 mr-1.5">{a.propertyNumber}</span>
-                {a.description || 'N/A'}
-              </Link>
-            </li>
-          ))}
-          {total > assets.length && (
-            <li className="text-xs text-slate-600 dark:text-zinc-400">and {fmtNum(total - assets.length)} more</li>
-          )}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-function NeedsAttention({ items }) {
-  if (items.length === 0) return null
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-amber-500/40">
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Needs attention</p>
-      </div>
-      <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
-        {items.map((item) => <AttentionRow key={item.key} {...item} />)}
       </div>
     </div>
   )
@@ -371,7 +294,7 @@ function CategoryBreakdown({ breakdown, total, loading, onSelect }) {
   )
 }
 
-// "Budget & Planning" (admins only), laid out for reading at a glance, including by older
+// "Budget & Planning" (admins and Admin-Staff), laid out for reading at a glance, including by older
 // staff: large figures with a plain label above each, money written as "₱321.9 million" with
 // the exact amount under it, and the coming years as a table with a total. Breakdowns by
 // type and the book-value figures live in the Replacement Forecast and Depreciation
@@ -414,7 +337,7 @@ function YearCard({ bucket, label }) {
   )
 }
 
-function BudgetPlanning({ data, loading, onChange }) {
+function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
   const [generating, setGenerating] = useState(false)
   const [aiError, setAiError]       = useState('')
 
@@ -512,7 +435,9 @@ function BudgetPlanning({ data, loading, onChange }) {
             {missingLife.length > 0 && (
               <p className="text-base text-amber-900 dark:text-amber-200">
                 Not counted yet: {missingLife.join(', ')}. {missingLife.length === 1 ? 'This type has' : 'These types have'} no expected years of use.{' '}
-                <Link to="/categories" className="font-semibold underline">Set it on the Categories page</Link>.
+                {canEditCategories
+                  ? <><Link to="/categories" className="font-semibold underline">Set it on the Categories page</Link>.</>
+                  : 'An administrator can set it on the Categories page.'}
               </p>
             )}
 
@@ -549,119 +474,6 @@ function BudgetPlanning({ data, loading, onChange }) {
   )
 }
 
-// Staff accounts are scoped to their office's assets (see AccessService), so an
-// active staff account with no office sees nothing until one is assigned.
-function UnassignedOffices({ accounts }) {
-  const count = accounts.length
-  const names = accounts.slice(0, 3).map((u) => u.fullName || u.username)
-  const more  = count - names.length
-
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-amber-500/40 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4" role="status">
-      <div className="w-9 h-9 rounded-full bg-amber-50 dark:bg-amber-950 flex items-center justify-center shrink-0">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-500 dark:text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">
-          {count === 1 ? '1 staff account has no office assigned' : `${count} staff accounts have no office assigned`}
-        </p>
-        <p className="text-sm text-slate-600 dark:text-zinc-400 mt-0.5">
-          {names.join(', ')}{more > 0 ? ` and ${more} more` : ''}: {count === 1 ? 'this account' : 'these accounts'} can't see any assets until an office is assigned.
-        </p>
-      </div>
-      <Link
-        to="/personnel"
-        className="shrink-0 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-md bg-brand-700 text-white hover:bg-brand-800 transition-colors duration-150"
-      >
-        Assign offices
-      </Link>
-    </div>
-  )
-}
-
-// Admin inbox for staff requests waiting to be approved or rejected. Updates live via the
-// dashboard's SSE reload, so it doubles as the admin's request notification.
-const PENDING_PREVIEW = 6
-
-function PendingApprovals({ requests, loading, failed, onRetry, onApprove, onReject, busyId }) {
-  const count = requests.length
-  const shown = requests.slice(0, PENDING_PREVIEW)
-
-  return (
-    <div className={`bg-white dark:bg-zinc-900 rounded-xl border ${count > 0 || failed ? 'border-amber-500/40' : 'border-slate-200 dark:border-zinc-800'}`}>
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Pending Approvals</p>
-          {!loading && !failed && (
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${count > 0 ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'}`}>
-              {count}
-            </span>
-          )}
-        </div>
-        {count > PENDING_PREVIEW && (
-          <Link to={REQUESTS_LINK('PENDING_APPROVAL')} className="text-xs text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline font-medium transition-colors duration-150">View all {count}</Link>
-        )}
-      </div>
-      {loading ? (
-        <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="px-5 py-3.5 flex items-center gap-3">
-              <Sk className="w-20 h-5 rounded flex-shrink-0" />
-              <div className="flex-1 space-y-2"><Sk className="h-3.5 w-2/3" /><Sk className="h-3 w-1/3" /></div>
-            </div>
-          ))}
-        </div>
-      ) : failed ? (
-        // Never show "nothing waiting" when the list simply didn't load.
-        <div className="px-5 py-4 flex items-center justify-between gap-3">
-          <p className="text-sm text-red-700 dark:text-red-300">Couldn't load requests, so some may be waiting.</p>
-          <button onClick={onRetry} className="text-xs font-semibold text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-200 hover:underline">Try again</button>
-        </div>
-      ) : count === 0 ? (
-        <p className="px-5 py-4 text-sm text-slate-600 dark:text-zinc-400">No maintenance, disposal or transfer requests are waiting for approval.</p>
-      ) : (
-        <div className="divide-y divide-slate-100 dark:divide-zinc-800/70">
-          {shown.map((r) => {
-            const cfg = REQUEST_KIND[r.kind]
-            const key = `${r.kind}:${r.recordId}`
-            return (
-              <div key={key} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100">
-                <span className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold leading-none whitespace-nowrap ${cfg.badge}`}>
-                  {cfg.label}
-                </span>
-                <Link to={assetLink(r.propertyNumber)} className="flex-1 min-w-0 group">
-                  <p className="text-sm text-slate-700 dark:text-zinc-200 leading-snug truncate font-medium group-hover:text-slate-900 dark:group-hover:text-white">
-                    <span className="font-mono text-xs text-slate-600 dark:text-zinc-400 mr-1.5">{r.propertyNumber}</span>
-                    {r.assetDescription || 'N/A'}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-zinc-400 mt-0.5 leading-snug truncate">
-                    {r.detail}{r.requestedByName ? `, requested by ${r.requestedByName}` : ''}
-                  </p>
-                </Link>
-                <time className="hidden sm:block flex-shrink-0 text-xs text-slate-600 dark:text-zinc-400 whitespace-nowrap tabular-nums">{timeAgo(r.requestedAt)}</time>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => onApprove(r)} disabled={busyId === key}
-                    aria-label={`Approve ${cfg.label.toLowerCase()} request for ${r.propertyNumber}`}
-                    className="px-2.5 py-1.5 rounded-md text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-40 transition-all duration-150">
-                    Approve
-                  </button>
-                  <button onClick={() => onReject(r)} disabled={busyId === key}
-                    aria-label={`Reject ${cfg.label.toLowerCase()} request for ${r.propertyNumber}`}
-                    className="px-2.5 py-1.5 rounded-md text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-500/10 disabled:opacity-40 transition-all duration-150">
-                    Reject
-                  </button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const ICONS = {
   assets: <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" /></svg>,
   value:  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" /><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" /></svg>,
@@ -673,58 +485,49 @@ const ICONS = {
 function Dashboard() {
   const navigate = useNavigate()
   // Staff only ever receive their own office's data from the API (see AccessService);
-  // the admin-only parts of the page (approvals, offices, unassigned staff) are hidden for them.
+  // the admin-only parts of the page (offices, unassigned staff) are hidden for them.
   const dispatch = useDispatch()
   const user     = useSelector((s) => s.auth.user)
   const isAdmin  = user?.role === 'ADMIN'
+  const isAdminStaff = user?.role === 'ADMIN_STAFF'   // sees all offices, but files requests like staff
+  // Admin-Staff sees the entire inventory, so its Home is the admin's: offices chart, book value,
+  // Budget & Planning. (Only Categories, an admin page, isn't linked for it.)
+  const adminHome = isAdmin || isAdminStaff
   const cachedAssetCount = useSelector((s) => s.assets.items.length)
-  const toast    = useToast()
-  const [rejecting, setRejecting]   = useState(null)
-  const [approving, setApproving]   = useState(null)   // disposal waiting for the confirm dialog
-  const [busyId, setBusyId]         = useState(null)
 
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(false)
   const [summary, setSummary]   = useState(null)   // asset numbers worked out by the server
-  const [unassignedStaff, setUnassignedStaff] = useState([])
-  const [requests, setRequests] = useState([])
-  const [requestsFailed, setRequestsFailed] = useState(false)
   const [insightToken, setInsightToken] = useState(0)   // bumps on every quiet reload so Budget & Planning refetches
 
   const load = useCallback(({ silent = false } = {}) => {
     if (!silent) { setLoading(true); setError(false) }
-    Promise.all([
-      getDashboardSummary().catch(() => null),
-      isAdmin ? getUsers().catch(() => null) : Promise.resolve(null),
-      // Admin: everyone's requests. Staff: the backend returns only their own.
-      getEditRequests().catch(() => null),
-    ]).then(([sumRes, userRes, reqRes]) => {
+    // Requests, unassigned staff and asset problems are notifications: they live in the
+    // header's bell (useNotifications), not on the dashboard.
+    getDashboardSummary().catch(() => null).then((sumRes) => {
       if (!sumRes) {
         if (!silent) { setError(true); setLoading(false) }
         return
       }
-      if (sumRes) setSummary(sumRes.data)
-      setUnassignedStaff((userRes?.data ?? []).filter((x) => x.role === 'STAFF' && x.isActive && !x.officeId && !x.officeName))
-      setRequests(reqRes?.data ?? [])
-      setRequestsFailed(!reqRes)
+      setSummary(sumRes.data)
       if (silent) setInsightToken((t) => t + 1)  // Budget & Planning loads itself on first open
       if (!silent) setLoading(false)
     })
-  }, [isAdmin])
+  }, [])
 
-  // Budget & Planning (admins only), loaded after the main numbers so it doesn't slow them down.
-  // Also feeds the Book Value tile and the "due for replacement" row in Needs attention.
+  // Budget & Planning (admins and Admin-Staff), loaded after the main numbers so it doesn't slow them down.
+  // Also feeds the Book Value tile.
   const [planning, setPlanning]               = useState(null)
   const [planningLoading, setPlanningLoading] = useState(true)
   useEffect(() => {
-    if (!isAdmin || loading) return
+    if (!adminHome || loading) return
     let alive = true
     getPlanning()
       .then(({ data }) => { if (alive) setPlanning(data) })
       .catch(() => { if (alive) setPlanning(null) })
       .finally(() => { if (alive) setPlanningLoading(false) })
     return () => { alive = false }
-  }, [isAdmin, loading, insightToken])
+  }, [adminHome, loading, insightToken])
 
   // Once the dashboard is in, quietly load the asset list (the slim one) so Assets and Transfer
   // Asset open at once from it and refresh in the background.
@@ -763,88 +566,19 @@ function Dashboard() {
   const officeDist   = summary?.offices ?? []
   const categoryBreakdown = (summary?.categories ?? []).slice(0, 6)
 
-  // Requests, newest first.
-  const pendingList = useMemo(() => requests
-    .filter((r) => r.approvalStatus === 'PENDING_APPROVAL' && REQUEST_KIND[r.kind])
-    .sort((a, b) => new Date(b.requestedAt || 0) - new Date(a.requestedAt || 0)), [requests])
-  const recentlyRejected = useMemo(() => {
-    const cutoff = Date.now() - REJECTED_RECENT_DAYS * 86400000
-    return requests.filter((r) => r.approvalStatus === 'REJECTED' && new Date(r.reviewedAt || 0).getTime() >= cutoff)
-  }, [requests])
-
-  // ── Needs attention ────────────────────────────────────────────────────────
-  const att = summary?.attention ?? {}
-  const noAccountable = att.noAccountable ?? { count: 0, items: [] }
-  const noOffice      = att.noOffice ?? { count: 0, items: [] }
-  const unserviceableNoDisposal = att.unserviceableNoDisposal ?? { count: 0, items: [] }
-
-  const attention = []
-  if (!isAdmin && pendingList.length > 0) attention.push({
-    key: 'mine-pending', tone: 'amber',
-    text: `${plural(pendingList.length, 'of your requests is', 'of your requests are')} waiting for admin approval`,
-    link: { to: REQUESTS_LINK('PENDING_APPROVAL'), label: 'View' },
-  })
-  if (!isAdmin && recentlyRejected.length > 0) attention.push({
-    key: 'mine-rejected', tone: 'red',
-    text: `${plural(recentlyRejected.length, 'of your requests was', 'of your requests were')} rejected in the last ${REJECTED_RECENT_DAYS} days`,
-    link: { to: REQUESTS_LINK('REJECTED'), label: 'See reasons' },
-  })
-  if (!isAdmin && requestsFailed) attention.push({
-    key: 'mine-failed', tone: 'red', text: "Couldn't load your requests. Refresh to try again.",
-  })
-  if (unserviceableNoDisposal.count > 0) attention.push({
-    key: 'unserviceable', tone: 'red',
-    text: `${plural(unserviceableNoDisposal.count, 'unserviceable asset has', 'unserviceable assets have')} no disposal record yet`,
-    assets: unserviceableNoDisposal.items, total: unserviceableNoDisposal.count,
-  })
-  if (noAccountable.count > 0) attention.push({
-    key: 'no-accountable', tone: 'amber',
-    text: `${plural(noAccountable.count, 'asset has', 'assets have')} no accountable person`,
-    assets: noAccountable.items, total: noAccountable.count,
-  })
-  if (isAdmin && noOffice.count > 0) attention.push({
-    key: 'no-office', tone: 'amber',
-    text: `${plural(noOffice.count, 'asset is', 'assets are')} not assigned to an office`,
-    assets: noOffice.items, total: noOffice.count,
-  })
-
-  // ── Approvals ──────────────────────────────────────────────────────────────
-  const approveRequest = async (r) => {
-    const key = `${r.kind}:${r.recordId}`
-    setBusyId(key)
-    try {
-      await REQUEST_KIND[r.kind].approve(r.recordId)
-      toast.show(`${REQUEST_KIND[r.kind].label} request approved.`, 'success')
-      load({ silent: true })
-    } catch (err) {
-      toast.show(err.response?.data?.message || 'Failed to approve the request.', 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-  // Disposal is the step that's hardest to undo, so it asks first.
-  const onApprove = (r) => (r.kind === 'DISPOSAL' ? setApproving(r) : approveRequest(r))
-
-  const rejectRequest = async (note) => {
-    const r = rejecting
-    await REQUEST_KIND[r.kind].reject(r.recordId, note)
-    toast.show('Request rejected.', 'warning')
-    load({ silent: true })
-  }
-
   const animAssets = useCountUp(totalAssets, !loading)
   const animValue  = useCountUp(Math.round(totalValue), !loading)
   const animRepair = useCountUp(underRepair, !loading)
   const animDisp   = useCountUp(forDisposal, !loading)
   const bookValue  = planning?.depreciation?.total?.bookValue
   const animBook   = useCountUp(Math.round(Number(bookValue ?? 0)), bookValue != null)
-  // Admins see the book value (from Budget & Planning); staff, or when that failed to load, the cost.
-  const showBook   = isAdmin && (planningLoading || bookValue != null)
+  // Admins and Admin-Staff see the book value (from Budget & Planning); staff, or when that failed to load, the cost.
+  const showBook   = adminHome && (planningLoading || bookValue != null)
 
   const stats = [
     {
       label: 'Assets in use', value: fmtNum(animAssets),
-      sub: isAdmin ? 'All offices' : (user?.officeName || 'Your office'), delta: newThisMonth, href: '/assets', icon: ICONS.assets,
+      sub: adminHome ? 'All offices' : (user?.officeName || 'Your office'), delta: newThisMonth, href: '/assets', icon: ICONS.assets,
     },
     showBook ? {
       label: 'Book Value', value: fmtMoney(animBook), loading: bookValue == null,
@@ -893,21 +627,12 @@ function Dashboard() {
       <div className="space-y-5">
         <StatStrip stats={stats} loading={loading} />
 
-        {isAdmin && !loading && unassignedStaff.length > 0 && <UnassignedOffices accounts={unassignedStaff} />}
+        {adminHome && <BudgetPlanning data={planning} loading={loading || planningLoading} onChange={setPlanning} canEditCategories={isAdmin} />}
 
-        {isAdmin && (
-          <PendingApprovals requests={pendingList} loading={loading} failed={requestsFailed} onRetry={() => load()}
-            busyId={busyId} onApprove={onApprove} onReject={setRejecting} />
-        )}
-
-        {!loading && <NeedsAttention items={attention} />}
-
-        {isAdmin && <BudgetPlanning data={planning} loading={loading || planningLoading} onChange={setPlanning} />}
-
-        <div className={`grid grid-cols-1 ${isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-5`}>
+        <div className={`grid grid-cols-1 ${adminHome ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-5`}>
           <ConditionDistribution condDist={condDist} total={totalAssets} loading={loading}
             onSelect={(cond) => navigate(`/assets?condition=${cond}`)} />
-          {isAdmin && (
+          {adminHome && (
             <OfficeDistribution offices={officeDist.slice(0, TOP_OFFICES)} officeCount={officeDist.length} loading={loading}
               onSelect={(officeId) => navigate(`/assets?office=${officeId}`)} />
           )}
@@ -915,24 +640,6 @@ function Dashboard() {
             onSelect={(categoryId) => navigate(`/assets?category=${categoryId}`)} />
         </div>
       </div>
-
-      {rejecting && (
-        <RejectRequestModal
-          record={{ ...rejecting, kind: rejecting.kind.toLowerCase(), id: rejecting.recordId }}
-          describe={(r) => `${REQUEST_KIND[rejecting.kind].label}: ${r.propertyNumber || ''} ${r.assetDescription || ''}`}
-          onClose={() => setRejecting(null)}
-          onConfirm={rejectRequest}
-        />
-      )}
-      {approving && (
-        <ConfirmDialog
-          title="Approve this disposal?"
-          message={`${approving.propertyNumber} ${approving.assetDescription || ''} will be marked for disposal${approving.detail ? ` (${approving.detail})` : ''}.`}
-          confirmLabel="Approve disposal"
-          onCancel={() => setApproving(null)}
-          onConfirm={() => { const r = approving; setApproving(null); approveRequest(r) }}
-        />
-      )}
     </MainLayout>
   )
 }

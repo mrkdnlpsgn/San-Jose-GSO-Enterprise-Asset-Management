@@ -36,6 +36,7 @@ class _TransferListScreenState extends ConsumerState<TransferListScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
+    final isAdminStaff = ref.watch(authProvider).valueOrNull?.isAdminStaff ?? false;
     final async = ref.watch(transfersProvider);
     final c = context.colors;
 
@@ -43,7 +44,7 @@ class _TransferListScreenState extends ConsumerState<TransferListScreen> {
       appBar: AppBar(
         title: TitleWithCount(
           'Transfer Asset',
-          subtitle: isAdmin ? 'Requests from staff' : 'Your transfer requests',
+          subtitle: isAdmin || isAdminStaff ? 'Requests from staff' : 'Your transfer requests',
         ),
       ),
       body: async.when(
@@ -59,7 +60,9 @@ class _TransferListScreenState extends ConsumerState<TransferListScreen> {
                 Text(
                   isAdmin
                       ? 'Staff transfers wait here for your approval. Transfers you make are applied right away.'
-                      : 'Transfers you send wait for an administrator to approve them.',
+                      : isAdminStaff
+                          ? 'Every transfer request, including yours. An administrator approves them.'
+                          : 'Transfers you send wait for an administrator to approve them.',
                   style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.45),
                 ),
                 const SizedBox(height: 12),

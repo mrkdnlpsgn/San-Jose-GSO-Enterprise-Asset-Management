@@ -22,7 +22,7 @@ import java.util.Set;
 @Transactional
 public class UserService {
 
-    private static final Set<String> VALID_ROLES = Set.of("ADMIN", "STAFF");
+    private static final Set<String> VALID_ROLES = Set.of("ADMIN", "ADMIN_STAFF", "STAFF");
 
     // ambiguous-looking characters (0/O, 1/l/I) excluded so a printed/typed
     // temporary password isn't misread
@@ -43,7 +43,7 @@ public class UserService {
         if (role == null || role.isBlank()) return fallback;
         String normalized = role.toUpperCase();
         if (!VALID_ROLES.contains(normalized)) {
-            throw new IllegalArgumentException("Invalid role: " + role + " (must be ADMIN or STAFF)");
+            throw new IllegalArgumentException("Invalid role: " + role + " (must be ADMIN, ADMIN_STAFF or STAFF)");
         }
         return normalized;
     }

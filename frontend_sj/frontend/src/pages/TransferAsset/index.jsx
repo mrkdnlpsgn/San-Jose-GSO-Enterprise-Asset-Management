@@ -108,6 +108,8 @@ function TransferAsset() {
   const navigate   = useNavigate()
   const { show }   = useToast()
   const isAdmin    = useSelector((s) => s.auth.user?.role === 'ADMIN')
+  // Admin-Staff: files transfers as requests like staff, but sees every staff request (read-only)
+  const isAdminStaff = useSelector((s) => s.auth.user?.role === 'ADMIN_STAFF')
   const myOfficeId = useSelector((s) => s.auth.user?.officeId)
   const myOfficeIds = useSelector((s) => s.auth.user?.officeIds)
 
@@ -570,7 +572,7 @@ function TransferAsset() {
             <div className={`${CARD} border-red-200 dark:border-red-800/40 p-8 flex flex-col items-center justify-center gap-3 min-h-[320px] animate-fade-slide`}>
               <p className="text-base font-semibold text-red-600 dark:text-red-400">Asset not found</p>
               <p className="text-sm text-slate-500 dark:text-zinc-400 text-center">
-                No asset matches this code{isAdmin ? '' : ' in your office'}. Check the Property Number and try again.
+                No asset matches this code{isAdmin || isAdminStaff ? '' : ' in your office'}. Check the Property Number and try again.
               </p>
               <Button variant="secondary" size="sm" onClick={handleClear}>Clear</Button>
             </div>
@@ -786,10 +788,10 @@ function TransferAsset() {
             <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
               <div>
                 <h2 id="requests-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">
-                  {isAdmin ? 'Transfer requests to review' : 'My transfer requests'}
+                  {isAdmin ? 'Transfer requests to review' : isAdminStaff ? 'Staff transfer requests' : 'My transfer requests'}
                 </h2>
                 <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
-                  {isAdmin ? 'Transfers filed by staff wait here for your approval.' : 'Transfers you send wait for an administrator to approve them.'}
+                  {isAdmin ? 'Transfers filed by staff wait here for your approval.' : isAdminStaff ? 'Every transfer request, including yours. An administrator approves them.' : 'Transfers you send wait for an administrator to approve them.'}
                 </p>
               </div>
               {isAdmin && requests.length > 0 && (
@@ -798,7 +800,7 @@ function TransferAsset() {
             </div>
             {requests.length === 0 ? (
               <p className="px-5 py-6 text-sm text-slate-400 dark:text-zinc-500 text-center">
-                {isAdmin ? 'No transfer requests waiting.' : "You haven't sent any transfer requests."}
+                {isAdmin ? 'No transfer requests waiting.' : isAdminStaff ? 'No transfer requests yet.' : "You haven't sent any transfer requests."}
               </p>
             ) : (
               <ul className="divide-y divide-slate-100 dark:divide-zinc-800">
@@ -815,7 +817,7 @@ function TransferAsset() {
                         </p>
                         {r.reason && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">Reason: {r.reason}</p>}
                         <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-                          {isAdmin ? `Requested by ${r.requestedByName || 'staff'} · ` : ''}{fmtDateTime(r.requestedAt)}
+                          {isAdmin || isAdminStaff ? `Requested by ${r.requestedByName || 'staff'} · ` : ''}{fmtDateTime(r.requestedAt)}
                         </p>
                         {r.status === 'REJECTED' && r.reviewNote && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">Note from admin: {r.reviewNote}</p>

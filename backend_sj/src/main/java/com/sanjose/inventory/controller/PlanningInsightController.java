@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 // Home's "Budget & Planning" section: replacement forecast + depreciation, with one AI summary.
-// Admins only (budget planning is the GSO head's job; staff Home stays on their own work).
+// Admins and Admin-Staff (both see the entire inventory); staff Home stays on their own work.
 @RestController
 @RequestMapping("/api/ai-insights/planning")
 @RequiredArgsConstructor
@@ -19,13 +19,13 @@ public class PlanningInsightController {
 
     @GetMapping
     public Map<String, Object> planning() {
-        accessService.requireAdmin("view budget planning");
+        accessService.requireAllAssets("view budget planning");
         return planningInsightService.planning();
     }
 
     @PostMapping("/summary")
     public Map<String, Object> summarize(@RequestParam(defaultValue = "false") boolean refresh) {
-        accessService.requireAdmin("generate the budget planning summary");
+        accessService.requireAllAssets("generate the budget planning summary");
         return planningInsightService.summarize(refresh);
     }
 }

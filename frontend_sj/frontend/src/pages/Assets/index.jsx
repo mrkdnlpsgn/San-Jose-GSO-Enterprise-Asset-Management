@@ -14,7 +14,8 @@ import AssetQrModal from './AssetQrModal'
 // loaded on first use: it brings the QR drawing code
 const QrExportModal = lazy(() => import('./QrExportModal'))
 import { Badge, CONDITION_BADGE } from './assetBadges'
-import { FilterSelect, FilterBar, SearchBox, SearchRow } from '../../components/common/ListKit'
+import { FilterSelect, FilterBar, SearchBox, SearchRow, HighlightNotice } from '../../components/common/ListKit'
+import { useHighlight, highlightedFirst, HIGHLIGHT_ROW } from '../../hooks/useHighlight'
 import { exportAssetsToExcel } from './assetExcel'
 import { setAssets, addAsset, updateAsset, removeAsset } from '../../store/slices/assetSlice'
 import { getAssets, createAsset, updateAsset as updateAssetApi, deleteAsset, bulkImportAssets, getAssetById } from '../../services/assetService'
@@ -95,6 +96,7 @@ function Assets() {
   const isAdmin  = useSelector((s) => s.auth.user?.role === 'ADMIN')
   const toast    = useToast()
   const location = useLocation()
+  const highlight = useHighlight()   // assets a notification pointed to
 
   // Start from the list another page (e.g. Dashboard) already loaded, so the table shows at once;
   // the first fetch below then refreshes it in the background.
@@ -218,7 +220,7 @@ function Assets() {
     fetchAssets(debouncedSearch, { silent: refreshCacheSilently.current })
     refreshCacheSilently.current = false
   }, [debouncedSearch, fetchAssets])
-  useEffect(() => { setShown(ROW_BATCH) }, [debouncedSearch, filterCondition, filterLifecycle, filterCategory, filterOffice])
+  useEffect(() => { setShown(ROW_BATCH) }, [debouncedSearch, filterCondition, filterLifecycle, filterCategory, filterOffice, highlight.ids])
 
   useEventStream('asset', ({ action, id, data }) => {
     if (action === 'DELETED') {
@@ -313,8 +315,10 @@ function Assets() {
     if (filterOffice && String(a.office?.id) !== filterOffice) return false
     return true
   }
-  const filtered = useMemo(() => items.filter(matchesFilters),
-    [items, filterCondition, filterLifecycle, filterCategory, filterOffice]) // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = useMemo(() => highlightedFirst(items.filter(matchesFilters), highlight.ids, (a) => a.id),
+    [items, filterCondition, filterLifecycle, filterCategory, filterOffice, highlight.ids]) // eslint-disable-line react-hooks/exhaustive-deps
+  const highlightedCount = useMemo(() => (highlight.active ? filtered.filter((a) => highlight.ids.has(String(a.id))).length : 0),
+    [filtered, highlight.active, highlight.ids])
 
   const visible = filtered.slice(0, shown)
   const hasMore = shown < filtered.length
@@ -349,7 +353,8 @@ function Assets() {
     return (
       <tr key={a.id} onClick={open}
         className={`hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100 cursor-pointer ${
-          (choosing ? isChosen : selected?.id === a.id) ? 'bg-slate-50 dark:bg-zinc-800/40' : ''}`}>
+          (choosing ? isChosen : selected?.id === a.id) ? 'bg-slate-50 dark:bg-zinc-800/40'
+            : highlight.ids.has(String(a.id)) ? HIGHLIGHT_ROW : ''}`}>
         {choosing && (
           <td className={`${TD} pr-0`} onClick={(e) => e.stopPropagation()}>
             <input type="checkbox" checked={isChosen} onChange={(e) => toggleChosen([a.id], e.target.checked)}
@@ -401,6 +406,10 @@ function Assets() {
           )}
         </FilterBar>
       </div>
+
+      {highlight.active && !loading && (
+        <HighlightNotice count={highlightedCount} noun="asset" title={highlight.title} onClear={highlight.clear} />
+      )}
 
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
         <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-x-3">

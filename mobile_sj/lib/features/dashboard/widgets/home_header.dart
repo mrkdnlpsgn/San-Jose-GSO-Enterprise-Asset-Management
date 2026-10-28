@@ -63,7 +63,9 @@ class _HomeHeaderState extends ConsumerState<HomeHeader> {
         ? null
         : user.isAdmin
             ? (user.displayName.toLowerCase() == 'administrator' ? null : 'Administrator')
-            : (user.officeName ?? 'No office assigned');
+            : user.isAdminStaff
+                ? 'Admin-Staff'
+                : (user.officeName ?? 'No office assigned');
 
     // Sits under the large "Home" title, Apple Today-style: small grey date line, then the greeting.
     return Padding(

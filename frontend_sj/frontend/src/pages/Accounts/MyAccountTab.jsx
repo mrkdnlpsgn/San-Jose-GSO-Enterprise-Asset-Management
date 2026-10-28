@@ -10,6 +10,7 @@ import UserAvatar from '../../components/common/UserAvatar'
 import { changePassword, uploadAvatar, removeAvatar, getMyOverview, setMyTwoFactor, forgetMyDevices } from '../../services/userService'
 import { toSquareJpeg } from '../../utils/squareImage'
 import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
+import { roleLabel } from '../../utils/roles'
 
 const CARD = 'bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800'
 const CARD_TITLE = 'text-base font-semibold text-gov-700 dark:text-white'
@@ -350,7 +351,7 @@ function MyAccountTab({ user }) {
               <h2 className="text-2xl font-bold text-gov-700 dark:text-white tracking-tight truncate">{displayName}</h2>
               <p className="text-sm font-mono text-slate-500 dark:text-zinc-400 mt-0.5">@{user?.username}</p>
               <div className="flex flex-wrap items-center gap-2 mt-2.5">
-                <Badge label={isAdmin ? 'Administrator' : 'GSO Staff'} color={isAdmin ? 'green' : 'blue'} />
+                <Badge label={roleLabel(user?.role)} color={isAdmin ? 'green' : 'blue'} />
                 {officeName && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 ring-1 ring-slate-200 dark:ring-zinc-700">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

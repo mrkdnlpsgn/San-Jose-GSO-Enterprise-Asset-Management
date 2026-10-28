@@ -314,7 +314,7 @@ class _AccountFormScreenState extends ConsumerState<AccountFormScreen> {
               _dropdown<String>(
                 label: 'Role',
                 value: _role,
-                items: const ['ADMIN', 'STAFF'],
+                items: const ['ADMIN', 'ADMIN_STAFF', 'STAFF'],
                 itemLabel: roleLabel,
                 onChanged: (r) => setState(() => _role = r!),
               ),

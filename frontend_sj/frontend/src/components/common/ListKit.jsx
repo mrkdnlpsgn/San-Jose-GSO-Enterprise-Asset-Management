@@ -1,5 +1,6 @@
 import { useId, useState, useEffect } from 'react'
 import Select, { isTouch } from './Select'
+import { HIGHLIGHT_ROW } from '../../hooks/useHighlight'
 
 // Shared pieces for every module's list page, so they all look and behave the same:
 //   SearchBox + FilterSelect / FilterBar  - one search box, a few plainly labelled filters,
@@ -156,7 +157,23 @@ export function ScopeNotice({ children, onClear, clearLabel = 'Show all' }) {
   )
 }
 
+// Above a list opened from a notification: says what is highlighted (see useHighlight).
+export function HighlightNotice({ count, noun, title, onClear }) {
+  return (
+    <div className="mb-3 flex items-center gap-3 px-4 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30">
+      <span className="w-1 self-stretch rounded-full bg-amber-500 flex-shrink-0" aria-hidden="true" />
+      <p className="min-w-0 text-sm text-amber-900 dark:text-amber-200" role="status">
+        {count === 0
+          ? `Nothing from this notification is in the list right now${title ? `: ${title}` : ''}.`
+          : <>Highlighting <strong>{count.toLocaleString('en-PH')} {count === 1 ? noun : plural(noun)}</strong>, listed first{title ? <> · {title}</> : ''}</>}
+      </p>
+      <button type="button" onClick={onClear} className="ml-auto flex-shrink-0 text-sm font-medium text-amber-900 dark:text-amber-200 hover:underline">Clear highlight</button>
+    </div>
+  )
+}
+
 export const ICON = {
+  bell:     <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />,
   download: <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />,
   upload:   <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm4.293 8.707a1 1 0 011.414-1.414L9 10.586V17a1 1 0 102 0v-6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3z" clipRule="evenodd" />,
   refresh:  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />,
@@ -260,7 +277,8 @@ export const TD = 'px-4 py-3 align-top'
 //             cell: (row, open) => node }]. The first column's cell gets `open`, so it can render
 // a button - the keyboard way into a row. `leading` renders before the rows (e.g. DraftRows);
 // `wideEnd` makes the last column wide enough for DraftRows' Continue/Discard buttons.
-export function DataTable({ columns, rows, rowKey, onOpen, caption, leading, wideEnd = false, selectedKey }) {
+// highlightKeys: rows a notification pointed to (see useHighlight), tinted until cleared.
+export function DataTable({ columns, rows, rowKey, onOpen, caption, leading, wideEnd = false, selectedKey, highlightKeys }) {
   return (
     <table className="w-full table-fixed text-sm divide-y divide-slate-100 dark:divide-zinc-800">
       {caption && <caption className="sr-only">{caption}</caption>}
@@ -279,7 +297,8 @@ export function DataTable({ columns, rows, rowKey, onOpen, caption, leading, wid
           const open = onOpen ? () => onOpen(row) : undefined
           return (
             <tr key={key} onClick={open}
-              className={`${open ? 'cursor-pointer' : ''} hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100 ${selectedKey === key ? 'bg-slate-50 dark:bg-zinc-800/40' : ''}`}>
+              className={`${open ? 'cursor-pointer' : ''} hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors duration-100 ${
+                highlightKeys?.has(String(key)) ? HIGHLIGHT_ROW : selectedKey === key ? 'bg-slate-50 dark:bg-zinc-800/40' : ''}`}>
               {columns.map((c, i) => (
                 <td key={c.key} className={`${TD} ${c.className || ''}`}>{c.cell(row, i === 0 ? open : undefined)}</td>
               ))}

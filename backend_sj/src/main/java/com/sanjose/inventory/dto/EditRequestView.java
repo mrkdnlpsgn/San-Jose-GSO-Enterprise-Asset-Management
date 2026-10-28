@@ -18,5 +18,24 @@ public record EditRequestView(
     LocalDateTime reviewedAt,
     Long requestedById,
     String requestedByName,
-    String reviewedByName
-) {}
+    String reviewedByName,
+    int reminderCount,                // times an Admin-Staff account reminded an admin about it
+    LocalDateTime lastRemindedAt,
+    String lastRemindedByName
+) {
+    public record Reminders(int count, LocalDateTime lastAt, String lastByName) {}
+
+    public EditRequestView(String kind, Long recordId, Long assetId, String propertyNumber, String parNumber,
+                           String assetDescription, String detail, String approvalStatus, String reviewNote,
+                           LocalDateTime requestedAt, LocalDateTime reviewedAt, Long requestedById,
+                           String requestedByName, String reviewedByName) {
+        this(kind, recordId, assetId, propertyNumber, parNumber, assetDescription, detail, approvalStatus,
+            reviewNote, requestedAt, reviewedAt, requestedById, requestedByName, reviewedByName, 0, null, null);
+    }
+
+    public EditRequestView withReminders(Reminders r) {
+        return new EditRequestView(kind, recordId, assetId, propertyNumber, parNumber, assetDescription, detail,
+            approvalStatus, reviewNote, requestedAt, reviewedAt, requestedById, requestedByName, reviewedByName,
+            r.count(), r.lastAt(), r.lastByName());
+    }
+}

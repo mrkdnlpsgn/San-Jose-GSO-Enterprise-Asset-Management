@@ -3,7 +3,7 @@ class AccountModel {
   final String username;
   final String? email;
   final String fullName;
-  final String role; // ADMIN | STAFF
+  final String role; // ADMIN | ADMIN_STAFF | STAFF
   final int? officeId;
   final String? officeName;
   final bool isActive;

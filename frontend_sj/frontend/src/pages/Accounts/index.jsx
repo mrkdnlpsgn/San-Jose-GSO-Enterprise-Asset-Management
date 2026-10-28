@@ -11,6 +11,7 @@ import DeactivateAccountModal from './DeactivateAccountModal'
 import ResetPasswordModal from './ResetPasswordModal'
 import { getUsers, createUser, updateUser, deactivateUser, resetPassword } from '../../services/userService'
 import MyAccountTab from './MyAccountTab'
+import { ROLE_OPTIONS, roleLabel } from '../../utils/roles'
 import { getAuditLogs, getAuditArchiveSummary, runAuditArchive, exportAuditArchive } from '../../services/auditLogService'
 import DraftRows from '../../components/common/DraftRows'
 import { useDraftList } from '../../hooks/useFormDraft'
@@ -64,7 +65,7 @@ const MODULE = {
 const AUDIT_PAGE_SIZE = 5
 const ACCOUNTS_PAGE_SIZE = 5
 
-const roleBadge = (u) => <StatusBadge tone={u.role === 'ADMIN' ? 'green' : 'slate'}>{u.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'}</StatusBadge>
+const roleBadge = (u) => <StatusBadge tone={u.role === 'ADMIN' ? 'green' : u.role === 'ADMIN_STAFF' ? 'blue' : 'slate'}>{roleLabel(u.role)}</StatusBadge>
 const NO_OFFICE = <span className="italic text-amber-800 dark:text-amber-300">Not assigned</span>
 
 // The account list keeps who it is, where they work and whether they can sign in; email,
@@ -184,7 +185,7 @@ function AccountsTab() {
           </Button>
         </div>
         <FilterBar activeCount={activeFilters} onClear={() => { setSearch(''); setFilterRole(''); setFilterActive('') }}>
-          <FilterSelect label="Role" value={filterRole} onChange={setFilterRole} options={[['ADMIN', 'Administrator'], ['STAFF', 'GSO Staff']]} />
+          <FilterSelect label="Role" value={filterRole} onChange={setFilterRole} options={ROLE_OPTIONS.map((r) => [r.value, r.label])} />
           <FilterSelect label="Status" value={filterActive} onChange={setFilterActive} options={[['ACTIVE', 'Active'], ['INACTIVE', 'Inactive']]} />
         </FilterBar>
       </div>
@@ -230,7 +231,7 @@ function AccountsTab() {
             </DetailSection>
             <DetailSection title="Work">
               <DetailField label="Office" value={v.officeName || 'Not assigned. Set it on the Personnel page'} />
-              <DetailField label="Role" value={v.role === 'ADMIN' ? 'Administrator' : 'GSO Staff'} />
+              <DetailField label="Role" value={roleLabel(v.role)} />
               <DetailField label="2-step sign-in" value={v.twoFactorEnabled ? 'On (a code is emailed at sign-in)' : 'Off'} />
             </DetailSection>
           </DetailGrid>

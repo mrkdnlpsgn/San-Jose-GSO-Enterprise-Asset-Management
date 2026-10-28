@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../dashboard/widgets/ios_style.dart';
 import '../provider/notifications_provider.dart';
+import '../../../core/highlight/highlight_provider.dart';
 
 /// Everything that needs the signed-in account's attention (what used to be Home's
 /// "Needs your attention"), opened from the bell. Opening it marks everything as read;
@@ -17,8 +18,14 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Set<String>? _unreadOnOpen; // the keys that were new when the screen opened
+  NotificationCategory? _filter; // null = all
 
-  void _open(String route) {
+  void _open(AppNotification n) {
+    // The screen it opens tints the records this notification is about and lists them first.
+    ref.read(highlightProvider.notifier).state = n.highlightTarget == null || n.highlightIds.isEmpty
+        ? null
+        : Highlight(n.highlightTarget!, n.highlightIds.toSet(), n.title);
+    final route = n.route;
     // History and Assets are bottom-bar tabs (switch to them); Personnel is a pushed screen
     route.startsWith('/asset-history') || route == '/assets' ? context.go(route) : context.push(route);
   }
@@ -73,31 +80,63 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           ]),
                         ),
                       ])
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                        children: [
-                          Card(
-                            margin: EdgeInsets.zero,
-                            clipBehavior: Clip.antiAlias,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                for (var i = 0; i < items.length; i++) ...[
-                                  if (i > 0) const Divider(height: 1, indent: 60),
-                                  _NotificationRow(
-                                    item: items[i],
-                                    isNew: _unreadOnOpen?.contains(items[i].key) ?? false,
-                                    onTap: () => _open(items[i].route),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    : _list(items),
           ),
         );
       }),
+    );
+  }
+
+  // Filter chips by the kind of action (only the kinds there is something for), then the list.
+  Widget _list(List<AppNotification> items) {
+    final counts = <NotificationCategory, int>{};
+    for (final n in items) {
+      counts[n.category] = (counts[n.category] ?? 0) + 1;
+    }
+    final kinds = NotificationCategory.values.where(counts.containsKey).toList();
+    final filter = kinds.contains(_filter) ? _filter : null; // its kind may have cleared since
+    final shown = filter == null ? items : items.where((n) => n.category == filter).toList();
+
+    Widget chip(NotificationCategory? kind, String label, int count) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ChoiceChip(
+            label: Text('$label  $count'),
+            selected: filter == kind,
+            onSelected: (_) => setState(() => _filter = kind),
+          ),
+        );
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      children: [
+        if (kinds.length > 1) ...[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              chip(null, 'All', items.length),
+              for (final k in kinds) chip(k, k.label, counts[k]!),
+            ]),
+          ),
+          const SizedBox(height: 12),
+        ],
+        Card(
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < shown.length; i++) ...[
+                if (i > 0) const Divider(height: 1, indent: 60),
+                _NotificationRow(
+                  item: shown[i],
+                  isNew: _unreadOnOpen?.contains(shown[i].key) ?? false,
+                  onTap: () => _open(shown[i]),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -125,12 +164,17 @@ class _NotificationRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (isNew)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 3),
-                        child: Text('NEW',
-                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: Ios.blue)),
-                      ),
+                    // its kind, as on the web bell; NEW in front when it is unread
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text.rich(TextSpan(children: [
+                        if (isNew)
+                          const TextSpan(
+                              text: 'NEW  ',
+                              style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4, color: Ios.blue)),
+                        TextSpan(text: item.category.label, style: TextStyle(color: c.textTertiary)),
+                      ]), style: const TextStyle(fontSize: 12.5)),
+                    ),
                     Text(item.title,
                         style: TextStyle(
                             fontSize: 16.5, height: 1.3, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: c.textPrimary)),

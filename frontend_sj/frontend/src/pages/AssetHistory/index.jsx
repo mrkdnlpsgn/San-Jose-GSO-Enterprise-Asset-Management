@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import MainLayout from '../../components/layout/MainLayout'
-import { getAccountableHistory, getEditRequests } from '../../services/assetHistoryService'
+import { getAccountableHistory, getEditRequests, remindAdmin } from '../../services/assetHistoryService'
 import { getUsers } from '../../services/userService'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useAuth } from '../../hooks/useAuth'
@@ -10,12 +10,14 @@ import { useEventStream } from '../../hooks/useEventStream'
 import { RejectRequestModal } from '../../components/common/ApprovalControls'
 import {
   SearchBox, FilterSelect, FilterBar, ListCard, RefreshButton, Pager, ListSkeleton, ListEmpty,
-  DataTable, PrimaryCell, MutedCell, MappedBadge, ICON, fmtDate, personName,
+  DataTable, PrimaryCell, MutedCell, MappedBadge, ICON, fmtDate, personName, HighlightNotice,
 } from '../../components/common/ListKit'
 import DetailModal, { DetailGrid, DetailSection, DetailField, ModalAction } from '../../components/common/DetailModal'
 import { approveMaintenance, rejectMaintenance } from '../../services/maintenanceService'
 import { approveDisposal, rejectDisposal } from '../../services/disposalService'
 import { approveTransfer, rejectTransfer } from '../../services/transferService'
+import { seesAllAssets } from '../../utils/roles'
+import { useHighlight, highlightedFirst } from '../../hooks/useHighlight'
 
 // Only the events the system actually records (ASSIGNED / ARCHIVED are never logged).
 const EVENT = {
@@ -75,11 +77,18 @@ const REQUEST_COLUMNS = [
   { key: 'date', label: 'Requested', className: 'hidden xl:table-cell w-[8.5rem]', cell: (r) => <MutedCell>{fmtDate(r.requestedAt)}</MutedCell> },
 ]
 
+const requestKey = (r) => `${r.kind}-${r.recordId}`
+
 function AssetHistory() {
   const toast = useToast()
   const navigate = useNavigate()
   const { user } = useAuth()
   const isAdmin = user?.role === 'ADMIN'
+  // Admin-Staff sees everyone's requests too, but only an admin approves / rejects them.
+  const seesAll = seesAllAssets(user?.role)
+  // Admin-Staff can't review requests, but can remind an administrator about a pending one.
+  const canRemind = user?.role === 'ADMIN_STAFF'
+  const [reminding, setReminding] = useState(false)
 
   // The dashboard links here with ?view=requests&status=PENDING_APPROVAL|REJECTED.
   const location = useLocation()
@@ -92,6 +101,16 @@ function AssetHistory() {
   const [search, setSearch]       = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState(() => (REQUEST_STATUS[linked.get('status')] ? linked.get('status') : ''))
+  // Requests a notification pointed to (keyed like the rows below: "KIND-recordId").
+  const highlight = useHighlight()
+
+  // A link opened while already on this page (e.g. from the bell) switches the view / status too.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('view') === 'requests') { setView('requests'); setViewing(null) }
+    const status = params.get('status')
+    if (REQUEST_STATUS[status]) setFilterStatus(status)
+  }, [location.key]) // eslint-disable-line react-hooks/exhaustive-deps
   const [dateFilter, setDateFilter] = useState('')
   // Admin can narrow to one person ('' = everyone). Staff aren't filtered here - the backend
   // already limits them to their accountable assets' history and their own requests.
@@ -128,8 +147,8 @@ function AssetHistory() {
   }, [toast])
 
   useEffect(() => {
-    if (isAdmin) getUsers().then(({ data }) => setUsers(data)).catch(() => {})
-  }, [isAdmin])
+    if (seesAll) getUsers().then(({ data }) => setUsers(data)).catch(() => {})
+  }, [seesAll])
 
   useEffect(() => {
     if (view === 'history') fetchHistory(debouncedSearch)
@@ -139,6 +158,22 @@ function AssetHistory() {
   const refresh = (silent = false) => {
     if (view === 'history') fetchHistory(debouncedSearch, silent)
     else fetchRequests(performer || null, silent)
+  }
+
+  // Admin-Staff's "Notify admin": the request shows up in the administrators' notification bell.
+  const handleRemind = async (r) => {
+    setReminding(true)
+    try {
+      await remindAdmin(r.kind, r.recordId)
+      toast.show(`Administrators were notified about the ${REQUEST_KIND[r.kind]?.label?.toLowerCase() ?? ''} request for ${r.propertyNumber}.`, 'success')
+      const { data } = await getEditRequests(performer || null)
+      setRequests(data)
+      setViewing(data.find((x) => x.kind === r.kind && x.recordId === r.recordId) ?? r)
+    } catch (err) {
+      toast.show(err.response?.data?.message || 'Could not notify the administrators. Try again.', 'error')
+    } finally {
+      setReminding(false)
+    }
   }
 
   // Admin approves / rejects a staff request from its details window.
@@ -165,7 +200,7 @@ function AssetHistory() {
   useEventStream('maintenance', () => refresh(true))
   useEventStream('disposal', () => refresh(true))
 
-  useEffect(() => { setPage(1) }, [view, debouncedSearch, filterType, filterStatus, dateFilter, performer])
+  useEffect(() => { setPage(1) }, [view, debouncedSearch, filterType, filterStatus, dateFilter, performer, highlight.ids])
   useEffect(() => { if (performer) setMoreFilters(true) }, [performer])
 
   const now = Date.now()
@@ -184,16 +219,20 @@ function AssetHistory() {
       return withinDate(r.requestedAt, dateFilter, now)
     })
   }, [requests, filterStatus, debouncedSearch, dateFilter, now])
+  const requestRows = useMemo(() => highlightedFirst(filteredRequests, highlight.ids, requestKey),
+    [filteredRequests, highlight.ids])
+  const highlightedCount = useMemo(() => requestRows.filter((r) => highlight.ids.has(requestKey(r))).length,
+    [requestRows, highlight.ids])
 
   const isHistory = view === 'history'
-  const rows   = isHistory ? filteredHistory : filteredRequests
+  const rows   = isHistory ? filteredHistory : requestRows
   const total  = isHistory ? history.length : requests.length
   const paged  = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const activeFilters = [search.trim(), isHistory ? filterType : filterStatus, dateFilter, performer].filter(Boolean).length
   const clearFilters = () => { setSearch(''); setFilterType(''); setFilterStatus(''); setDateFilter(''); setPerformer('') }
-  const requestsLabel = isAdmin ? 'Staff requests' : 'My requests'
+  const requestsLabel = seesAll ? 'Staff requests' : 'My requests'
 
-  const personOptions = users.map((u) => [String(u.id), `${u.fullName || u.username}${u.role === 'ADMIN' ? ' (Admin)' : ''}`])
+  const personOptions = users.map((u) => [String(u.id), `${u.fullName || u.username}${u.role === 'ADMIN' ? ' (Admin)' : u.role === 'ADMIN_STAFF' ? ' (Admin-Staff)' : ''}`])
 
   return (
     <MainLayout>
@@ -212,7 +251,7 @@ function AssetHistory() {
           </div>
         </div>
         <FilterBar activeCount={activeFilters} onClear={clearFilters} moreOpen={moreFilters} onMoreToggle={setMoreFilters}
-          more={isAdmin ? (
+          more={seesAll ? (
             <FilterSelect label={isHistory ? 'Done by' : 'Requested by'} value={performer} onChange={setPerformer} options={personOptions} anyLabel="Anyone" />
           ) : null}>
           {isHistory
@@ -221,6 +260,10 @@ function AssetHistory() {
           <FilterSelect label="When" value={dateFilter} onChange={setDateFilter} options={WHEN} anyLabel="Any time" />
         </FilterBar>
       </div>
+
+      {!isHistory && highlight.active && !loading && (
+        <HighlightNotice count={highlightedCount} noun="request" title={highlight.title} onClear={highlight.clear} />
+      )}
 
       <ListCard title={isHistory ? 'Asset history' : requestsLabel} filtered={rows.length !== total}
         count={rows.length} total={total} noun={isHistory ? 'entry' : 'request'} loading={loading}
@@ -232,8 +275,8 @@ function AssetHistory() {
           <DataTable columns={HISTORY_COLUMNS} rows={paged} rowKey={(h) => h.id} onOpen={setViewing} selectedKey={viewing?.id}
             caption="Asset history. Select an entry to see its details." />
         ) : (
-          <DataTable columns={REQUEST_COLUMNS} rows={paged} rowKey={(r) => `${r.kind}-${r.recordId}`} onOpen={setViewing}
-            selectedKey={viewing ? `${viewing.kind}-${viewing.recordId}` : null}
+          <DataTable columns={REQUEST_COLUMNS} rows={paged} rowKey={requestKey} onOpen={setViewing}
+            selectedKey={viewing ? requestKey(viewing) : null} highlightKeys={highlight.ids}
             caption="Requests. Select a request to see its details." />
         )}
       </ListCard>
@@ -289,6 +332,10 @@ function AssetHistory() {
             {viewing.propertyNumber && (
               <ModalAction label="Open asset" onClick={() => navigate(`/assets?search=${encodeURIComponent(viewing.propertyNumber)}`)} />
             )}
+            {canRemind && viewing.approvalStatus === 'PENDING_APPROVAL' && (
+              <ModalAction label={reminding ? 'Notifying…' : 'Notify admin'} icon={ICON.bell} disabled={reminding}
+                onClick={() => handleRemind(viewing)} />
+            )}
           </>}
         >
           <DetailGrid>
@@ -302,6 +349,9 @@ function AssetHistory() {
               <DetailField label="Reviewed by" value={viewing.approvalStatus === 'PENDING_APPROVAL' ? 'Not yet reviewed' : viewing.reviewedByName} />
               <DetailField label="Reviewed" value={viewing.reviewedAt ? fmtDate(viewing.reviewedAt) : 'N/A'} />
               {viewing.reviewNote && <DetailField label="Reason given" value={viewing.reviewNote} />}
+              {viewing.reminderCount > 0 && (
+                <DetailField label="Admin reminded" value={`${viewing.reminderCount === 1 ? 'Once' : `${viewing.reminderCount} times`}, last ${fmtDate(viewing.lastRemindedAt)} by ${viewing.lastRemindedByName || 'Admin-Staff'}`} />
+              )}
             </DetailSection>
             <DetailSection title="Details" wide>
               <DetailField label="Details" value={viewing.detail} />

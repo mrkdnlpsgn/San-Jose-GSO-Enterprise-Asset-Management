@@ -28,10 +28,12 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).valueOrNull;
     final isAdmin = user?.isAdmin ?? false;
+    // Budget & Planning covers the entire inventory: admins and Admin-Staff
+    final canPlan = user?.seesAllAssets ?? false;
 
     void refreshAll() {
       ref.invalidate(dashboardStatsProvider);
-      if (isAdmin) ref.invalidate(planningProvider);
+      if (canPlan) ref.invalidate(planningProvider);
       ref.invalidate(notificationsProvider);
     }
 
@@ -261,7 +263,9 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
   @override
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(dashboardStatsProvider);
-    final isAdmin = ref.watch(authProvider).valueOrNull?.isAdmin ?? false;
+    // Admin-Staff sees the entire inventory, so its Home is the admin's (offices chart, Budget &
+    // Planning); only the module shortcuts to admin pages stay admin-only.
+    final adminHome = ref.watch(authProvider).valueOrNull?.seesAllAssets ?? false;
 
     if (statsAsync.hasValue) _lastStats = statsAsync.value;
     // Keep rendering the last snapshot while a refresh is in flight instead
@@ -280,8 +284,9 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
             const SizedBox(height: 28),
             const IosSectionHeader('Overview'),
             overview,
-            // budget planning is the GSO head's job; staff Home stays on their own work
-            if (isAdmin) ...[
+            // budget planning covers the entire inventory (admins and Admin-Staff);
+            // staff Home stays on their own work
+            if (adminHome) ...[
               const SizedBox(height: 28),
               const IosSectionHeader('Budget & Planning'),
               const BudgetPlanningCard(),
@@ -300,7 +305,7 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
             child: Column(
               children: [
                 const _DistributionCardSkeleton(rows: 3),
-                if (isAdmin) ...[
+                if (adminHome) ...[
                   const SizedBox(height: 12),
                   const _DistributionCardSkeleton(rows: 4),
                 ],
@@ -346,7 +351,7 @@ class _DashboardStatsSectionState extends ConsumerState<_DashboardStatsSection> 
             ' · ${_fmtPct(needAction, stats.inUse)}',
       ),
       // offices are an admin view - staff only ever see their own office
-      if (isAdmin)
+      if (adminHome)
         _BarListCard(
           icon: Icons.apartment_rounded,
           accent: Ios.blue,

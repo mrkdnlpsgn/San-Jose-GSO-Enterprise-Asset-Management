@@ -187,7 +187,7 @@ public class AssetHistoryService {
         return all;
     }
 
-    // Transfer requests from the Transfer Asset page. Only STAFF ones: an admin's transfer
+    // Transfer requests from the Transfer Asset page. Only STAFF / ADMIN_STAFF ones: an admin's transfer
     // applies at once, so it isn't a request. "From → To" is put together here, not in SQL,
     // to stay clear of collation mismatches between string literals and columns.
     private List<EditRequestView> findTransferRequests(Long requestedById) {
@@ -199,7 +199,7 @@ public class AssetHistoryService {
                    COALESCE(rv.full_name, rv.username) AS reviewer_name
             FROM asset_transfer_requests t
             JOIN assets a ON a.asset_id = t.asset_id
-            JOIN users ru ON ru.user_id = t.requested_by AND ru.`role` = 'STAFF'
+            JOIN users ru ON ru.user_id = t.requested_by AND ru.`role` IN ('STAFF', 'ADMIN_STAFF')
             LEFT JOIN users rv ON rv.user_id = t.reviewed_by
             LEFT JOIN offices fo ON fo.office_id = t.from_office_id
             LEFT JOIN offices tof ON tof.office_id = t.to_office_id

@@ -7,7 +7,22 @@ import '../../asset_history/data/asset_history_service.dart';
 import '../../asset_history/model/edit_request_model.dart';
 import '../../auth/provider/auth_provider.dart';
 import '../../dashboard/provider/dashboard_provider.dart';
+import '../../../core/highlight/highlight_provider.dart';
 import '../../settings/provider/settings_provider.dart';
+
+/// The kind of action a notification asks for - the notifications screen filters by it (same
+/// kinds, in the same order, as the web bell's filter).
+enum NotificationCategory {
+  reminder('Reminders'),
+  approval('Approvals'),
+  pending('Pending'),
+  rejected('Rejected'),
+  account('Accounts'),
+  asset('Asset issues');
+
+  final String label;
+  const NotificationCategory(this.label);
+}
 
 /// One thing someone has to act on: the web dashboard's "Pending Approvals", "staff account has
 /// no office" and "Needs attention" alerts. [key] identifies the kind of notification and [count]
@@ -23,6 +38,19 @@ class AppNotification {
   /// Plays the sound and shows the banner when it's new. Off for counts the user's own work
   /// changes (their own pending requests, asset data problems), which only mark the bell.
   final bool ping;
+  /// The list [route] opens and the records there this notification is about, so that screen
+  /// can highlight them (asset ids, "KIND-recordId" requests, or user ids).
+  final HighlightTarget? highlightTarget;
+  final List<String> highlightIds;
+  NotificationCategory get category => switch (key) {
+        _ when key.startsWith('reminder-') => NotificationCategory.reminder,
+        'pending-approvals' => NotificationCategory.approval,
+        'my-pending' => NotificationCategory.pending,
+        'my-rejected' => NotificationCategory.rejected,
+        'staff-no-office' => NotificationCategory.account,
+        _ => NotificationCategory.asset,
+      };
+
   const AppNotification({
     required this.key,
     required this.count,
@@ -32,6 +60,8 @@ class AppNotification {
     required this.route,
     this.warning = true,
     this.ping = false,
+    this.highlightTarget,
+    this.highlightIds = const [],
   });
 }
 
@@ -44,13 +74,36 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
   // a staff account only its own.
   var requests = const <EditRequestModel>[];
   try {
-    requests = await AssetHistoryService().getRequests();
+    // Admin-Staff may list everyone's requests; its reminders are about the ones it filed.
+    requests = await AssetHistoryService().getRequests(userId: user.isAdminStaff ? user.id : null);
   } catch (_) {
     // leave it out rather than failing the whole list
   }
 
+  String requestKey(EditRequestModel r) => '${r.kind}-${r.recordId}';
+
   if (user.isAdmin) {
-    final pending = requests.where((r) => r.approvalStatus == 'PENDING_APPROVAL').length;
+    final pendingList = requests.where((r) => r.approvalStatus == 'PENDING_APPROVAL').toList();
+    final pending = pendingList.length;
+    // An Admin-Staff account's "Notify admin": one per request, newest reminder first. The count
+    // is how many times it was reminded, so every new reminder makes it unread (and pings) again.
+    final reminded = pendingList.where((r) => r.reminderCount > 0).toList()
+      ..sort((a, b) => (b.lastRemindedAt ?? '').compareTo(a.lastRemindedAt ?? ''));
+    for (final r in reminded) {
+      final kind = switch (r.kind) { 'MAINTENANCE' => 'maintenance', 'DISPOSAL' => 'disposal', _ => 'transfer' };
+      items.add(AppNotification(
+        key: 'reminder-${requestKey(r)}',
+        count: r.reminderCount,
+        icon: Icons.notifications_active_rounded,
+        title: 'Reminder: the $kind request for ${r.propertyNumber} is still waiting for approval',
+        detail: 'Filed by ${r.requestedByName ?? 'staff'}. ${r.lastRemindedByName ?? 'Admin-Staff'} reminded you'
+            '${r.reminderCount > 1 ? ' (${r.reminderCount} times)' : ''}.',
+        route: '/asset-history?tab=requests',
+        ping: true,
+        highlightTarget: HighlightTarget.requests,
+        highlightIds: [requestKey(r)],
+      ));
+    }
     if (pending > 0) {
       items.add(AppNotification(
         key: 'pending-approvals',
@@ -60,6 +113,8 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
         detail: 'Maintenance, disposal and transfer requests from staff.',
         route: '/asset-history?tab=requests',
         ping: true,
+        highlightTarget: HighlightTarget.requests,
+        highlightIds: pendingList.map(requestKey).toList(),
       ));
     }
     try {
@@ -75,6 +130,8 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
           detail: '$names${noOffice.length > 2 ? ' and others' : ''} can\'t see any assets until an office is assigned.',
           route: '/personnel?filter=no-office',
           ping: true,
+          highlightTarget: HighlightTarget.accounts,
+          highlightIds: [for (final a in noOffice) '${a.id}'],
         ));
       }
     } catch (_) {
@@ -83,11 +140,12 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
   } else {
     // Staff: their own requests that were refused in the last two weeks, so they can fix and resend.
     final cutoff = DateTime.now().subtract(const Duration(days: 14));
-    final rejected = requests.where((r) {
+    final rejectedList = requests.where((r) {
       if (r.approvalStatus != 'REJECTED') return false;
       final at = DateTime.tryParse(r.reviewedAt ?? r.requestedAt ?? '');
       return at == null || at.isAfter(cutoff);
-    }).length;
+    }).toList();
+    final rejected = rejectedList.length;
     if (rejected > 0) {
       items.add(AppNotification(
         key: 'my-rejected',
@@ -98,12 +156,17 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
         route: '/asset-history?tab=requests',
         warning: false,
         ping: true,
+        highlightTarget: HighlightTarget.requests,
+        highlightIds: rejectedList.map(requestKey).toList(),
       ));
     }
-    final pending = requests.where((r) => r.approvalStatus == 'PENDING_APPROVAL').length;
+    final pendingList = requests.where((r) => r.approvalStatus == 'PENDING_APPROVAL').toList();
+    final pending = pendingList.length;
     if (pending > 0) {
       items.add(AppNotification(
         key: 'my-pending',
+        highlightTarget: HighlightTarget.requests,
+        highlightIds: pendingList.map(requestKey).toList(),
         count: pending,
         icon: Icons.hourglass_top_rounded,
         title: pending == 1 ? 'Your request is waiting for approval' : '$pending of your requests are waiting for approval',
@@ -121,6 +184,8 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
       return a.count > 2 ? '$shown and ${a.count - 2} more' : shown;
     }
     String plural(int n, String one, String many) => '$n ${n == 1 ? one : many}';
+    List<String> assetIds(DashboardAttention a) =>
+        [for (final id in a.ids.isNotEmpty ? a.ids : a.items.map((x) => x.id)) '$id'];
 
     final unserviceable = stats.unserviceableNoDisposal;
     if (unserviceable.count > 0) {
@@ -131,6 +196,8 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
         title: '${plural(unserviceable.count, 'unserviceable asset has', 'unserviceable assets have')} no disposal record yet',
         detail: examples(unserviceable),
         route: '/assets',
+        highlightTarget: HighlightTarget.assets,
+        highlightIds: assetIds(unserviceable),
         warning: false,
       ));
     }
@@ -143,6 +210,8 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
         title: '${plural(noAccountable.count, 'asset has', 'assets have')} no accountable person',
         detail: examples(noAccountable),
         route: '/assets',
+        highlightTarget: HighlightTarget.assets,
+        highlightIds: assetIds(noAccountable),
       ));
     }
     final noOffice = stats.noOffice;
@@ -154,6 +223,8 @@ final notificationsProvider = FutureProvider.autoDispose<List<AppNotification>>(
         title: '${plural(noOffice.count, 'asset is', 'assets are')} not assigned to an office',
         detail: examples(noOffice),
         route: '/assets',
+        highlightTarget: HighlightTarget.assets,
+        highlightIds: assetIds(noOffice),
       ));
     }
   } catch (_) {

@@ -5,10 +5,12 @@ import com.sanjose.inventory.dto.AssetHistoryRequest;
 import com.sanjose.inventory.dto.EditRequestView;
 import com.sanjose.inventory.entity.AssetHistory;
 import com.sanjose.inventory.service.AssetHistoryService;
+import com.sanjose.inventory.service.RequestReminderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/asset-history")
@@ -17,6 +19,7 @@ public class AssetHistoryController {
 
     private final AssetHistoryService assetHistoryService;
     private final AccessService accessService;
+    private final RequestReminderService requestReminderService;
 
     // limit (optional): only the newest N entries - the dashboard asks for its recent activity
     // this way instead of downloading the whole history.
@@ -33,12 +36,20 @@ public class AssetHistoryController {
         return assetHistoryService.findAll(search, accessService.staffScope());
     }
 
-    // Staff requests (maintenance/disposal/transfer) and their outcome. Admin: anyone's, or one
-    // person's via userId. Staff: always just their own.
+    // Staff requests (maintenance/disposal/transfer) and their outcome. Admin and Admin-Staff:
+    // anyone's, or one person's via userId (Admin-Staff only views them - approving is admin-only).
+    // Staff: always just their own.
     @GetMapping("/requests")
     public List<EditRequestView> getRequests(@RequestParam(required = false) Long userId) {
         AccessService.CurrentUser me = accessService.current();
-        return assetHistoryService.findRequests(me.admin() ? userId : me.id());
+        return requestReminderService.withReminders(assetHistoryService.findRequests(me.allAssets() ? userId : me.id()));
+    }
+
+    // "Notify admin": an Admin-Staff account reminds the administrators about a pending request.
+    // kind = MAINTENANCE | DISPOSAL | TRANSFER, id = that record's id.
+    @PostMapping("/requests/{kind}/{id}/remind")
+    public Map<String, Object> remind(@PathVariable String kind, @PathVariable Long id) {
+        return requestReminderService.remind(kind, id);
     }
 
     @GetMapping("/asset/{assetId}")

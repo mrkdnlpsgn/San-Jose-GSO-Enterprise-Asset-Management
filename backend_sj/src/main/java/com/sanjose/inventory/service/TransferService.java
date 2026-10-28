@@ -137,8 +137,8 @@ public class TransferService {
         StringBuilder sql = new StringBuilder(VIEW_SQL).append(" WHERE 1=1");
         List<Object> args = new java.util.ArrayList<>();
         if (status != null && !status.isBlank()) { sql.append(" AND t.status = ?"); args.add(status.trim().toUpperCase()); }
-        // Staff see the requests they filed.
-        if (!me.admin()) { sql.append(" AND t.requested_by = ?"); args.add(me.id()); }
+        // Staff see the requests they filed; Admin-Staff sees everyone's (but can't review them).
+        if (!me.allAssets()) { sql.append(" AND t.requested_by = ?"); args.add(me.id()); }
         sql.append(" ORDER BY t.requested_at DESC LIMIT 100");
         return jdbcTemplate.query(sql.toString(), VIEW_MAPPER, args.toArray());
     }

@@ -103,7 +103,8 @@ public class DashboardService {
         return g;
     }
 
-    // How many in-use assets match, and the first few of them (to list on the dashboard).
+    // How many in-use assets match, the first few of them (to list in the notification), and the
+    // ids of all of them, so the Assets page can highlight every one when the notification is opened.
     private Map<String, Object> attention(String where, String condition, Object[] args) {
         String filter = " FROM assets a WHERE" + where + " AND (" + condition + ")";
         Long count = jdbcTemplate.queryForObject("SELECT COUNT(*)" + filter, Long.class, args);
@@ -118,9 +119,11 @@ public class DashboardService {
                 m.put("description", rs.getString("description"));
                 return m;
             }, withLimit.toArray());
+        List<Long> ids = jdbcTemplate.queryForList("SELECT a.asset_id" + filter, Long.class, args);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("count", count != null ? count : 0L);
         out.put("items", items);
+        out.put("ids", ids);
         return out;
     }
 }

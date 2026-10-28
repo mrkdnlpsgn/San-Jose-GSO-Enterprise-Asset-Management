@@ -3,8 +3,10 @@ import { useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import ConfirmDialog from '../common/ConfirmDialog'
 import SettingsMenu from '../common/SettingsMenu'
+import NotificationBell from '../common/NotificationBell'
 import UserAvatar from '../common/UserAvatar'
 import { useTheme } from '../../context/ThemeContext'
+import { roleLabel as labelOfRole } from '../../utils/roles'
 
 const pageMeta = {
   '/home':          'Home',
@@ -36,7 +38,7 @@ function Header({ onMenuOpen }) {
 
   const title = pageMeta[pathname] ?? 'San Jose GSO'
   const name = user?.fullName ?? user?.username ?? 'Administrator'
-  const roleLabel = user?.role === 'ADMIN' ? 'System Administrator' : user?.role === 'STAFF' ? 'GSO Staff' : (user?.role ?? 'Staff')
+  const roleLabel = user?.role === 'ADMIN' ? 'System Administrator' : labelOfRole(user?.role)
 
   return (
     <header className="h-[3.75rem] bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-zinc-800 px-4 sm:px-6 flex items-center justify-between flex-shrink-0 gap-3">
@@ -56,6 +58,8 @@ function Header({ onMenuOpen }) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        <NotificationBell />
+
         <Link
           to="/my-account"
           className={`${bigText ? 'hidden sm:flex' : 'flex'} items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors duration-150 group`}

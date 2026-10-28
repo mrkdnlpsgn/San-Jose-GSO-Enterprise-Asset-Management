@@ -19,6 +19,9 @@ import java.util.Set;
 //     account, or one with exactly the account's full name.
 // A staff account without an office sees nothing. Adding assets, deleting records and
 // approving staff requests are admin-only (see also SecurityConfig).
+// ADMIN_STAFF ("Admin-Staff") is a STAFF account that sees the entire inventory (every office,
+// every accountable person) and every staff request, but still can't approve or reject: its own
+// changes go to an admin as requests, exactly like a staff account's.
 @Service
 @RequiredArgsConstructor
 public class AccessService {
@@ -26,11 +29,15 @@ public class AccessService {
     // matches no office, so a staff account without one gets empty lists
     private static final long NO_OFFICE = -1L;
 
+    public static final String ROLE_ADMIN = "ADMIN";
+    public static final String ROLE_ADMIN_STAFF = "ADMIN_STAFF";
+
     private final JdbcTemplate jdbcTemplate;
     private final OfficeAssignmentService officeAssignments;
 
-    // officeId = primary office; officeIds = every office assigned (primary first, may be empty)
-    public record CurrentUser(Long id, String username, boolean admin, Long officeId, List<Long> officeIds) {
+    // officeId = primary office; officeIds = every office assigned (primary first, may be empty).
+    // allAssets = sees the whole inventory: an admin or an Admin-Staff account.
+    public record CurrentUser(Long id, String username, boolean admin, boolean allAssets, Long officeId, List<Long> officeIds) {
         public boolean inOffice(Long officeId) {
             return officeId != null && officeIds.contains(officeId);
         }
@@ -63,36 +70,42 @@ public class AccessService {
         List<Object[]> rows = jdbcTemplate.query(
             "SELECT user_id, username, `role`, office_id FROM users WHERE LOWER(username) = LOWER(?)",
             (rs, rn) -> new Object[]{ rs.getLong("user_id"), rs.getString("username"),
-                "ADMIN".equalsIgnoreCase(rs.getString("role")), rs.getObject("office_id", Long.class) },
+                rs.getString("role"), rs.getObject("office_id", Long.class) },
             auth.getName());
         if (rows.isEmpty()) throw new ForbiddenException("Account not found.");
         Object[] r = rows.get(0);
         Long id = (Long) r[0];
-        return new CurrentUser(id, (String) r[1], (Boolean) r[2], (Long) r[3], officeAssignments.officeIdsOfUser(id));
+        String role = (String) r[2];
+        return new CurrentUser(id, (String) r[1], ROLE_ADMIN.equalsIgnoreCase(role), seesAllAssets(role),
+            (Long) r[3], officeAssignments.officeIdsOfUser(id));
     }
 
     public boolean isAdmin() {
         return current().admin();
     }
 
-    // Office filter for list queries: null = every office (admin, or staff in several offices -
+    private static boolean seesAllAssets(String role) {
+        return ROLE_ADMIN.equalsIgnoreCase(role) || ROLE_ADMIN_STAFF.equalsIgnoreCase(role);
+    }
+
+    // Office filter for list queries: null = every office (admin / Admin-Staff, or staff in several offices -
     // the queries take one office). For staff this only narrows the query; what they may actually
     // see is staffScope() / visibleAssetIds().
     public Long scopeOfficeId() {
         CurrentUser u = current();
-        if (u.admin()) return null;
+        if (u.allAssets()) return null;
         if (u.officeIds().isEmpty()) return NO_OFFICE;
         return u.officeIds().size() == 1 ? u.officeIds().get(0) : null;
     }
 
-    // null = admin (sees everything).
+    // null = admin / Admin-Staff (sees everything).
     public StaffScope staffScope() {
         CurrentUser u = current();
-        if (u.admin()) return null;
+        if (u.allAssets()) return null;
         return new StaffScope(u.officeIds(), u.id());
     }
 
-    // The assets the current staff account may see; null = admin (everything).
+    // The assets the current staff account may see; null = admin / Admin-Staff (everything).
     public Set<Long> visibleAssetIds() {
         StaffScope scope = staffScope();
         if (scope == null) return null;
@@ -104,35 +117,43 @@ public class AccessService {
         if (!isAdmin()) throw new ForbiddenException("Only an administrator can " + action + ".");
     }
 
+    // Admin or Admin-Staff: views over the entire inventory, e.g. Home's Budget & Planning.
+    public void requireAllAssets(String action) {
+        if (!current().allAssets()) throw new ForbiddenException("Only an administrator or Admin-Staff can " + action + ".");
+    }
+
     public void requireAssetAccess(Long assetId) {
         CurrentUser u = current();
-        if (u.admin()) return;
+        if (u.allAssets()) return;
         requireOwnAsset(u, idOf("SELECT asset_id FROM assets WHERE asset_id = ?", assetId, "Asset"));
     }
 
     public void requireMaintenanceAccess(Long maintenanceId) {
         CurrentUser u = current();
-        if (u.admin()) return;
+        if (u.allAssets()) return;
         requireOwnAsset(u, idOf("SELECT asset_id FROM maintenance_ledger WHERE maintenance_id = ?",
             maintenanceId, "Maintenance record"));
     }
 
     public void requireDisposalAccess(Long disposalId) {
         CurrentUser u = current();
-        if (u.admin()) return;
+        if (u.allAssets()) return;
         requireOwnAsset(u, idOf("SELECT asset_id FROM disposal_ledger WHERE disposal_id = ?",
             disposalId, "Disposal record"));
     }
 
     // Can the given user see this asset? Used to filter live updates. null asset = admins only.
+    // Admin-Staff sees every asset and the staff requests on them, so it gets their updates too.
     public boolean canSeeAsset(String username, Long assetId) {
         List<Object[]> rows = jdbcTemplate.query(
             "SELECT user_id, `role` FROM users WHERE LOWER(username) = LOWER(?)",
             (rs, rn) -> new Object[]{ rs.getLong("user_id"), rs.getString("role") },
             username);
         if (rows.isEmpty()) return false;
-        if ("ADMIN".equalsIgnoreCase((String) rows.get(0)[1])) return true;
+        String role = (String) rows.get(0)[1];
+        if (ROLE_ADMIN.equalsIgnoreCase(role)) return true;
         if (assetId == null) return false;
+        if (ROLE_ADMIN_STAFF.equalsIgnoreCase(role)) return true;
         Long userId = (Long) rows.get(0)[0];
         List<Long> officeIds = officeAssignments.officeIdsOfUser(userId);
         if (officeIds.isEmpty()) return false;

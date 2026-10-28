@@ -43,6 +43,16 @@ class AssetHistoryService {
     }
   }
 
+  /// "Notify admin" (Admin-Staff only): reminds the administrators about a pending request.
+  /// At most once an hour per request - the server says when it can be sent again.
+  Future<void> remindAdmin(String kind, int recordId) async {
+    try {
+      await _dio.post('/asset-history/requests/$kind/$recordId/remind');
+    } catch (e) {
+      throw ApiException.from(e);
+    }
+  }
+
   Future<List<AssetHistoryModel>> getByAsset(int assetId) async {
     try {
       final res = await _dio.get('/asset-history/asset/$assetId');

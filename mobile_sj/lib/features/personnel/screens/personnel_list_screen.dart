@@ -7,6 +7,8 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/widgets/ui.dart';
 import '../../auth/model/user_model.dart' show roleLabel;
 import '../data/personnel_service.dart';
+import '../../../core/highlight/highlight_provider.dart';
+import '../../../core/highlight/highlight_style.dart';
 
 final personnelListProvider = FutureProvider.autoDispose<List<PersonnelRecord>>((ref) => PersonnelService().getAll());
 
@@ -52,6 +54,8 @@ class _PersonnelListScreenState extends ConsumerState<PersonnelListScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(personnelListProvider);
     final c = context.colors;
+    // Accounts a notification pointed to (by user id): tinted and listed first until cleared.
+    final hl = highlightFor(ref, HighlightTarget.accounts);
 
     return Scaffold(
       appBar: AppBar(
@@ -74,16 +78,31 @@ class _PersonnelListScreenState extends ConsumerState<PersonnelListScreen> {
         data: (all) {
           final missing = all.where((p) => p.needsOffice).length;
           final q = _search.trim().toLowerCase();
-          final shown = all
-              .where((p) => !_needsOfficeOnly || p.needsOffice)
-              .where((p) => q.isEmpty || _matches(p, q))
-              .toList();
+          final shown = highlightedFirst(
+              all
+                  .where((p) => !_needsOfficeOnly || p.needsOffice)
+                  .where((p) => q.isEmpty || _matches(p, q))
+                  .toList(),
+              hl,
+              (p) => p.userId);
+          final highlightedCount = hl == null ? 0 : shown.where((p) => hl.has(p.userId)).length;
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(personnelListProvider),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
+                if (hl != null) ...[
+                  HighlightBanner(
+                    count: highlightedCount,
+                    noun: 'person',
+                    plural: 'people',
+                    title: hl.title,
+                    margin: EdgeInsets.zero,
+                    onClear: () => ref.read(highlightProvider.notifier).state = null,
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Row(
                   children: [
                     ChoiceChip(
@@ -124,7 +143,7 @@ class _PersonnelListScreenState extends ConsumerState<PersonnelListScreen> {
                 for (final p in shown)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: _PersonCard(person: p, onEdit: () => _edit(p)),
+                    child: _PersonCard(person: p, onEdit: () => _edit(p), highlighted: hl?.has(p.userId) ?? false),
                   ),
               ],
             ),
@@ -138,7 +157,8 @@ class _PersonnelListScreenState extends ConsumerState<PersonnelListScreen> {
 class _PersonCard extends StatelessWidget {
   final PersonnelRecord person;
   final VoidCallback onEdit;
-  const _PersonCard({required this.person, required this.onEdit});
+  final bool highlighted;
+  const _PersonCard({required this.person, required this.onEdit, this.highlighted = false});
 
   @override
   Widget build(BuildContext context) {
@@ -147,6 +167,7 @@ class _PersonCard extends StatelessWidget {
     final label = TextStyle(color: c.textTertiary, fontSize: 14);
 
     return RecordCard(
+      highlighted: highlighted,
       onTap: onEdit,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

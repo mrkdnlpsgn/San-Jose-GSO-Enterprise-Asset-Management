@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import 'app_search_field.dart';
 import 'section_card.dart';
 import 'ios_touch.dart';
+import '../../core/highlight/highlight_style.dart';
 
 export 'section_card.dart';
 
@@ -120,13 +121,17 @@ class RecordCard extends StatelessWidget {
   final Widget child;
   final VoidCallback? onTap;
   final Widget? trailing;
-  const RecordCard({super.key, required this.child, this.onTap, this.trailing});
+  /// A notification pointed to this record (see highlight_provider.dart).
+  final bool highlighted;
+  const RecordCard({super.key, required this.child, this.onTap, this.trailing, this.highlighted = false});
 
   @override
   Widget build(BuildContext context) {
     final card = Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
+      color: highlighted ? highlightTint(context) : null,
+      shape: highlighted ? highlightShape() : null,
       child: InkWell(
         onTap: onTap,
         child: Padding(
