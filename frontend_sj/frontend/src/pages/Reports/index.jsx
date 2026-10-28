@@ -723,9 +723,9 @@ function SelectTable({ config, items, selected, onToggle, onToggleAll, expanded,
   const headCls = 'px-4 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap'
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-800">
+    <div data-lazy-scroll className="table-scroll rounded-lg border border-slate-200 dark:border-zinc-800">
       <table className="min-w-full text-sm divide-y divide-slate-200 dark:divide-zinc-800">
-        <thead className="bg-slate-50 dark:bg-zinc-900">
+        <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-zinc-900 shadow-[0_1px_0_0] shadow-slate-200 dark:shadow-zinc-800">
           <tr>
             <th className="pl-4 pr-2 py-3 w-8">
               <input type="checkbox" aria-label={`Select all ${config.noun[1]} shown`} className={CHECKBOX_CLASS}
@@ -1138,7 +1138,7 @@ function Reports() {
             </div>
           )}
 
-          <div className="p-4">
+          <div data-lazy-scope className="p-4">
             {loading ? (
               <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-800">
                 <table className="min-w-full text-sm">
@@ -1169,9 +1169,9 @@ function Reports() {
               <SelectTable config={pick} items={pagedRows} selected={picked} onToggle={togglePicked}
                 onToggleAll={setManyPicked} expanded={expandedKey} onExpand={setExpandedKey} />
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-800">
+              <div data-lazy-scroll className="table-scroll rounded-lg border border-slate-200 dark:border-zinc-800">
                 <table className="min-w-full text-sm divide-y divide-slate-200 dark:divide-zinc-800">
-                  <thead className="bg-slate-50 dark:bg-zinc-900 sticky top-0">
+                  <thead className="bg-slate-50 dark:bg-zinc-900 sticky top-0 z-10 shadow-[0_1px_0_0] shadow-slate-200 dark:shadow-zinc-800">
                     <tr>
                       {activeReport.headers.map((h) => (
                         <th key={h.label} className="px-4 py-3 text-left text-2xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider whitespace-nowrap">

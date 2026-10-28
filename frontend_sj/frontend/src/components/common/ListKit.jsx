@@ -220,7 +220,7 @@ const plural = (noun) => (noun === 'person' ? 'people' : /[^aeiou]y$/.test(noun)
 export function ListCard({ title, filtered = false, count, total, noun = 'record', loading, actions, children, footer }) {
   const n = (v) => Number(v).toLocaleString('en-PH')
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
+    <div data-lazy-scope className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
       {/* one line on every screen: the title may shorten, the count and the buttons don't wrap */}
       <div className="px-5 py-3 border-b border-slate-200 dark:border-zinc-800 flex items-center gap-x-3">
         <p className="min-w-0 truncate text-sm font-semibold text-slate-700 dark:text-zinc-300">{title}</p>
@@ -231,7 +231,8 @@ export function ListCard({ title, filtered = false, count, total, noun = 'record
         )}
         {actions && <div className="ml-auto flex flex-shrink-0 items-center gap-1">{actions}</div>}
       </div>
-      {children}
+      {/* the rows scroll in here, under a header that stays in view (see .table-scroll) */}
+      <div data-lazy-scroll className="table-scroll">{children}</div>
       {footer}
     </div>
   )
@@ -240,7 +241,8 @@ export function ListCard({ title, filtered = false, count, total, noun = 'record
 // Lazy scroll: the first rows draw at once and more are added as the user nears the end of the
 // list (every row is already loaded; this only limits how many are drawn). Draw
 // rows.slice(0, lazy.shown), put <LazyFooter lazy={lazy} total={rows.length} /> under them, and
-// call lazy.reset() when the search or filters change.
+// call lazy.reset() when the search or filters change. Inside a [data-lazy-scope] holding a
+// [data-lazy-scroll] box (ListCard is one), it watches that box's scrolling; otherwise the page's.
 const LAZY_BATCH = 25
 
 export function useLazyRows(batch = LAZY_BATCH) {
@@ -255,9 +257,18 @@ export function LazyFooter({ lazy, total }) {
   const hasMore = lazy.shown < total
   const { more, shown } = lazy
 
-  // Draw the next batch when the footer comes within ~2 screens of view.
   useEffect(() => {
     if (!marker || !hasMore) return
+    // Draw the next batch when the scroll box is within ~600px of its end; checked straight
+    // away too, so a box the rows don't fill yet keeps filling.
+    const box = marker.closest('[data-lazy-scope]')?.querySelector('[data-lazy-scroll]')
+    if (box) {
+      const check = () => { if (box.scrollHeight - box.scrollTop - box.clientHeight < 600) more() }
+      box.addEventListener('scroll', check, { passive: true })
+      check()
+      return () => box.removeEventListener('scroll', check)
+    }
+    // no scroll box: when the footer comes within ~2 screens of view
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) more()
     }, { rootMargin: '0px 0px 1200px 0px' })
@@ -311,7 +322,8 @@ export function DataTable({ columns, rows, rowKey, onOpen, caption, leading, wid
   return (
     <table className="w-full table-fixed text-sm divide-y divide-slate-100 dark:divide-zinc-800">
       {caption && <caption className="sr-only">{caption}</caption>}
-      <thead>
+      {/* stays at the top of the ListCard's scroll box */}
+      <thead className="sticky top-0 z-10 bg-white dark:bg-zinc-900 shadow-[0_1px_0_0] shadow-slate-200 dark:shadow-zinc-800">
         <tr>
           {columns.map((c) => (
             <th key={c.key} scope="col" className={`px-4 py-3 text-left text-xs font-semibold ${MUTED} uppercase tracking-wide ${c.className || ''}`}>{c.label}</th>
