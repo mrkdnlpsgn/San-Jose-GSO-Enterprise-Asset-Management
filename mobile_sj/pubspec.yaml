@@ -1,7 +1,7 @@
 name: san_jose_eam_mobile
 description: San Jose GSO Enterprise Asset Management - Mobile App
 publish_to: 'none'
-version: 1.0.15+16
+version: 1.0.16+17
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
