@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Html5Qrcode } from 'html5-qrcode'
 import { QRCodeSVG } from 'qrcode.react'
 import MainLayout from '../../components/layout/MainLayout'
@@ -201,6 +201,22 @@ function TransferAsset() {
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
     }
   }, [assetItems])
+
+  // Opened from an asset's details (its Transfer button): that asset comes already chosen,
+  // with the transfer form brought into view. The address is then cleared, so a refresh starts over.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const id = searchParams.get('assetId')
+    if (!id) return
+    setSearchParams({}, { replace: true })
+    getAssetById(id)
+      .then(({ data }) => {
+        lastCodeRef.current = data.propertyNumber || String(data.id)
+        setResult(data); setNotFound(false); setManualCode(data.propertyNumber || '')
+        setTimeout(() => document.getElementById('transfer-heading')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
+      })
+      .catch(() => { setNotFound(true); setResult(null) })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Phones/tablets: full-screen live scanner with a guide square. Desktops: the inline
   // webcam scanner.

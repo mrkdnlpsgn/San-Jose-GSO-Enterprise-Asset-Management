@@ -455,15 +455,11 @@ function AuditLogsTab() {
 // ── My Account tab ────────────────────────────────────────────────────────────
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-// Account management stays ADMIN-only; audit logs and the user's own profile are
-// available to everyone.
+// Account management and audit logs are ADMIN-only tabs. My Account (opened from the header's
+// account menu) is its own page here, without the tabs.
 const TABS_ADMIN = [
   { id: 'accounts',   label: 'Accounts' },
   { id: 'audit-logs', label: 'Audit Logs' },
-  { id: 'my-account', label: 'My Account' },
-]
-const TABS_STAFF = [
-  { id: 'my-account', label: 'My Account' },
 ]
 
 // Marks accounts that need the emailed sign-in code.
@@ -484,24 +480,20 @@ function Accounts() {
   const location  = useLocation()
   const user      = useSelector((s) => s.auth.user)
   const isAdmin   = user?.role === 'ADMIN'
-  const tabs      = isAdmin ? TABS_ADMIN : TABS_STAFF
 
   const routeTab  = location.pathname === '/audit-logs' ? 'audit-logs'
                   : location.pathname === '/my-account' ? 'my-account'
                   : 'accounts'
   const activeTab = isAdmin ? routeTab : 'my-account' // audit logs are admin-only
 
-  const switchTab = (id) => {
-    if (id === 'audit-logs')       navigate('/audit-logs',  { replace: true })
-    else if (id === 'my-account')  navigate('/my-account',  { replace: true })
-    else                           navigate('/accounts',    { replace: true })
-  }
+  const switchTab = (id) => navigate(id === 'audit-logs' ? '/audit-logs' : '/accounts', { replace: true })
 
   return (
     <MainLayout>
       {/* Tabs */}
+      {activeTab !== 'my-account' && (
       <div className="flex items-center gap-1 mb-5 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_theme(colors.slate.200)] dark:shadow-[inset_0_-1px_0_theme(colors.zinc.800)]">
-        {tabs.map((tab) => (
+        {TABS_ADMIN.map((tab) => (
           <button
             key={tab.id}
             onClick={() => switchTab(tab.id)}
@@ -517,6 +509,7 @@ function Accounts() {
           </button>
         ))}
       </div>
+      )}
 
       {activeTab === 'accounts'   && isAdmin && <AccountsTab />}
       {activeTab === 'audit-logs' && <AuditLogsTab />}

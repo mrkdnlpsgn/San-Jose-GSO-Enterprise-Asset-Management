@@ -296,6 +296,13 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
                   View Disposal Records
                 </button>
               )}
+              {asset.lifecycleStatus !== 'DISPOSED' && (
+                <button onClick={() => navigate(`/transfer?assetId=${asset.id}`)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-500/10 border border-brand-500/30 text-brand-700 dark:text-brand-300 text-sm font-medium hover:bg-brand-500/20 transition-all">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                  Transfer Asset
+                </button>
+              )}
               {onDelete && (
                 <button onClick={() => onDelete(asset)}
                   className="sm:ml-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-500/30 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-500/10 transition-all">

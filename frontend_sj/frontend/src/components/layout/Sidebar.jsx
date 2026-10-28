@@ -175,7 +175,6 @@ const ADMIN_ONLY_PATHS = new Set(['/offices', '/categories', '/personnel', '/aud
 const adminNavItems = [
   {
     to: '/accounts',
-    alsoActiveOn: ['/my-account'],
     label: 'Accounts',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-[1.125rem] w-[1.125rem] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
