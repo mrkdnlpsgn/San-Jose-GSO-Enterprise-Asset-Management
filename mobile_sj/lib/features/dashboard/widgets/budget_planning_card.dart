@@ -427,6 +427,10 @@ class _MaintenancePanel extends StatelessWidget {
                   '${m.limitedHistory ? ' There is little repair history yet, so treat it as a rough guide.' : ''}',
                   style: body,
                 ),
+                if (m.averageErrorPercent != null) ...[
+                  const SizedBox(height: 8),
+                  _AccuracyCheck(plan: m, body: body),
+                ],
                 const SizedBox(height: 14),
                 OutlinedButton(
                   onPressed: () => context.push('/reports/maintenanceforecast'),
@@ -439,6 +443,59 @@ class _MaintenancePanel extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// How close the estimate rule came in past years; tap to see each year.
+class _AccuracyCheck extends StatelessWidget {
+  final MaintenancePlan plan;
+  final TextStyle body;
+  const _AccuracyCheck({required this.plan, required this.body});
+
+  static String _pct(double v) => '${v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1)}%';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final small = body.copyWith(fontSize: 15.5, color: c.textSecondary);
+    return Theme(
+      // no divider lines above and below the open tile
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 4),
+        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+        title: Text.rich(
+          TextSpan(children: [
+            const TextSpan(text: 'Checked against past years, this method was off by about '),
+            TextSpan(text: _pct(plan.averageErrorPercent!), style: const TextStyle(fontWeight: FontWeight.w700)),
+            const TextSpan(text: ' on average.'),
+          ]),
+          style: body,
+        ),
+        children: [
+          Text(
+            'For each year, the same rule was applied using only the years before it '
+            '(as if the budget were made the year before), then compared with what was actually spent.',
+            style: small,
+          ),
+          const SizedBox(height: 8),
+          for (final y in plan.checks)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${y.year}: ${_pct(y.errorPercent.abs())}'
+                      '${y.errorPercent > 0 ? ' too high' : y.errorPercent < 0 ? ' too low' : ''}',
+                      style: body.copyWith(fontWeight: FontWeight.w600)),
+                  Text('Estimate ${_pesoWords(y.estimate)}, actual ${_pesoWords(y.actual)}', style: small),
+                ],
+              ),
+            ),
         ],
       ),
     );

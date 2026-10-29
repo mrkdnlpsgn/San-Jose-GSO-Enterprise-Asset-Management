@@ -48,6 +48,13 @@ Planning _planning({String? summary, List<String> noLife = const []}) => Plannin
         'byCategory': [
           {'category': 'Motor Vehicle', 'forecast': 1400000},
         ],
+        'accuracy': {
+          'years': [
+            {'year': 2024, 'estimate': 1610000, 'actual': 2100000, 'errorPercent': -23.3},
+            {'year': 2025, 'estimate': 1980000, 'actual': 2450000.5, 'errorPercent': -19.2},
+          ],
+          'averageErrorPercent': 21.3,
+        },
       },
       'summary': summary,
     });
@@ -146,6 +153,15 @@ void main() {
     expect(find.text('2026 (so far)'), findsOneWidget);
     expect(find.text('₱2.5 million'), findsOneWidget); // 2025
     expect(find.textContaining('Costs most to keep running: Motor Vehicle'), findsOneWidget);
+
+    // the check against past years opens to show each year
+    expect(find.textContaining('this method was off by about 21.3% on average', findRichText: true), findsOneWidget);
+    expect(find.text('2024: 23.3% too low'), findsNothing);
+    await tester.ensureVisible(find.textContaining('this method was off by about', findRichText: true));
+    await tester.tap(find.textContaining('this method was off by about', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(find.text('2024: 23.3% too low'), findsOneWidget);
+    expect(find.text('Estimate ₱1.6 million, actual ₱2.1 million'), findsOneWidget);
 
     await tester.ensureVisible(find.text('See by type of property'));
     await tester.tap(find.text('See by type of property'));

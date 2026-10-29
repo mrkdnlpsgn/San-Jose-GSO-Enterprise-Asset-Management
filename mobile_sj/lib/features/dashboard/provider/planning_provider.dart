@@ -28,6 +28,16 @@ class MaintenanceYear {
   const MaintenanceYear(this.year, this.cost, this.soFar);
 }
 
+/// One past year the forecast rule was checked against: its estimate from the years before it,
+/// what was actually spent, and how far off it was (positive: too high; negative: too low).
+class MaintenanceCheck {
+  final int year;
+  final double estimate;
+  final double actual;
+  final double errorPercent;
+  const MaintenanceCheck(this.year, this.estimate, this.actual, this.errorPercent);
+}
+
 /// Repair and maintenance spending and next year's estimate (MaintenanceForecastService).
 class MaintenancePlan {
   final List<MaintenanceYear> years;
@@ -37,6 +47,8 @@ class MaintenancePlan {
   final double priceIncreasePercent;
   final bool limitedHistory;
   final String? topCategory; // costs most to keep running
+  final List<MaintenanceCheck> checks; // the rule replayed on past years
+  final double? averageErrorPercent; // null when no past year could be checked
   const MaintenancePlan({
     required this.years,
     required this.forecastYear,
@@ -45,12 +57,15 @@ class MaintenancePlan {
     required this.priceIncreasePercent,
     required this.limitedHistory,
     this.topCategory,
+    this.checks = const [],
+    this.averageErrorPercent,
   });
 
   static MaintenancePlan? fromJson(Map? m) {
     if (m == null) return null; // a server from before the forecast
     final f = m['forecast'] as Map? ?? const {};
     final cats = (m['byCategory'] as List? ?? const []).cast<Map>();
+    final acc = m['accuracy'] as Map? ?? const {}; // missing on a server from before the check
     return MaintenancePlan(
       years: [
         for (final y in (m['years'] as List? ?? const []).cast<Map>())
@@ -62,6 +77,12 @@ class MaintenancePlan {
       priceIncreasePercent: _num(m['priceIncreasePercent']).toDouble(),
       limitedHistory: m['limitedHistory'] == true,
       topCategory: cats.isEmpty ? null : '${cats.first['category']}',
+      checks: [
+        for (final y in (acc['years'] as List? ?? const []).cast<Map>())
+          MaintenanceCheck(_num(y['year']).toInt(), _num(y['estimate']).toDouble(), _num(y['actual']).toDouble(),
+              _num(y['errorPercent']).toDouble()),
+      ],
+      averageErrorPercent: acc['averageErrorPercent'] == null ? null : _num(acc['averageErrorPercent']).toDouble(),
     );
   }
 }
