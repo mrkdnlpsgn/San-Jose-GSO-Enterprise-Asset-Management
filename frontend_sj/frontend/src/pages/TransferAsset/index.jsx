@@ -11,13 +11,14 @@ import { useToast } from '../../context/ToastContext'
 import { getAssets, updateAssetStatus, verifyAssetQr, getAssetById } from '../../services/assetService'
 import { getOffices } from '../../services/officeService'
 import { getPersonnel, inOffice } from '../../services/personnelService'
-import { getTransfers, submitTransfer, approveTransfer, rejectTransfer } from '../../services/transferService'
+import { getTransfers, submitTransfer } from '../../services/transferService'
 import { setAssets, updateAsset as updateAssetInStore } from '../../store/slices/assetSlice'
 import Select from '../../components/common/Select'
+import TransferRequests from './TransferRequests'
 
 // Find an asset by its QR code (or Property/PAR Number), then transfer it to another
 // office / accountable person (its location follows the office). An admin's transfer applies at once; a staff
-// member's goes to an admin for approval. Update Status and Print QR stay available.
+// member's goes to an admin for approval, on the Requests tab. Update Status and Print QR stay available.
 
 const LIVE_READER_ID = 'qr-reader-viewport'
 
@@ -68,12 +69,6 @@ const LIFECYCLE_BADGE = {
   DISPOSED:         'bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-500/20',
   ARCHIVED:         'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 ring-1 ring-zinc-500/20',
 }
-const REQUEST_BADGE = {
-  PENDING_APPROVAL: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/20',
-  APPROVED:         'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/20',
-  REJECTED:         'bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-500/20',
-}
-
 const INPUT = 'w-full rounded-md border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3.5 py-2.5 text-sm text-slate-800 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all duration-150'
 const LABEL = 'block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1.5'
 const CARD = 'bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800'
@@ -81,10 +76,6 @@ const CARD = 'bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:
 function fmt(dt) {
   if (!dt) return 'N/A'
   return new Date(dt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
-}
-function fmtDateTime(dt) {
-  if (!dt) return 'N/A'
-  return new Date(dt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 function php(v) {
   if (v == null) return 'N/A'
@@ -125,12 +116,18 @@ function TransferAsset() {
     getPersonnel().then(({ data }) => setPersonnel(data || [])).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [requestsLoading, setRequestsLoading] = useState(true)
   const loadRequests = useCallback(() => {
-    getTransfers(isAdmin ? 'PENDING_APPROVAL' : undefined)
+    getTransfers()
       .then(({ data }) => setRequests(data || []))
       .catch(() => {})
-  }, [isAdmin])
+      .finally(() => setRequestsLoading(false))
+  }, [])
   useEffect(() => { loadRequests() }, [loadRequests])
+
+  // Transfer (find an asset and move it) | Requests (staff transfers awaiting approval and past ones)
+  const [tab, setTab] = useState(() => (new URLSearchParams(window.location.search).get('tab') === 'requests' ? 'requests' : 'transfer'))
+  const pendingCount = requests.filter((r) => r.status === 'PENDING_APPROVAL').length
 
   // ── Finding the asset ──────────────────────────────────────────────────────
   const [scanning, setScanning]       = useState(false)
@@ -380,52 +377,10 @@ function TransferAsset() {
     }
   }
 
-  // ── Admin: approve / reject staff requests ─────────────────────────────────
-  const [rejectingId, setRejectingId] = useState(null)
-  const [rejectNote, setRejectNote]   = useState('')
-  const [reviewingId, setReviewingId] = useState(null)
-  // approving a request that changes the end user asks for the new PAR No. first
-  const [parForId, setParForId]       = useState(null)
-  const [approvePar, setApprovePar]   = useState('')
-  const changesEndUser = (r) => !!r.toPersonnelId && r.toPersonnelId !== r.currentPersonnelId
-
-  const approve = async (r) => {
-    if (changesEndUser(r) && parForId !== r.id) {
-      const asset = assetItems.find((a) => a.id === r.assetId)
-      setParForId(r.id)
-      setApprovePar(parPrefix(asset?.acquisitionDate))
-      setRejectingId(null)
-      return
-    }
-    setReviewingId(r.id)
-    try {
-      const { data } = await approveTransfer(r.id, changesEndUser(r) ? approvePar.trim() : null)
-      dispatch(updateAssetInStore(data))
-      if (result?.id === data.id) setResult(data)
-      setParForId(null)
-      setApprovePar('')
-      show(`Approved: ${r.propertyNumber} moved to ${r.toOfficeName}.${changesEndUser(r) ? ' Print its return slip and new PAR from the asset\'s details.' : ''}`, 'success')
-      loadRequests()
-    } catch (err) {
-      show(err.response?.data?.message || 'Failed to approve the request.', 'error')
-    } finally {
-      setReviewingId(null)
-    }
-  }
-
-  const reject = async (r) => {
-    setReviewingId(r.id)
-    try {
-      await rejectTransfer(r.id, rejectNote)
-      show(`Rejected the transfer of ${r.propertyNumber}.`, 'success')
-      setRejectingId(null)
-      setRejectNote('')
-      loadRequests()
-    } catch (err) {
-      show(err.response?.data?.message || 'Failed to reject the request.', 'error')
-    } finally {
-      setReviewingId(null)
-    }
+  // an approval on the Requests tab moves the asset; keep the store and the found asset current
+  const handleApproved = (asset) => {
+    dispatch(updateAssetInStore(asset))
+    if (result?.id === asset.id) setResult(asset)
   }
 
   // ── Update Status (kept from the old QR Scanner) ───────────────────────────
@@ -483,9 +438,45 @@ function TransferAsset() {
     <MainLayout>
       {phoneScan && <QrScannerOverlay onDetected={handlePhoneScan} onClose={closePhoneScan} />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+      <div role="tablist" aria-label="Transfer Asset" className="flex items-center gap-1 mb-4 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_theme(colors.slate.200)] dark:shadow-[inset_0_-1px_0_theme(colors.zinc.800)]">
+        {[
+          { id: 'transfer', label: 'Transfer' },
+          { id: 'requests', label: isAdmin || isAdminStaff ? 'Requests' : 'My Requests', count: pendingCount },
+        ].map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            onClick={() => { if (t.id !== 'transfer') stopScanner(); setTab(t.id) }}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2 whitespace-nowrap ${
+              tab === t.id
+                ? 'border-brand-600 text-brand-700 dark:text-brand-300'
+                : 'border-transparent text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+            }`}
+          >
+            {t.label}
+            {t.count > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold"
+                aria-label={`${t.count} awaiting approval`}>{t.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
 
-        {/* Find the asset - on phones the found asset comes right after this, then the requests */}
+      {tab === 'requests' && (
+        <div role="tabpanel" id="panel-requests" aria-labelledby="tab-requests">
+          <TransferRequests requests={requests} loading={requestsLoading} isAdmin={isAdmin} isAdminStaff={isAdminStaff}
+            assetItems={assetItems} onReload={loadRequests} onApproved={handleApproved} />
+        </div>
+      )}
+
+      {/* kept mounted while hidden, so a found asset and a half-filled form survive a look at the requests */}
+      <div role="tabpanel" id="panel-transfer" aria-labelledby="tab-transfer"
+        className={`${tab === 'transfer' ? 'grid' : 'hidden'} grid-cols-1 lg:grid-cols-2 gap-5 items-start`}>
+
+        {/* Find the asset - on phones the found asset comes right after this */}
         <div className="lg:col-start-1 lg:row-start-1">
           <section className={`${CARD} overflow-hidden`} aria-label="Find an asset">
             <div className="p-5 space-y-4">
@@ -570,7 +561,7 @@ function TransferAsset() {
         </div>
 
         {/* ── Right: the asset, transfer form, status tools ─────────────────── */}
-        <div ref={resultRef} className="space-y-4 lg:col-start-2 lg:row-start-1 lg:row-span-2 scroll-mt-20">
+        <div ref={resultRef} className="space-y-4 lg:col-start-2 lg:row-start-1 scroll-mt-20">
           {!result && !notFound && (
             <div className={`${CARD} flex flex-col items-center justify-center gap-3 p-8 min-h-[320px]`}>
               <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
@@ -659,7 +650,8 @@ function TransferAsset() {
 
                 {pendingForResult && !isAdmin ? (
                   <p className="px-5 py-5 text-sm text-amber-700 dark:text-amber-400">
-                    A transfer of this asset to <strong>{pendingForResult.toOfficeName}</strong> is already waiting for approval.
+                    A transfer of this asset to <strong>{pendingForResult.toOfficeName}</strong> is already waiting for approval.{' '}
+                    <button type="button" onClick={() => setTab('requests')} className="font-semibold underline underline-offset-2 hover:no-underline">See requests</button>
                   </p>
                 ) : (
                   <form onSubmit={submitTransferForm} noValidate className="p-5 space-y-4">
@@ -797,101 +789,6 @@ function TransferAsset() {
               </details>
             </>
           )}
-        </div>
-        <div className="lg:col-start-1 lg:row-start-2">
-          {/* Requests: admins review pending staff transfers; staff see their own */}
-          <section className={`${CARD} overflow-hidden`} aria-labelledby="requests-heading">
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-              <div>
-                <h2 id="requests-heading" className="text-base font-semibold text-slate-800 dark:text-zinc-100">
-                  {isAdmin ? 'Transfer requests to review' : isAdminStaff ? 'Staff transfer requests' : 'My transfer requests'}
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
-                  {isAdmin ? 'Transfers filed by staff wait here for your approval.' : isAdminStaff ? 'Every transfer request, including yours. An administrator approves them.' : 'Transfers you send wait for an administrator to approve them.'}
-                </p>
-              </div>
-              {isAdmin && requests.length > 0 && (
-                <span className="shrink-0 inline-flex items-center justify-center min-w-[1.75rem] h-7 px-2 rounded-full bg-amber-500 text-white text-sm font-semibold">{requests.length}</span>
-              )}
-            </div>
-            {requests.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-slate-400 dark:text-zinc-500 text-center">
-                {isAdmin ? 'No transfer requests waiting.' : isAdminStaff ? 'No transfer requests yet.' : "You haven't sent any transfer requests."}
-              </p>
-            ) : (
-              <ul className="divide-y divide-slate-100 dark:divide-zinc-800">
-                {requests.map((r) => (
-                  <li key={r.id} className="px-5 py-4 space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">
-                          <span className="font-mono">{r.propertyNumber}</span>: {r.assetDescription}
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-zinc-300 mt-0.5">
-                          {r.fromOfficeName || 'Unassigned'} <span aria-hidden="true">→</span><span className="sr-only">to</span> <strong>{r.toOfficeName}</strong>{r.toLocation && r.toLocation !== r.toOfficeName ? ` · ${r.toLocation}` : ''}
-                          {r.toPersonnelName ? ` · ${r.toPersonnelName}` : ''}
-                        </p>
-                        {r.reason && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">Reason: {r.reason}</p>}
-                        <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-                          {isAdmin || isAdminStaff ? `Requested by ${r.requestedByName || 'staff'} · ` : ''}{fmtDateTime(r.requestedAt)}
-                        </p>
-                        {r.status === 'REJECTED' && r.reviewNote && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">Note from admin: {r.reviewNote}</p>
-                        )}
-                      </div>
-                      {!isAdmin && (
-                        <span className={`shrink-0 inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${REQUEST_BADGE[r.status] || ''}`}>
-                          {r.status === 'PENDING_APPROVAL' ? 'Waiting' : r.status === 'APPROVED' ? 'Approved' : 'Rejected'}
-                        </span>
-                      )}
-                    </div>
-
-                    {isAdmin && parForId === r.id && (
-                      <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); approve(r) }}>
-                        <p className="text-xs text-slate-600 dark:text-zinc-300">
-                          {r.currentPersonnelName ? `${r.currentPersonnelName} returns the asset on a Property Return Slip. ` : ''}
-                          Enter the PAR No. for {r.toPersonnelName}.
-                        </p>
-                        <label htmlFor={`par-${r.id}`} className="sr-only">New PAR No.</label>
-                        <input id={`par-${r.id}`} value={approvePar} onChange={(e) => setApprovePar(e.target.value)} maxLength={50}
-                          placeholder="YYYY-MM:SERIAL" className={`${INPUT} font-mono`} autoFocus />
-                        <div className="flex gap-2">
-                          <Button type="submit" size="sm" disabled={reviewingId === r.id || !approvePar.includes(':') || approvePar.trim().endsWith(':')}>
-                            {reviewingId === r.id ? 'Approving…' : 'Approve with this PAR'}
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => { setParForId(null); setApprovePar('') }}>Cancel</Button>
-                        </div>
-                      </form>
-                    )}
-
-                    {isAdmin && parForId !== r.id && (rejectingId === r.id ? (
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <label htmlFor={`reject-${r.id}`} className="sr-only">Reason for rejecting</label>
-                        <input
-                          id={`reject-${r.id}`}
-                          value={rejectNote}
-                          onChange={(e) => setRejectNote(e.target.value)}
-                          placeholder="Reason for rejecting (optional)"
-                          className={INPUT}
-                        />
-                        <div className="flex gap-2 shrink-0">
-                          <Button variant="secondary" size="sm" onClick={() => { setRejectingId(null); setRejectNote('') }}>Cancel</Button>
-                          <Button size="sm" onClick={() => reject(r)} disabled={reviewingId === r.id}>Confirm Reject</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => approve(r)} disabled={reviewingId === r.id}>
-                          {reviewingId === r.id ? 'Approving…' : 'Approve'}
-                        </Button>
-                        <Button variant="secondary" size="sm" onClick={() => { setRejectingId(r.id); setParForId(null) }} disabled={reviewingId === r.id}>Reject</Button>
-                      </div>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </div>
       </div>
     </MainLayout>
