@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { NOTIFICATION_CATEGORIES, useNotifications } from '../../hooks/useNotifications'
 
@@ -36,29 +36,60 @@ function NotificationBell() {
   const [filter, setFilter] = useState('all')
   const [newKeys, setNewKeys] = useState(() => new Set())
   const [expanded, setExpanded] = useState(null)   // key of the notification whose asset list is open
+  const [closing, setClosing] = useState(false)    // the panel's exit animation is playing
   const ref = useRef(null)
+  const closeTimer = useRef(null)
+
+  // The panel shrinks back into the bell before it's removed.
+  const close = useCallback(() => {
+    if (closeTimer.current) return
+    setClosing(true)
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null
+      setClosing(false)
+      setOpen(false)
+    }, 140)
+  }, [])
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
+
+  // The bell swings and the badge pops each time the unread count goes up - not for what is
+  // already there when the page loads.
+  const [ringKey, setRingKey] = useState(0)
+  const lastUnread = useRef(null)
+  useEffect(() => {
+    if (loading) return
+    if (lastUnread.current !== null && unreadCount > lastUnread.current) setRingKey((k) => k + 1)
+    lastUnread.current = unreadCount
+  }, [unreadCount, loading])
+
+  // While the panel is open, notifications that arrive slide in; the ones it opened with don't.
+  const knownKeys = useRef(new Set())
+  const arrived = open ? new Set(items.filter((n) => !knownKeys.current.has(n.key)).map((n) => n.key)) : new Set()
+  useEffect(() => {
+    knownKeys.current = open ? new Set([...knownKeys.current, ...items.map((n) => n.key)]) : new Set()
+  }, [open, items])
 
   useEffect(() => {
     if (!open) return
-    const onClick = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    const onClick = (e) => { if (!ref.current?.contains(e.target)) close() }
+    const onKey = (e) => { if (e.key === 'Escape') close() }
     document.addEventListener('mousedown', onClick)
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('mousedown', onClick)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, close])
 
   // Whatever arrives while the panel is open is read straight away.
   useEffect(() => { if (open) markAllSeen() }, [open, markAllSeen])
 
   const toggle = () => {
-    if (!open) {
-      setNewKeys(new Set(items.filter(isUnread).map((n) => n.key)))
-      refresh()
-    }
-    setOpen((p) => !p)
+    if (open) { close(); return }
+    setNewKeys(new Set(items.filter(isUnread).map((n) => n.key)))
+    knownKeys.current = new Set(items.map((n) => n.key))
+    refresh()
+    setOpen(true)
   }
 
   // Only the kinds there is something for, in a fixed order.
@@ -70,7 +101,7 @@ function NotificationBell() {
 
   // Opens the page and highlights the records the notification is about (see useHighlight).
   const go = (to, ids, title) => {
-    setOpen(false)
+    close()
     navigate(to, ids?.length ? { state: { highlight: { ids, title } } } : undefined)
   }
 
@@ -91,9 +122,12 @@ function NotificationBell() {
       <button type="button" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'} title="Notifications"
         className="relative flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] rounded-md text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150">
-        <Icon className="h-5 w-5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        {/* keyed so each new arrival replays the swing; it pivots from the top, where a bell hangs */}
+        <span key={ringKey} className={`inline-flex origin-top ${ringKey > 0 ? 'animate-bell-ring' : ''}`}>
+          <Icon className="h-5 w-5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </span>
         {unreadCount > 0 && (
-          <span aria-hidden="true" className="absolute top-1 right-1 min-w-[1.05rem] h-[1.05rem] px-1 rounded-full bg-red-500 text-white text-[0.65rem] font-semibold leading-[1.05rem] text-center ring-2 ring-white dark:ring-zinc-950">
+          <span key={`badge-${ringKey}`} aria-hidden="true" className={`absolute top-1 right-1 min-w-[1.05rem] h-[1.05rem] px-1 rounded-full bg-red-500 text-white text-[0.65rem] font-semibold leading-[1.05rem] text-center ring-2 ring-white dark:ring-zinc-950 ${ringKey > 0 ? 'animate-badge-pop' : ''}`}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -101,7 +135,8 @@ function NotificationBell() {
 
       {open && (
         <div role="dialog" aria-label="Notifications"
-          className="fixed inset-x-4 top-[4.25rem] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[24rem] z-50 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
+          className={`fixed inset-x-4 top-[4.25rem] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[24rem] z-50 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden origin-top-right ${
+            closing ? 'animate-panel-out pointer-events-none' : 'animate-panel-in'}`}>
           <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">Notifications</p>
             {items.length > 0 && <p className="text-xs text-slate-500 dark:text-zinc-400">{items.length} to look at</p>}
@@ -139,7 +174,7 @@ function NotificationBell() {
                   )
                   const listOpen = expanded === n.key
                   return (
-                    <li key={n.key}>
+                    <li key={n.key} className={arrived.has(n.key) ? 'animate-slide-down' : undefined}>
                       {n.to ? (
                         <button type="button" onClick={() => go(n.to, n.highlight, n.title)}
                           className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-zinc-800/60 focus:outline-none focus-visible:bg-slate-50 dark:focus-visible:bg-zinc-800/60 transition-colors duration-100">

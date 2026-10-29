@@ -62,6 +62,12 @@ export default {
         'draw-x':            `drawX 0.8s ${EASE_ENTER} both`,
         // failed sign-in: a short sideways nudge, once
         'shake':             'shake 0.4s ease-in-out',
+        // notification bell: a swing when something new arrives, the count badge pops in,
+        // and the panel grows from / shrinks back into the bell
+        'bell-ring':         'bellRing 0.8s ease-in-out',
+        'badge-pop':         `badgePop 0.32s ${EASE_ENTER}`,
+        'panel-in':          `panelIn 0.18s ${EASE_ENTER} both`,
+        'panel-out':         `panelOut 0.14s ${EASE_EXIT} both`,
       },
       keyframes: {
         fadeSlide: {
@@ -116,6 +122,27 @@ export default {
         drawX: {
           '0%':   { transform: 'scaleX(0)' },
           '100%': { transform: 'scaleX(1)' },
+        },
+        bellRing: {
+          '0%, 100%': { transform: 'rotate(0)' },
+          '15%':      { transform: 'rotate(14deg)' },
+          '30%':      { transform: 'rotate(-12deg)' },
+          '45%':      { transform: 'rotate(8deg)' },
+          '60%':      { transform: 'rotate(-5deg)' },
+          '75%':      { transform: 'rotate(2deg)' },
+        },
+        badgePop: {
+          '0%':   { transform: 'scale(0.4)', opacity: '0' },
+          '60%':  { transform: 'scale(1.15)', opacity: '1' },
+          '100%': { transform: 'scale(1)' },
+        },
+        panelIn: {
+          '0%':   { opacity: '0', transform: 'translateY(-4px) scale(0.97)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
+        panelOut: {
+          '0%':   { opacity: '1', transform: 'translateY(0) scale(1)' },
+          '100%': { opacity: '0', transform: 'translateY(-4px) scale(0.97)' },
         },
       },
     },
