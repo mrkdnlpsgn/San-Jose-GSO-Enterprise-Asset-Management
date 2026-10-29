@@ -20,7 +20,8 @@ import java.util.Set;
 // (the "Repairs and Maintenance" line of the GSO's budget). Counts approved, not deleted records
 // with a cost, by their maintenance date. Next year's estimate per category is the average of the
 // last three full years, raised by a yearly price increase from the middle of those years to next
-// year; the trend compares the last full year with the first. Plain arithmetic; the AI summary on
+// year; the trend compares the last full year with the first. "accuracy" replays the same rule on
+// the last 3 full years and compares it with what they actually cost. Plain arithmetic; the AI summary on
 // Home is written by PlanningInsightService. STAFF only see their own assets.
 @Service
 @RequiredArgsConstructor
@@ -122,11 +123,58 @@ public class MaintenanceForecastService {
         // fewer than two years with any cost: the estimate rests on very little
         out.put("limitedHistory", yearsWithData < 2);
         out.put("byCategory", categories);
+        out.put("accuracy", accuracy(yearTotals(thisYear - HISTORY_YEARS - 4, thisYear - 1, scope), thisYear, priceIncrease));
         out.put("byType", sortedDesc(byType, "type"));
         if (scope == null) {
             List<Map<String, Object>> offices = sortedDesc(byOffice, "office");
             out.put("topOffices", offices.subList(0, Math.min(8, offices.size())));
         }
+        return out;
+    }
+
+    // total cost per year, fromYear to toYear (years with no cost are left out)
+    private Map<Integer, BigDecimal> yearTotals(int fromYear, int toYear, AccessService.StaffScope scope) {
+        Map<Integer, BigDecimal> totals = new LinkedHashMap<>();
+        jdbcTemplate.query(
+            "SELECT YEAR(m.maintenance_date) AS y, SUM(m.cost) AS total"
+                + " FROM maintenance_ledger m JOIN assets a ON a.asset_id = m.asset_id"
+                + " WHERE m.is_deleted = 0 AND m.approval_status = 'APPROVED' AND m.cost > 0"
+                + " AND m.maintenance_date >= ? AND m.maintenance_date <= ?"
+                + (scope != null ? " AND " + scope.sql("a") : "")
+                + " GROUP BY YEAR(m.maintenance_date)",
+            rs -> { totals.put(rs.getInt("y"), rs.getBigDecimal("total")); },
+            args(LocalDate.of(fromYear, 1, 1), LocalDate.of(toYear, 12, 31), scope));
+        return totals;
+    }
+
+    // How close the method would have been in each of the last 3 full years. A budget for year T
+    // is prepared during T-1, when T-2 is the last full year, so the estimate for T is the average
+    // of T-4 to T-2 raised to T's prices (the same rule as next year's estimate), set against what
+    // T actually cost. A year is left out when it, or all three years before it, had no cost.
+    static Map<String, Object> accuracy(Map<Integer, BigDecimal> totals, int thisYear, double priceIncrease) {
+        BigDecimal priceFactor = BigDecimal.valueOf(Math.pow(1 + priceIncrease / 100.0, 3));
+        List<Map<String, Object>> checked = new ArrayList<>();
+        double errorSum = 0;
+        for (int year = thisYear - HISTORY_YEARS; year < thisYear; year++) {
+            BigDecimal actual = totals.getOrDefault(year, BigDecimal.ZERO);
+            BigDecimal base = BigDecimal.ZERO;
+            for (int y = year - 4; y <= year - 2; y++) base = base.add(totals.getOrDefault(y, BigDecimal.ZERO));
+            if (actual.signum() == 0 || base.signum() == 0) continue;
+            BigDecimal estimate = base.divide(BigDecimal.valueOf(HISTORY_YEARS), 2, RoundingMode.HALF_UP)
+                .multiply(priceFactor).setScale(2, RoundingMode.HALF_UP);
+            double error = estimate.subtract(actual).doubleValue() / actual.doubleValue() * 100;
+            errorSum += Math.abs(error);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("year", year);
+            m.put("estimate", estimate);
+            m.put("actual", actual);
+            // positive: the estimate was too high; negative: too low
+            m.put("errorPercent", Math.round(error * 10) / 10.0);
+            checked.add(m);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("years", checked);
+        out.put("averageErrorPercent", checked.isEmpty() ? null : Math.round(errorSum / checked.size() * 10) / 10.0);
         return out;
     }
 

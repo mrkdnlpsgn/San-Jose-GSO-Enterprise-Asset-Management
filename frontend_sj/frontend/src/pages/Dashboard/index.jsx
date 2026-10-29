@@ -531,6 +531,37 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
                     </dd>
                   </div>
                 </dl>
+                {m.accuracy?.averageErrorPercent != null && (
+                  <details className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800">
+                    <summary className="cursor-pointer text-base text-slate-800 dark:text-zinc-200">
+                      Checked against past years, this method was off by about{' '}
+                      <span className="font-semibold">{m.accuracy.averageErrorPercent}%</span> on average.
+                    </summary>
+                    <p className="text-sm text-slate-700 dark:text-zinc-300 mt-2">
+                      For each year, the same rule was applied using only the years before it (as if the budget were made the year before), then compared with what was actually spent.
+                    </p>
+                    <table className="mt-2 w-full max-w-lg text-sm tabular-nums">
+                      <thead>
+                        <tr className="text-left text-slate-700 dark:text-zinc-300">
+                          <th className="font-semibold py-1 pr-3">Year</th>
+                          <th className="font-semibold py-1 pr-3 text-right">Estimate</th>
+                          <th className="font-semibold py-1 pr-3 text-right">Actual</th>
+                          <th className="font-semibold py-1 text-right">Off by</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-slate-900 dark:text-white">
+                        {m.accuracy.years.map((y) => (
+                          <tr key={y.year} className="border-t border-slate-200 dark:border-zinc-800">
+                            <td className="py-1 pr-3">{y.year}</td>
+                            <td className="py-1 pr-3 text-right" title={pesoExact(y.estimate)}>{pesoWords(y.estimate)}</td>
+                            <td className="py-1 pr-3 text-right" title={pesoExact(y.actual)}>{pesoWords(y.actual)}</td>
+                            <td className="py-1 text-right">{Math.abs(y.errorPercent)}% {y.errorPercent > 0 ? 'too high' : y.errorPercent < 0 ? 'too low' : ''}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
+                )}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 border-t border-slate-200 dark:border-zinc-800">
                   <p className="flex-1 text-base text-slate-800 dark:text-zinc-200">
                     {m.byCategory[0] ? <>Costs most to keep running: <span className="font-semibold">{m.byCategory[0].category}</span>. </> : null}
