@@ -7,7 +7,7 @@ import { useToast } from '../../context/ToastContext'
 import { manilaDateKey } from '../../utils/helpers'
 import api from '../../services/api'
 import { getPropertyCards } from '../../services/propertyCardService'
-import { getReplacementForecast, getDepreciation, getMaintenanceForecast } from '../../services/aiRecommendationService'
+import { getReplacementForecast, getDepreciation, getMaintenanceForecast, getRepairRisk } from '../../services/aiRecommendationService'
 import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 import { openPrintWindow } from '../../utils/printWindow'
 import { printForm, toPages, longDate } from '../../utils/printForm'
@@ -368,6 +368,35 @@ const REPORTS = [
       { label: '3-Year Average', display: (r) => fmtMoney(r.average),                                                              raw: (r) => Number(r.average).toFixed(2) },
       { label: 'Trend',          display: (r) => TREND_LABEL[r.trend] || '',                                                        raw: (r) => TREND_LABEL[r.trend] || '' },
       { label: `Estimate ${FORECAST_YEAR}`, display: (r) => <span className="font-semibold text-amber-700 dark:text-amber-300">{fmtMoney(r.forecast)}</span>, raw: (r) => Number(r.forecast).toFixed(2) },
+    ],
+  },
+  {
+    // Medium and high risk assets from the machine-learning model (RepairRiskService), highest first.
+    id: 'repairrisk',
+    title: 'Repair Risk',
+    printTitle: 'ASSETS LIKELY TO NEED REPAIR OR MAINTENANCE IN THE NEXT 12 MONTHS',
+    certification: [
+      { label: 'Prepared by:', caption: 'Signature over Printed Name of Property Custodian / GSO Staff' },
+      { label: 'Approved by:', caption: 'Signature over Printed Name of Municipal General Services Officer' },
+    ],
+    description: 'Assets a machine-learning model, trained on past repair records, expects to need repair or maintenance in the next 12 months, with the reasons.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+      </svg>
+    ),
+    async load() {
+      return (await getRepairRisk({ items: true })).data.items ?? []
+    },
+    headers: [
+      { label: 'Chance',       display: (r) => <span className={r.level === 'HIGH' ? 'font-semibold text-amber-700 dark:text-amber-300' : ''}>{r.chancePercent}%</span>, raw: (r) => `${r.chancePercent}%` },
+      { label: 'Risk',         display: (r) => r.level === 'HIGH' ? 'High' : 'Medium',                                                    raw: (r) => r.level === 'HIGH' ? 'High' : 'Medium' },
+      { label: 'Property No.', display: (r) => <span className="font-mono text-xs">{r.propertyNumber || 'N/A'}</span>,                     raw: (r) => r.propertyNumber || '' },
+      { label: 'Description',  display: (r) => <span className="font-medium text-slate-900 dark:text-white">{r.description || 'N/A'}</span>, raw: (r) => r.description || '' },
+      { label: 'Category',     display: (r) => r.category || 'N/A',                                                                        raw: (r) => r.category || '' },
+      { label: 'Office',       display: (r) => r.office || 'N/A',                                                                          raw: (r) => r.office || '' },
+      { label: 'Age',          display: (r) => `${r.ageYears} yrs`,                                                                        raw: (r) => r.ageYears },
+      { label: 'Why',          display: (r) => (r.reasons || []).join('; ') || 'N/A',                                                      raw: (r) => (r.reasons || []).join('; ') },
     ],
   },
   {

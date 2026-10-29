@@ -19,6 +19,11 @@ export const getDepreciation = (params = {}) =>
 export const getMaintenanceForecast = (params = {}) =>
   api.get('/ai-insights/maintenance-forecast', { params });
 
+// Reports: assets likely to need repair or maintenance in the next 12 months (machine-learning
+// model, RepairRiskService); items = true adds the medium and high risk assets.
+export const getRepairRisk = (params = {}) =>
+  api.get('/ai-insights/repair-risk', { params });
+
 // Home "Budget & Planning" (admins only): replacement forecast + depreciation totals, with one AI
 // summary covering both. Cached on the server while the numbers are unchanged.
 export const getPlanning = () => api.get('/ai-insights/planning');

@@ -24,6 +24,7 @@ public class PlanningInsightService {
     private final ReplacementForecastService replacementForecastService;
     private final DepreciationService depreciationService;
     private final MaintenanceForecastService maintenanceForecastService;
+    private final RepairRiskService repairRiskService;
     private final PlanningSettingsService planningSettings;
     private final GeminiConfig geminiConfig;
 
@@ -36,6 +37,7 @@ public class PlanningInsightService {
         out.put("priceIncreasePercent", priceIncrease);
         out.put("replacement", replacementForecastService.forecast(ReplacementForecastService.DEFAULT_YEARS, priceIncrease, false, null));
         out.put("maintenance", maintenanceForecastService.forecast(priceIncrease, null));
+        out.put("repairRisk", repairRiskService.forecast(false, null));
         out.put("depreciation", depreciationService.schedule(null, false, null));
         CachedSummary c = cached;
         if (c != null && c.factsJson().equals(factsJson(out))) out.put("summary", c.summary());
@@ -83,6 +85,12 @@ public class PlanningInsightService {
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("replacementForecast", replacement);
         facts.put("maintenanceSpending", maintenance);
+        Map<String, Object> rr = (Map<String, Object>) planning.get("repairRisk");
+        if (rr != null && Boolean.FALSE.equals(rr.get("notEnoughHistory"))) {
+            Map<String, Object> risk = new LinkedHashMap<>();
+            for (String k : List.of("until", "expectedAssets", "high", "medium", "check")) risk.put(k, rr.get(k));
+            facts.put("repairRisk", risk);
+        }
         facts.put("depreciation", depreciation);
         // Only when something was left out; an empty list still tempts the AI to mention it.
         if (r.get("excluded") instanceof Map<?, ?> ex && ex.get("noExpectedLife") instanceof List<?> l && !l.isEmpty()) {
@@ -113,6 +121,10 @@ public class PlanningInsightService {
         so far (the entry with soFar true is not a full year, never compare it with full years), next \
         year's estimate (forecast) with its trend (RISING, FALLING or STEADY) and the categories that \
         cost most to keep running; \
+        (2b) if repairRisk is given: a machine-learning model's count of assets likely to need repair \
+        or maintenance before "until" (expectedAssets; high = 50% chance or more, medium = 20-49%), and \
+        check = how it did on last year (of the assets that really needed work, foundPercent were in \
+        its top list, against randomPercent by chance); \
         (3) straight-line depreciation as of today: total cost, accumulated depreciation, book value, \
         depreciation expense so far this year, and how many assets are fully depreciated (only the 5% \
         residual value is left). Use only those numbers, never invent figures. In 5-7 short sentences: \
@@ -120,7 +132,8 @@ public class PlanningInsightService {
         highest replacement cost, name the categories (and offices) that drive most of the cost, then \
         give next year's estimated repair and maintenance budget, whether it is rising or falling and \
         which category costs most to repair (if limitedHistory is true, say the estimate rests on \
-        little history), then give the book value against the total cost and the depreciation expense \
+        little history), then, if repairRisk is given, say about how many assets are likely to need \
+        work in the next 12 months and how many are high risk, then give the book value against the total cost and the depreciation expense \
         so far this year, and mention the fully depreciated assets. If repairable assets are among those due, say repairing \
         some may delay part of the cost. If categoriesWithNoExpectedLife is given, say those assets are \
         not counted. Money is in Philippine pesos (write it as PHP, rounded to the nearest thousand or \

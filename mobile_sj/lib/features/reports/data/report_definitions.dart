@@ -599,6 +599,36 @@ List<ReportDefinition> buildReportDefinitions() => [
           Signer('Certified Correct by:', 'Signature over Printed Name of Municipal Accountant'),
         ],
       ),
+      // Medium and high risk assets from the machine-learning model (RepairRiskService), highest first.
+      ReportDefinition(
+        id: 'repairrisk',
+        title: 'Repair Risk',
+        printTitle: 'ASSETS LIKELY TO NEED REPAIR OR MAINTENANCE IN THE NEXT 12 MONTHS',
+        description: 'Assets a machine-learning model, trained on past repair records, expects to need repair '
+            'or maintenance in the next 12 months, with the reasons.',
+        icon: Icons.warning_amber_rounded,
+        load: () async {
+          final res = await ApiClient.instance.dio.get('/ai-insights/repair-risk', queryParameters: {'items': true});
+          return [for (final r in ((res.data as Map)['items'] as List? ?? const [])) Map<String, dynamic>.from(r as Map)];
+        },
+        headers: [
+          ReportColumn('Chance', display: (r) => '${r['chancePercent']}%', raw: (r) => '${r['chancePercent']}%'),
+          ReportColumn('Risk',
+              display: (r) => r['level'] == 'HIGH' ? 'High' : 'Medium', raw: (r) => r['level'] == 'HIGH' ? 'High' : 'Medium'),
+          ReportColumn('Property No.', display: (r) => _orNa(r['propertyNumber']), raw: (r) => str(r['propertyNumber'])),
+          ReportColumn('Description', display: (r) => _orNa(r['description']), raw: (r) => str(r['description'])),
+          ReportColumn('Category', display: (r) => _orNa(r['category']), raw: (r) => str(r['category'])),
+          ReportColumn('Office', display: (r) => _orNa(r['office']), raw: (r) => str(r['office'])),
+          ReportColumn('Age', display: (r) => '${r['ageYears']} yrs', raw: (r) => r['ageYears']),
+          ReportColumn('Why',
+              display: (r) => _orNa(((r['reasons'] as List?) ?? const []).join('; ')),
+              raw: (r) => ((r['reasons'] as List?) ?? const []).join('; ')),
+        ],
+        certification: const [
+          Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
+          Signer('Approved by:', 'Signature over Printed Name of Municipal General Services Officer'),
+        ],
+      ),
       // One row per type of property: the last 3 full years, this year so far, and next year's
       // estimate (MaintenanceForecastService), with a total row.
       ReportDefinition(

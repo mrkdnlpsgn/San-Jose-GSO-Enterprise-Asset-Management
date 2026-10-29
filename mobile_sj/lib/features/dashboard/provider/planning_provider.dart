@@ -87,6 +87,47 @@ class MaintenancePlan {
   }
 }
 
+/// Assets likely to need repair or maintenance in the next 12 months (RepairRiskService's
+/// machine-learning model), and how it did when tested on last year.
+class RepairRisk {
+  final int expectedAssets;
+  final int high; // 50% chance or more
+  final int medium; // 20-49%
+  final int? checkYear;
+  final int checkAssets;
+  final int checkNeeded;
+  final int checkFound;
+  final double? foundPercent;
+  final double? randomPercent;
+  const RepairRisk({
+    required this.expectedAssets,
+    required this.high,
+    required this.medium,
+    this.checkYear,
+    this.checkAssets = 0,
+    this.checkNeeded = 0,
+    this.checkFound = 0,
+    this.foundPercent,
+    this.randomPercent,
+  });
+
+  static RepairRisk? fromJson(Map? m) {
+    if (m == null || m['notEnoughHistory'] != false) return null; // older server, or too little history
+    final c = m['check'] as Map?;
+    return RepairRisk(
+      expectedAssets: _num(m['expectedAssets']).toInt(),
+      high: _num(m['high']).toInt(),
+      medium: _num(m['medium']).toInt(),
+      checkYear: c == null ? null : _num(c['year']).toInt(),
+      checkAssets: _num(c?['assets']).toInt(),
+      checkNeeded: _num(c?['needed']).toInt(),
+      checkFound: _num(c?['found']).toInt(),
+      foundPercent: c?['foundPercent'] == null ? null : _num(c!['foundPercent']).toDouble(),
+      randomPercent: c?['randomPercent'] == null ? null : _num(c!['randomPercent']).toDouble(),
+    );
+  }
+}
+
 /// Home's "Budget & Planning" (admins only), from /ai-insights/planning: the replacement
 /// forecast, repair and maintenance spending, and the book-value totals, plus the AI summary when
 /// one still matches the numbers. The same data as the web's Budget & Planning section.
@@ -105,6 +146,7 @@ class Planning {
   final double monthlyDepreciation;
   final int fullyDepreciated;
   final MaintenancePlan? maintenance;
+  final RepairRisk? repairRisk;
   final String? summary;
 
   const Planning({
@@ -122,6 +164,7 @@ class Planning {
     required this.monthlyDepreciation,
     required this.fullyDepreciated,
     this.maintenance,
+    this.repairRisk,
     this.summary,
   });
 
@@ -153,6 +196,7 @@ class Planning {
       monthlyDepreciation: _num(d['monthlyDepreciation']).toDouble(),
       fullyDepreciated: _num(d['fullyDepreciated']).toInt(),
       maintenance: MaintenancePlan.fromJson(json['maintenance'] as Map?),
+      repairRisk: RepairRisk.fromJson(json['repairRisk'] as Map?),
       summary: json['summary'] as String?,
     );
   }

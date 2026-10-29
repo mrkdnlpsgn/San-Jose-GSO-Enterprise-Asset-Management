@@ -247,6 +247,12 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
               _MaintenancePanel(plan: m, heading: heading, body: body),
             ],
 
+            // 3b. Assets likely to need repair (machine-learning model)
+            if (p.repairRisk case final risk?) ...[
+              const SizedBox(height: 22),
+              _RepairRiskPanel(risk: risk, heading: heading, body: body),
+            ],
+
             if (p.noExpectedLife.isNotEmpty) ...[
               const SizedBox(height: 14),
               Text(
@@ -439,6 +445,98 @@ class _MaintenancePanel extends StatelessWidget {
                     textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                   ),
                   child: const Text('See by type of property'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Assets likely to need repair or maintenance in the next 12 months, with how the model did on
+/// last year (tap to open) and a link to the list.
+class _RepairRiskPanel extends StatelessWidget {
+  final RepairRisk risk;
+  final TextStyle heading;
+  final TextStyle body;
+  const _RepairRiskPanel({required this.risk, required this.heading, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final small = body.copyWith(fontSize: 15.5, color: c.textSecondary);
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: c.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: Ios.groupedBg(context),
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+            child: Text('Likely to need repair in the next 12 months', style: heading),
+          ),
+          Divider(height: 1, thickness: 1, color: c.border),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: _BigFigure(label: 'Assets expected to need work', value: 'About ${_count(risk.expectedAssets)}'),
+          ),
+          Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: Ios.separator(context)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: _BigFigure(label: 'High risk (50% chance or more)', value: _count(risk.high)),
+          ),
+          Divider(height: 1, thickness: 1, color: c.border),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (risk.foundPercent != null)
+                  Theme(
+                    // no divider lines above and below the open tile
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: const EdgeInsets.only(bottom: 4),
+                      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+                      title: Text.rich(
+                        TextSpan(children: [
+                          TextSpan(text: 'Tested on ${risk.checkYear}: it picked out '),
+                          TextSpan(text: '${risk.foundPercent}%', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          TextSpan(text: ' of the assets that needed work, against ${risk.randomPercent}% by chance.'),
+                        ]),
+                        style: body,
+                      ),
+                      children: [
+                        Text(
+                          "A machine-learning model learns from the system's own repair records which assets needed "
+                          'work in past years. To test it, it was trained without ${risk.checkYear} and asked to rank the '
+                          '${_count(risk.checkAssets)} assets on hand at the start of that year. Of the '
+                          '${_count(risk.checkNeeded)} that really needed repair or maintenance, ${_count(risk.checkFound)} '
+                          'were among its top ${_count(risk.checkNeeded)}.',
+                          style: small,
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const SizedBox(height: 8),
+                Text(
+                  '${_count(risk.medium)} more ${risk.medium == 1 ? 'has' : 'have'} a medium risk (20 to 49%). '
+                  'Checking these first can prevent breakdowns.',
+                  style: body,
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton(
+                  onPressed: () => context.push('/reports/repairrisk'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('See the assets at risk'),
                 ),
               ],
             ),

@@ -56,6 +56,13 @@ Planning _planning({String? summary, List<String> noLife = const []}) => Plannin
           'averageErrorPercent': 21.3,
         },
       },
+      'repairRisk': {
+        'notEnoughHistory': false,
+        'expectedAssets': 121,
+        'high': 43,
+        'medium': 87,
+        'check': {'year': 2025, 'assets': 1536, 'needed': 119, 'expected': 89, 'found': 55, 'foundPercent': 46.2, 'randomPercent': 7.7, 'auc': 0.78},
+      },
       'summary': summary,
     });
 
@@ -129,7 +136,7 @@ void main() {
   });
 
   testWidgets('shows repair and maintenance spending and the estimate for next year', (tester) async {
-    tester.view.physicalSize = const Size(390, 3400);
+    tester.view.physicalSize = const Size(390, 4400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final router = GoRouter(routes: [
@@ -162,6 +169,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('2024: 23.3% too low'), findsOneWidget);
     expect(find.text('Estimate ₱1.6 million, actual ₱2.1 million'), findsOneWidget);
+
+    // the machine-learning repair risk, with its test on last year
+    expect(find.text('Likely to need repair in the next 12 months'), findsOneWidget);
+    expect(find.text('About 121'), findsOneWidget);
+    expect(find.text('43'), findsOneWidget);
+    expect(find.textContaining('it picked out 46.2% of the assets', findRichText: true), findsOneWidget);
+    expect(find.textContaining('87 more have a medium risk'), findsOneWidget);
+    await tester.ensureVisible(find.textContaining('it picked out', findRichText: true));
+    await tester.tap(find.textContaining('it picked out', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('55 were among its top 119'), findsOneWidget);
+    await tester.ensureVisible(find.text('See the assets at risk'));
+    await tester.tap(find.text('See the assets at risk'));
+    await tester.pumpAndSettle();
+    expect(find.text('opened repairrisk'), findsOneWidget);
+    router.pop();
+    await tester.pumpAndSettle();
 
     await tester.ensureVisible(find.text('See by type of property'));
     await tester.tap(find.text('See by type of property'));
