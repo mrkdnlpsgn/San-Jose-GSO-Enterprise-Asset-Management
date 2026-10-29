@@ -149,7 +149,7 @@ function AccountDetailsCard({ user, overview, onSaved }) {
   const toast    = useToast()
   const dispatch = useDispatch()
   const [editing, setEditing]   = useState(false)
-  const [form, setForm]         = useState({ fullName: '', email: '' })
+  const [form, setForm]         = useState({ fullName: '', username: '', email: '' })
   const [errors, setErrors]     = useState({})
   const [error, setError]       = useState('')
   const [confirming, setConfirming] = useState(false)
@@ -159,10 +159,11 @@ function AccountDetailsCard({ user, overview, onSaved }) {
 
   const email      = overview?.email || ''
   const officeName = overview?.officeName || user?.officeName
-  const changed    = editing && (form.fullName.trim() !== (user?.fullName || '') || form.email.trim() !== email)
+  const changed    = editing && (form.fullName.trim() !== (user?.fullName || '') || form.username.trim() !== (user?.username || '')
+    || form.email.trim() !== email)
 
   const startEdit = () => {
-    setForm({ fullName: user?.fullName || '', email })
+    setForm({ fullName: user?.fullName || '', username: user?.username || '', email })
     setErrors({}); setError(''); setEditing(true)
   }
   const cancel = () => { setEditing(false); setErrors({}); setError('') }
@@ -175,6 +176,7 @@ function AccountDetailsCard({ user, overview, onSaved }) {
     e.preventDefault()
     const errs = {}
     if (!form.fullName.trim()) errs.fullName = 'Enter your full name.'
+    if (!/^[A-Za-z0-9._-]{3,50}$/.test(form.username.trim())) errs.username = 'Use 3 to 50 letters, numbers, dots, dashes or underscores, with no spaces.'
     if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) errs.email = 'Enter a valid email address, like name@example.com.'
     if (!form.email.trim() && overview?.twoFactorEnabled) errs.email = '2-step verification sends its code here. Turn it off before removing the email.'
     setErrors(errs)
@@ -187,8 +189,8 @@ function AccountDetailsCard({ user, overview, onSaved }) {
     if (!password) { setPwError('Enter your current password.'); return }
     setSaving(true)
     try {
-      const { data } = await updateMyDetails({ fullName: form.fullName.trim(), email: form.email.trim(), currentPassword: password })
-      dispatch(updateAuthUser({ fullName: data.fullName }))
+      const { data } = await updateMyDetails({ fullName: form.fullName.trim(), username: form.username.trim(), email: form.email.trim(), currentPassword: password })
+      dispatch(updateAuthUser({ fullName: data.fullName, username: data.username }))
       onSaved(data.email || null)
       setConfirming(false); setEditing(false)
       toast.show('Account details saved.', 'success')
@@ -217,14 +219,16 @@ function AccountDetailsCard({ user, overview, onSaved }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Input id="details-name" label="Full name" autoComplete="name" maxLength={100} autoFocus
               value={form.fullName} onChange={set('fullName')} error={errors.fullName} className="!text-base py-3" />
+            <Input id="details-username" label="Username" autoComplete="username" maxLength={50} spellCheck={false}
+              value={form.username} onChange={set('username')} error={errors.username}
+              hint="You sign in with this. Other devices will be signed out." className="!text-base py-3 font-mono" />
             <Input id="details-email" label="Email" type="email" autoComplete="email" maxLength={100}
               placeholder="name@example.com" value={form.email} onChange={set('email')} error={errors.email}
               hint="Password reset and sign-in codes are sent here." className="!text-base py-3" />
           </div>
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/40 px-4 py-3.5">
-            <DetailRow label="Username"><span className="font-mono">{user?.username}</span></DetailRow>
             <DetailRow label="Office">{officeName || <span className="text-slate-500 dark:text-zinc-400">Not assigned</span>}</DetailRow>
-            <p className="md:col-span-2 text-sm text-slate-600 dark:text-zinc-400">Only an administrator can change these.</p>
+            <p className="text-sm text-slate-600 dark:text-zinc-400 md:self-end">Only an administrator can change your office.</p>
           </dl>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <Button type="submit" size="md" disabled={!changed}>Save changes</Button>
