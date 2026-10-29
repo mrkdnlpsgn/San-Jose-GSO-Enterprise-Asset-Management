@@ -17,9 +17,9 @@ import MaintenanceLines from '../../components/common/MaintenanceLines'
 import { printMaintenanceCard } from '../../utils/maintenanceCardPrint'
 import { getReturnPapers } from '../../services/transferService'
 
-const TAB_LABELS = { details: 'Details', history: 'Lifecycle', specs: 'Specifications', ai: 'AI Insight', maintenance: 'Maintenance', papers: 'PARs & Return Slips' }
+const TAB_LABELS = { details: 'Details', history: 'Lifecycle', card: 'Property Card', specs: 'Specifications', ai: 'AI Insight', maintenance: 'Maintenance', papers: 'PARs & Return Slips' }
 // Shorter labels for phones so every tab fits on one row at any Text Size
-const TAB_LABELS_SHORT = { details: 'Details', history: 'History', specs: 'Specs', ai: 'AI', maintenance: 'Repairs', papers: 'PARs' }
+const TAB_LABELS_SHORT = { details: 'Details', history: 'History', card: 'Card', specs: 'Specs', ai: 'AI', maintenance: 'Repairs', papers: 'PARs' }
 
 const RECOMMENDATION_BADGE = {
   MAINTAIN:            'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/20',
@@ -77,24 +77,27 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
   const [aiNotice, setAiNotice]       = useState('')
   const [showQr, setShowQr]           = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
+  const [card, setCard]               = useState(null)   // the Property Card, loaded when its tab opens
   const [cardLoading, setCardLoading] = useState(false)
   const [cardError, setCardError]     = useState('')
   const isFirstRender = useRef(true)
 
-  // Fetches this asset's Property Card, then prints or exports it. The print window opens on the
-  // click itself (a window opened after the request returns would be blocked as a popup).
-  const withPropertyCard = (kind) => {
-    const win = kind === 'print' ? openPrintWindow() : null
+  // Reloaded when another asset opens or this one changes; an answer for an asset no longer
+  // shown is dropped.
+  const cardFor = useRef(listAsset.id)
+  useEffect(() => { cardFor.current = listAsset.id; setCard(null); setCardError('') }, [listAsset.id, listAsset.updatedAt])
+  useEffect(() => {
+    if (tab !== 'card' || card || cardLoading) return
+    const id = listAsset.id
     setCardLoading(true)
-    setCardError('')
-    getPropertyCard(asset.id)
-      .then(({ data }) => (kind === 'print' ? printPropertyCards([data], win) : exportPropertyCardsExcel([data])))
-      .catch((err) => {
-        win?.close()
-        setCardError(err.response?.data?.message || err.message || 'Could not load the Property Card.')
-      })
+    getPropertyCard(id)
+      .then(({ data }) => { if (cardFor.current === id) setCard(data) })
+      .catch((err) => setCardError(err.response?.data?.message || 'Could not load the Property Card.'))
       .finally(() => setCardLoading(false))
-  }
+  }, [tab, card]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The print window opens on the click itself; the card is already loaded on its tab.
+  const printCard = () => printPropertyCards([card], openPrintWindow())
 
   useEffect(() => {
     if (!asset) return
@@ -170,7 +173,7 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
 
   if (!asset) return null
 
-  const tabs = ['details', 'history', 'specs', 'ai',
+  const tabs = ['details', 'history', 'card', 'specs', 'ai',
     ...(asset.condition === 'REPAIRABLE' || maintenance.length > 0 ? ['maintenance'] : []),
     ...(hasReturnPapers(papers) ? ['papers'] : []),
   ]
@@ -348,30 +351,9 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
               cost: m.cost,
             }))
             const combined = [...historyItems, ...disposalItems, ...maintenanceItems].sort((a, b) => new Date(b.sortKey) - new Date(a.sortKey))
-            // A Property Card exists only once the asset has been transferred somewhere.
-            const wasTransferred = history.some((h) => h.eventType === 'TRANSFERRED' && h.toOffice)
 
             return (
               <div className="space-y-2">
-                {wasTransferred && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/40 px-3 py-2.5 mb-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200">Property Card</p>
-                      <p className="text-xs text-slate-500 dark:text-zinc-400">Every transfer: to whom and to which office.</p>
-                      {cardError && <p className="text-xs text-red-500 mt-1" role="alert">{cardError}</p>}
-                    </div>
-                    <div className="flex gap-1.5">
-                      <button type="button" disabled={cardLoading} onClick={() => withPropertyCard('print')}
-                        className="px-2.5 py-1.5 rounded-md text-xs font-semibold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors">
-                        Print / PDF
-                      </button>
-                      <button type="button" disabled={cardLoading} onClick={() => withPropertyCard('excel')}
-                        className="px-2.5 py-1.5 rounded-md text-xs font-semibold border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors">
-                        Excel
-                      </button>
-                    </div>
-                  </div>
-                )}
                 {combined.length === 0
                   ? <p className="text-sm text-slate-600 dark:text-zinc-400 py-8 text-center">No lifecycle events recorded.</p>
                   : combined.map((item) => (
@@ -407,6 +389,18 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
               </div>
             )
           })()}
+
+          {tab === 'card' && (
+            cardError ? (
+              <p className="text-sm text-red-600 dark:text-red-400 py-8 text-center" role="alert">{cardError}</p>
+            ) : !card ? (
+              <div className="space-y-3 py-2" aria-busy="true">
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="animate-pulse h-4 rounded bg-slate-200 dark:bg-zinc-800" style={{ width: `${90 - i * 10}%` }} />)}
+              </div>
+            ) : (
+              <PropertyCardView card={card} onPrint={printCard} onExcel={() => exportPropertyCardsExcel([card])} />
+            )
+          )}
 
           {tab === 'papers' && hasReturnPapers(papers) && <ReturnPapers papers={papers} />}
 
@@ -549,6 +543,69 @@ export default function AssetDrawer({ asset: listAsset, onClose, onEdit, onDelet
 }
 
 const SECTION = 'text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-zinc-400 mb-0.5'
+
+// The Property Card on screen, laid out like the paper form: the receipt line, then a line per
+// transfer (Transfer = the person it went to, Office = where it went), and the disposal if any.
+function PropertyCardView({ card, onPrint, onExcel }) {
+  const BTN = 'flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 dark:border-zinc-700 text-sm font-medium text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors'
+  const TH = 'px-3 py-2 text-left text-xs font-semibold text-slate-600 dark:text-zinc-400 whitespace-nowrap'
+  const TD = 'px-3 py-2 align-top'
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 text-sm">
+          <p className="text-slate-600 dark:text-zinc-400">Plant, Property and Equipment: <span className="font-medium text-slate-900 dark:text-zinc-100">{card.category || 'N/A'}</span></p>
+          <p className="text-slate-600 dark:text-zinc-400 mt-0.5">
+            {card.transferCount === 0 ? 'Never transferred' : `${card.transferCount} transfer${card.transferCount === 1 ? '' : 's'}`}
+          </p>
+        </div>
+        <div className="flex gap-1.5">
+          <button type="button" onClick={onPrint} className={BTN}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" /></svg>
+            Print / PDF
+          </button>
+          <button type="button" onClick={onExcel} className={BTN}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+            Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-800">
+        <table className="w-full text-sm">
+          <caption className="sr-only">Property Card of {card.propertyNumber}</caption>
+          <thead className="bg-slate-50 dark:bg-zinc-900">
+            <tr>
+              <th scope="col" className={TH}>Date</th>
+              <th scope="col" className={TH}>Reference</th>
+              <th scope="col" className={TH}>Description</th>
+              <th scope="col" className={`${TH} text-right`}>Receipt Qty</th>
+              <th scope="col" className={TH}>Transfer</th>
+              <th scope="col" className={TH}>Office</th>
+              <th scope="col" className={`${TH} text-right`}>Balance</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-zinc-800 text-slate-800 dark:text-zinc-200">
+            {card.entries.map((e, i) => (
+              <tr key={i}>
+                <td className={`${TD} whitespace-nowrap`}>{fmt(e.date)}</td>
+                <td className={`${TD} font-mono text-xs`}>{e.reference || 'N/A'}</td>
+                <td className={TD}>
+                  {e.description || 'N/A'}
+                  {e.kind === 'RECEIPT' && card.unitValue != null && <span className="block text-xs text-slate-500 dark:text-zinc-400">{php(card.unitValue)}</span>}
+                </td>
+                <td className={`${TD} text-right tabular-nums`}>{e.receiptQty ?? ''}</td>
+                <td className={TD}>{e.transferTo || (e.kind === 'DISPOSAL' ? '' : 'N/A')}</td>
+                <td className={TD}>{e.office || (e.kind === 'DISPOSAL' ? '' : 'N/A')}</td>
+                <td className={`${TD} text-right tabular-nums`}>{e.balanceQty}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 function Field({ label, value, mono = false }) {
   return (

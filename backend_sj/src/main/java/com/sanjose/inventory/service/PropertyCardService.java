@@ -21,9 +21,10 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-// The LGU's Property Card: one card per asset that has been transferred at least once, listing
-// its receipt and then every transfer (to whom, and to which office). Built from the asset,
-// its TRANSFERRED history events, and completed disposals - nothing extra is stored.
+// The LGU's Property Card: its receipt and then every transfer (to whom, and to which office).
+// Every asset has one (its receipt line, at least), opened from the asset's details; the Reports
+// list carries only assets that have been transferred. Built from the asset, its TRANSFERRED
+// history events, and completed disposals - nothing extra is stored.
 @Service
 @Transactional(readOnly = true)
 public class PropertyCardService {
@@ -65,14 +66,17 @@ public class PropertyCardService {
         LEFT JOIN offices o ON o.office_id = a.office_id
         LEFT JOIN personnel p ON p.personnel_id = a.personnel_id
         WHERE a.is_deleted = 0
+        """;
+    private static final String TRANSFERRED_ONLY = """
           AND EXISTS (SELECT 1 FROM asset_history h WHERE h.asset_id = a.asset_id
                       AND h.event_type = 'TRANSFERRED' AND h.to_office_id IS NOT NULL)
         """;
 
-    // Every card the current user may see: all of them for an admin, their own offices' for staff.
+    // The Reports list: the cards of transferred assets the current user may see (all of them for
+    // an admin, their own offices' for staff).
     public List<Card> list() {
         AccessService.StaffScope scope = accessService.staffScope();
-        String sql = ASSET_SQL + (scope == null ? "" : " AND " + scope.sql("a"));
+        String sql = ASSET_SQL + TRANSFERRED_ONLY + (scope == null ? "" : " AND " + scope.sql("a"));
         List<AssetRow> assets = jdbcTemplate.query(sql, (rs, rn) -> assetRow(rs),
             scope == null ? new Object[0] : scope.args());
         List<Card> cards = build(assets);
@@ -83,9 +87,7 @@ public class PropertyCardService {
     public Card forAsset(Long assetId) {
         accessService.requireAssetAccess(assetId);
         List<AssetRow> assets = jdbcTemplate.query(ASSET_SQL + " AND a.asset_id = ?", (rs, rn) -> assetRow(rs), assetId);
-        if (assets.isEmpty()) {
-            throw new ResourceNotFoundException("This asset has no Property Card yet. It has never been transferred.");
-        }
+        if (assets.isEmpty()) throw new ResourceNotFoundException("Asset not found.");
         return build(assets).get(0);
     }
 
@@ -140,14 +142,15 @@ public class PropertyCardService {
         List<Card> cards = new ArrayList<>();
         for (AssetRow a : assets) {
             List<TransferRow> moves = transfers.getOrDefault(a.id(), List.of());
-            if (moves.isEmpty()) continue;
             List<Entry> entries = new ArrayList<>();
             String reference = a.parNumber() != null && !a.parNumber().isBlank()
                 ? a.propertyNumber() + " / PAR " + a.parNumber() : a.propertyNumber();
 
-            // Receipt: where the asset was before its first transfer.
-            entries.add(new Entry(a.acquisitionDate(), reference, a.description(), 1, null,
-                moves.get(0).fromOffice(), 1, "RECEIPT"));
+            // Receipt: where the asset was before its first transfer. Never transferred, it is
+            // still with the office and the person who received it.
+            entries.add(new Entry(a.acquisitionDate(), reference, a.description(), 1,
+                moves.isEmpty() ? a.accountable() : null,
+                moves.isEmpty() ? a.officeName() : moves.get(0).fromOffice(), 1, "RECEIPT"));
 
             for (int i = 0; i < moves.size(); i++) {
                 TransferRow t = moves.get(i);
@@ -172,7 +175,7 @@ public class PropertyCardService {
 
             cards.add(new Card(a.id(), a.propertyNumber(), a.parNumber(), a.description(), a.category(),
                 a.unitValue(), a.acquisitionDate(), a.officeName(), a.accountable(), moves.size(),
-                manilaDate(moves.get(moves.size() - 1).eventDate()), entries));
+                moves.isEmpty() ? null : manilaDate(moves.get(moves.size() - 1).eventDate()), entries));
         }
         return cards;
     }
