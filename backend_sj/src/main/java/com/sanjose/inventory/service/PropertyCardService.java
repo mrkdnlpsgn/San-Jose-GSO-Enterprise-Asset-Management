@@ -128,6 +128,17 @@ public class PropertyCardService {
                     rs.getString("to_person"), rs.getString("notes")));
             }, ids.toArray());
 
+        // Who received the asset, for the receipt line: the holder of its original PAR (kept when a
+        // transfer to a new end user reissued it), else whoever returned it on its first Property
+        // Return Slip.
+        Map<Long, String> receivedBy = new LinkedHashMap<>();
+        jdbcTemplate.query("SELECT asset_id, personnel_name FROM asset_par_issuances WHERE is_original = 1"
+                + " AND personnel_name IS NOT NULL AND asset_id IN (" + marks + ") ORDER BY par_id",
+            rs -> { receivedBy.putIfAbsent(rs.getLong("asset_id"), rs.getString("personnel_name")); }, ids.toArray());
+        jdbcTemplate.query("SELECT asset_id, returned_by_name FROM property_return_slips"
+                + " WHERE asset_id IN (" + marks + ") ORDER BY return_date, slip_id",
+            rs -> { receivedBy.putIfAbsent(rs.getLong("asset_id"), rs.getString("returned_by_name")); }, ids.toArray());
+
         Map<Long, DisposalRow> disposals = new LinkedHashMap<>();
         jdbcTemplate.query("""
             SELECT asset_id, inspection_date, recommended_method, or_number FROM disposal_ledger
@@ -146,10 +157,11 @@ public class PropertyCardService {
             String reference = a.parNumber() != null && !a.parNumber().isBlank()
                 ? a.propertyNumber() + " / PAR " + a.parNumber() : a.propertyNumber();
 
-            // Receipt: where the asset was before its first transfer. Never transferred, it is
-            // still with the office and the person who received it.
+            // Receipt: the office and person that had the asset before its first transfer. With
+            // no record of an earlier holder (never transferred, or every transfer kept the same
+            // end user), that is the current accountable person.
             entries.add(new Entry(a.acquisitionDate(), reference, a.description(), 1,
-                moves.isEmpty() ? a.accountable() : null,
+                receivedBy.getOrDefault(a.id(), a.accountable()),
                 moves.isEmpty() ? a.officeName() : moves.get(0).fromOffice(), 1, "RECEIPT"));
 
             for (int i = 0; i < moves.size(); i++) {
