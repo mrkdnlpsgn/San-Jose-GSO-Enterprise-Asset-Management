@@ -22,5 +22,9 @@ export const getMaintenanceForecast = (params = {}) =>
 // Home "Budget & Planning" (admins only): replacement forecast + depreciation totals, with one AI
 // summary covering both. Cached on the server while the numbers are unchanged.
 export const getPlanning = () => api.get('/ai-insights/planning');
+// Administrators: the yearly price increase (percent, 0-20) every forecast uses. Answers with the
+// planning figures worked out at the new rate.
+export const setPlanningPriceIncrease = (percent) =>
+  api.put('/ai-insights/planning/price-increase', { percent });
 export const generatePlanningSummary = (refresh = false) =>
   api.post('/ai-insights/planning/summary', null, { params: { refresh } });

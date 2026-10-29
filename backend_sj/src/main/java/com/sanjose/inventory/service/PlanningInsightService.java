@@ -24,6 +24,7 @@ public class PlanningInsightService {
     private final ReplacementForecastService replacementForecastService;
     private final DepreciationService depreciationService;
     private final MaintenanceForecastService maintenanceForecastService;
+    private final PlanningSettingsService planningSettings;
     private final GeminiConfig geminiConfig;
 
     private record CachedSummary(String factsJson, String summary) {}
@@ -31,9 +32,10 @@ public class PlanningInsightService {
 
     public Map<String, Object> planning() {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("replacement", replacementForecastService.forecast(
-            ReplacementForecastService.DEFAULT_YEARS, ReplacementForecastService.DEFAULT_PRICE_INCREASE, false, null));
-        out.put("maintenance", maintenanceForecastService.forecast(MaintenanceForecastService.DEFAULT_PRICE_INCREASE, null));
+        double priceIncrease = planningSettings.priceIncreasePercent();
+        out.put("priceIncreasePercent", priceIncrease);
+        out.put("replacement", replacementForecastService.forecast(ReplacementForecastService.DEFAULT_YEARS, priceIncrease, false, null));
+        out.put("maintenance", maintenanceForecastService.forecast(priceIncrease, null));
         out.put("depreciation", depreciationService.schedule(null, false, null));
         CachedSummary c = cached;
         if (c != null && c.factsJson().equals(factsJson(out))) out.put("summary", c.summary());

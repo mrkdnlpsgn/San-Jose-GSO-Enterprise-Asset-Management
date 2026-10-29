@@ -541,7 +541,7 @@ List<ReportDefinition> buildReportDefinitions() => [
         description: 'Assets due for replacement now and in the next 3 years, with the estimated cost, for budget planning.',
         icon: Icons.event_repeat_outlined,
         // Same settings as Home's Budget & Planning, so the totals match it.
-        load: () => _fetchItems('/ai-insights/replacement-forecast', {'years': 3, 'priceIncrease': 3}),
+        load: () => _fetchItems('/ai-insights/replacement-forecast', {'years': 3}),
         dateField: 'endOfLife',
         headers: [
           ReportColumn('Replace In',
@@ -610,7 +610,7 @@ List<ReportDefinition> buildReportDefinitions() => [
         icon: Icons.build_circle_outlined,
         aggregated: true,
         load: () async {
-          final res = await ApiClient.instance.dio.get('/ai-insights/maintenance-forecast', queryParameters: {'priceIncrease': 3});
+          final res = await ApiClient.instance.dio.get('/ai-insights/maintenance-forecast');
           return [for (final r in (res.data as Map)['byCategory'] as List) Map<String, dynamic>.from(r as Map)];
         },
         transform: (rows) {

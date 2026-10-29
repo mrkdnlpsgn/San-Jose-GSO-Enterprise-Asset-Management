@@ -29,7 +29,6 @@ public class MaintenanceForecastService {
     private final JdbcTemplate jdbcTemplate;
 
     public static final int HISTORY_YEARS = 3;
-    public static final double DEFAULT_PRICE_INCREASE = ReplacementForecastService.DEFAULT_PRICE_INCREASE;
     // a change of more than this between the first and the last full year counts as a trend
     private static final double TREND_THRESHOLD = 0.15;
 

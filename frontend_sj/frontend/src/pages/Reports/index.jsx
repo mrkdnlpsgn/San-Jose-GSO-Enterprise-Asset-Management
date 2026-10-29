@@ -261,7 +261,7 @@ const REPORTS = [
     ),
     // Same settings as the Home card, so the totals match it.
     async load() {
-      return (await getReplacementForecast({ years: 3, priceIncrease: 3, items: true })).data.items
+      return (await getReplacementForecast({ years: 3, items: true })).data.items
     },
     dateField: 'endOfLife',
     extraRows: (rows) => [
@@ -350,7 +350,7 @@ const REPORTS = [
       </svg>
     ),
     async load() {
-      return (await getMaintenanceForecast({ priceIncrease: 3 })).data.byCategory
+      return (await getMaintenanceForecast()).data.byCategory
     },
     extraRows: (rows) => {
       if (!rows.length) return rows

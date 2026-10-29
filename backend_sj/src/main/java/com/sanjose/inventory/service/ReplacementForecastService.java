@@ -29,7 +29,6 @@ public class ReplacementForecastService {
     private final JdbcTemplate jdbcTemplate;
 
     public static final int DEFAULT_YEARS = 3;
-    public static final double DEFAULT_PRICE_INCREASE = 3.0;
     static final String NOW = "NOW";
 
     private static final String IN_USE = DashboardService.IN_USE;

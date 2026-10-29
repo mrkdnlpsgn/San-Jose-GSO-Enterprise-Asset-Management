@@ -5,7 +5,7 @@ import { getAssets } from '../../services/assetService'
 import { Link, useNavigate } from 'react-router-dom'
 import MainLayout from '../../components/layout/MainLayout'
 import { getDashboardSummary } from '../../services/dashboardService'
-import { getPlanning, generatePlanningSummary } from '../../services/aiRecommendationService'
+import { getPlanning, generatePlanningSummary, setPlanningPriceIncrease } from '../../services/aiRecommendationService'
 import { useEventStream } from '../../hooks/useEventStream'
 
 // ── Count-up hook ─────────────────────────────────────────────────────────────
@@ -337,6 +337,73 @@ function YearCard({ bucket, label }) {
   )
 }
 
+// The yearly price increase every forecast here uses. Everyone sees it; an administrator can
+// change it (e.g. to the rate the Budget Office gives for the budget call). Saving answers with
+// the planning figures worked out again, which replace the section's data.
+function PriceIncreaseRow({ percent, canEdit, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue]     = useState('')
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
+
+  const start = () => { setValue(String(percent)); setError(''); setEditing(true) }
+  const save = async (e) => {
+    e.preventDefault()
+    const n = Number(value)
+    if (value.trim() === '' || Number.isNaN(n) || n < 0 || n > 20) { setError('Enter a number from 0 to 20.'); return }
+    setSaving(true)
+    try {
+      const { data } = await setPlanningPriceIncrease(n)
+      onSaved(data)
+      setEditing(false)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not save the rate.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <p className="text-base text-slate-800 dark:text-zinc-200">
+        These estimates assume prices rise <span className="font-semibold">{percent}% a year</span>.
+        {canEdit && (
+          <button type="button" onClick={start}
+            className="ml-2 font-semibold text-brand-700 dark:text-brand-300 underline underline-offset-2 hover:text-brand-800 dark:hover:text-brand-200">
+            Change
+          </button>
+        )}
+      </p>
+    )
+  }
+  return (
+    <form onSubmit={save} noValidate className="rounded-lg border border-slate-300 dark:border-zinc-700 px-4 py-3.5 space-y-2.5 animate-fade-in">
+      <label htmlFor="bp-rate" className="block text-base font-semibold text-slate-900 dark:text-white">Yearly price increase</label>
+      <p className="text-sm text-slate-700 dark:text-zinc-300">
+        Used for the replacement and repairs estimates. 3% is the middle of the BSP's 2% to 4% inflation target; use the Budget Office's rate if it gives one.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <input id="bp-rate" type="number" inputMode="decimal" min="0" max="20" step="0.1" autoFocus
+            value={value} onChange={(e) => { setValue(e.target.value); setError('') }}
+            aria-invalid={error ? true : undefined} aria-describedby={error ? 'bp-rate-error' : undefined}
+            className="w-24 rounded-md border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-base text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          <span className="text-base text-slate-800 dark:text-zinc-200">% a year</span>
+        </div>
+        <button type="submit" disabled={saving}
+          className="rounded-lg bg-brand-700 hover:bg-brand-800 text-white text-sm font-semibold px-4 py-2 min-h-[40px] disabled:opacity-50 transition-colors">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" onClick={() => setEditing(false)} disabled={saving}
+          className="text-sm font-medium text-slate-600 dark:text-zinc-400 hover:underline underline-offset-2">
+          Cancel
+        </button>
+      </div>
+      {error && <p id="bp-rate-error" role="alert" className="text-sm font-medium text-red-700 dark:text-red-300">{error}</p>}
+    </form>
+  )
+}
+
 // Repairs and maintenance: last full year against the first of the three
 const TREND_TEXT = {
   RISING:  { label: 'Rising',  cls: 'bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200' },
@@ -344,6 +411,7 @@ const TREND_TEXT = {
   STEADY:  { label: 'Steady',  cls: 'bg-slate-100 text-slate-800 dark:bg-zinc-800 dark:text-zinc-200' },
 }
 
+// canEditCategories: an administrator (sets the expected years of use and the price increase)
 function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
   const [generating, setGenerating] = useState(false)
   const [aiError, setAiError]       = useState('')
@@ -434,9 +502,6 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
                     <YearCard key={b.key} bucket={b} label={b.key === thisYear ? `Rest of ${b.key}` : b.key} />
                   ))}
                 </div>
-                <p className="text-sm text-slate-700 dark:text-zinc-300 mt-2">
-                  Costs include {r.priceIncreasePercent}% a year for price increases.
-                </p>
               </section>
             )}
 
@@ -469,7 +534,7 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 border-t border-slate-200 dark:border-zinc-800">
                   <p className="flex-1 text-base text-slate-800 dark:text-zinc-200">
                     {m.byCategory[0] ? <>Costs most to keep running: <span className="font-semibold">{m.byCategory[0].category}</span>. </> : null}
-                    The estimate is the average of the last 3 years at next year's prices ({m.priceIncreasePercent}% a year).
+                    The estimate is the average of the last 3 years at next year's prices.
                     {m.limitedHistory && ' There is little repair history yet, so treat it as a rough guide.'}
                   </p>
                   <Link to="/reports?report=maintenanceforecast"
@@ -488,6 +553,8 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
                   : 'An administrator can set it on the Categories page.'}
               </p>
             )}
+
+            <PriceIncreaseRow percent={data.priceIncreasePercent ?? r?.priceIncreasePercent ?? 3} canEdit={canEditCategories} onSaved={onChange} />
 
             {/* 4. Summary (AI) */}
             <section aria-label="Summary" className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-5 py-4">
