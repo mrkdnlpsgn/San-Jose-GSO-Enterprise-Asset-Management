@@ -62,7 +62,6 @@ const CONDITION_BADGE = {
   UNSERVICEABLE: 'bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-500/20',
 }
 const LIFECYCLE_BADGE = {
-  REGISTERED:       'bg-blue-500/10 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/20',
   ASSIGNED:         'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/20',
   TRANSFERRED:      'bg-violet-500/10 text-violet-700 dark:text-violet-400 ring-1 ring-violet-500/20',
   UNDER_MAINTENANCE:'bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/20',

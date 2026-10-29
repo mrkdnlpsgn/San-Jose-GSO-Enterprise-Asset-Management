@@ -29,6 +29,9 @@ import '../../../shared/widgets/ios_pickers.dart';
 bool get _cameraCaptureSupported =>
     kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
+// The statuses the system sets (the web's list too).
+const _lifecycleOptions = ['ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED'];
+
 class AssetFormScreen extends ConsumerStatefulWidget {
   final AssetModel? asset; // null = create, non-null = edit
   const AssetFormScreen({super.key, this.asset});
@@ -58,7 +61,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
   int? _personnelId;   // accountable person
   int? _currentUserId; // who actually has the asset - may differ from accountable person
   String _condition = 'NEW';
-  String _lifecycleStatus = 'REGISTERED';
+  String _lifecycleStatus = 'ASSIGNED';
   DateTime? _acquisitionDate;
 
   // Null when creating a new asset - used to detect a genuine condition
@@ -121,7 +124,7 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
     _currentUserId = a?.currentUser?.id;
     _condition = a?.condition ?? 'NEW';
     _originalCondition = a?.condition;
-    _lifecycleStatus = a?.lifecycleStatus ?? 'REGISTERED';
+    _lifecycleStatus = a?.lifecycleStatus ?? 'ASSIGNED';
     if (a?.acquisitionDate != null) {
       _acquisitionDate = DateTime.tryParse(a!.acquisitionDate)?.toLocal();
     }
@@ -505,12 +508,15 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       (v) => setState(() => _condition = v!)),
                     if (_staffRequest != null && _lifecycleStatus == widget.asset?.lifecycleStatus)
                       _requestNotice(),
-                    // Editing only - a new asset starts as Registered. Staff can't transfer
+                    // Editing only - a new asset starts as Assigned. Staff can't transfer
                     // (an admin assigns), and Under Maintenance / Disposed become requests.
+                    // Registered / Archived are never set by the system, so they aren't offered
+                    // (an old record still holding one keeps it as its current value).
                     if (_isEdit) ...[
                       _enumDropdown('Lifecycle Status', _lifecycleStatus,
                         [
-                          for (final s in const ['REGISTERED', 'ASSIGNED', 'TRANSFERRED', 'UNDER_MAINTENANCE', 'DISPOSED', 'ARCHIVED'])
+                          if (!_lifecycleOptions.contains(widget.asset!.lifecycleStatus)) widget.asset!.lifecycleStatus,
+                          for (final s in _lifecycleOptions)
                             if (!_staffMode || s != 'TRANSFERRED' || widget.asset!.lifecycleStatus == 'TRANSFERRED') s,
                         ],
                         (v) => setState(() => _lifecycleStatus = v!)),

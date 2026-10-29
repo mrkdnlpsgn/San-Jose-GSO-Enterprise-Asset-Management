@@ -7,7 +7,6 @@ export const CONDITION_BADGE = {
   UNSERVICEABLE: { label: 'Unserviceable', cls: 'bg-red-500/10 text-red-700 dark:text-red-300 ring-1 ring-red-500/30' },
 }
 export const LIFECYCLE_BADGE = {
-  REGISTERED:        { label: 'Registered',        cls: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500/30' },
   ASSIGNED:          { label: 'Assigned',          cls: 'bg-slate-500/10 text-slate-700 dark:text-zinc-300 ring-1 ring-slate-500/30' },
   TRANSFERRED:       { label: 'Transferred',       cls: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/30' },
   UNDER_MAINTENANCE: { label: 'Under maintenance', cls: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 ring-1 ring-amber-500/30' },

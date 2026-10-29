@@ -110,7 +110,7 @@ class AssetModel {
   final double shortageOverageValue;
   final String location;
   final String condition;       // NEW | GOOD | SERVICEABLE | REPAIRABLE | UNSERVICEABLE
-  final String lifecycleStatus; // REGISTERED | ASSIGNED | TRANSFERRED | UNDER_MAINTENANCE | DISPOSED | ARCHIVED
+  final String lifecycleStatus; // ASSIGNED | TRANSFERRED | UNDER_MAINTENANCE | DISPOSED
   final String? remarks;
   final String? specifications;
   final String createdAt;
