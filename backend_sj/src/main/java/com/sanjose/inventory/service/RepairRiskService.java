@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 // Which assets in use are likely to need repair or maintenance in the next 12 months: a
@@ -98,6 +99,7 @@ public class RepairRiskService {
             m.put("chancePercent", (int) Math.round(p * 100));
             m.put("level", p >= HIGH ? "HIGH" : "MEDIUM");
             m.put("reasons", reasons(t.model, x, a));
+            m.put("action", action(p));
             list.add(m);
         }
         out.put("assets", total);
@@ -109,6 +111,35 @@ public class RepairRiskService {
             out.put("items", list);
         }
         return out;
+    }
+
+    // What the AI recommendation (AiRecommendationService) is told about one asset: its chance of
+    // needing repair or maintenance in the next 12 months and the reasons. Empty when there is too
+    // little history, or the asset is not on hand.
+    public Optional<String> forAsset(long assetId) {
+        Trained t = trained();
+        if (t.model == null) return Optional.empty();
+        long now = AppTime.today().toEpochDay();
+        for (Asset a : t.assets) {
+            if (a.id != assetId) continue;
+            if (!onHand(a, now)) return Optional.empty();
+            double[] x = features(a, now, t.kindRateNow);
+            long chance = Math.round(t.model.chance(x) * 100);
+            List<String> why = reasons(t.model, x, a);
+            return Optional.of(chance + "% chance of needing repair or maintenance in the next 12 months ("
+                + (chance >= HIGH * 100 ? "high" : chance >= MEDIUM * 100 ? "medium" : "low") + " risk)"
+                + (why.isEmpty() ? "" : "; reasons: " + String.join("; ", why))
+                + (t.check != null && t.check.get("foundPercent") != null
+                    ? ". Tested on " + t.check.get("year") + ", it named " + Math.round((Double) t.check.get("foundPercent"))
+                        + " of every 100 assets that needed repair in advance (guessing: " + Math.round((Double) t.check.get("randomPercent")) + ")"
+                    : ""));
+        }
+        return Optional.empty();
+    }
+
+    // what to do about an asset at this level of risk (the Recommended Action column)
+    static String action(double chance) {
+        return chance >= HIGH ? "Schedule a check-up now" : chance >= MEDIUM ? "Include in the next inspection" : "Keep the normal schedule";
     }
 
     private Trained trained() {

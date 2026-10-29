@@ -171,7 +171,7 @@ void main() {
     expect(find.text('Estimate ₱1.6 million, actual ₱2.1 million'), findsOneWidget);
 
     // the machine-learning repair risk, in plain words, with how it was tested
-    expect(find.text('Assets likely to need repair this coming year'), findsOneWidget);
+    expect(find.text('AI forecast: assets likely to need repair this coming year'), findsOneWidget);
     expect(find.text('About 121 assets'), findsOneWidget);
     expect(find.text('43 assets'), findsOneWidget);
     expect(find.textContaining('43 assets are very likely to need repair, and 87 more might'), findsOneWidget);

@@ -43,13 +43,16 @@ public class AiRecommendationService {
     private final AssetService assetService;
     private final AuditLogService auditLogService;
     private final GeminiConfig geminiConfig;
+    private final RepairRiskService repairRiskService;
 
     public AiRecommendationService(JdbcTemplate jdbcTemplate, AssetService assetService,
-                                    AuditLogService auditLogService, GeminiConfig geminiConfig) {
+                                    AuditLogService auditLogService, GeminiConfig geminiConfig,
+                                    RepairRiskService repairRiskService) {
         this.jdbcTemplate = jdbcTemplate;
         this.assetService = assetService;
         this.auditLogService = auditLogService;
         this.geminiConfig = geminiConfig;
+        this.repairRiskService = repairRiskService;
     }
 
     private static final RowMapper<AiRecommendation> RECOMMENDATION_MAPPER = (rs, rn) -> {
@@ -287,6 +290,12 @@ public class AiRecommendationService {
         - If no maintenance is logged, that means nothing has been recorded yet, not that the asset is \
         trouble-free; do not treat it as evidence either way.
         - If a disposal record exists, say what stage it is at and what is left to do.
+        - "Repair forecast" is a machine-learning model's prediction, trained on this system's repair \
+        records, of the asset's chance of needing repair or maintenance in the next 12 months. Weigh it \
+        with the records: a high chance on a working asset supports MONITOR or a preventive check-up; \
+        a low chance supports MAINTAIN. When you use it, mention it in plain words (for example "the \
+        repair forecast gives it a 74% chance of needing repair this coming year"). It is a prediction, \
+        not a fault, so on its own it is never a reason for REPAIR or REVIEW_FOR_DISPOSAL.
         Write the rationale in 3-4 plain sentences a non-technical municipal employee can act on. \
         Mention the specific facts behind the advice (for example a repeated fault, a cost compared \
         with the unit value, or an end-of-support note) and end with the next step to take. Do not \
@@ -316,6 +325,7 @@ public class AiRecommendationService {
             Lifecycle status: %s
             Total maintenance cost: PHP %s (%s)
             Repairs (REPAIR + CORRECTIVE records): %d
+            Repair forecast (machine learning): %s
 
             %s""".formatted(
                 asset.getPropertyNumber(), asset.getDescription(),
@@ -326,6 +336,7 @@ public class AiRecommendationService {
                 depreciation(asset),
                 asset.getCondition(), conditionScore, asset.getLifecycleStatus(),
                 totalRepairCost, costShare, repairFrequency,
+                repairRiskService.forAsset(asset.getId()).orElse("not available (too little repair history, or the asset is no longer on hand)"),
                 historyFor(asset.getId()));
 
         Schema schema = Schema.builder()

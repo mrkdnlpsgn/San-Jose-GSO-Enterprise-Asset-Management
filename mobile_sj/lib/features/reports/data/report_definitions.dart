@@ -602,10 +602,10 @@ List<ReportDefinition> buildReportDefinitions() => [
       // Medium and high risk assets from the machine-learning model (RepairRiskService), highest first.
       ReportDefinition(
         id: 'repairrisk',
-        title: 'Repair Risk',
-        printTitle: 'ASSETS LIKELY TO NEED REPAIR OR MAINTENANCE IN THE NEXT 12 MONTHS',
-        description: 'Assets likely to need repair in the next 12 months, based on past repair records, '
-            'with the reasons. Check the ones at the top first.',
+        title: 'AI Repair Forecast',
+        printTitle: 'AI FORECAST OF ASSETS LIKELY TO NEED REPAIR OR MAINTENANCE IN THE NEXT 12 MONTHS',
+        description: 'Assets the AI expects to need repair in the next 12 months, learned from past repair '
+            'records, with the reasons and what to do. Check the ones at the top first.',
         icon: Icons.warning_amber_rounded,
         load: () async {
           final res = await ApiClient.instance.dio.get('/ai-insights/repair-risk', queryParameters: {'items': true});
@@ -615,6 +615,7 @@ List<ReportDefinition> buildReportDefinitions() => [
           ReportColumn('Chance', display: (r) => '${r['chancePercent']}%', raw: (r) => '${r['chancePercent']}%'),
           ReportColumn('Risk',
               display: (r) => r['level'] == 'HIGH' ? 'High' : 'Medium', raw: (r) => r['level'] == 'HIGH' ? 'High' : 'Medium'),
+          ReportColumn('Recommended Action', display: (r) => _orNa(r['action']), raw: (r) => str(r['action'])),
           ReportColumn('Property No.', display: (r) => _orNa(r['propertyNumber']), raw: (r) => str(r['propertyNumber'])),
           ReportColumn('Description', display: (r) => _orNa(r['description']), raw: (r) => str(r['description'])),
           ReportColumn('Category', display: (r) => _orNa(r['category']), raw: (r) => str(r['category'])),

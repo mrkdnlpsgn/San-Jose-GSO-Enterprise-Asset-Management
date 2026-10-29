@@ -581,7 +581,7 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
             {risk && (
               <section aria-labelledby="bp-risk" className="rounded-lg border border-slate-300 dark:border-zinc-700 overflow-hidden">
                 <div className="px-5 py-3 bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-300 dark:border-zinc-700">
-                  <h3 id="bp-risk" className="text-base font-semibold text-slate-900 dark:text-white">Assets likely to need repair this coming year</h3>
+                  <h3 id="bp-risk" className="text-base font-semibold text-slate-900 dark:text-white">AI forecast: assets likely to need repair this coming year</h3>
                 </div>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 dark:divide-zinc-800">
                   <BigFigure label="Likely to need repair" value={`About ${plural(risk.expectedAssets, 'asset', 'assets')}`} />
@@ -606,7 +606,7 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
                         We tested it on {risk.check.year}: for every 100 assets that needed repair that year, it had named{' '}
                         <span className="font-semibold">{Math.round(risk.check.foundPercent)}</span> in advance. Guessing would name only {Math.round(risk.check.randomPercent)}.
                       </p>
-                      <p className="text-sm text-slate-600 dark:text-zinc-400">Method: machine learning (logistic regression), trained on the system's maintenance records.</p>
+                      <p className="text-sm text-slate-600 dark:text-zinc-400">AI method: machine learning (logistic regression), trained on the system's repair records. Open an asset's AI Recommendation to see what to do about it.</p>
                     </div>
                   </details>
                 )}

@@ -477,7 +477,7 @@ class _RepairRiskPanel extends StatelessWidget {
           Container(
             color: Ios.groupedBg(context),
             padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-            child: Text('Assets likely to need repair this coming year', style: heading),
+            child: Text('AI forecast: assets likely to need repair this coming year', style: heading),
           ),
           Divider(height: 1, thickness: 1, color: c.border),
           Padding(
@@ -535,7 +535,8 @@ class _RepairRiskPanel extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "Method: machine learning (logistic regression), trained on the system's maintenance records.",
+                          "AI method: machine learning (logistic regression), trained on the system's repair records. "
+                          "Open an asset's AI Recommendation to see what to do about it.",
                           style: body.copyWith(fontSize: 15, color: c.textSecondary),
                         ),
                       ],
