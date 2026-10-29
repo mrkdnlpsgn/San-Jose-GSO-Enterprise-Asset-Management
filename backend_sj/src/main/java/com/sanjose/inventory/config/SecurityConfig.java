@@ -113,6 +113,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/users/me/password").authenticated()
                 .requestMatchers("/api/users/me/avatar").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/users/me/two-factor").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/users/me/details").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/users/me/forget-devices").authenticated()
                 .requestMatchers("/api/users/**").hasRole("ADMIN")
                 .requestMatchers("/api/audit-logs/**").hasRole("ADMIN")

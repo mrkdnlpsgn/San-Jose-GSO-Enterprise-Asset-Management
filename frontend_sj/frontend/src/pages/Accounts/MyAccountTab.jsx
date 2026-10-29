@@ -7,7 +7,8 @@ import Button from '../../components/common/Button'
 import Badge from '../../components/common/Badge'
 import Input from '../../components/common/Input'
 import UserAvatar from '../../components/common/UserAvatar'
-import { changePassword, uploadAvatar, removeAvatar, getMyOverview, setMyTwoFactor, forgetMyDevices } from '../../services/userService'
+import Modal from '../../components/common/Modal'
+import { changePassword, uploadAvatar, removeAvatar, getMyOverview, setMyTwoFactor, forgetMyDevices, updateMyDetails } from '../../services/userService'
 import { toSquareJpeg } from '../../utils/squareImage'
 import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
 import { roleLabel } from '../../utils/roles'
@@ -86,10 +87,181 @@ function ShowHide({ shown, onToggle, controls }) {
 
 function DetailRow({ label, children }) {
   return (
-    <div className="py-3 first:pt-0 last:pb-0 flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 min-w-0">
       <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">{label}</dt>
       <dd className="text-sm text-slate-800 dark:text-zinc-100 break-words">{children}</dd>
     </div>
+  )
+}
+
+// Every card on the page opens the same way: an icon tile, the title, one line on what it is
+// for, and (optionally) a status or button on the right.
+const ICONS = {
+  details:  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />,
+  password: <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />,
+  twoStep:  <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />,
+  activity: <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />,
+}
+
+function CardHeader({ icon, title, description, action }) {
+  return (
+    <div className="flex items-start gap-3 mb-5">
+      <span className="w-10 h-10 rounded-lg bg-brand-500/10 text-brand-700 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">{ICONS[icon]}</svg>
+      </span>
+      <div className="flex-1 min-w-0">
+        <h3 className={CARD_TITLE}>{title}</h3>
+        {description && <p className="text-sm text-slate-600 dark:text-zinc-400 mt-0.5">{description}</p>}
+      </div>
+      {action && <div className="flex-shrink-0">{action}</div>}
+    </div>
+  )
+}
+
+function FormError({ children }) {
+  if (!children) return null
+  return (
+    <div key={children} role="alert"
+      className="animate-shake flex items-start gap-2.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 text-sm mb-5">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+      </svg>
+      {children}
+    </div>
+  )
+}
+
+// The secondary action next to a card's main button (Clear, Cancel)
+function TextAction({ onClick, children }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="text-sm font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 hover:underline underline-offset-2">
+      {children}
+    </button>
+  )
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Your full name and email: shown, or edited in place. Saving asks for the current password in
+// a small window first; the username (used to sign in) and the office stay with the admin.
+function AccountDetailsCard({ user, overview, onSaved }) {
+  const toast    = useToast()
+  const dispatch = useDispatch()
+  const [editing, setEditing]   = useState(false)
+  const [form, setForm]         = useState({ fullName: '', email: '' })
+  const [errors, setErrors]     = useState({})
+  const [error, setError]       = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [password, setPassword] = useState('')
+  const [pwError, setPwError]   = useState('')
+  const [saving, setSaving]     = useState(false)
+
+  const email      = overview?.email || ''
+  const officeName = overview?.officeName || user?.officeName
+  const changed    = editing && (form.fullName.trim() !== (user?.fullName || '') || form.email.trim() !== email)
+
+  const startEdit = () => {
+    setForm({ fullName: user?.fullName || '', email })
+    setErrors({}); setError(''); setEditing(true)
+  }
+  const cancel = () => { setEditing(false); setErrors({}); setError('') }
+  const set = (key) => (e) => {
+    setForm((f) => ({ ...f, [key]: e.target.value }))
+    setErrors((x) => ({ ...x, [key]: undefined })); setError('')
+  }
+
+  const review = (e) => {
+    e.preventDefault()
+    const errs = {}
+    if (!form.fullName.trim()) errs.fullName = 'Enter your full name.'
+    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) errs.email = 'Enter a valid email address, like name@example.com.'
+    if (!form.email.trim() && overview?.twoFactorEnabled) errs.email = '2-step verification sends its code here. Turn it off before removing the email.'
+    setErrors(errs)
+    if (Object.keys(errs).length) return
+    setPassword(''); setPwError(''); setConfirming(true)
+  }
+
+  const save = async (e) => {
+    e.preventDefault()
+    if (!password) { setPwError('Enter your current password.'); return }
+    setSaving(true)
+    try {
+      const { data } = await updateMyDetails({ fullName: form.fullName.trim(), email: form.email.trim(), currentPassword: password })
+      dispatch(updateAuthUser({ fullName: data.fullName }))
+      onSaved(data.email || null)
+      setConfirming(false); setEditing(false)
+      toast.show('Account details saved.', 'success')
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Could not save your details.'
+      // a wrong password is fixed in the window; anything else is about the details themselves
+      if (/password/i.test(msg)) setPwError(msg)
+      else { setConfirming(false); setError(msg) }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className={`${CARD} p-5 sm:p-6 animate-rise-in [animation-delay:80ms]`}>
+      <CardHeader icon="details" title="Account details"
+        description={editing ? 'Change your name or email, then confirm with your password.' : 'Your name and email as the system shows them.'}
+        action={!editing && (
+          <Button type="button" size="sm" variant="secondary" onClick={startEdit} disabled={overview === null}>Edit</Button>
+        )} />
+
+      <FormError>{error}</FormError>
+
+      {editing ? (
+        <form onSubmit={review} noValidate className="space-y-5 animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Input id="details-name" label="Full name" autoComplete="name" maxLength={100} autoFocus
+              value={form.fullName} onChange={set('fullName')} error={errors.fullName} className="!text-base py-3" />
+            <Input id="details-email" label="Email" type="email" autoComplete="email" maxLength={100}
+              placeholder="name@example.com" value={form.email} onChange={set('email')} error={errors.email}
+              hint="Password reset and sign-in codes are sent here." className="!text-base py-3" />
+          </div>
+          <dl className="grid grid-cols-1 md:grid-cols-2 gap-5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/40 px-4 py-3.5">
+            <DetailRow label="Username"><span className="font-mono">{user?.username}</span></DetailRow>
+            <DetailRow label="Office">{officeName || <span className="text-slate-500 dark:text-zinc-400">Not assigned</span>}</DetailRow>
+            <p className="md:col-span-2 text-sm text-slate-600 dark:text-zinc-400">Only an administrator can change these.</p>
+          </dl>
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Button type="submit" size="md" disabled={!changed}>Save changes</Button>
+            <TextAction onClick={cancel}>Cancel</TextAction>
+          </div>
+        </form>
+      ) : (
+        <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+          <DetailRow label="Full name">{user?.fullName || user?.username}</DetailRow>
+          <DetailRow label="Username"><span className="font-mono">{user?.username}</span></DetailRow>
+          <DetailRow label="Email">
+            {overview === null ? <span className="inline-block h-4 w-40 rounded bg-slate-200 dark:bg-zinc-700 animate-pulse" />
+              : email || (
+                <span className="text-amber-700 dark:text-amber-400">
+                  None on file. Add one with Edit so you can reset a forgotten password.
+                </span>
+              )}
+          </DetailRow>
+          <DetailRow label="Office">{officeName || <span className="text-slate-500 dark:text-zinc-400">Not assigned</span>}</DetailRow>
+        </dl>
+      )}
+
+      {confirming && (
+        <Modal title="Confirm it's you" subtitle="Enter your current password to save your account details." size="md"
+          onClose={() => !saving && setConfirming(false)}>
+          <form onSubmit={save} noValidate className="space-y-4">
+            <Input id="details-password" label="Current password" type="password" autoComplete="current-password" autoFocus
+              value={password} onChange={(e) => { setPassword(e.target.value); setPwError('') }} error={pwError}
+              className="!text-base py-3" />
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800">
+              <Button type="button" variant="secondary" size="md" onClick={() => setConfirming(false)} disabled={saving}>Cancel</Button>
+              <Button type="submit" size="md" disabled={saving}>{saving ? 'Saving…' : 'Confirm and save'}</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </section>
   )
 }
 
@@ -119,8 +291,8 @@ function TwoStepCard({ overview, onChange }) {
 
   if (!overview) {
     return (
-      <section className={`${CARD} p-5 animate-rise-in [animation-delay:170ms]`}>
-        <h3 className={`${CARD_TITLE} mb-3`}>2-step verification</h3>
+      <section className={`${CARD} p-5 sm:p-6 animate-rise-in [animation-delay:170ms]`}>
+        <CardHeader icon="twoStep" title="2-step verification" />
         <div className="h-16 rounded bg-slate-100 dark:bg-zinc-800 animate-pulse" />
       </section>
     )
@@ -146,42 +318,40 @@ function TwoStepCard({ overview, onChange }) {
   }
 
   return (
-    <section className={`${CARD} p-5 animate-rise-in [animation-delay:170ms]`}>
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <h3 className={CARD_TITLE}>2-step verification</h3>
-        <span key={String(on)}
-          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full animate-scale-in ${on
-            ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-400/10 ring-1 ring-emerald-200 dark:ring-emerald-800'
-            : 'text-slate-600 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 ring-1 ring-slate-200 dark:ring-zinc-700'}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-          {on ? 'On' : 'Off'}
-        </span>
-      </div>
-      <p className="text-sm text-slate-600 dark:text-zinc-400">
+    <section className={`${CARD} p-5 sm:p-6 animate-rise-in [animation-delay:170ms]`}>
+      <CardHeader icon="twoStep" title="2-step verification"
+        action={
+          <span key={String(on)}
+            className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full animate-scale-in ${on
+              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-400/10 ring-1 ring-emerald-200 dark:ring-emerald-800'
+              : 'text-slate-600 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 ring-1 ring-slate-200 dark:ring-zinc-700'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+            {on ? 'On' : 'Off'}
+          </span>
+        } />
+      <p className="text-sm text-slate-600 dark:text-zinc-400 -mt-2 mb-5">
         {on
           ? <>Signing in needs your password <span className="font-semibold">and</span> a 6-digit code sent to <span className="font-medium text-slate-800 dark:text-zinc-200 break-all">{overview.email}</span>.</>
           : "Add a second check: after your password, you enter a 6-digit code sent to your email. Someone who learns your password still can't sign in."}
       </p>
 
-      {error && (
-        <p key={error} role="alert" className="mt-3 text-sm font-medium text-red-600 dark:text-red-400 animate-shake">{error}</p>
-      )}
+      <FormError>{error}</FormError>
 
       {!on && (
-        <div className="mt-4">
+        <div>
           <Button type="button" size="md" onClick={() => save(true)} disabled={busy || !hasEmail}>
             {busy ? 'Turning on…' : 'Turn on'}
           </Button>
           {!hasEmail && (
             <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">
-              Needs an email address on your account. Ask the system administrator to add one.
+              Needs an email address on your account. Add one under Account details.
             </p>
           )}
         </div>
       )}
 
       {on && !asking && !confirmForget && (
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
           <button type="button" onClick={() => { setConfirmForget(true); setError('') }}
             className="text-sm font-medium text-brand-700 dark:text-brand-400 hover:underline underline-offset-2">
             Forget remembered computers…
@@ -194,7 +364,7 @@ function TwoStepCard({ overview, onChange }) {
       )}
 
       {on && confirmForget && (
-        <div className="mt-4 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 animate-rise-in">
+        <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 animate-rise-in">
           <p className="text-sm text-amber-900 dark:text-amber-200">
             Every computer where you ticked "Don't ask for a code" will ask for one again. This also
             signs you out everywhere, including here.
@@ -203,16 +373,13 @@ function TwoStepCard({ overview, onChange }) {
             <Button type="button" size="md" variant="danger" onClick={forgetDevices} disabled={forgetting}>
               {forgetting ? 'Signing out…' : 'Forget and sign out'}
             </Button>
-            <button type="button" onClick={() => setConfirmForget(false)}
-              className="text-sm font-medium text-slate-600 dark:text-zinc-300 hover:underline underline-offset-2">
-              Cancel
-            </button>
+            <TextAction onClick={() => setConfirmForget(false)}>Cancel</TextAction>
           </div>
         </div>
       )}
 
       {on && asking && (
-        <form className="mt-4 space-y-3 animate-rise-in" noValidate
+        <form className="space-y-4 animate-rise-in" noValidate
           onSubmit={(e) => { e.preventDefault(); if (password) save(false); else setError('Enter your current password to turn it off.') }}>
           <Input
             id="twofactor-password"
@@ -223,16 +390,13 @@ function TwoStepCard({ overview, onChange }) {
             placeholder="Confirm it's you"
             value={password}
             onChange={(e) => { setPassword(e.target.value); setError('') }}
-            className="!text-base py-2.5"
+            className="!text-base py-3"
           />
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" size="md" variant="danger" disabled={busy}>
               {busy ? 'Turning off…' : 'Turn off 2-step'}
             </Button>
-            <button type="button" onClick={() => { setAsking(false); setPassword(''); setError('') }}
-              className="text-sm font-medium text-slate-500 dark:text-zinc-400 hover:underline underline-offset-2">
-              Cancel
-            </button>
+            <TextAction onClick={() => { setAsking(false); setPassword(''); setError('') }}>Cancel</TextAction>
           </div>
         </form>
       )}
@@ -398,29 +562,17 @@ function MyAccountTab({ user }) {
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-        {/* ── Change password ──────────────────────────────────────────── */}
-        <section className={`${CARD} lg:col-span-2 p-5 sm:p-6 animate-rise-in [animation-delay:80ms]`}>
-          <div className="flex items-start gap-3 mb-5">
-            <span className="w-10 h-10 rounded-lg bg-brand-500/10 text-brand-700 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <div>
-              <h3 className={CARD_TITLE}>Change password</h3>
-              <p className="text-sm text-slate-600 dark:text-zinc-400 mt-0.5">Use a password you don't use anywhere else. Afterwards you'll be signed out on every device and asked to sign in with the new one.</p>
-            </div>
-          </div>
+        <div className="lg:col-span-2 space-y-5">
+        {/* ── Account details ──────────────────────────────────────────── */}
+        <AccountDetailsCard user={user} overview={overview || (overview === null ? null : {})}
+          onSaved={(email) => setOverview((o) => ({ ...(o || {}), email }))} />
 
-          {error && (
-            <div key={error} role="alert"
-              className="animate-shake flex items-start gap-2.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 rounded-lg px-4 py-3 text-sm mb-5">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              {error}
-            </div>
-          )}
+        {/* ── Change password ──────────────────────────────────────────── */}
+        <section className={`${CARD} p-5 sm:p-6 animate-rise-in [animation-delay:110ms]`}>
+          <CardHeader icon="password" title="Change password"
+            description="Use a password you don't use anywhere else. Afterwards you'll be signed out on every device and asked to sign in with the new one." />
+
+          <FormError>{error}</FormError>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <Input
@@ -501,40 +653,20 @@ function MyAccountTab({ user }) {
                 {saving ? 'Saving…' : 'Update password'}
               </Button>
               {(current || newPass || confirm) && !saving && (
-                <button type="button" onClick={() => { setCurrent(''); setNewPass(''); setConfirm(''); setError('') }}
-                  className="text-sm font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 hover:underline underline-offset-2 animate-fade-in">
-                  Clear
-                </button>
+                <TextAction onClick={() => { setCurrent(''); setNewPass(''); setConfirm(''); setError('') }}>Clear</TextAction>
               )}
             </div>
           </form>
         </section>
+        </div>
 
         <div className="space-y-5">
-          {/* ── Account details ────────────────────────────────────────── */}
-          <section className={`${CARD} p-5 animate-rise-in [animation-delay:140ms]`}>
-            <h3 className={`${CARD_TITLE} mb-4`}>Account details</h3>
-            <dl className="divide-y divide-slate-100 dark:divide-zinc-800">
-              <DetailRow label="Full name">{displayName}</DetailRow>
-              <DetailRow label="Username"><span className="font-mono">{user?.username}</span></DetailRow>
-              <DetailRow label="Email">
-                {overview === null ? <span className="inline-block h-4 w-40 rounded bg-slate-200 dark:bg-zinc-700 animate-pulse" />
-                  : overview?.email || (
-                    <span className="text-amber-700 dark:text-amber-400">
-                      None on file. You can't reset a forgotten password by email. Ask the system administrator to add one.
-                    </span>
-                  )}
-              </DetailRow>
-              <DetailRow label="Office">{officeName || <span className="text-slate-500 dark:text-zinc-400">Not assigned</span>}</DetailRow>
-            </dl>
-          </section>
-
           <TwoStepCard overview={overview || null}
             onChange={(enabled) => setOverview((o) => ({ ...o, twoFactorEnabled: enabled }))} />
 
           {/* ── Recent activity ─────────────────────────────────────────── */}
-          <section className={`${CARD} p-5 animate-rise-in [animation-delay:200ms]`}>
-            <h3 className={`${CARD_TITLE} mb-4`}>Your recent activity</h3>
+          <section className={`${CARD} p-5 sm:p-6 animate-rise-in [animation-delay:200ms]`}>
+            <CardHeader icon="activity" title="Your recent activity" description="Your latest actions in the system." />
             {overview === null ? (
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => <div key={i} className="h-9 rounded bg-slate-100 dark:bg-zinc-800 animate-pulse" />)}

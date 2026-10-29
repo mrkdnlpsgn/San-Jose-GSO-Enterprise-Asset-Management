@@ -5,7 +5,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import com.sanjose.inventory.dto.UserRequest;
+import com.sanjose.inventory.dto.UserResponse;
 import com.sanjose.inventory.service.AuditLogService;
+import com.sanjose.inventory.service.UserService;
 import com.sanjose.inventory.service.OfficeAssignmentService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,8 +37,45 @@ public class MyAccountController {
     private final PasswordEncoder passwordEncoder;
     private final OfficeAssignmentService officeAssignments;
     private final AuditLogService auditLogService;
+    private final UserService userService;
 
     public record TwoFactorRequest(Boolean enabled, String currentPassword) {}
+    public record DetailsRequest(String fullName, String email, String currentPassword) {}
+
+    private static final java.util.regex.Pattern EMAIL = java.util.regex.Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+
+    // Change your own full name and email. Needs the current password, so someone at an unlocked
+    // PC can't redirect password resets and sign-in codes to their own email. The username (what
+    // sign-in and sessions are keyed to) and the office (set on Personnel) stay with the admin.
+    // Goes through the same update as the Accounts page, so its checks apply: the email is not
+    // already used, the name doesn't clash with another person, 2-step keeps an email.
+    @PutMapping("/details")
+    public ResponseEntity<Map<String, Object>> updateDetails(@AuthenticationPrincipal UserDetails principal,
+                                                             @RequestBody DetailsRequest req) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+            "SELECT user_id, password_hash FROM users WHERE LOWER(username) = LOWER(?)", principal.getUsername());
+        if (rows.isEmpty()) return ResponseEntity.status(401).build();
+        long userId = ((Number) rows.get(0).get("user_id")).longValue();
+
+        String fullName = req == null || req.fullName() == null ? "" : req.fullName().trim().replaceAll("\\s+", " ");
+        String email = req == null || req.email() == null ? "" : req.email().trim();
+        if (fullName.isEmpty()) throw new IllegalArgumentException("Enter your full name.");
+        if (fullName.length() > 100) throw new IllegalArgumentException("The full name can be at most 100 characters.");
+        if (!email.isEmpty() && (email.length() > 100 || !EMAIL.matcher(email).matches())) {
+            throw new IllegalArgumentException("Enter a valid email address, like name@example.com.");
+        }
+        if (req.currentPassword() == null
+                || !passwordEncoder.matches(req.currentPassword(), (String) rows.get(0).get("password_hash"))) {
+            throw new IllegalArgumentException("Your current password is incorrect.");
+        }
+
+        UserRequest update = new UserRequest();
+        update.setFullName(fullName);
+        update.setEmail(email); // blank removes it
+        UserResponse saved = userService.update(userId, update);
+        return ResponseEntity.ok(Map.of("fullName", saved.getFullName(), "email", saved.getEmail() == null ? "" : saved.getEmail()));
+    }
 
     // Forget every computer remembered for 2-step ("Don't ask for a code for 30 days"). Remembered
     // devices are tied to token_version (TrustedDeviceService), so bumping it forgets them all -

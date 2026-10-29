@@ -20,5 +20,6 @@ export const removeAvatar    = ()          => api.delete('/users/me/avatar');
 export const getMyOverview   = ()          => api.get('/users/me/overview');
 // Own 2-step verification. Turning it off needs the current password.
 export const setMyTwoFactor  = (enabled, currentPassword) => api.put('/users/me/two-factor', { enabled, currentPassword });
+export const updateMyDetails = (details)   => api.put('/users/me/details', details); // { fullName, email, currentPassword }
 // Forget every computer remembered for 2-step - also signs this account out everywhere.
 export const forgetMyDevices = ()          => api.post('/users/me/forget-devices');
