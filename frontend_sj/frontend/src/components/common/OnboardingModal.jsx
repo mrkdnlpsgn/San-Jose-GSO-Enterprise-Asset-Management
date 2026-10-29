@@ -1,28 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import Button from './Button'
 
 const STORAGE_KEY = 'ict-inv-onboarded'
 
+// Kept in step with the User Guide page (Docs > User Guide), which has the full detail.
 const CONCEPTS = [
   {
-    term: 'Equipment Records and Devices',
-    desc: 'An Equipment Record is one category item, such as "HP Laptop 14-inch". Individual units, each with their own serial number and acquisition value, are registered as Devices under that record.',
+    term: 'Every item is its own asset',
+    desc: 'Each asset has a Property No. (year, category code, serial, office code, e.g. 2024-05030-012-1011) and its own PAR No. (YYYY-MM:SERIAL). Print its QR sticker from the asset\'s details and attach it to the item.',
   },
   {
-    term: 'Accountable Person',
-    desc: 'The staff member physically responsible for the device. Update this field whenever a device is transferred to someone new so the system always reflects actual custody.',
+    term: 'Accountable person',
+    desc: 'The end user who signed the PAR. Change it only through Transfer Asset: the old end user gets a Property Return Slip and the new one a new PAR.',
   },
   {
-    term: 'Tracking Logs',
-    desc: 'All device activity is logged in the Tracking module. Use Add Log to record what happened: Checked Out, Checked In, Transferred, Maintenance / Repaired, Decommissioned / Disposed, or Reported Missing. The last log entry determines the device\'s current status.',
+    term: 'Condition drives the status',
+    desc: 'Set the condition (New, Good, Serviceable, Repairable, Unserviceable). Repairable puts the asset under maintenance; Unserviceable puts it up for disposal.',
   },
   {
-    term: 'Smart Suggestions',
-    desc: 'Home automatically flags items that need attention: overdue returns, aging equipment, high-value missing assets, devices with no maintenance record, and equipment that has never been tracked. Click any suggestion to log an action directly.',
+    term: 'Requests and approval',
+    desc: 'Maintenance, disposal and transfers filed by staff are requests. Nothing changes on the asset until an administrator approves; a rejection comes with a reason.',
   },
   {
-    term: 'Item Code and QR Code',
-    desc: 'Each record gets a unique item code assigned automatically. Print the QR code and attach it to the device. Scan it with the QR Scanner in the mobile app to look up the record instantly.',
+    term: 'Notifications and the mobile app',
+    desc: 'The bell at the top right lists what needs you. The Android app (Docs > Mobile App) scans QR stickers, takes repair photos and works offline.',
   },
 ]
 
@@ -83,8 +85,12 @@ function OnboardingModal({ onDismiss }) {
 
         {/* Footer */}
         <div className="px-7 pb-7 pt-4 flex items-center justify-end border-t border-slate-200 dark:border-zinc-800">
-          {!reachedBottom && (
+          {!reachedBottom ? (
             <p className="text-xs text-slate-400 dark:text-zinc-500 mr-auto">Scroll down to continue ↓</p>
+          ) : (
+            <Link to="/user-guide" onClick={onDismiss} className="mr-auto text-sm font-medium text-brand-700 dark:text-brand-300 hover:underline">
+              Read the full user guide
+            </Link>
           )}
           <Button
             autoFocus

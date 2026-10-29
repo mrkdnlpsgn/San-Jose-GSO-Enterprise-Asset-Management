@@ -17,6 +17,7 @@ const Categories    = lazy(() => import('../pages/Categories'))
 const Personnel     = lazy(() => import('../pages/Personnel'))
 const DeletedRecords = lazy(() => import('../pages/DeletedRecords'))
 const PrivacyNotice = lazy(() => import('../pages/Legal/PrivacyNotice'))
+const UserGuide     = lazy(() => import('../pages/UserGuide'))
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated)
@@ -52,6 +53,7 @@ function AppRoutes() {
       <Route path="/disposal"     element={<ProtectedRoute><Disposal     /></ProtectedRoute>} />
       <Route path="/reports"      element={<ProtectedRoute><Reports      /></ProtectedRoute>} />
       <Route path="/transfer"     element={<ProtectedRoute><TransferAsset /></ProtectedRoute>} />
+      <Route path="/user-guide"   element={<ProtectedRoute><UserGuide    /></ProtectedRoute>} />
       {/* The QR Scanner became Transfer Asset (scanning is part of it); keep old links working */}
       <Route path="/qr-scanner"   element={<Navigate to="/transfer" replace />} />
       <Route path="/accounts"     element={<AdminRoute><Accounts          /></AdminRoute>} />

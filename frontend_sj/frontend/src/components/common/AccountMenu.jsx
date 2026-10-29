@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import UserAvatar from './UserAvatar'
 import { AppearanceOptions } from './SettingsMenu'
@@ -18,27 +18,41 @@ const ITEM = 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm te
 function AccountMenu({ user, name, roleLabel, onSignOut }) {
   const [open, setOpen] = useState(false)
   const [showAppearance, setShowAppearance] = useState(false)
+  const [closing, setClosing] = useState(false)    // the menu's exit animation is playing
   const ref = useRef(null)
+  const closeTimer = useRef(null)
+
+  // Like the notification panel: the menu shrinks back into the avatar before it's removed.
+  const close = useCallback(() => {
+    if (closeTimer.current) return
+    setClosing(true)
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null
+      setClosing(false)
+      setOpen(false)
+    }, 140)
+  }, [])
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
   useEffect(() => {
     if (!open) { setShowAppearance(false); return }
-    const onClick = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    const onClick = (e) => { if (!ref.current?.contains(e.target)) close() }
+    const onKey = (e) => { if (e.key === 'Escape') close() }
     document.addEventListener('mousedown', onClick)
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('mousedown', onClick)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, close])
 
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((p) => !p)}
+        onClick={() => (open ? close() : setOpen(true))}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={open && !closing}
         aria-label={`Account: ${name}, ${roleLabel}`}
         title={`${name} (${roleLabel})`}
         className="flex items-center justify-center min-w-[2.5rem] min-h-[2.5rem] -mr-1 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150 group"
@@ -48,7 +62,8 @@ function AccountMenu({ user, name, roleLabel, onSignOut }) {
 
       {open && (
         <div role="menu" aria-label="Account"
-          className="absolute right-0 mt-2 w-64 z-50 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg p-1.5 max-h-[calc(100vh-5rem)] overflow-y-auto">
+          className={`absolute right-0 mt-2 w-64 z-50 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg p-1.5 max-h-[calc(100vh-5rem)] overflow-y-auto origin-top-right ${
+            closing ? 'animate-panel-out pointer-events-none' : 'animate-panel-in'}`}>
           <div className="flex items-center gap-2.5 px-2.5 pt-1.5 pb-2.5">
             <UserAvatar user={user} className="w-9 h-9 text-sm flex-shrink-0" />
             <div className="min-w-0">
@@ -75,7 +90,7 @@ function AccountMenu({ user, name, roleLabel, onSignOut }) {
             </svg>
           </button>
           {showAppearance && (
-            <div className="mx-1 mb-1 mt-0.5 rounded-md bg-slate-50 dark:bg-zinc-800/50 p-1">
+            <div className="mx-1 mb-1 mt-0.5 rounded-md bg-slate-50 dark:bg-zinc-800/50 p-1 animate-fade-in">
               <AppearanceOptions />
             </div>
           )}

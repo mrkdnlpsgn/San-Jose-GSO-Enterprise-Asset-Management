@@ -22,6 +22,7 @@ const pageMeta = {
   '/personnel':     'Personnel',
   '/deleted-records': 'Recovery',
   '/privacy':       'Privacy, Terms & Conditions',
+  '/user-guide':    'User Guide',
 }
 
 function Header({ onMenuOpen }) {

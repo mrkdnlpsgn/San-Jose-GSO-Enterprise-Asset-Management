@@ -188,6 +188,15 @@ const adminNavItems = [
 // has a release to offer (see useMobileRelease).
 const docsNavItems = [
   {
+    to: '/user-guide',
+    label: 'User Guide',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-[1.125rem] w-[1.125rem] flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+      </svg>
+    ),
+  },
+  {
     to: '/privacy',
     label: 'Privacy & Terms', // the full title is on the page; the long one was cut off here
     icon: (
@@ -265,7 +274,7 @@ function NavItemLink({ to, onClick, label, hint, icon, alsoActiveOn, isCollapsed
   )
 }
 
-function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose }) {
+function Sidebar({ isCollapsed, onToggle, isMobileOpen, onMobileClose }) {
   const user    = useSelector((s) => s.auth.user)
   const isAdmin = user?.role === 'ADMIN'
   const { pathname } = useLocation()
@@ -441,28 +450,6 @@ function Sidebar({ isCollapsed, onToggle, onHelp, isMobileOpen, onMobileClose })
       >
         <p className="text-xs text-slate-500 dark:text-zinc-500 whitespace-nowrap">San Jose Municipal Hall</p>
         <p className="text-2xs text-slate-400 dark:text-zinc-600 mt-0.5 whitespace-nowrap">Republic of the Philippines</p>
-        <NavLink
-          to="/privacy"
-          className="text-2xs text-slate-400 dark:text-zinc-600 hover:text-brand-500 dark:hover:text-brand-400 mt-0.5 py-1.5 inline-block transition-colors duration-150"
-        >
-          Privacy, Terms & Conditions
-        </NavLink>
-        {onHelp && (
-          <button
-            onClick={onHelp}
-            className="mt-3 w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-brand-500/30 bg-brand-500/8 hover:bg-brand-500/15 hover:border-brand-500/50 transition-all duration-150 group"
-          >
-            <span className="flex-shrink-0 w-6 h-6 rounded-md bg-brand-500/20 group-hover:bg-brand-500/30 flex items-center justify-center transition-colors duration-150">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-brand-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <div className="text-left min-w-0">
-              <p className="text-xs font-semibold text-brand-400 whitespace-nowrap leading-tight">Getting Started</p>
-              <p className="text-2xs text-slate-400 dark:text-zinc-500 whitespace-nowrap leading-tight mt-px">New user guide</p>
-            </div>
-          </button>
-        )}
       </div>
     </aside>
 

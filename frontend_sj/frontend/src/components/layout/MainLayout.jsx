@@ -12,7 +12,7 @@ const IDLE_MS = 15 * 60 * 1000  // 15 minutes
 const WARN_MS = 14 * 60 * 1000  // warn at 14 minutes (1 minute before logout)
 
 function MainLayout({ children }) {
-  const { show: showOnboarding, dismiss: dismissOnboarding, reset: resetOnboarding } = useOnboarding()
+  const { show: showOnboarding, dismiss: dismissOnboarding } = useOnboarding()
 
   const [isCollapsed, setIsCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'
@@ -62,7 +62,6 @@ function MainLayout({ children }) {
         <Sidebar
           isCollapsed={isCollapsed}
           onToggle={handleToggle}
-          onHelp={resetOnboarding}
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
         />
