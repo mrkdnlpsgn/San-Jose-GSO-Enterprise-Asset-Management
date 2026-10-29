@@ -88,11 +88,23 @@ function ListboxSelect({ value, onChange, name, id, disabled = false, className 
   const shown = q ? options.filter((o) => o.text.toLowerCase().includes(q)) : options
   const optionId = (i) => `${listId}-o${i}`
 
+  // The list plays a short exit before it's removed; it keeps its search and place meanwhile,
+  // so it doesn't jump while fading.
+  const [closing, setClosing] = useState(false)
+  const closeTimer = useRef(null)
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
+
   const close = (refocus = true) => {
-    setOpen(false)
-    setQuery('')
-    setPos(null)
     if (refocus) triggerRef.current?.focus()
+    if (closeTimer.current) return
+    setClosing(true)
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null
+      setClosing(false)
+      setOpen(false)
+      setQuery('')
+      setPos(null)
+    }, 120)
   }
   const choose = (o) => {
     if (!o || o.disabled) return
@@ -101,6 +113,10 @@ function ListboxSelect({ value, onChange, name, id, disabled = false, className 
   }
   const openList = (startQuery = '') => {
     if (disabled) return
+    // reopened while the exit was still playing: keep it open
+    clearTimeout(closeTimer.current)
+    closeTimer.current = null
+    setClosing(false)
     setQuery(startQuery)
     const start = startQuery ? 0 : Math.max(0, options.indexOf(selected))
     setActive(start)
@@ -231,10 +247,10 @@ function ListboxSelect({ value, onChange, name, id, disabled = false, className 
         id={id}
         type="button"
         disabled={disabled}
-        onClick={() => (open ? close() : openList())}
+        onClick={() => (open && !closing ? close() : openList())}
         onKeyDown={onTriggerKey}
         aria-haspopup="listbox"
-        aria-expanded={open}
+        aria-expanded={open && !closing}
         aria-controls={open ? listId : undefined}
         aria-required={rest['aria-required']}
         className={`${className} flex items-center justify-between gap-2 text-left cursor-pointer disabled:cursor-not-allowed`}
@@ -245,7 +261,7 @@ function ListboxSelect({ value, onChange, name, id, disabled = false, className 
             {selected?.label ?? ''}
           </span>
         </span>
-        <ChevronIcon className={`h-4 w-4 shrink-0 text-slate-400 dark:text-zinc-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+        <ChevronIcon className={`h-4 w-4 shrink-0 text-slate-400 dark:text-zinc-500 transition-transform duration-150 ${open && !closing ? 'rotate-180' : ''}`} />
       </button>
 
       {open && createPortal(
@@ -253,7 +269,8 @@ function ListboxSelect({ value, onChange, name, id, disabled = false, className 
           ref={popRef}
           onKeyDown={onListKey}
           style={pos ? { top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, maxHeight: pos.maxHeight } : { visibility: 'hidden', top: 0, left: 0 }}
-          className="fixed z-[60] flex flex-col rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-xl shadow-black/15 dark:shadow-black/60 overflow-hidden"
+          className={`fixed z-[60] flex flex-col rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-xl shadow-black/15 dark:shadow-black/60 overflow-hidden ${
+            !pos ? '' : `${pos.bottom != null ? 'origin-bottom' : 'origin-top'} ${closing ? 'animate-menu-out pointer-events-none' : 'animate-menu-in'}`}`}
         >
           {searchable && (
             <div className="p-2 border-b border-slate-100 dark:border-zinc-800 shrink-0">

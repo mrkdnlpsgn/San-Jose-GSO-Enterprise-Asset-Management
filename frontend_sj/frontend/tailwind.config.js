@@ -68,6 +68,9 @@ export default {
         'badge-pop':         `badgePop 0.32s ${EASE_ENTER}`,
         'panel-in':          `panelIn 0.18s ${EASE_ENTER} both`,
         'panel-out':         `panelOut 0.14s ${EASE_EXIT} both`,
+        // dropdown lists (Select): grow from the field, from whichever side they open on
+        'menu-in':           `menuIn 0.16s ${EASE_ENTER} both`,
+        'menu-out':          `menuOut 0.12s ${EASE_EXIT} both`,
       },
       keyframes: {
         fadeSlide: {
@@ -143,6 +146,14 @@ export default {
         panelOut: {
           '0%':   { opacity: '1', transform: 'translateY(0) scale(1)' },
           '100%': { opacity: '0', transform: 'translateY(-4px) scale(0.97)' },
+        },
+        menuIn: {
+          '0%':   { opacity: '0', transform: 'scaleY(0.94) scaleX(0.98)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        menuOut: {
+          '0%':   { opacity: '1', transform: 'scale(1)' },
+          '100%': { opacity: '0', transform: 'scaleY(0.94) scaleX(0.98)' },
         },
       },
     },
