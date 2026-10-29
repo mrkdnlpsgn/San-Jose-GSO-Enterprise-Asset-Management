@@ -604,8 +604,8 @@ List<ReportDefinition> buildReportDefinitions() => [
         id: 'repairrisk',
         title: 'Repair Risk',
         printTitle: 'ASSETS LIKELY TO NEED REPAIR OR MAINTENANCE IN THE NEXT 12 MONTHS',
-        description: 'Assets a machine-learning model, trained on past repair records, expects to need repair '
-            'or maintenance in the next 12 months, with the reasons.',
+        description: 'Assets likely to need repair in the next 12 months, based on past repair records, '
+            'with the reasons. Check the ones at the top first.',
         icon: Icons.warning_amber_rounded,
         load: () async {
           final res = await ApiClient.instance.dio.get('/ai-insights/repair-risk', queryParameters: {'items': true});

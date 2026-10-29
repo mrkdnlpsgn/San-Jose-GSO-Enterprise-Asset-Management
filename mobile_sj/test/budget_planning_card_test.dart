@@ -170,18 +170,18 @@ void main() {
     expect(find.text('2024: 23.3% too low'), findsOneWidget);
     expect(find.text('Estimate ₱1.6 million, actual ₱2.1 million'), findsOneWidget);
 
-    // the machine-learning repair risk, with its test on last year
-    expect(find.text('Likely to need repair in the next 12 months'), findsOneWidget);
-    expect(find.text('About 121'), findsOneWidget);
-    expect(find.text('43'), findsOneWidget);
-    expect(find.textContaining('it picked out 46.2% of the assets', findRichText: true), findsOneWidget);
-    expect(find.textContaining('87 more have a medium risk'), findsOneWidget);
-    await tester.ensureVisible(find.textContaining('it picked out', findRichText: true));
-    await tester.tap(find.textContaining('it picked out', findRichText: true));
+    // the machine-learning repair risk, in plain words, with how it was tested
+    expect(find.text('Assets likely to need repair this coming year'), findsOneWidget);
+    expect(find.text('About 121 assets'), findsOneWidget);
+    expect(find.text('43 assets'), findsOneWidget);
+    expect(find.textContaining('43 assets are very likely to need repair, and 87 more might'), findsOneWidget);
+    expect(find.textContaining('it had named 46 in advance', findRichText: true), findsNothing);
+    await tester.ensureVisible(find.text('How does the system know?'));
+    await tester.tap(find.text('How does the system know?'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('55 were among its top 119'), findsOneWidget);
-    await tester.ensureVisible(find.text('See the assets at risk'));
-    await tester.tap(find.text('See the assets at risk'));
+    expect(find.textContaining('it had named 46 in advance. Guessing would name only 8.', findRichText: true), findsOneWidget);
+    await tester.ensureVisible(find.text('See the list'));
+    await tester.tap(find.text('See the list'));
     await tester.pumpAndSettle();
     expect(find.text('opened repairrisk'), findsOneWidget);
     router.pop();

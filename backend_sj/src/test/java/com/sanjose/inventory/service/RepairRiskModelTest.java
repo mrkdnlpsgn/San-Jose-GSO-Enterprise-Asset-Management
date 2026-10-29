@@ -68,6 +68,6 @@ class RepairRiskModelTest {
         RepairRiskService.Asset asset = new RepairRiskService.Asset(1, "P-1", "Aircon", "Appliances", "Air Conditioner",
             "GSO", 0, Long.MAX_VALUE, 30000, new long[0], new double[0]);
         List<String> reasons = RepairRiskService.reasons(model, new double[]{1, 0, 0, 0, 0.5, 0}, asset);
-        assertEquals(List.of("50% of Air Conditioner needed work last year"), reasons);
+        assertEquals(List.of("Items like this often need repair (50 in 100 last year)"), reasons);
     }
 }

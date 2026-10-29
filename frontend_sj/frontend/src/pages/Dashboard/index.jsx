@@ -577,45 +577,39 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
               </section>
             )}
 
-            {/* 3b. Repair risk: the machine-learning model's assets likely to need work in the next 12 months */}
+            {/* 3b. Repair risk: assets likely to need repair in the next 12 months (machine-learning model) */}
             {risk && (
               <section aria-labelledby="bp-risk" className="rounded-lg border border-slate-300 dark:border-zinc-700 overflow-hidden">
                 <div className="px-5 py-3 bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-300 dark:border-zinc-700">
-                  <h3 id="bp-risk" className="text-base font-semibold text-slate-900 dark:text-white">Likely to need repair in the next 12 months</h3>
+                  <h3 id="bp-risk" className="text-base font-semibold text-slate-900 dark:text-white">Assets likely to need repair this coming year</h3>
                 </div>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 dark:divide-zinc-800">
-                  <BigFigure label="Assets expected to need work" value={`About ${fmtNum(risk.expectedAssets)}`} />
-                  <BigFigure label="High risk (50% chance or more)" value={fmtNum(risk.high)} />
+                  <BigFigure label="Likely to need repair" value={`About ${plural(risk.expectedAssets, 'asset', 'assets')}`} />
+                  <BigFigure label="Check these first" value={plural(risk.high, 'asset', 'assets')} />
                 </dl>
-                {risk.check?.foundPercent != null && (
-                  <details className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800">
-                    <summary className="cursor-pointer text-base text-slate-800 dark:text-zinc-200">
-                      Tested on {risk.check.year}: it picked out <span className="font-semibold">{risk.check.foundPercent}%</span> of the assets that needed work, against {risk.check.randomPercent}% by chance.
-                    </summary>
-                    <p className="text-sm text-slate-700 dark:text-zinc-300 mt-2">
-                      A machine-learning model (logistic regression) learns from the system's own repair records which assets needed work in past years.
-                      To test it, it was trained without {risk.check.year} and asked to rank the {fmtNum(risk.check.assets)} assets on hand at the start of that year.
-                      Of the {fmtNum(risk.check.needed)} that really needed repair or maintenance, {fmtNum(risk.check.found)} were among its top {fmtNum(risk.check.needed)}.
-                      It expected about {fmtNum(risk.check.expected)}.
-                    </p>
-                    {risk.factors?.length > 0 && (
-                      <ul className="mt-2 text-sm text-slate-800 dark:text-zinc-200 space-y-0.5">
-                        {risk.factors.filter((f) => Math.abs(f.weight) >= 0.05).map((f) => (
-                          <li key={f.factor}>{f.factor}: {f.weight > 0 ? 'more likely' : 'less likely'} to need work</li>
-                        ))}
-                      </ul>
-                    )}
-                  </details>
-                )}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 border-t border-slate-200 dark:border-zinc-800">
                   <p className="flex-1 text-base text-slate-800 dark:text-zinc-200">
-                    {fmtNum(risk.medium)} more {risk.medium === 1 ? 'has' : 'have'} a medium risk (20 to 49%). Checking these first can prevent breakdowns.
+                    {fmtNum(risk.high)} {risk.high === 1 ? 'asset is' : 'assets are'} very likely to need repair, and {fmtNum(risk.medium)} more might.
+                    Checking them early can prevent breakdowns.
                   </p>
                   <Link to="/reports?report=repairrisk"
                     className="shrink-0 inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 text-base font-semibold px-5 py-2.5 min-h-[44px] hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900">
-                    See the assets at risk
+                    See the list
                   </Link>
                 </div>
+                {risk.check?.foundPercent != null && (
+                  <details className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800">
+                    <summary className="cursor-pointer text-base text-slate-800 dark:text-zinc-200">How does the system know?</summary>
+                    <div className="mt-2 space-y-2 text-base text-slate-800 dark:text-zinc-200">
+                      <p>It learns from the repair records in this system: how old each asset is, how often it was repaired, and how often that kind of item breaks down.</p>
+                      <p>
+                        We tested it on {risk.check.year}: for every 100 assets that needed repair that year, it had named{' '}
+                        <span className="font-semibold">{Math.round(risk.check.foundPercent)}</span> in advance. Guessing would name only {Math.round(risk.check.randomPercent)}.
+                      </p>
+                      <p className="text-sm text-slate-600 dark:text-zinc-400">Method: machine learning (logistic regression), trained on the system's maintenance records.</p>
+                    </div>
+                  </details>
+                )}
               </section>
             )}
 

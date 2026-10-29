@@ -339,11 +339,11 @@ public class RepairRiskService {
             int j = (int) part[0];
             out.add(switch (FEATURES[j]) {
                 case "age" -> (int) Math.floor(x[0]) + ((int) Math.floor(x[0]) == 1 ? " year old" : " years old");
-                case "workLastYear" -> "Worked on " + times((int) x[1]) + " in the past 12 months";
-                case "workBefore" -> "Worked on " + times((int) x[2]) + " 1 to 3 years ago";
-                case "costLast3Years" -> String.format("P%,.0f spent on it in the last 3 years", Math.expm1(x[3]) * 1000).replace("P", "₱");
-                case "kindRate" -> Math.round(x[4] * 100) + "% of " + a.kind + " needed work last year";
-                default -> String.format("High-value item (₱%,.0f)", a.value);
+                case "workLastYear" -> "Repaired " + times((int) x[1]) + " in the past year";
+                case "workBefore" -> "Repaired " + times((int) x[2]) + " 1 to 3 years ago";
+                case "costLast3Years" -> String.format("P%,.0f spent on repairs in the last 3 years", Math.expm1(x[3]) * 1000).replace("P", "₱");
+                case "kindRate" -> "Items like this often need repair (" + Math.round(x[4] * 100) + " in 100 last year)";
+                default -> String.format("Expensive item (₱%,.0f)", a.value);
             });
         }
         return out;
