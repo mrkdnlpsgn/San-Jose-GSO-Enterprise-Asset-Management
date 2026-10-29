@@ -34,6 +34,21 @@ Planning _planning({String? summary, List<String> noLife = const []}) => Plannin
           'accumulatedDepreciation': 439856869.39, 'depreciationExpense': 53890534.72, 'monthlyDepreciation': 5201969.8,
         },
       },
+      'maintenance': {
+        'years': [
+          {'year': 2023, 'cost': 1850000, 'records': 120, 'assets': 95, 'soFar': false},
+          {'year': 2024, 'cost': 2100000, 'records': 131, 'assets': 101, 'soFar': false},
+          {'year': 2025, 'cost': 2450000.5, 'records': 140, 'assets': 110, 'soFar': false},
+          {'year': 2026, 'cost': 1720000, 'records': 98, 'assets': 80, 'soFar': true},
+        ],
+        'forecast': {'year': 2027, 'cost': 2335000},
+        'trend': 'RISING',
+        'priceIncreasePercent': 3.0,
+        'limitedHistory': false,
+        'byCategory': [
+          {'category': 'Motor Vehicle', 'forecast': 1400000},
+        ],
+      },
       'summary': summary,
     });
 
@@ -103,7 +118,39 @@ void main() {
     // breakdowns by type and accounting figures are in the reports, not on Home
     expect(find.text('Motor Vehicle'), findsNothing);
     expect(find.text('Depreciation Schedule'), findsOneWidget);
-    expect(find.textContaining('3% a year'), findsOneWidget);
+    expect(find.textContaining('Costs include 3% a year'), findsOneWidget);
+  });
+
+  testWidgets('shows repair and maintenance spending and the estimate for next year', (tester) async {
+    tester.view.physicalSize = const Size(390, 3400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const Scaffold(body: SingleChildScrollView(padding: EdgeInsets.all(16), child: BudgetPlanningCard())),
+      ),
+      GoRoute(path: '/reports/:id', builder: (_, s) => Scaffold(body: Text('opened ${s.pathParameters['id']}'))),
+    ]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [planningProvider.overrideWith((ref) async => _planning())],
+      child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Repairs and maintenance'), findsOneWidget);
+    expect(find.text('Rising'), findsOneWidget);
+    expect(find.text('Estimated budget for 2027'), findsOneWidget);
+    expect(find.text('₱2.3 million'), findsOneWidget);
+    expect(find.text('Exact: ₱2,335,000'), findsOneWidget);
+    expect(find.text('2026 (so far)'), findsOneWidget);
+    expect(find.text('₱2.5 million'), findsOneWidget); // 2025
+    expect(find.textContaining('Costs most to keep running: Motor Vehicle'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('See by type of property'));
+    await tester.tap(find.text('See by type of property'));
+    await tester.pumpAndSettle();
+    expect(find.text('opened maintenanceforecast'), findsOneWidget);
   });
 
   testWidgets('fits at phone width in dark mode, with a summary and a missing type', (tester) async {

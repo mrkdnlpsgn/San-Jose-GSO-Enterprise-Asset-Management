@@ -14,6 +14,11 @@ export const getReplacementForecast = (params = {}) =>
 export const getDepreciation = (params = {}) =>
   api.get('/ai-insights/depreciation', { params });
 
+// Reports: repair and maintenance cost per year (last 3 full years and this year so far) by
+// category, and the estimate for next year.
+export const getMaintenanceForecast = (params = {}) =>
+  api.get('/ai-insights/maintenance-forecast', { params });
+
 // Home "Budget & Planning" (admins only): replacement forecast + depreciation totals, with one AI
 // summary covering both. Cached on the server while the numbers are unchanged.
 export const getPlanning = () => api.get('/ai-insights/planning');

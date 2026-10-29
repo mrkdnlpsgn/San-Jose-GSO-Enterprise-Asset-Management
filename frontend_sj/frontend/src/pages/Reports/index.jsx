@@ -7,7 +7,7 @@ import { useToast } from '../../context/ToastContext'
 import { manilaDateKey } from '../../utils/helpers'
 import api from '../../services/api'
 import { getPropertyCards } from '../../services/propertyCardService'
-import { getReplacementForecast, getDepreciation } from '../../services/aiRecommendationService'
+import { getReplacementForecast, getDepreciation, getMaintenanceForecast } from '../../services/aiRecommendationService'
 import { printPropertyCards, exportPropertyCardsExcel } from '../../utils/propertyCardExport'
 import { openPrintWindow } from '../../utils/printWindow'
 import { printForm, toPages, longDate } from '../../utils/printForm'
@@ -156,6 +156,12 @@ function parGroupsOf(assets) {
     .map((g) => ({ ...g, ...parHeader(g.rows, g.par), office: uniqueJoined(g.rows, (r) => r.office?.officeName) }))
     .sort((a, b) => b.par.localeCompare(a.par))
 }
+
+// Repairs & Maintenance Forecast columns: the 3 full years before this one, this year so far, and
+// next year's estimate (the same years MaintenanceForecastService uses, in Manila time).
+const FORECAST_YEAR = Number(manilaDateKey(new Date().toISOString()).slice(0, 4)) + 1
+const FORECAST_HISTORY = [FORECAST_YEAR - 4, FORECAST_YEAR - 3, FORECAST_YEAR - 2, FORECAST_YEAR - 1].map(String)
+const TREND_LABEL = { RISING: 'Rising', FALLING: 'Falling', STEADY: 'Steady' }
 
 const REPORTS = [
   {
@@ -325,6 +331,43 @@ const REPORTS = [
       { label: 'Depreciation Expense', display: (r) => Number(r.depreciationExpense) ? fmtMoney(r.depreciationExpense) : '-',                    raw: (r) => Number(r.depreciationExpense) ? Number(r.depreciationExpense).toFixed(2) : '-' },
       { label: 'Accumulated Depreciation', display: (r) => fmtMoney(r.accumulatedDepreciation),                                                  raw: (r) => Number(r.accumulatedDepreciation).toFixed(2) },
       { label: 'Book Value',          display: (r) => <span className="font-semibold text-slate-900 dark:text-white">{fmtMoney(r.bookValue)}</span>, raw: (r) => Number(r.bookValue).toFixed(2) },
+    ],
+  },
+  {
+    // One row per category: the last 3 full years, this year so far, and next year's estimate
+    // (MaintenanceForecastService), with a total row.
+    id: 'maintenanceforecast',
+    title: 'Repairs & Maintenance Forecast',
+    printTitle: 'REPAIRS AND MAINTENANCE COST AND FORECAST',
+    certification: [
+      { label: 'Prepared by:', caption: 'Signature over Printed Name of Property Custodian / GSO Staff' },
+      { label: 'Approved by:', caption: 'Signature over Printed Name of Municipal General Services Officer' },
+    ],
+    description: `What repairs and maintenance cost in each of the last 3 years, by type of property, and about how much to budget for ${FORECAST_YEAR}.`,
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+      </svg>
+    ),
+    async load() {
+      return (await getMaintenanceForecast({ priceIncrease: 3 })).data.byCategory
+    },
+    extraRows: (rows) => {
+      if (!rows.length) return rows
+      const sum = (get) => rows.reduce((s, r) => s + (Number(get(r)) || 0), 0)
+      const perYear = Object.fromEntries(FORECAST_HISTORY.map((y) => [y, sum((r) => r.perYear?.[y])]))
+      return [...rows, { category: 'TOTAL', perYear, average: sum((r) => r.average), forecast: sum((r) => r.forecast), trend: '' }]
+    },
+    headers: [
+      { label: 'Type of Property', display: (r) => <span className={r.category === 'TOTAL' ? 'font-bold' : 'font-medium text-slate-900 dark:text-white'}>{r.category}</span>, raw: (r) => r.category },
+      ...FORECAST_HISTORY.map((y) => ({
+        label: String(y) === String(FORECAST_YEAR - 1) ? `${y} (so far)` : String(y),
+        display: (r) => fmtMoney(r.perYear?.[y] ?? 0),
+        raw: (r) => Number(r.perYear?.[y] ?? 0).toFixed(2),
+      })),
+      { label: '3-Year Average', display: (r) => fmtMoney(r.average),                                                              raw: (r) => Number(r.average).toFixed(2) },
+      { label: 'Trend',          display: (r) => TREND_LABEL[r.trend] || '',                                                        raw: (r) => TREND_LABEL[r.trend] || '' },
+      { label: `Estimate ${FORECAST_YEAR}`, display: (r) => <span className="font-semibold text-amber-700 dark:text-amber-300">{fmtMoney(r.forecast)}</span>, raw: (r) => Number(r.forecast).toFixed(2) },
     ],
   },
   {

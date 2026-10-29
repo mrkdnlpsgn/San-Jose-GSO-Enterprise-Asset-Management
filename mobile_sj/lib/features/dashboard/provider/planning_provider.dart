@@ -20,9 +20,55 @@ class PlanningCategory {
   const PlanningCategory(this.name, this.assets, this.cost);
 }
 
+/// One year of repair and maintenance spending; [soFar] marks this year (not a full year).
+class MaintenanceYear {
+  final int year;
+  final double cost;
+  final bool soFar;
+  const MaintenanceYear(this.year, this.cost, this.soFar);
+}
+
+/// Repair and maintenance spending and next year's estimate (MaintenanceForecastService).
+class MaintenancePlan {
+  final List<MaintenanceYear> years;
+  final int forecastYear;
+  final double forecastCost;
+  final String trend; // RISING | FALLING | STEADY
+  final double priceIncreasePercent;
+  final bool limitedHistory;
+  final String? topCategory; // costs most to keep running
+  const MaintenancePlan({
+    required this.years,
+    required this.forecastYear,
+    required this.forecastCost,
+    required this.trend,
+    required this.priceIncreasePercent,
+    required this.limitedHistory,
+    this.topCategory,
+  });
+
+  static MaintenancePlan? fromJson(Map? m) {
+    if (m == null) return null; // a server from before the forecast
+    final f = m['forecast'] as Map? ?? const {};
+    final cats = (m['byCategory'] as List? ?? const []).cast<Map>();
+    return MaintenancePlan(
+      years: [
+        for (final y in (m['years'] as List? ?? const []).cast<Map>())
+          MaintenanceYear(_num(y['year']).toInt(), _num(y['cost']).toDouble(), y['soFar'] == true),
+      ],
+      forecastYear: _num(f['year']).toInt(),
+      forecastCost: _num(f['cost']).toDouble(),
+      trend: '${m['trend'] ?? 'STEADY'}',
+      priceIncreasePercent: _num(m['priceIncreasePercent']).toDouble(),
+      limitedHistory: m['limitedHistory'] == true,
+      topCategory: cats.isEmpty ? null : '${cats.first['category']}',
+    );
+  }
+}
+
 /// Home's "Budget & Planning" (admins only), from /ai-insights/planning: the replacement
-/// forecast and the book-value totals, plus the AI summary when one still matches the numbers.
-/// The same data as the web's Budget & Planning section.
+/// forecast, repair and maintenance spending, and the book-value totals, plus the AI summary when
+/// one still matches the numbers. The same data as the web's Budget & Planning section.
 class Planning {
   final String asOf; // 'YYYY-MM-DD'
   final int years;
@@ -37,6 +83,7 @@ class Planning {
   final double depreciationExpense;
   final double monthlyDepreciation;
   final int fullyDepreciated;
+  final MaintenancePlan? maintenance;
   final String? summary;
 
   const Planning({
@@ -53,6 +100,7 @@ class Planning {
     required this.depreciationExpense,
     required this.monthlyDepreciation,
     required this.fullyDepreciated,
+    this.maintenance,
     this.summary,
   });
 
@@ -83,6 +131,7 @@ class Planning {
       depreciationExpense: _num(d['depreciationExpense']).toDouble(),
       monthlyDepreciation: _num(d['monthlyDepreciation']).toDouble(),
       fullyDepreciated: _num(d['fullyDepreciated']).toInt(),
+      maintenance: MaintenancePlan.fromJson(json['maintenance'] as Map?),
       summary: json['summary'] as String?,
     );
   }

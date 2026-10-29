@@ -13,9 +13,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-// Home's "Budget & Planning" section (admins only): the replacement forecast and the depreciation
-// totals of every asset on hand, with ONE AI summary covering both, so the section costs one
-// Gemini request instead of two. The summary is kept and returned with the numbers while they
+// Home's "Budget & Planning" section (admins only): the replacement forecast, the repair and
+// maintenance spending forecast and the depreciation totals of every asset on hand, with ONE AI
+// summary covering all three, so the section costs one Gemini request instead of three. The summary is kept and returned with the numbers while they
 // are unchanged; opening Home never calls Gemini, only pressing Generate does.
 @Service
 @RequiredArgsConstructor
@@ -23,6 +23,7 @@ public class PlanningInsightService {
 
     private final ReplacementForecastService replacementForecastService;
     private final DepreciationService depreciationService;
+    private final MaintenanceForecastService maintenanceForecastService;
     private final GeminiConfig geminiConfig;
 
     private record CachedSummary(String factsJson, String summary) {}
@@ -32,6 +33,7 @@ public class PlanningInsightService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("replacement", replacementForecastService.forecast(
             ReplacementForecastService.DEFAULT_YEARS, ReplacementForecastService.DEFAULT_PRICE_INCREASE, false, null));
+        out.put("maintenance", maintenanceForecastService.forecast(MaintenanceForecastService.DEFAULT_PRICE_INCREASE, null));
         out.put("depreciation", depreciationService.schedule(null, false, null));
         CachedSummary c = cached;
         if (c != null && c.factsJson().equals(factsJson(out))) out.put("summary", c.summary());
@@ -69,8 +71,16 @@ public class PlanningInsightService {
         for (String k : List.of("asOf", "residualRatePercent", "total")) depreciation.put(k, d.get(k));
         depreciation.put("topCategoriesByDepreciation", top((List<Map<String, Object>>) d.get("byCategory"), null));
 
+        Map<String, Object> m = (Map<String, Object>) planning.get("maintenance");
+        Map<String, Object> maintenance = new LinkedHashMap<>();
+        for (String k : List.of("years", "forecast", "trend", "priceIncreasePercent", "averageCostPerRepair", "limitedHistory")) {
+            maintenance.put(k, m.get(k));
+        }
+        maintenance.put("topCategories", top((List<Map<String, Object>>) m.get("byCategory"), "perYear"));
+
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("replacementForecast", replacement);
+        facts.put("maintenanceSpending", maintenance);
         facts.put("depreciation", depreciation);
         // Only when something was left out; an empty list still tempts the AI to mention it.
         if (r.get("excluded") instanceof Map<?, ?> ex && ex.get("noExpectedLife") instanceof List<?> l && !l.isEmpty()) {
@@ -97,13 +107,19 @@ public class PlanningInsightService {
         property on hand: (1) a replacement forecast: assets due for replacement now ("NOW" = already \
         past their expected life, or unserviceable and awaiting disposal) and in each coming year, \
         with the estimated replacement cost including a yearly price increase of priceIncreasePercent; \
-        (2) straight-line depreciation as of today: total cost, accumulated depreciation, book value, \
+        (2) repair and maintenance spending: the cost of each of the last full years and of this year \
+        so far (the entry with soFar true is not a full year, never compare it with full years), next \
+        year's estimate (forecast) with its trend (RISING, FALLING or STEADY) and the categories that \
+        cost most to keep running; \
+        (3) straight-line depreciation as of today: total cost, accumulated depreciation, book value, \
         depreciation expense so far this year, and how many assets are fully depreciated (only the 5% \
-        residual value is left). Use only those numbers, never invent figures. In 4-6 short sentences: \
+        residual value is left). Use only those numbers, never invent figures. In 5-7 short sentences: \
         state how many assets need replacing now and what that costs, name the coming year with the \
         highest replacement cost, name the categories (and offices) that drive most of the cost, then \
-        give the book value against the total cost and the depreciation expense so far this year, and \
-        mention the fully depreciated assets. If repairable assets are among those due, say repairing \
+        give next year's estimated repair and maintenance budget, whether it is rising or falling and \
+        which category costs most to repair (if limitedHistory is true, say the estimate rests on \
+        little history), then give the book value against the total cost and the depreciation expense \
+        so far this year, and mention the fully depreciated assets. If repairable assets are among those due, say repairing \
         some may delay part of the cost. If categoriesWithNoExpectedLife is given, say those assets are \
         not counted. Money is in Philippine pesos (write it as PHP, rounded to the nearest thousand or \
         million). Plain text only: start directly with the first sentence, with no title, date, \

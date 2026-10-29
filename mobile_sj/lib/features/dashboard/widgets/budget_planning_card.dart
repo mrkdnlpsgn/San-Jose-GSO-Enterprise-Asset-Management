@@ -119,7 +119,7 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Assets that need replacing, and about how much it will cost. As of ${_longDate(p.asOf)}.', style: note),
+            Text('Assets that need replacing, what repairs will cost, and about how much to budget. As of ${_longDate(p.asOf)}.', style: note),
             const SizedBox(height: 14),
 
             // 1. Due now, laid out like a form: a titled header row, the two figures, and the
@@ -241,6 +241,12 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
               Text('Costs include ${p.priceIncreasePercent.toStringAsFixed(0)}% a year for price increases.', style: note),
             ],
 
+            // 3. Repairs and maintenance: past years' spending and next year's estimate
+            if (p.maintenance case final m?) ...[
+              const SizedBox(height: 22),
+              _MaintenancePanel(plan: m, heading: heading, body: body),
+            ],
+
             if (p.noExpectedLife.isNotEmpty) ...[
               const SizedBox(height: 14),
               Text(
@@ -251,7 +257,7 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
               ),
             ],
 
-            // 3. Summary (AI)
+            // 4. Summary (AI)
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.fromLTRB(16, 8, 8, 14),
@@ -312,6 +318,11 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
                   child: const Text('Replacement Forecast'),
                 ),
                 TextButton(
+                  onPressed: () => context.push('/reports/maintenanceforecast'),
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, textStyle: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w600)),
+                  child: const Text('Repairs & Maintenance Forecast'),
+                ),
+                TextButton(
                   onPressed: () => context.push('/reports/depreciation'),
                   style: TextButton.styleFrom(padding: EdgeInsets.zero, textStyle: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w600)),
                   child: const Text('Depreciation Schedule'),
@@ -320,6 +331,115 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Repairs and maintenance, laid out like the due-now panel: a titled header row with the trend,
+/// next year's estimate as a large figure, the past years' spending, then a note and the report.
+class _MaintenancePanel extends StatelessWidget {
+  final MaintenancePlan plan;
+  final TextStyle heading;
+  final TextStyle body;
+  const _MaintenancePanel({required this.plan, required this.heading, required this.body});
+
+  static const _trendLabel = {'RISING': 'Rising', 'FALLING': 'Falling', 'STEADY': 'Steady'};
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final light = context.isLight;
+    final m = plan;
+    final (Color tagBg, Color tagText) = switch (m.trend) {
+      'RISING' => (Ios.orange.withValues(alpha: light ? 0.14 : 0.2), light ? const Color(0xFF8A4B00) : const Color(0xFFFFC56B)),
+      'FALLING' => (AppTheme.brandButton.withValues(alpha: light ? 0.12 : 0.2), light ? const Color(0xFF0B6B32) : const Color(0xFF7FE0A6)),
+      _ => (c.border.withValues(alpha: 0.5), c.textPrimary),
+    };
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: c.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: Ios.groupedBg(context),
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                Text('Repairs and maintenance', style: heading),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(color: tagBg, borderRadius: BorderRadius.circular(6)),
+                  child: Text(_trendLabel[m.trend] ?? 'Steady',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: tagText)),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: c.border),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: _BigFigure(
+              label: 'Estimated budget for ${m.forecastYear}',
+              value: _pesoWords(m.forecastCost),
+              exact: m.forecastCost >= 1000000 ? _pesoExact(m.forecastCost) : null,
+            ),
+          ),
+          Divider(height: 1, thickness: 0.5, indent: 16, endIndent: 16, color: Ios.separator(context)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Spent in past years', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c.textSecondary)),
+                const SizedBox(height: 6),
+                for (final y in m.years)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    // the amount moves under the year when large text leaves no room beside it
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      spacing: 12,
+                      children: [
+                        Text('${y.year}${y.soFar ? ' (so far)' : ''}', style: body.copyWith(color: c.textSecondary)),
+                        Text(_pesoWords(y.cost), style: body.copyWith(fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: c.border),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${m.topCategory != null ? 'Costs most to keep running: ${m.topCategory}. ' : ''}'
+                  "The estimate is the average of the last 3 years at next year's prices "
+                  '(${m.priceIncreasePercent.toStringAsFixed(0)}% a year).'
+                  '${m.limitedHistory ? ' There is little repair history yet, so treat it as a rough guide.' : ''}',
+                  style: body,
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton(
+                  onPressed: () => context.push('/reports/maintenanceforecast'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('See by type of property'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

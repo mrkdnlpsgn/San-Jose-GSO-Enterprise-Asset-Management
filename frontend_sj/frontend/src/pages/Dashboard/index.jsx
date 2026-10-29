@@ -337,6 +337,13 @@ function YearCard({ bucket, label }) {
   )
 }
 
+// Repairs and maintenance: last full year against the first of the three
+const TREND_TEXT = {
+  RISING:  { label: 'Rising',  cls: 'bg-amber-100 text-amber-900 dark:bg-amber-500/15 dark:text-amber-200' },
+  FALLING: { label: 'Falling', cls: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-200' },
+  STEADY:  { label: 'Steady',  cls: 'bg-slate-100 text-slate-800 dark:bg-zinc-800 dark:text-zinc-200' },
+}
+
 function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
   const [generating, setGenerating] = useState(false)
   const [aiError, setAiError]       = useState('')
@@ -355,6 +362,7 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
   }
 
   const r = data?.replacement
+  const m = data?.maintenance
   const asOf = data?.depreciation?.asOf
   const thisYear = asOf?.slice(0, 4)
   const dueNow = r?.buckets.find((b) => b.key === 'NOW')
@@ -368,7 +376,7 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
       <div className="px-5 py-4 border-b border-slate-200 dark:border-zinc-800">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Budget &amp; Planning</h2>
         <p className="text-sm text-slate-700 dark:text-zinc-300 mt-0.5">
-          Assets that need replacing, and about how much it will cost
+          Assets that need replacing, what repairs will cost, and about how much to budget
           {asOf ? `. As of ${new Date(asOf).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}.` : '.'}
         </p>
       </div>
@@ -432,6 +440,46 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
               </section>
             )}
 
+            {/* 3. Repairs and maintenance: last years' spending and next year's estimate */}
+            {m && (
+              <section aria-labelledby="bp-repairs" className="rounded-lg border border-slate-300 dark:border-zinc-700 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-300 dark:border-zinc-700">
+                  <h3 id="bp-repairs" className="text-base font-semibold text-slate-900 dark:text-white">Repairs and maintenance</h3>
+                  {TREND_TEXT[m.trend] && (
+                    <span className={`text-sm font-semibold px-2.5 py-0.5 rounded ${TREND_TEXT[m.trend].cls}`}>{TREND_TEXT[m.trend].label}</span>
+                  )}
+                </div>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-slate-200 dark:divide-zinc-800">
+                  <BigFigure label={`Estimated budget for ${m.forecast.year}`} value={pesoWords(m.forecast.cost)}
+                    exact={Number(m.forecast.cost) >= 1_000_000 ? pesoExact(m.forecast.cost) : null} />
+                  <div className="min-w-0 px-5 py-4">
+                    <dt className="text-sm font-semibold text-slate-700 dark:text-zinc-300">Spent in past years</dt>
+                    <dd className="mt-1.5">
+                      <ul className="space-y-1 text-base tabular-nums">
+                        {m.years.map((y) => (
+                          <li key={y.year} className="flex justify-between gap-4">
+                            <span className="text-slate-700 dark:text-zinc-300">{y.year}{y.soFar ? ' (so far)' : ''}</span>
+                            <span className="font-semibold text-slate-900 dark:text-white" title={pesoExact(y.cost)}>{pesoWords(y.cost)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                </dl>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 border-t border-slate-200 dark:border-zinc-800">
+                  <p className="flex-1 text-base text-slate-800 dark:text-zinc-200">
+                    {m.byCategory[0] ? <>Costs most to keep running: <span className="font-semibold">{m.byCategory[0].category}</span>. </> : null}
+                    The estimate is the average of the last 3 years at next year's prices ({m.priceIncreasePercent}% a year).
+                    {m.limitedHistory && ' There is little repair history yet, so treat it as a rough guide.'}
+                  </p>
+                  <Link to="/reports?report=maintenanceforecast"
+                    className="shrink-0 inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 text-base font-semibold px-5 py-2.5 min-h-[44px] hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900">
+                    See by type of property
+                  </Link>
+                </div>
+              </section>
+            )}
+
             {missingLife.length > 0 && (
               <p className="text-base text-amber-900 dark:text-amber-200">
                 Not counted yet: {missingLife.join(', ')}. {missingLife.length === 1 ? 'This type has' : 'These types have'} no expected years of use.{' '}
@@ -441,7 +489,7 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
               </p>
             )}
 
-            {/* 3. Summary (AI) */}
+            {/* 4. Summary (AI) */}
             <section aria-label="Summary" className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/50 px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-slate-900 dark:text-white">Summary</h3>
@@ -464,6 +512,8 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
             <p className="text-base text-slate-800 dark:text-zinc-200">
               More detail:{' '}
               <Link to="/reports?report=replacement" className={link}>Replacement Forecast</Link>
+              {', '}
+              <Link to="/reports?report=maintenanceforecast" className={link}>Repairs &amp; Maintenance Forecast</Link>
               {' and '}
               <Link to="/reports?report=depreciation" className={link}>Depreciation Schedule</Link>
             </p>

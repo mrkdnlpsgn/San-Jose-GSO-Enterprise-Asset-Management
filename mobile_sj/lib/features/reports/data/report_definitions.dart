@@ -32,6 +32,12 @@ String _uniqueJoined(List<ReportRow> rows, Object? Function(ReportRow) pick) =>
 String _orNa(Object? v) => str(v).isEmpty ? 'N/A' : str(v);
 String _fixed(Object? v) => v == null || v == '' ? '' : toNum(v).toStringAsFixed(2);
 
+// Repairs & Maintenance Forecast: next year (Manila time), and the 3 full years before this one
+// plus this year so far - the same years as MaintenanceForecastService.
+int _forecastYear() => DateTime.now().toUtc().add(const Duration(hours: 8)).year + 1;
+List<String> _forecastHistory() => [for (var y = _forecastYear() - 4; y < _forecastYear(); y++) '$y'];
+const _trendLabel = {'RISING': 'Rising', 'FALLING': 'Falling', 'STEADY': 'Steady'};
+
 // ── RPCPPE ───────────────────────────────────────────────────────────────────
 
 const rpcppeDefaults = <String, String>{
@@ -591,6 +597,49 @@ List<ReportDefinition> buildReportDefinitions() => [
         certification: const [
           Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
           Signer('Certified Correct by:', 'Signature over Printed Name of Municipal Accountant'),
+        ],
+      ),
+      // One row per type of property: the last 3 full years, this year so far, and next year's
+      // estimate (MaintenanceForecastService), with a total row.
+      ReportDefinition(
+        id: 'maintenanceforecast',
+        title: 'Repairs & Maintenance Forecast',
+        printTitle: 'REPAIRS AND MAINTENANCE COST AND FORECAST',
+        description: 'What repairs and maintenance cost in each of the last 3 years, by type of property, '
+            'and about how much to budget for ${_forecastYear()}.',
+        icon: Icons.build_circle_outlined,
+        aggregated: true,
+        load: () async {
+          final res = await ApiClient.instance.dio.get('/ai-insights/maintenance-forecast', queryParameters: {'priceIncrease': 3});
+          return [for (final r in (res.data as Map)['byCategory'] as List) Map<String, dynamic>.from(r as Map)];
+        },
+        transform: (rows) {
+          if (rows.isEmpty) return rows;
+          num sum(Object? Function(ReportRow) get) => rows.fold<num>(0, (s, r) => s + toNum(get(r)));
+          return [
+            ...rows,
+            {
+              'category': 'TOTAL',
+              'perYear': {for (final y in _forecastHistory()) y: sum((r) => (r['perYear'] as Map?)?[y])},
+              'average': sum((r) => r['average']),
+              'forecast': sum((r) => r['forecast']),
+              'trend': '',
+            },
+          ];
+        },
+        headers: [
+          ReportColumn('Type of Property', display: (r) => str(r['category']), raw: (r) => str(r['category'])),
+          for (final y in _forecastHistory())
+            ReportColumn(y == '${_forecastYear() - 1}' ? '$y (so far)' : y,
+                display: (r) => rMoney((r['perYear'] as Map?)?[y] ?? 0),
+                raw: (r) => _fixed((r['perYear'] as Map?)?[y] ?? 0)),
+          ReportColumn('3-Year Average', display: (r) => rMoney(r['average']), raw: (r) => _fixed(r['average'])),
+          ReportColumn('Trend', display: (r) => _trendLabel[r['trend']] ?? '', raw: (r) => _trendLabel[r['trend']] ?? ''),
+          ReportColumn('Estimate ${_forecastYear()}', display: (r) => rMoney(r['forecast']), raw: (r) => _fixed(r['forecast'])),
+        ],
+        certification: const [
+          Signer('Prepared by:', 'Signature over Printed Name of Property Custodian / GSO Staff'),
+          Signer('Approved by:', 'Signature over Printed Name of Municipal General Services Officer'),
         ],
       ),
       // Was the Maintenance Ledger; now the GSO's Repair and Maintenance Card, one per asset.
