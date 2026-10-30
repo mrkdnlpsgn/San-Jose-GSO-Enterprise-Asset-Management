@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Input from '../../components/common/Input'
 import { requestPasswordReset, confirmPasswordReset } from '../../services/authService'
 import { PASSWORD_REQUIREMENTS, isPasswordComplex } from '../../utils/passwordPolicy'
+import PasswordToggle from '../../components/common/PasswordToggle'
 
 const BTN_PRIMARY =
   'w-full h-12 px-5 text-base font-semibold rounded-lg bg-brand-700 text-white hover:bg-brand-800 ' +
@@ -159,13 +160,10 @@ function ForgotPasswordForm({ initialIdentifier = '', onBack }) {
                     placeholder="Enter new password"
                     value={newPassword}
                     onChange={(e) => { setNewPassword(e.target.value); setError('') }}
-                    className="!text-base py-3 pr-20"
+                    className="!text-base py-3 pr-12"
                     adornmentClassName="pr-1.5"
                     endAdornment={
-                      <button type="button" onClick={() => setShowPassword((v) => !v)} aria-pressed={showPassword}
-                        className="h-9 px-3 rounded-md text-sm font-semibold text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150">
-                        {showPassword ? 'Hide' : 'Show'}
-                      </button>
+                      <PasswordToggle shown={showPassword} onToggle={() => setShowPassword((v) => !v)} controls="reset-new-password" />
                     }
                   />
                   {newPassword && (

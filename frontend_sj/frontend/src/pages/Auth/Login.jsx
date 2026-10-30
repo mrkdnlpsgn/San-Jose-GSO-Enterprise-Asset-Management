@@ -7,6 +7,7 @@ import ForceChangePasswordForm from './ForceChangePasswordForm'
 import TwoFactorForm from './TwoFactorForm'
 import SettingsMenu from '../../components/common/SettingsMenu'
 import { waitForServer, isServerAsleep } from '../../services/api'
+import PasswordToggle from '../../components/common/PasswordToggle'
 
 // Must match the backend's auth.max-failed-attempts / auth.lockout-minutes (application.properties).
 const MAX_ATTEMPTS = 3
@@ -406,19 +407,11 @@ function Login() {
                 onKeyUp={checkCapsLock}
                 onBlur={() => setCapsLock(false)}
                 error={fieldErrors.password}
-                className="!text-base py-3 pr-20"
+                className="!text-base py-3 pr-12"
                 required
                 adornmentClassName="pr-1.5"
                 endAdornment={
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-pressed={showPassword}
-                    aria-controls="login-password"
-                    className="h-9 px-3 rounded-md text-sm font-semibold text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors duration-150"
-                  >
-                    {showPassword ? 'Hide' : 'Show'}
-                  </button>
+                  <PasswordToggle shown={showPassword} onToggle={() => setShowPassword((v) => !v)} controls="login-password" />
                 }
               />
               {capsLock && (

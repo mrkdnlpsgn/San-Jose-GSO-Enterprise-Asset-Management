@@ -60,6 +60,8 @@ export default {
         'rise-in':           `fadeSlide 0.6s ${EASE_ENTER} both`,
         'seal-in':           `sealIn 0.7s ${EASE_ENTER} both`,
         'draw-x':            `drawX 0.8s ${EASE_ENTER} both`,
+        // password eye button: a quick blink on each show / hide
+        'eye-blink':         `eyeBlink 0.24s ${EASE_ENTER}`,
         // failed sign-in: a short sideways nudge, once
         'shake':             'shake 0.4s ease-in-out',
         // notification bell: a swing when something new arrives, the count badge pops in,
@@ -73,6 +75,10 @@ export default {
         'menu-out':          `menuOut 0.12s ${EASE_EXIT} both`,
       },
       keyframes: {
+        eyeBlink: {
+          '0%, 100%': { transform: 'scaleY(1)' },
+          '45%':      { transform: 'scaleY(0.1)' },
+        },
         fadeSlide: {
           '0%':   { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
