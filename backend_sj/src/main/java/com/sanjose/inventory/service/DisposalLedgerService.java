@@ -30,6 +30,7 @@ public class DisposalLedgerService {
     private final AssetHistoryService assetHistoryService;
     private final SseEmitterService sseEmitterService;
     private final AccessService accessService;
+    private final AssetOfficeLookup officeLookup;
 
     private static final RowMapper<DisposalLedger> DISPOSAL_MAPPER = (rs, rn) -> {
         DisposalLedger d = new DisposalLedger();
@@ -56,7 +57,7 @@ public class DisposalLedgerService {
             a.setGroupId(rs.getString("asset_groupId"));
             a.setSerialNumber(rs.getString("asset_serialNumber"));
             Long apId = rs.getObject("asset_personnelId", Long.class);
-            if (apId != null) {
+            if (apId != null && rs.getString("asset_accountableName") != null) {
                 Personnel ap = new Personnel();
                 ap.setId(apId);
                 ap.setFullName(rs.getString("asset_accountableName"));
@@ -110,8 +111,8 @@ public class DisposalLedgerService {
 
     public List<DisposalLedger> findAll(String search, int page, int size,
                                          String recommendedMethod, String disposalStatus, Long officeId) {
-        return jdbcTemplate.query("CALL sp_disposal_list(?, ?, ?, ?, ?, ?)", DISPOSAL_MAPPER,
-            search, size, page * size, recommendedMethod, disposalStatus, officeId);
+        return withOffices(jdbcTemplate.query("CALL sp_disposal_list(?, ?, ?, ?, ?, ?)", DISPOSAL_MAPPER,
+            search, size, page * size, recommendedMethod, disposalStatus, officeId));
     }
 
     public long count(String search, String recommendedMethod, String disposalStatus, Long officeId) {
@@ -120,14 +121,19 @@ public class DisposalLedgerService {
     }
 
     public List<DisposalLedger> findByAsset(Long assetId) {
-        return jdbcTemplate.query("CALL sp_disposal_get_by_asset(?)", DISPOSAL_MAPPER, assetId);
+        return withOffices(jdbcTemplate.query("CALL sp_disposal_get_by_asset(?)", DISPOSAL_MAPPER, assetId));
+    }
+
+    private List<DisposalLedger> withOffices(List<DisposalLedger> records) {
+        officeLookup.attach(records.stream().map(DisposalLedger::getAsset).toList());
+        return records;
     }
 
     public DisposalLedger findById(Long id) {
         List<DisposalLedger> list = jdbcTemplate.query(
             "CALL sp_disposal_get_by_id(?)", DISPOSAL_MAPPER, id);
         if (list.isEmpty()) throw new ResourceNotFoundException("Disposal record not found: " + id);
-        return list.get(0);
+        return withOffices(list).get(0);
     }
 
     public DisposalLedger create(DisposalLedgerRequest req) {

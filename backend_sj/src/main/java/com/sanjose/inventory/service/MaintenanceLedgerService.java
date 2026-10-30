@@ -38,6 +38,7 @@ public class MaintenanceLedgerService {
     private final AccessService accessService;
     private final MaintenanceItemService itemService;
     private final MaintenancePhotoService photoService;
+    private final AssetOfficeLookup officeLookup;
 
     // The completion date is a plain column added here rather than in a migration script, so a
     // hosted database gets it on the next deploy. Records completed before it existed have none.
@@ -78,7 +79,7 @@ public class MaintenanceLedgerService {
             a.setGroupId(rs.getString("asset_groupId"));
             a.setSerialNumber(rs.getString("asset_serialNumber"));
             Long apId = rs.getObject("asset_personnelId", Long.class);
-            if (apId != null) {
+            if (apId != null && rs.getString("asset_accountableName") != null) {
                 Personnel ap = new Personnel();
                 ap.setId(apId);
                 ap.setFullName(rs.getString("asset_accountableName"));
@@ -142,6 +143,7 @@ public class MaintenanceLedgerService {
             rs -> { dates.put(rs.getLong(1), rs.getDate(2).toLocalDate()); },
             records.stream().map(MaintenanceLedger::getId).toArray());
         records.forEach(r -> r.setCompletedDate(dates.get(r.getId())));
+        officeLookup.attach(records.stream().map(MaintenanceLedger::getAsset).toList());
         return records;
     }
 

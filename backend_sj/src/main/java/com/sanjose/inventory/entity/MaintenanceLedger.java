@@ -29,7 +29,7 @@ public class MaintenanceLedger {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "asset_id", nullable = false, columnDefinition = "INT")
-    @JsonIgnoreProperties({"category", "office", "accountablePerson", "remarks", "qrCodePath", "sha256Hash"})
+    @JsonIgnoreProperties({"category", "remarks", "qrCodePath", "sha256Hash"})
     private Asset asset;
 
     @Enumerated(EnumType.STRING)
