@@ -12,6 +12,7 @@ import 'two_factor_screen.dart';
 import 'connection_settings_screen.dart';
 import '../../../core/router/page_transitions.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/password_eye_button.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -306,11 +307,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               decoration: InputDecoration(
                                 hintText: 'Enter your password',
                                 prefixIcon: const Icon(Icons.lock_rounded),
-                                // a worded toggle, as on the web form - clearer than an eye icon
-                                suffixIcon: TextButton(
+                                // an animated eye, as on the web form
+                                suffixIcon: PasswordEyeButton(
+                                  obscured: _obscure,
+                                  color: c.textSecondary,
                                   onPressed: () => setState(() => _obscure = !_obscure),
-                                  style: TextButton.styleFrom(foregroundColor: c.textSecondary),
-                                  child: Text(_obscure ? 'Show' : 'Hide'),
                                 ),
                               ),
                               style: const TextStyle(fontSize: 16),

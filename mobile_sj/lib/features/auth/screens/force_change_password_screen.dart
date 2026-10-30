@@ -5,6 +5,7 @@ import '../../../core/api/api_exception.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/password_requirements.dart';
 import '../provider/auth_provider.dart';
+import '../../../shared/widgets/password_eye_button.dart';
 
 // Shown in place of the login screen when the backend reports mustChangePassword -
 // a fresh account or an admin-mediated reset. Re-collects the temp password (never
@@ -99,8 +100,8 @@ class _ForceChangePasswordScreenState extends ConsumerState<ForceChangePasswordS
                     decoration: InputDecoration(
                       labelText: 'New Password',
                       prefixIcon: const Icon(Icons.lock_outline_rounded),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                      suffixIcon: PasswordEyeButton(
+                        obscured: _obscure,
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),

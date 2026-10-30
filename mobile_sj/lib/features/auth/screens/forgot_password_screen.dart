@@ -4,6 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/widgets/password_requirements.dart';
 import '../data/auth_service.dart';
+import '../../../shared/widgets/password_eye_button.dart';
 
 enum _Step { request, confirm, done }
 
@@ -194,8 +195,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       decoration: InputDecoration(
                         labelText: 'New Password',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        suffixIcon: PasswordEyeButton(
+                          obscured: _obscure,
                           onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
