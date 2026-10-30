@@ -171,6 +171,8 @@ class _Body extends StatelessWidget {
         const SizedBox(height: 12),
         DetailSection(title: 'Maintenance Info', items: [
           DetailItem('Date', fmtDate(item.maintenanceDate)),
+          if (item.status == 'COMPLETED')
+            DetailItem('Completed', item.completedDate != null ? fmtDate(item.completedDate) : 'Not recorded'),
           DetailItem('Assigned To', item.assignedTo),
           DetailItem('Cost', item.cost != null ? fmtMoney(item.cost) : null),
           DetailItem('Recorded By', item.recordedBy.fullName),
@@ -182,9 +184,52 @@ class _Body extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SectionCard(
-          title: 'Actions Taken',
+          title: 'Particular (work done)',
           child: Text(item.actionsTaken, style: TextStyle(color: c.textSecondary, fontSize: 15, height: 1.5)),
         ),
+        if (item.items.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SectionCard(
+            title: 'Parts and labor',
+            child: Column(children: [
+              for (final line in item.items)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(line.particular, style: TextStyle(color: c.textPrimary, fontSize: 15)),
+                        Text(
+                          line.isPart
+                              ? '${line.quantity != null ? fmtQty(line.quantity!) : ''} ${line.unit ?? ''} × ${fmtMoney(line.unitCost)}'
+                                  '${line.additional ? ' · Additional part' : ''}'
+                              : 'Labor',
+                          style: TextStyle(color: c.textTertiary, fontSize: 13),
+                        ),
+                      ]),
+                    ),
+                    if (line.isPart && line.id != null)
+                      IconButton(
+                        tooltip: 'Photos of ${line.particular}',
+                        icon: const Icon(Icons.photo_camera_outlined, size: 20),
+                        onPressed: () => showEvidenceSheet(
+                          context,
+                          path: '/maintenance/${item.id}/photos',
+                          itemId: line.id,
+                          title: line.particular,
+                          subtitle: line.additional ? 'Additional part' : 'Damaged part',
+                          stages: [
+                            if (!line.additional) const ('BEFORE', 'Pre-maintenance'),
+                            const ('AFTER', 'Post-maintenance'),
+                          ],
+                        ),
+                      ),
+                    Text(fmtMoney(line.totalCost), style: TextStyle(color: c.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+            ]),
+          ),
+        ],
         const SizedBox(height: 12),
         _AiSummaryCard(maintenanceId: item.id),
       ],
@@ -277,3 +322,5 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
     );
   }
 }
+
+String fmtQty(double q) => q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toString();

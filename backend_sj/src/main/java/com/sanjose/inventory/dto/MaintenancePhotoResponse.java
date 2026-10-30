@@ -14,6 +14,8 @@ public class MaintenancePhotoResponse {
     private LocalDateTime uploadedAt;
     // BEFORE (pre-maintenance) or AFTER (post-maintenance); null for photos from before the split
     private String stage;
+    // the part (maintenance_items line) the photo shows; null for a photo of the whole record
+    private Long itemId;
 
     public static MaintenancePhotoResponse from(MaintenancePhoto photo) {
         MaintenancePhotoResponse r = new MaintenancePhotoResponse();

@@ -274,8 +274,17 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
       } else if (_staffMode) {
         // nothing to open
       } else if (becameRepairable && mounted) {
-        final records = await MaintenanceService().getByAsset(saved.id);
+        // the open record (the asset may have finished repairs before); there the damaged
+        // parts and their pre-maintenance photos are added
+        final records = (await MaintenanceService().getByAsset(saved.id))
+            .where((r) => r.status != 'COMPLETED' && r.isApproved)
+            .toList()
+          ..sort((a, b) => b.id.compareTo(a.id));
         if (records.isNotEmpty && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Maintenance record created. Add the damaged parts and their pre-maintenance photos.'),
+            behavior: SnackBarBehavior.floating,
+          ));
           await context.push('/maintenance/${records.first.id}/edit', extra: records.first);
         }
       } else if (becameUnserviceable && mounted) {
@@ -508,6 +517,19 @@ class _AssetFormScreenState extends ConsumerState<AssetFormScreen> {
                       (v) => setState(() => _condition = v!)),
                     if (_staffRequest != null && _lifecycleStatus == widget.asset?.lifecycleStatus)
                       _requestNotice(),
+                    if (_condition == 'REPAIRABLE' && _originalCondition != 'REPAIRABLE' && !_staffMode)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 14),
+                        child: Callout('A maintenance record will be created and opened after saving, so you can add photos of '
+                            'the damaged parts. Repairable is only for assets still within their useful life.'),
+                      ),
+                    if (_originalCondition == 'REPAIRABLE' && const ['NEW', 'GOOD', 'SERVICEABLE'].contains(_condition))
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 14),
+                        child: Callout('If the asset is under repair, complete its maintenance record instead (photos of the '
+                            'parts and the completion date). The asset then goes back to New, Good, or Serviceable by its age.',
+                            tone: CalloutTone.warning),
+                      ),
                     // Editing only - a new asset starts as Assigned. Staff can't transfer
                     // (an admin assigns), and Under Maintenance / Disposed become requests.
                     // Registered / Archived are never set by the system, so they aren't offered

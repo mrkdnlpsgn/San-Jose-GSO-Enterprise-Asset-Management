@@ -1,5 +1,6 @@
 package com.sanjose.inventory.service;
 
+import com.sanjose.inventory.config.AppTime;
 import com.sanjose.inventory.config.SpHelper;
 import com.sanjose.inventory.dto.MaintenanceItem;
 import com.sanjose.inventory.dto.MaintenanceLedgerRequest;
@@ -8,6 +9,7 @@ import com.sanjose.inventory.entity.Personnel;
 import com.sanjose.inventory.entity.MaintenanceLedger;
 import com.sanjose.inventory.entity.User;
 import com.sanjose.inventory.exception.ResourceNotFoundException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -17,6 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +37,20 @@ public class MaintenanceLedgerService {
     private final SseEmitterService sseEmitterService;
     private final AccessService accessService;
     private final MaintenanceItemService itemService;
+    private final MaintenancePhotoService photoService;
+
+    // The completion date is a plain column added here rather than in a migration script, so a
+    // hosted database gets it on the next deploy. Records completed before it existed have none.
+    @PostConstruct
+    void ensureCompletedDateColumn() {
+        Integer has = jdbcTemplate.queryForObject("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'maintenance_ledger' AND COLUMN_NAME = 'completed_date'
+            """, Integer.class);
+        if (has == null || has == 0) {
+            jdbcTemplate.execute("ALTER TABLE maintenance_ledger ADD COLUMN completed_date DATE NULL");
+        }
+    }
 
     private static final RowMapper<MaintenanceLedger> MAINT_MAPPER = (rs, rn) -> {
         MaintenanceLedger m = new MaintenanceLedger();
@@ -94,8 +114,8 @@ public class MaintenanceLedgerService {
 
     public List<MaintenanceLedger> findAll(String search, int page, int size,
                                             String maintenanceType, String status, Long officeId) {
-        return itemService.attach(jdbcTemplate.query("CALL sp_maintenance_list(?, ?, ?, ?, ?, ?)", MAINT_MAPPER,
-            search, size, page * size, maintenanceType, status, officeId));
+        return withCompletedDates(itemService.attach(jdbcTemplate.query("CALL sp_maintenance_list(?, ?, ?, ?, ?, ?)", MAINT_MAPPER,
+            search, size, page * size, maintenanceType, status, officeId)));
     }
 
     public long count(String search, String maintenanceType, String status, Long officeId) {
@@ -104,14 +124,25 @@ public class MaintenanceLedgerService {
     }
 
     public List<MaintenanceLedger> findByAsset(Long assetId) {
-        return itemService.attach(jdbcTemplate.query("CALL sp_maintenance_get_by_asset(?)", MAINT_MAPPER, assetId));
+        return withCompletedDates(itemService.attach(jdbcTemplate.query("CALL sp_maintenance_get_by_asset(?)", MAINT_MAPPER, assetId)));
     }
 
     public MaintenanceLedger findById(Long id) {
         List<MaintenanceLedger> list = jdbcTemplate.query(
             "CALL sp_maintenance_get_by_id(?)", MAINT_MAPPER, id);
         if (list.isEmpty()) throw new ResourceNotFoundException("Maintenance record not found: " + id);
-        return itemService.attach(list).get(0);
+        return withCompletedDates(itemService.attach(list)).get(0);
+    }
+
+    private List<MaintenanceLedger> withCompletedDates(List<MaintenanceLedger> records) {
+        if (records.isEmpty()) return records;
+        Map<Long, LocalDate> dates = new HashMap<>();
+        String marks = String.join(", ", Collections.nCopies(records.size(), "?"));
+        jdbcTemplate.query("SELECT maintenance_id, completed_date FROM maintenance_ledger WHERE completed_date IS NOT NULL AND maintenance_id IN (" + marks + ")",
+            rs -> { dates.put(rs.getLong(1), rs.getDate(2).toLocalDate()); },
+            records.stream().map(MaintenanceLedger::getId).toArray());
+        records.forEach(r -> r.setCompletedDate(dates.get(r.getId())));
+        return records;
     }
 
     public MaintenanceLedger create(MaintenanceLedgerRequest req) {
@@ -159,14 +190,14 @@ public class MaintenanceLedgerService {
 
     public MaintenanceLedger update(Long id, MaintenanceLedgerRequest req) {
         MaintenanceLedger current = findById(id);
-        if ("COMPLETED".equals(req.getStatus()) && current.getStatus() != MaintenanceLedger.MaintenanceStatus.COMPLETED) {
-            requireBeforeAndAfterPhotos(id);
-        }
         if (!accessService.isAdmin() && !"APPROVED".equals(current.getApprovalStatus())) {
             throw new IllegalStateException("REJECTED".equals(current.getApprovalStatus())
                 ? "This request was rejected by an administrator and can't be edited."
                 : "This request is waiting for an administrator's approval. It can be edited once approved.");
         }
+        boolean completed = "COMPLETED".equals(req.getStatus());
+        boolean completing = completed && current.getStatus() != MaintenanceLedger.MaintenanceStatus.COMPLETED;
+        LocalDate completedDate = completed ? completionDate(req, current) : null;
         List<MaintenanceItem> items = itemService.clean(req.getItems());
         jdbcTemplate.update("CALL sp_maintenance_update(?, ?, ?, ?, ?, ?, ?, ?)",
             id,
@@ -177,12 +208,28 @@ public class MaintenanceLedgerService {
             req.getMaintenanceDate(),
             costOf(items != null ? items : itemService.forRecord(id), req.getCost()),
             req.getStatus());
-        if (items != null) itemService.replace(id, items);
+        jdbcTemplate.update("UPDATE maintenance_ledger SET completed_date = ? WHERE maintenance_id = ?", completedDate, id);
+        List<Long> removedParts = items != null ? itemService.replace(id, items) : List.of();
+        // checked against the lines as saved, so new parts count; a failure undoes the save
+        if (completing) requireCompletionPhotos(id);
+        photoService.deleteForItems(removedParts);
         MaintenanceLedger saved = findById(id);
         auditLogService.log("MAINTENANCE_UPDATED", "Maintenance", id, "maintenance",
             "Updated maintenance for asset: " + (saved.getAsset() != null ? saved.getAsset().getPropertyNumber() : ""));
         sseEmitterService.emitMaintenance("UPDATED", saved.getId(), saved);
         return saved;
+    }
+
+    // The day the repair was finished: required on the web form; older app versions send none, so
+    // it is kept from before or taken as today. It can't be before the maintenance date or in the future.
+    private LocalDate completionDate(MaintenanceLedgerRequest req, MaintenanceLedger current) {
+        LocalDate date = req.getCompletedDate() != null ? req.getCompletedDate()
+            : current.getCompletedDate() != null ? current.getCompletedDate() : AppTime.today();
+        if (date.isAfter(AppTime.today())) throw new IllegalArgumentException("The completion date can't be in the future.");
+        if (req.getMaintenanceDate() != null && date.isBefore(req.getMaintenanceDate())) {
+            throw new IllegalArgumentException("The completion date can't be before the maintenance date.");
+        }
+        return date;
     }
 
     public void delete(Long id, String deleteReason) {
@@ -244,18 +291,39 @@ public class MaintenanceLedgerService {
         return saved;
     }
 
-    // A repair is marked Completed only with its evidence: at least one pre-maintenance photo (the
-    // asset as found) and one post-maintenance photo (the finished work). Records completed by the
-    // system (a condition change closing open maintenance) and ones already completed aren't held to it.
-    private void requireBeforeAndAfterPhotos(Long id) {
-        Map<String, Integer> counts = new java.util.HashMap<>();
-        jdbcTemplate.query("SELECT stage, COUNT(*) FROM maintenance_photos WHERE maintenance_id = ? AND stage IS NOT NULL GROUP BY stage",
-            rs -> { counts.put(rs.getString(1), rs.getInt(2)); }, id);
-        boolean before = counts.getOrDefault("BEFORE", 0) > 0, after = counts.getOrDefault("AFTER", 0) > 0;
-        if (!before || !after) {
-            String missing = !before && !after ? "a pre-maintenance and a post-maintenance photo"
-                : !before ? "a pre-maintenance photo" : "a post-maintenance photo";
-            throw new IllegalArgumentException("Add " + missing + " before marking this repair Completed (Photos).");
+    // A repair is marked Completed only with its evidence. When the record lists parts, each part
+    // needs a pre-maintenance photo (the damaged part as found) and a post-maintenance photo (the
+    // part that replaced it); an additional part, found needed during the repair, only the second.
+    // A record without parts needs at least one pre- and one post-maintenance photo of the asset.
+    // Records completed by the system (a condition change closing open maintenance) and ones already
+    // completed aren't held to it.
+    private void requireCompletionPhotos(Long id) {
+        List<MaintenanceItem> parts = itemService.forRecord(id).stream().filter(i -> !"LABOR".equals(i.kind())).toList();
+        Map<String, Integer> counts = new HashMap<>();
+        jdbcTemplate.query("SELECT COALESCE(item_id, 0), stage, COUNT(*) FROM maintenance_photos WHERE maintenance_id = ? AND stage IS NOT NULL GROUP BY 1, 2",
+            rs -> { counts.put(rs.getLong(1) + ":" + rs.getString(2), rs.getInt(3)); }, id);
+
+        if (parts.isEmpty()) {
+            boolean before = counts.keySet().stream().anyMatch(k -> k.endsWith(":BEFORE"));
+            boolean after = counts.keySet().stream().anyMatch(k -> k.endsWith(":AFTER"));
+            if (!before || !after) {
+                String missing = !before && !after ? "a pre-maintenance and a post-maintenance photo"
+                    : !before ? "a pre-maintenance photo" : "a post-maintenance photo";
+                throw new IllegalArgumentException("Add " + missing + " before marking this repair Completed (Photos).");
+            }
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        for (MaintenanceItem p : parts) {
+            boolean before = Boolean.TRUE.equals(p.additional()) || counts.containsKey(p.id() + ":BEFORE");
+            boolean after = counts.containsKey(p.id() + ":AFTER");
+            if (!before || !after) {
+                missing.add(p.particular() + " (" + (!before && !after ? "pre- and post-maintenance" : !before ? "pre-maintenance" : "post-maintenance") + ")");
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException("Add the photos missing for these parts before marking the repair Completed: "
+                + String.join(", ", missing) + ".");
         }
     }
 

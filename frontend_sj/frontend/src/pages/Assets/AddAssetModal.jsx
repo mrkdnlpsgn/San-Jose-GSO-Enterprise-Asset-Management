@@ -294,7 +294,9 @@ export default function AddAssetModal({ onClose, onSave, initial = null, categor
     : form.condition === 'REPAIRABLE'
     ? { color: 'amber', text: staffMode
         ? 'A maintenance request will be sent to an administrator. The asset keeps its current condition and status until approved.'
-        : 'A maintenance ledger record will be automatically created.' }
+        : 'A maintenance record will be created and opened after saving, so you can add photos of the damaged parts. Repairable is only for assets still within their useful life.' }
+    : isEditing && initial.condition === 'REPAIRABLE' && ['NEW', 'GOOD', 'SERVICEABLE'].includes(form.condition)
+    ? { color: 'amber', text: 'If the asset is under repair, complete its maintenance record instead (photos of the parts and the completion date). The asset then goes back to New, Good, or Serviceable by its age.' }
     : form.condition === 'UNSERVICEABLE'
     ? { color: 'red',   text: staffMode
         ? 'A disposal request will be sent to an administrator. The asset keeps its current condition and status until approved.'

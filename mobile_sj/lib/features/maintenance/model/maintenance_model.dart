@@ -14,6 +14,44 @@ class MaintenanceUserModel {
       );
 }
 
+/// A parts or labor line, as on the GSO's Repair and Maintenance Card. kind: PART | LABOR.
+/// A part's photos are tied to its id; an additional part (found needed during the repair)
+/// has no pre-maintenance photo.
+class MaintenanceItemModel {
+  final int? id;
+  final String kind;
+  final String particular;
+  final String? unit;
+  final double? quantity;
+  final double? unitCost;
+  final double totalCost;
+  final bool additional;
+
+  const MaintenanceItemModel({
+    this.id,
+    required this.kind,
+    required this.particular,
+    this.unit,
+    this.quantity,
+    this.unitCost,
+    required this.totalCost,
+    this.additional = false,
+  });
+
+  bool get isPart => kind != 'LABOR';
+
+  factory MaintenanceItemModel.fromJson(Map<String, dynamic> json) => MaintenanceItemModel(
+        id: (json['id'] as num?)?.toInt(),
+        kind: json['kind'] as String? ?? 'PART',
+        particular: json['particular'] as String? ?? '',
+        unit: json['unit'] as String?,
+        quantity: (json['quantity'] as num?)?.toDouble(),
+        unitCost: (json['unitCost'] as num?)?.toDouble(),
+        totalCost: (json['totalCost'] as num?)?.toDouble() ?? 0,
+        additional: json['additional'] as bool? ?? false,
+      );
+}
+
 class MaintenanceModel {
   final int id;
   final AssetModel asset;
@@ -24,6 +62,9 @@ class MaintenanceModel {
   final String maintenanceDate;
   final double? cost;
   final String status;           // COMPLETED | ONGOING | SCHEDULED
+  // the day the repair was finished (records completed before it was asked for have none)
+  final String? completedDate;
+  final List<MaintenanceItemModel> items;
   final MaintenanceUserModel recordedBy;
   final String createdAt;
   final String? updatedAt;
@@ -44,6 +85,8 @@ class MaintenanceModel {
     required this.maintenanceDate,
     this.cost,
     required this.status,
+    this.completedDate,
+    this.items = const [],
     required this.recordedBy,
     required this.createdAt,
     this.updatedAt,
@@ -62,6 +105,11 @@ class MaintenanceModel {
         maintenanceDate: json['maintenanceDate'] as String,
         cost: json['cost'] != null ? (json['cost'] as num).toDouble() : null,
         status: json['status'] as String,
+        completedDate: json['completedDate'] as String?,
+        items: [
+          for (final i in (json['items'] as List? ?? const []))
+            MaintenanceItemModel.fromJson(Map<String, dynamic>.from(i as Map)),
+        ],
         recordedBy: MaintenanceUserModel.fromJson(json['recordedBy'] as Map<String, dynamic>),
         createdAt: json['createdAt'] as String,
         updatedAt: json['updatedAt'] as String?,

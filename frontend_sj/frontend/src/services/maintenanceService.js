@@ -13,9 +13,12 @@ export const updateMaintenance     = (id, data)  => api.put(`/maintenance/${id}`
 export const deleteMaintenance     = (id, body)  => api.delete(`/maintenance/${id}`, { data: body });
 
 export const getMaintenancePhotos    = (id)       => api.get(`/maintenance/${id}/photos`);
-export const uploadMaintenancePhoto  = (id, file) => {
+// stage: BEFORE | AFTER; itemId: the part the photo shows (omit for a photo of the whole record)
+export const uploadMaintenancePhoto  = (id, file, { stage, itemId } = {}) => {
   const formData = new FormData();
   formData.append('file', file);
+  if (stage) formData.append('stage', stage);
+  if (itemId) formData.append('itemId', itemId);
   return api.post(`/maintenance/${id}/photos`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
 };
 export const deleteMaintenancePhoto  = (id, photoId) => api.delete(`/maintenance/${id}/photos/${photoId}`);

@@ -19,13 +19,16 @@ const _maxBytes = 10 * 1024 * 1024; // matches the backend's 10 MB limit
 /// tap a photo to view it full-size, and remove one with the ✕.
 /// `path` is the record's photo endpoint (see [EvidenceService]). `stages` splits the photos, e.g.
 /// a maintenance record's pre- and post-maintenance photos: a switch picks which ones are shown and
-/// where new photos go. Photos from before the split show under "Other".
+/// where new photos go. Photos from before the split show under "Other". [itemId] shows and adds
+/// the photos of one part of a maintenance record.
 Future<void> showEvidenceSheet(
   BuildContext context, {
   required String path,
   required String title,
   String? subtitle,
   List<(String, String)>? stages,
+  int? itemId,
+  String? initialStage,
 }) {
   return showModalBottomSheet<void>(
     useRootNavigator: true, // above the bottom bar, not behind it
@@ -35,7 +38,8 @@ Future<void> showEvidenceSheet(
     showDragHandle: true,
     builder: (_) => FractionallySizedBox(
       heightFactor: 0.85,
-      child: _EvidenceSheet(service: EvidenceService(path), title: title, subtitle: subtitle, stages: stages),
+      child: _EvidenceSheet(service: EvidenceService(path, itemId: itemId), title: title, subtitle: subtitle,
+          stages: stages, initialStage: initialStage),
     ),
   );
 }
@@ -45,8 +49,9 @@ class _EvidenceSheet extends ConsumerStatefulWidget {
   final String title;
   final String? subtitle;
   final List<(String, String)>? stages;
+  final String? initialStage;
 
-  const _EvidenceSheet({required this.service, required this.title, this.subtitle, this.stages});
+  const _EvidenceSheet({required this.service, required this.title, this.subtitle, this.stages, this.initialStage});
 
   @override
   ConsumerState<_EvidenceSheet> createState() => _EvidenceSheetState();
@@ -57,7 +62,7 @@ class _EvidenceSheetState extends ConsumerState<_EvidenceSheet> {
   Object? _error;
   bool _uploading = false;
   // the stage shown and uploaded to; '' is "Other" (photos with no stage, no uploads)
-  late String? _stage = widget.stages?.first.$1;
+  late String? _stage = widget.initialStage ?? widget.stages?.first.$1;
   bool get _canUpload => widget.stages == null || (_stage?.isNotEmpty ?? false);
   String get _uploadPath => widget.service.uploadPath(widget.stages == null ? null : _stage);
 

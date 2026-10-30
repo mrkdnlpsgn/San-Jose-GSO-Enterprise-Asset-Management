@@ -58,6 +58,11 @@ public class MaintenanceLedger {
     @Column(name = "maintenance_date", nullable = false)
     private LocalDate maintenanceDate;
 
+    // The day the repair was finished; set when the record is marked COMPLETED. A plain column
+    // added at startup (MaintenanceLedgerService), read separately like the parts and labor.
+    @Transient
+    private LocalDate completedDate;
+
     @Column(precision = 10, scale = 2)
     private BigDecimal cost;
 

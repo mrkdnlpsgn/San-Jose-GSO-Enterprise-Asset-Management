@@ -101,6 +101,22 @@ function Maintenance() {
     if (assetId) setAssetFilter(assetId)
   }, [location.search])
 
+  // ?repair=<assetId>: an asset just flagged repairable. Opens its open maintenance record for
+  // editing, to add the damaged parts and their pre-maintenance photos.
+  useEffect(() => {
+    const assetId = new URLSearchParams(location.search).get('repair')
+    if (!assetId) return
+    navigate('/maintenance', { replace: true })
+    getMaintenanceByAsset(assetId)
+      .then(({ data }) => {
+        const open = data.filter((r) => r.status !== 'COMPLETED' && r.approvalStatus === 'APPROVED')
+          .sort((a, b) => b.id - a.id)[0]
+        if (open) setEditing(open)
+        else toast.show('No open maintenance record was found for this asset.', 'error')
+      })
+      .catch(() => toast.show('Could not open the maintenance record.', 'error'))
+  }, [location.search, navigate, toast])
+
   const fetchRecords = useCallback(async (q = '', { silent = false } = {}) => {
     if (!silent) setLoading(true)
     try {
@@ -143,11 +159,12 @@ function Maintenance() {
     setViewing((v) => (v?.id === data.id ? data : v))
   })
 
+  // The form may save more than once (a completed repair saves, uploads the new parts' photos,
+  // then saves as Completed), so it closes itself when done.
   const handleUpdate = async (payload) => {
     const { data } = await updateMaintenance(editing.id, payload)
     upsert(data)
-    setEditing(null)
-    toast.show('Record updated.', 'success')
+    return data
   }
 
   const handleDelete = async () => {
@@ -271,6 +288,7 @@ function Maintenance() {
           <DetailGrid>
             <DetailSection title="Maintenance">
               <DetailField label="Date" value={fmtDate(v.maintenanceDate)} />
+              {v.status === 'COMPLETED' && <DetailField label="Completed" value={v.completedDate ? fmtDate(v.completedDate) : 'Not recorded'} />}
               <DetailField label="Assigned to" value={personName(v.assignedTo)} />
               <DetailField label="Cost" value={fmtPeso(v.cost)} />
               <DetailField label="Recorded" value={`${fmtDate(v.createdAt)} · updated ${fmtDate(v.updatedAt)}`} />
@@ -300,7 +318,8 @@ function Maintenance() {
         </DetailModal>
       )}
 
-      {editing  && <AddMaintenanceModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate} assets={assets} users={users} />}
+      {editing  && <AddMaintenanceModal initial={editing} onClose={() => setEditing(null)} onSave={handleUpdate}
+        onSaved={() => toast.show('Record updated.', 'success')} assets={assets} users={users} />}
       {viewingEvidence && <EvidenceModal record={viewingEvidence} onClose={() => setViewingEvidence(null)} />}
       {rejecting && (
         <RejectRequestModal

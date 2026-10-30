@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useEventStream } from '../../hooks/useEventStream'
@@ -95,6 +95,7 @@ function Assets() {
   const dispatch = useDispatch()
   const isAdmin  = useSelector((s) => s.auth.user?.role === 'ADMIN')
   const toast    = useToast()
+  const navigate = useNavigate()
   const location = useLocation()
   const highlight = useHighlight()   // assets a notification pointed to
 
@@ -241,10 +242,17 @@ function Assets() {
     setItems((prev) => (prev.some((a) => a.id === data.id) ? prev.map((a) => (a.id === data.id ? data : a)) : [data, ...prev]))
     dispatch(addAsset(data))
     toast.show('Asset created.', 'success')
-    if (data.condition === 'REPAIRABLE')    toast.show('Maintenance record auto-created.', 'info')
     if (data.condition === 'UNSERVICEABLE') toast.show('Disposal record auto-created.', 'info')
+    if (data.condition === 'REPAIRABLE') { openRepair(data); return }
     // Completes the scan → review → QR flow - manual entry keeps today's behavior.
     if (wasScanned) setQrAsset(data)
+  }
+
+  // An asset just flagged repairable goes straight to its maintenance record, where the
+  // pre-maintenance photos of the damaged parts are added.
+  const openRepair = (asset) => {
+    toast.show('Maintenance record created. Add the damaged parts and their pre-maintenance photos.', 'info')
+    navigate(`/maintenance?repair=${asset.id}`)
   }
 
   const handleUpdate = async (payload) => {
@@ -252,10 +260,12 @@ function Assets() {
     setItems((prev) => prev.map((a) => (a.id === data.id ? data : a)))
     dispatch(updateAsset(data))
     if (selected?.id === data.id) setSelected(data)
+    const flaggedRepairable = data.condition === 'REPAIRABLE' && editing.condition !== 'REPAIRABLE'
     setEditing(null)
     toast.show(data.pendingRequest
       ? `Asset updated. ${data.pendingRequest === 'MAINTENANCE' ? 'Maintenance' : 'Disposal'} request sent. An administrator needs to approve it.`
       : 'Asset updated.', 'success')
+    if (flaggedRepairable && !data.pendingRequest) openRepair(data)
   }
 
   const handleDelete = async () => {

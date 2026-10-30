@@ -13,6 +13,8 @@ class EvidencePhoto {
   /// Maintenance photos: BEFORE (pre-maintenance) or AFTER (post-maintenance); null otherwise,
   /// and for photos from before the split.
   final String? stage;
+  /// Maintenance photos of one part: the parts/labor line's id; null for photos of the whole record.
+  final int? itemId;
 
   const EvidencePhoto({
     required this.id,
@@ -22,6 +24,7 @@ class EvidencePhoto {
     this.uploadedByName,
     this.uploadedAt,
     this.stage,
+    this.itemId,
   });
 
   factory EvidencePhoto.fromJson(Map<String, dynamic> json) => EvidencePhoto(
@@ -32,6 +35,7 @@ class EvidencePhoto {
         uploadedByName: json['uploadedByName'] as String?,
         uploadedAt: json['uploadedAt'] as String?,
         stage: json['stage'] as String?,
+        itemId: (json['itemId'] as num?)?.toInt(),
       );
 
   /// Full URL for Image.network - uploads are served from the backend root, outside /api.
@@ -44,16 +48,19 @@ class EvidencePhoto {
 /// Evidence photos of one record. `path` is that record's photo endpoint, e.g.
 /// /maintenance/5/photos, /assets/5/evidence or /disposal/5/evidence:
 /// GET lists, POST uploads a `file`, DELETE {path}/{photoId} removes one.
+/// [itemId] narrows a maintenance record's photos to one of its parts.
 class EvidenceService {
   final String path;
+  final int? itemId;
   final Dio _dio = ApiClient.instance.dio;
 
-  EvidenceService(this.path);
+  EvidenceService(this.path, {this.itemId});
 
   Future<List<EvidencePhoto>> list() async {
     try {
       final res = await _dio.get(path);
-      return (res.data as List).map((e) => EvidencePhoto.fromJson(e as Map<String, dynamic>)).toList();
+      final all = (res.data as List).map((e) => EvidencePhoto.fromJson(e as Map<String, dynamic>));
+      return (itemId == null ? all : all.where((p) => p.itemId == itemId)).toList();
     } catch (e) {
       throw ApiException.from(e);
     }
@@ -70,9 +77,12 @@ class EvidenceService {
     };
   }
 
-  /// Where a photo goes: the stage rides on the address (?stage=BEFORE), so a photo kept on the
-  /// phone until it is back online keeps its stage too.
-  String uploadPath(String? stage) => stage == null ? path : '$path?stage=$stage';
+  /// Where a photo goes: the stage and the part ride on the address (?stage=BEFORE&itemId=12), so
+  /// a photo kept on the phone until it is back online keeps them too.
+  String uploadPath(String? stage) {
+    final query = [if (stage != null) 'stage=$stage', if (itemId != null) 'itemId=$itemId'];
+    return query.isEmpty ? path : '$path?${query.join('&')}';
+  }
 
   Future<EvidencePhoto> upload(String filePath, String filename, {String? stage}) async {
     try {

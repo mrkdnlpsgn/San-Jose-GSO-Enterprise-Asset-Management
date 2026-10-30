@@ -242,6 +242,7 @@ public class AssetController {
         accessService.requireAssetAccess(id);
         if (accessService.isAdmin()) return assetService.update(id, req);
         StaffRequest requested = limitStaffEdit(id, req);
+        if (requested != null && "REPAIRABLE".equals(requested.condition())) assetService.requireLifeLeftForRepair(id);
         Asset result = assetService.update(id, req);
         return withRequest(id, requested, result);
     }
@@ -253,6 +254,7 @@ public class AssetController {
         if (accessService.isAdmin()) return assetService.updateStatus(id, body.get("condition"), body.get("lifecycleStatus"));
         Asset before = assetService.findById(id);
         StaffRequest requested = staffRequest(before, body.get("condition"), body.get("lifecycleStatus"));
+        if (requested != null && "REPAIRABLE".equals(requested.condition())) assetService.requireLifeLeftForRepair(id);
         String condition = requested != null ? name(before.getCondition()) : body.get("condition");
         String lifecycle = requested != null ? name(before.getLifecycleStatus()) : body.get("lifecycleStatus");
         Asset result = assetService.updateStatus(id, condition, lifecycle);

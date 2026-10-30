@@ -89,9 +89,14 @@ public class MaintenanceLedgerController {
     // A repair costing more than the asset makes it unserviceable, or sends it to the Recovery
     // records once its useful life is used up (AssetService.applyRepairCostRule). A staff request
     // only counts once an administrator approves it.
+    // A completed repair that is worth making puts a repairable asset back in service, with the
+    // working condition its age gives it (AssetService.returnToService).
     private MaintenanceLedger checkRepairCost(MaintenanceLedger saved) {
         if (saved.getAsset() != null && "APPROVED".equals(saved.getApprovalStatus())) {
-            assetService.applyRepairCostRule(saved.getAsset().getId(), saved.getCost());
+            String done = assetService.applyRepairCostRule(saved.getAsset().getId(), saved.getCost());
+            if (done == null && saved.getStatus() == MaintenanceLedger.MaintenanceStatus.COMPLETED) {
+                assetService.returnToService(saved.getAsset().getId());
+            }
         }
         return saved;
     }
@@ -121,9 +126,10 @@ public class MaintenanceLedgerController {
 
     @PostMapping("/{id}/photos")
     public MaintenancePhotoResponse uploadPhoto(@PathVariable Long id, @RequestParam("file") MultipartFile file,
-                                                @RequestParam(value = "stage", required = false) String stage) {
+                                                @RequestParam(value = "stage", required = false) String stage,
+                                                @RequestParam(value = "itemId", required = false) Long itemId) {
         accessService.requireMaintenanceAccess(id);
-        return maintenancePhotoService.upload(id, file, stage);
+        return maintenancePhotoService.upload(id, file, stage, itemId);
     }
 
     @DeleteMapping("/{id}/photos/{photoId}")

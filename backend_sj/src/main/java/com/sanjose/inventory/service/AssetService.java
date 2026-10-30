@@ -163,6 +163,9 @@ public class AssetService {
     public Asset create(AssetRequest req) { return createAll(req).get(0); }
 
     private Asset createOne(AssetRequest req, String groupId) {
+        if ("REPAIRABLE".equalsIgnoreCase(req.getCondition())) {
+            requireLifeLeftForRepair(req.getCategoryId(), req.getAcquisitionDate(), AppTime.today());
+        }
         Long newId = SpHelper.callWithOutLong(jdbcTemplate,
             "CALL sp_assets_create(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             req.getPropertyNumber(), req.getParNumber(), req.getSerialNumber(), req.getDescription(),
@@ -519,6 +522,8 @@ public class AssetService {
         Asset before = findById(id);
         String cond = parseEnum(Asset.AssetCondition.class, condition, "Condition");
         String life = parseEnum(Asset.LifecycleStatus.class, lifecycleStatus, "Lifecycle status");
+        checkConditionChange(before, cond,
+            before.getCategory() != null ? before.getCategory().getId() : null, before.getAcquisitionDate());
 
         jdbcTemplate.update("CALL sp_assets_update_status(?, ?, ?)", id, cond, life);
 
@@ -544,6 +549,7 @@ public class AssetService {
 
     private Asset updateOne(Long id, Asset before, AssetRequest req, String groupId) {
         Asset.AssetCondition oldCondition = before.getCondition();
+        checkConditionChange(before, req.getCondition(), req.getCategoryId(), req.getAcquisitionDate());
         Long oldOfficeId = before.getOffice() != null ? before.getOffice().getId() : null;
         // A new property number needs a new sticker, so it gets a new QR signature; otherwise the
         // current one is kept. Whatever the client sent is ignored.
@@ -732,14 +738,81 @@ public class AssetService {
 
     private boolean applyAge(Long assetId, String condition, Number years) {
         if (years == null) return false;
-        String target = years.intValue() >= SERVICEABLE_AFTER_YEARS ? "SERVICEABLE"
-            : years.intValue() >= GOOD_AFTER_YEARS ? "GOOD" : condition;
+        String target = years.intValue() >= GOOD_AFTER_YEARS ? byAge(years.intValue()) : condition;
         if (target.equals(condition)) return false;
         // a routine step every asset takes, so it isn't written to the asset's history
         jdbcTemplate.update("UPDATE assets SET `condition` = ? WHERE asset_id = ?", target, assetId);
         sseEmitterService.emitAsset("UPDATED", assetId, null);
         return true;
     }
+
+    private static String byAge(int years) {
+        return years >= SERVICEABLE_AFTER_YEARS ? "SERVICEABLE" : years >= GOOD_AFTER_YEARS ? "GOOD" : "NEW";
+    }
+
+    // A finished repair puts a REPAIRABLE asset back in service once none of its maintenance is
+    // still open: it takes the working condition its age gives it (NEW under GOOD_AFTER_YEARS, GOOD
+    // under SERVICEABLE_AFTER_YEARS, SERVICEABLE after) and is assigned again. Returns whether it did.
+    public boolean returnToService(Long assetId) {
+        Asset asset = findById(assetId);
+        if (asset.getCondition() != Asset.AssetCondition.REPAIRABLE || hasOpenMaintenance(assetId)) return false;
+        Number years = jdbcTemplate.queryForObject(
+            "SELECT TIMESTAMPDIFF(YEAR, COALESCE(acquisition_date, DATE(created_at)), ?) FROM assets WHERE asset_id = ?",
+            Number.class, Date.valueOf(AppTime.today()), assetId);
+        String condition = byAge(years != null ? years.intValue() : 0);
+        jdbcTemplate.update("UPDATE assets SET `condition` = ? WHERE asset_id = ?", condition, assetId);
+        jdbcTemplate.update("CALL sp_assets_update_lifecycle(?, ?)", assetId, "ASSIGNED");
+        Long recorderId = getUserIdByUsername(SecurityContextHolder.getContext().getAuthentication().getName());
+        String label = condition.charAt(0) + condition.substring(1).toLowerCase();
+        assetHistoryService.logEvent(assetId, "MAINTENANCE", null, null, recorderId,
+            "Repair completed, asset back in service as " + label);
+        auditLogService.log("ASSET_UPDATED", "Assets", assetId, "asset",
+            "Repair completed: " + asset.getPropertyNumber() + " is back in service as " + label);
+        Asset result = findById(assetId);
+        sseEmitterService.emitAsset("UPDATED", result.getId(), result);
+        return true;
+    }
+
+    // Repairable means damaged but still within its useful life (its category's useful life,
+    // counted from the acquisition date, or the date it was added). Past that, a damaged asset is
+    // unserviceable. A category with no useful life set counts as having life left.
+    public void requireLifeLeftForRepair(Long categoryId, LocalDate acquired, LocalDate added) {
+        if (categoryId == null) return;
+        List<Integer> life = jdbcTemplate.queryForList(
+            "SELECT useful_life_years FROM categories WHERE category_id = ?", Integer.class, categoryId);
+        LocalDate from = acquired != null ? acquired : added;
+        if (life.isEmpty() || life.get(0) == null || from == null) return;
+        if (!from.plusYears(life.get(0)).isAfter(AppTime.today())) {
+            throw new IllegalArgumentException("This asset is past its useful life of " + life.get(0)
+                + " years, so it can't be marked Repairable. Mark it Unserviceable instead.");
+        }
+    }
+
+    public void requireLifeLeftForRepair(Long assetId) {
+        Asset asset = findById(assetId);
+        if (asset.getCondition() == Asset.AssetCondition.REPAIRABLE) return;
+        requireLifeLeftForRepair(asset.getCategory() != null ? asset.getCategory().getId() : null,
+            asset.getAcquisitionDate(), asset.getCreatedAt() != null ? asset.getCreatedAt().toLocalDate() : null);
+    }
+
+    // Checks a condition change before it is saved. Becoming REPAIRABLE needs useful life left. A
+    // REPAIRABLE asset under repair gets back to NEW / GOOD / SERVICEABLE by completing its
+    // maintenance record (with the parts' photos and the completion date), not from here.
+    private void checkConditionChange(Asset before, String condition, Long categoryId, LocalDate acquired) {
+        if (condition == null || condition.isBlank()) return;
+        String to = condition.trim().toUpperCase();
+        if (to.equals(name(before.getCondition()))) return;
+        if ("REPAIRABLE".equals(to)) {
+            requireLifeLeftForRepair(categoryId, acquired,
+                before.getCreatedAt() != null ? before.getCreatedAt().toLocalDate() : null);
+        } else if (before.getCondition() == Asset.AssetCondition.REPAIRABLE
+                && Set.of("NEW", "GOOD", "SERVICEABLE").contains(to) && hasOpenMaintenance(before.getId())) {
+            throw new IllegalArgumentException("This asset is under repair. Complete its maintenance record "
+                + "(photos of the parts and the completion date) to put it back in service.");
+        }
+    }
+
+    private static String name(Enum<?> e) { return e != null ? e.name() : null; }
 
     // A repair that costs more than the asset itself isn't worth making. While the asset still
     // has useful life left (its category's useful life, counted from the date it was added to the
@@ -795,9 +868,9 @@ public class AssetService {
     // Returns whether any record was closed.
     private boolean closeOpenMaintenance(Long assetId, int byUserId, String note) {
         int closed = jdbcTemplate.update(
-            "UPDATE maintenance_ledger SET status = 'COMPLETED', actions_taken = CONCAT(actions_taken, '\\n', ?) "
+            "UPDATE maintenance_ledger SET status = 'COMPLETED', completed_date = ?, actions_taken = CONCAT(actions_taken, '\\n', ?) "
                 + "WHERE asset_id = ? AND is_deleted = 0 AND approval_status = 'APPROVED' AND status <> 'COMPLETED'",
-            note + " (" + AppTime.today() + ")", assetId);
+            Date.valueOf(AppTime.today()), note + " (" + AppTime.today() + ")", assetId);
         withdrawPendingRequests("maintenance_ledger", assetId, byUserId, note);
         return closed > 0;
     }

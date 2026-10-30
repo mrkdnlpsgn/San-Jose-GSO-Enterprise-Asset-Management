@@ -14,6 +14,8 @@ public class MaintenanceLedgerRequest {
     private LocalDate maintenanceDate;
     private BigDecimal cost;
     private String status; // COMPLETED | ONGOING | SCHEDULED
+    // The day the repair was finished, when status is COMPLETED (older app versions send none: today)
+    private LocalDate completedDate;
     // Parts and labor lines; when there are any, the cost is their sum. null keeps a record's
     // lines as they are (older app versions don't send them).
     private java.util.List<MaintenanceItem> items;
