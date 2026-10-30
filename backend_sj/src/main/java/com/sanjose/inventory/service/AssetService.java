@@ -46,6 +46,7 @@ public class AssetService {
     private final AssetQrService assetQrService;
     private final ArticleService articleService;
     private final PropertyNumberService propertyNumberService;
+    private final AssetAddedNotifier assetAddedNotifier;
 
     // A column a database with older copies of the procedures may not return yet.
     private static Integer optionalInt(java.sql.ResultSet rs, String column) {
@@ -153,6 +154,12 @@ public class AssetService {
     // Registers exactly one asset. Property Number, PAR Number, and Serial Number
     // (when given) must each be unique across every other asset - see resolveDevices.
     public List<Asset> createAll(AssetRequest req) {
+        List<Asset> created = createDevices(req);
+        assetAddedNotifier.notifyAdded(created);
+        return created;
+    }
+
+    private List<Asset> createDevices(AssetRequest req) {
         List<AssetRequest> devices = resolveDevices(req, null);
         List<Asset> created = new ArrayList<>();
         for (AssetRequest device : devices) created.add(createOne(device, null));
@@ -211,7 +218,7 @@ public class AssetService {
 
         for (AssetImportRow row : rows) {
             try {
-                saved.addAll(createAll(toAssetRequest(row)));
+                saved.addAll(createDevices(toAssetRequest(row)));
             } catch (Exception e) {
                 Map<String, Object> failure = new LinkedHashMap<>();
                 failure.put("row", row);
@@ -220,6 +227,8 @@ public class AssetService {
             }
         }
 
+        // one email per office for the whole import, not one per row
+        assetAddedNotifier.notifyAdded(saved);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("saved", saved);
         result.put("failed", failed);
