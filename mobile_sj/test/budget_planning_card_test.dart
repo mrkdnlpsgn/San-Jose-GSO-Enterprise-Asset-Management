@@ -162,13 +162,19 @@ void main() {
     expect(find.textContaining('Costs most to keep running: Motor Vehicle'), findsOneWidget);
 
     // the check against past years opens to show each year
-    expect(find.textContaining('this method was off by about 21.3% on average', findRichText: true), findsOneWidget);
+    expect(find.textContaining('this estimate was off by about 21.3% on average', findRichText: true), findsOneWidget);
     expect(find.text('2024: 23.3% too low'), findsNothing);
-    await tester.ensureVisible(find.textContaining('this method was off by about', findRichText: true));
-    await tester.tap(find.textContaining('this method was off by about', findRichText: true));
+    await tester.ensureVisible(find.textContaining('this estimate was off by about', findRichText: true));
+    await tester.tap(find.textContaining('this estimate was off by about', findRichText: true));
     await tester.pumpAndSettle();
     expect(find.text('2024: 23.3% too low'), findsOneWidget);
     expect(find.text('Estimate ₱1.6 million, actual ₱2.1 million'), findsOneWidget);
+
+    // decision support: what the forecasts point to, each with its source
+    expect(find.text('Recommended actions'), findsOneWidget);
+    expect(find.textContaining('Schedule check-ups for the 43 assets the AI rates very likely to need repair'), findsOneWidget);
+    expect(find.textContaining('Set aside about ₱2.3 million for repairs and maintenance in 2027'), findsOneWidget);
+    expect(find.text('Based on: AI repair forecast (machine learning).'), findsOneWidget);
 
     // the machine-learning repair risk, in plain words, with how it was tested
     expect(find.text('AI forecast: assets likely to need repair this coming year'), findsOneWidget);
@@ -180,8 +186,9 @@ void main() {
     await tester.tap(find.text('How does the system know?'));
     await tester.pumpAndSettle();
     expect(find.textContaining('it had named 46 in advance. Guessing would name only 8.', findRichText: true), findsOneWidget);
-    await tester.ensureVisible(find.text('See the list'));
-    await tester.tap(find.text('See the list'));
+    // the recommended actions at the top link to the same list; this is the AI panel's own button
+    await tester.ensureVisible(find.text('See the list').last);
+    await tester.tap(find.text('See the list').last);
     await tester.pumpAndSettle();
     expect(find.text('opened repairrisk'), findsOneWidget);
     router.pop();

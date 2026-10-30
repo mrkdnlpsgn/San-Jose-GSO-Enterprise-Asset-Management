@@ -380,7 +380,8 @@ function PriceIncreaseRow({ percent, canEdit, onSaved }) {
     <form onSubmit={save} noValidate className="rounded-lg border border-slate-300 dark:border-zinc-700 px-4 py-3.5 space-y-2.5 animate-fade-in">
       <label htmlFor="bp-rate" className="block text-base font-semibold text-slate-900 dark:text-white">Yearly price increase</label>
       <p className="text-sm text-slate-700 dark:text-zinc-300">
-        Used for the replacement and repairs estimates. 3% is the middle of the BSP's 2% to 4% inflation target; use the Budget Office's rate if it gives one.
+        Used for the replacement estimates. 3% is the middle of the BSP's 2% to 4% inflation target; use the Budget Office's rate if it gives one.
+        The repairs estimate follows past spending, which already includes price increases.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
@@ -412,6 +413,64 @@ const TREND_TEXT = {
 }
 
 // canEditCategories: an administrator (sets the expected years of use and the price increase)
+// Decision support: what the forecasts below point to, most urgent first. Plain rules over the
+// forecasts' own figures, so each action can be traced to its source; the GSO decides.
+function RecommendedActions({ dueNow, coming, m, risk }) {
+  const nextYear = m?.forecast?.year
+  const nextBucket = coming.find((b) => String(b.key) === String(nextYear))
+  const link = 'font-semibold text-brand-700 dark:text-brand-300 underline underline-offset-2 hover:text-brand-800 dark:hover:text-brand-200'
+  const actions = [
+    dueNow?.assets > 0 && {
+      key: 'replace',
+      text: <>Include <b>{pesoWords(dueNow.cost)}</b> in the budget to replace <b>{plural(dueNow.assets, 'asset', 'assets')}</b> that are past their expected years of use or broken.</>,
+      source: 'Replacement forecast',
+      to: '/reports?report=replacement&replaceIn=NOW', label: 'See the assets',
+    },
+    risk?.high > 0 && {
+      key: 'check',
+      text: <>Schedule check-ups for the <b>{plural(risk.high, 'asset', 'assets')}</b> the AI rates very likely to need repair, before they break down.</>,
+      source: 'AI repair forecast (machine learning)',
+      to: '/reports?report=repairrisk', label: 'See the list',
+    },
+    m?.forecast && {
+      key: 'repairs',
+      text: <>Set aside about <b>{pesoWords(m.forecast.cost)}</b> for repairs and maintenance in {m.forecast.year}.</>,
+      source: m.accuracy?.averageErrorPercent != null
+        ? `Trend of past repair costs, off by about ${m.accuracy.averageErrorPercent}% in past years`
+        : 'Trend of past repair costs',
+      to: '/reports?report=maintenanceforecast', label: 'By type of property',
+    },
+    nextBucket?.assets > 0 && {
+      key: 'next',
+      text: <>Plan <b>{pesoWords(nextBucket.cost)}</b> for <b>{plural(nextBucket.assets, 'asset', 'assets')}</b> that reach the end of their use in {nextBucket.key}.</>,
+      source: 'Replacement forecast',
+      to: `/reports?report=replacement&replaceIn=${nextBucket.key}`, label: 'See the assets',
+    },
+  ].filter(Boolean)
+  if (actions.length === 0) return null
+  return (
+    <section aria-labelledby="bp-actions" className="rounded-lg border border-brand-700/30 dark:border-brand-400/30 bg-brand-50/40 dark:bg-brand-500/5 px-4 py-3.5 space-y-3">
+      <div>
+        <h3 id="bp-actions" className="text-base font-semibold text-slate-900 dark:text-white">Recommended actions</h3>
+        <p className="text-sm text-slate-700 dark:text-zinc-300">What the forecasts below point to, most urgent first. The figures and lists are there to check before deciding.</p>
+      </div>
+      <ol className="space-y-3">
+        {actions.map((a, i) => (
+          <li key={a.key} className="flex gap-3">
+            <span className="flex-shrink-0 h-6 w-6 rounded-full bg-brand-700 text-white text-sm font-semibold flex items-center justify-center" aria-hidden="true">{i + 1}</span>
+            <div className="space-y-0.5">
+              <p className="text-base text-slate-900 dark:text-white">{a.text}</p>
+              <p className="text-sm text-slate-600 dark:text-zinc-400">
+                Based on: {a.source}. <Link to={a.to} className={link}>{a.label}</Link>
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
 function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
   const [generating, setGenerating] = useState(false)
   const [aiError, setAiError]       = useState('')
@@ -460,6 +519,8 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
           <p className="text-base text-slate-700 dark:text-zinc-300">Couldn't load the budget and planning figures.</p>
         ) : (
           <>
+            <RecommendedActions dueNow={dueNow} coming={coming} m={m} risk={risk} />
+
             {/* 1. Due now */}
             {dueNow?.assets > 0 ? (
               // Laid out like a form: a titled header row, the two figures side by side, and the
@@ -535,11 +596,11 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
                 {m.accuracy?.averageErrorPercent != null && (
                   <details className="px-5 py-3 border-t border-slate-200 dark:border-zinc-800">
                     <summary className="cursor-pointer text-base text-slate-800 dark:text-zinc-200">
-                      Checked against past years, this method was off by about{' '}
+                      Checked against each of the last {m.accuracy.years.length} years, this estimate was off by about{' '}
                       <span className="font-semibold">{m.accuracy.averageErrorPercent}%</span> on average.
                     </summary>
                     <p className="text-sm text-slate-700 dark:text-zinc-300 mt-2">
-                      For each year, the same rule was applied using only the years before it (as if the budget were made the year before), then compared with what was actually spent.
+                      For each year, the estimate was worked out using only what was known on this date the year before (when the budget is prepared), then compared with what was actually spent.
                     </p>
                     <table className="mt-2 w-full max-w-lg text-sm tabular-nums">
                       <thead>
@@ -566,7 +627,7 @@ function BudgetPlanning({ data, loading, onChange, canEditCategories }) {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 border-t border-slate-200 dark:border-zinc-800">
                   <p className="flex-1 text-base text-slate-800 dark:text-zinc-200">
                     {m.byCategory[0] ? <>Costs most to keep running: <span className="font-semibold">{m.byCategory[0].category}</span>. </> : null}
-                    The estimate is the average of the last 3 years at next year's prices.
+                    The estimate follows the trend of the last 3 full years and this year's spending so far.
                     {m.limitedHistory && ' There is little repair history yet, so treat it as a rough guide.'}
                   </p>
                   <Link to="/reports?report=maintenanceforecast"

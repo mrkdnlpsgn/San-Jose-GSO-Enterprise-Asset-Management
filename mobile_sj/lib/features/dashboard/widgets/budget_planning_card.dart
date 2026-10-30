@@ -121,6 +121,7 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
           children: [
             Text('Assets that need replacing, what repairs will cost, and about how much to budget. As of ${_longDate(p.asOf)}.', style: note),
             const SizedBox(height: 14),
+            _RecommendedActions(plan: p, body: body, note: note, heading: heading),
 
             // 1. Due now, laid out like a form: a titled header row, the two figures, and the
             //    explanation with the action at the bottom
@@ -344,6 +345,88 @@ class _BudgetPlanningCardState extends ConsumerState<BudgetPlanningCard> {
 
 /// Repairs and maintenance, laid out like the due-now panel: a titled header row with the trend,
 /// next year's estimate as a large figure, the past years' spending, then a note and the report.
+/// Decision support: what the forecasts below point to, most urgent first. Plain rules over the
+/// forecasts' own figures, so each action can be traced to its source; the GSO decides.
+class _RecommendedActions extends StatelessWidget {
+  final Planning plan;
+  final TextStyle body, note, heading;
+  const _RecommendedActions({required this.plan, required this.body, required this.note, required this.heading});
+
+  static String _assets(int n) => '${_count(n)} ${n == 1 ? 'asset' : 'assets'}';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final m = plan.maintenance;
+    final risk = plan.repairRisk;
+    final dueNow = plan.dueNow;
+    final next = m == null ? null : plan.coming.where((b) => b.key == '${m.forecastYear}').firstOrNull;
+    final actions = <(String, String, String, String)>[
+      if (dueNow != null && dueNow.assets > 0)
+        ('Include ${_pesoWords(dueNow.cost)} in the budget to replace ${_assets(dueNow.assets)} that are past their '
+            'expected years of use or broken.', 'Replacement forecast', 'See the assets', '/reports/replacement?replaceIn=NOW'),
+      if (risk != null && risk.high > 0)
+        ('Schedule check-ups for the ${_assets(risk.high)} the AI rates very likely to need repair, before they break down.',
+            'AI repair forecast (machine learning)', 'See the list', '/reports/repairrisk'),
+      if (m != null)
+        ('Set aside about ${_pesoWords(m.forecastCost)} for repairs and maintenance in ${m.forecastYear}.',
+            m.averageErrorPercent != null
+                ? 'Trend of past repair costs, off by about ${m.averageErrorPercent!.round()}% in past years'
+                : 'Trend of past repair costs',
+            'By type of property', '/reports/maintenanceforecast'),
+      if (next != null && next.assets > 0)
+        ('Plan ${_pesoWords(next.cost)} for ${_assets(next.assets)} that reach the end of their use in ${next.key}.',
+            'Replacement forecast', 'See the assets', '/reports/replacement?replaceIn=${Uri.encodeQueryComponent(next.key)}'),
+    ];
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+      decoration: BoxDecoration(
+        color: AppTheme.brand.withValues(alpha: 0.05),
+        border: Border.all(color: AppTheme.brand.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Recommended actions', style: heading),
+          const SizedBox(height: 2),
+          Text('What the forecasts below point to, most urgent first. The figures and lists are there to check before deciding.',
+              style: note),
+          const SizedBox(height: 10),
+          for (var i = 0; i < actions.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(color: AppTheme.brand, shape: BoxShape.circle),
+                  child: Text('${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(actions[i].$1, style: body),
+                    Text('Based on: ${actions[i].$2}.', style: note.copyWith(color: c.textTertiary)),
+                    TextButton(
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      onPressed: () => context.push(actions[i].$4),
+                      child: Text(actions[i].$3),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MaintenancePanel extends StatelessWidget {
   final MaintenancePlan plan;
   final TextStyle heading;
@@ -428,8 +511,7 @@ class _MaintenancePanel extends StatelessWidget {
               children: [
                 Text(
                   '${m.topCategory != null ? 'Costs most to keep running: ${m.topCategory}. ' : ''}'
-                  "The estimate is the average of the last 3 years at next year's prices "
-                  '(${m.priceIncreasePercent.toStringAsFixed(0)}% a year).'
+                  "The estimate follows the trend of the last 3 full years and this year's spending so far."
                   '${m.limitedHistory ? ' There is little repair history yet, so treat it as a rough guide.' : ''}',
                   style: body,
                 ),
@@ -574,7 +656,7 @@ class _AccuracyCheck extends StatelessWidget {
         expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
         title: Text.rich(
           TextSpan(children: [
-            const TextSpan(text: 'Checked against past years, this method was off by about '),
+            TextSpan(text: 'Checked against each of the last ${plan.checks.length} years, this estimate was off by about '),
             TextSpan(text: _pct(plan.averageErrorPercent!), style: const TextStyle(fontWeight: FontWeight.w700)),
             const TextSpan(text: ' on average.'),
           ]),
@@ -582,8 +664,8 @@ class _AccuracyCheck extends StatelessWidget {
         ),
         children: [
           Text(
-            'For each year, the same rule was applied using only the years before it '
-            '(as if the budget were made the year before), then compared with what was actually spent.',
+            'For each year, the estimate was worked out using only what was known on this date the year before '
+            '(when the budget is prepared), then compared with what was actually spent.',
             style: small,
           ),
           const SizedBox(height: 8),

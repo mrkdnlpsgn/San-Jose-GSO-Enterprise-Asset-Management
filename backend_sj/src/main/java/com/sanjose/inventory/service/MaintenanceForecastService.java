@@ -18,11 +18,13 @@ import java.util.Set;
 
 // What repairs and maintenance cost each year, and about how much to budget for them next year
 // (the "Repairs and Maintenance" line of the GSO's budget). Counts approved, not deleted records
-// with a cost, by their maintenance date. Next year's estimate per category is the average of the
-// last three full years, raised by a yearly price increase from the middle of those years to next
-// year; the trend compares the last full year with the first. "accuracy" replays the same rule on
-// the last 3 full years and compares it with what they actually cost. Plain arithmetic; the AI summary on
-// Home is written by PlanningInsightService. STAFF only see their own assets.
+// with a cost, by their maintenance date. Next year's estimate is a straight-line trend (least
+// squares) through the last three full years and this year's spending so far, scaled up to a full
+// year by how much of a year's cost is usually spent by this date. It is split among categories by
+// their share of those years. The trend label compares the last full year with the first.
+// "accuracy" replays the same rule on each of the last 5 full years, using only what was known on
+// this date the year before, and compares it with what they actually cost. Plain arithmetic; the AI
+// summary on Home is written by PlanningInsightService. STAFF only see their own assets.
 @Service
 @RequiredArgsConstructor
 public class MaintenanceForecastService {
@@ -30,6 +32,11 @@ public class MaintenanceForecastService {
     private final JdbcTemplate jdbcTemplate;
 
     public static final int HISTORY_YEARS = 3;
+    // full years checked by "accuracy"
+    private static final int CHECKED_YEARS = 5;
+    // this year's spending counts once at least this share of a usual year's cost is in: earlier
+    // in the year, scaling it up to a full year would be guesswork
+    private static final double MIN_YEAR_SHARE = 0.25;
     // a change of more than this between the first and the last full year counts as a trend
     private static final double TREND_THRESHOLD = 0.15;
 
@@ -72,17 +79,22 @@ public class MaintenanceForecastService {
             }
         }
 
-        // next year's prices: from the middle of the history years to next year
-        BigDecimal priceFactor = BigDecimal.valueOf(Math.pow(1 + priceIncrease / 100.0, nextYear - (firstYear + thisYear - 1) / 2.0));
+        // next year's total from the trend, split among categories by their share of the history years
+        String monthDay = String.format("%02d-%02d", today.getMonthValue(), today.getDayOfMonth());
+        Map<Integer, BigDecimal> fullYears = yearTotals(thisYear - CHECKED_YEARS - HISTORY_YEARS - 1, thisYear - 1, scope);
+        Map<Integer, BigDecimal> soFar = yearToDateTotals(thisYear - CHECKED_YEARS - HISTORY_YEARS - 1, thisYear, monthDay, scope);
+        BigDecimal forecastTotal = estimate(nextYear, fullYears, soFar);
+        BigDecimal historyTotal = byCategory.values().stream()
+            .map(perYear -> history.stream().map(y -> perYear.getOrDefault(y, BigDecimal.ZERO)).reduce(BigDecimal.ZERO, BigDecimal::add))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<Map<String, Object>> categories = new ArrayList<>();
-        BigDecimal forecastTotal = BigDecimal.ZERO;
         for (var e : byCategory.entrySet()) {
             Map<Integer, BigDecimal> perYear = e.getValue();
             BigDecimal sum = history.stream().map(y -> perYear.getOrDefault(y, BigDecimal.ZERO)).reduce(BigDecimal.ZERO, BigDecimal::add);
             BigDecimal average = sum.divide(BigDecimal.valueOf(HISTORY_YEARS), 2, RoundingMode.HALF_UP);
-            BigDecimal estimate = average.multiply(priceFactor).setScale(2, RoundingMode.HALF_UP);
-            forecastTotal = forecastTotal.add(estimate);
+            BigDecimal estimate = historyTotal.signum() == 0 ? BigDecimal.ZERO
+                : forecastTotal.multiply(sum).divide(historyTotal, 2, RoundingMode.HALF_UP);
 
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("category", e.getKey());
@@ -123,7 +135,8 @@ public class MaintenanceForecastService {
         // fewer than two years with any cost: the estimate rests on very little
         out.put("limitedHistory", yearsWithData < 2);
         out.put("byCategory", categories);
-        out.put("accuracy", accuracy(yearTotals(thisYear - HISTORY_YEARS - 4, thisYear - 1, scope), thisYear, priceIncrease));
+        out.put("method", "TREND");
+        out.put("accuracy", accuracy(fullYears, soFar, thisYear));
         out.put("byType", sortedDesc(byType, "type"));
         if (scope == null) {
             List<Map<String, Object>> offices = sortedDesc(byOffice, "office");
@@ -147,21 +160,59 @@ public class MaintenanceForecastService {
         return totals;
     }
 
-    // How close the method would have been in each of the last 3 full years. A budget for year T
-    // is prepared during T-1, when T-2 is the last full year, so the estimate for T is the average
-    // of T-4 to T-2 raised to T's prices (the same rule as next year's estimate), set against what
-    // T actually cost. A year is left out when it, or all three years before it, had no cost.
-    static Map<String, Object> accuracy(Map<Integer, BigDecimal> totals, int thisYear, double priceIncrease) {
-        BigDecimal priceFactor = BigDecimal.valueOf(Math.pow(1 + priceIncrease / 100.0, 3));
+    // total cost per year up to the same day of the year (monthDay, MM-DD), fromYear to toYear
+    private Map<Integer, BigDecimal> yearToDateTotals(int fromYear, int toYear, String monthDay, AccessService.StaffScope scope) {
+        Map<Integer, BigDecimal> totals = new LinkedHashMap<>();
+        jdbcTemplate.query(
+            "SELECT YEAR(m.maintenance_date) AS y, SUM(m.cost) AS total"
+                + " FROM maintenance_ledger m JOIN assets a ON a.asset_id = m.asset_id"
+                + " WHERE m.is_deleted = 0 AND m.approval_status = 'APPROVED' AND m.cost > 0"
+                + " AND m.maintenance_date >= ? AND m.maintenance_date <= ?"
+                + " AND DATE_FORMAT(m.maintenance_date, '%m-%d') <= ?"
+                + (scope != null ? " AND " + scope.sql("a") : "")
+                + " GROUP BY YEAR(m.maintenance_date)",
+            rs -> { totals.put(rs.getInt("y"), rs.getBigDecimal("total")); },
+            argsWith(LocalDate.of(fromYear, 1, 1), LocalDate.of(toYear, 12, 31), monthDay, scope));
+        return totals;
+    }
+
+    // The estimate for year T, made during year T-1 on this date: a straight line fitted (least
+    // squares) through the full years T-4 to T-2 and year T-1 scaled up from its spending so far,
+    // read off at T. Years before the first one with any cost are left out (the system wasn't in use
+    // yet). With a single year to go on, that year is the estimate. Never below zero.
+    static BigDecimal estimate(int year, Map<Integer, BigDecimal> fullYears, Map<Integer, BigDecimal> soFar) {
+        List<double[]> points = new ArrayList<>();
+        double fullSum = 0, soFarSum = 0;
+        for (int y = year - 1 - HISTORY_YEARS; y <= year - 2; y++) {
+            double cost = fullYears.getOrDefault(y, BigDecimal.ZERO).doubleValue();
+            if (points.isEmpty() && cost == 0) continue;
+            points.add(new double[] {y, cost});
+            fullSum += cost;
+            soFarSum += soFar.getOrDefault(y, BigDecimal.ZERO).doubleValue();
+        }
+        double share = fullSum == 0 ? 0 : soFarSum / fullSum;
+        double current = soFar.getOrDefault(year - 1, BigDecimal.ZERO).doubleValue();
+        if (share >= MIN_YEAR_SHARE && current > 0) points.add(new double[] {year - 1, current / share});
+        if (points.isEmpty()) return BigDecimal.ZERO;
+        if (points.size() == 1) return BigDecimal.valueOf(points.get(0)[1]).setScale(2, RoundingMode.HALF_UP);
+        double mx = points.stream().mapToDouble(p -> p[0]).average().orElse(0);
+        double my = points.stream().mapToDouble(p -> p[1]).average().orElse(0);
+        double sxy = 0, sxx = 0;
+        for (double[] p : points) { sxy += (p[0] - mx) * (p[1] - my); sxx += (p[0] - mx) * (p[0] - mx); }
+        double value = my + (sxy / sxx) * (year - mx);
+        return BigDecimal.valueOf(Math.max(0, value)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    // How close the method would have been in each of the last 5 full years: the estimate for year
+    // T uses only what was known on this date in T-1, set against what T actually cost. A year is
+    // left out when it, or all the years before it, had no cost.
+    static Map<String, Object> accuracy(Map<Integer, BigDecimal> fullYears, Map<Integer, BigDecimal> soFar, int thisYear) {
         List<Map<String, Object>> checked = new ArrayList<>();
         double errorSum = 0;
-        for (int year = thisYear - HISTORY_YEARS; year < thisYear; year++) {
-            BigDecimal actual = totals.getOrDefault(year, BigDecimal.ZERO);
-            BigDecimal base = BigDecimal.ZERO;
-            for (int y = year - 4; y <= year - 2; y++) base = base.add(totals.getOrDefault(y, BigDecimal.ZERO));
-            if (actual.signum() == 0 || base.signum() == 0) continue;
-            BigDecimal estimate = base.divide(BigDecimal.valueOf(HISTORY_YEARS), 2, RoundingMode.HALF_UP)
-                .multiply(priceFactor).setScale(2, RoundingMode.HALF_UP);
+        for (int year = thisYear - CHECKED_YEARS; year < thisYear; year++) {
+            BigDecimal actual = fullYears.getOrDefault(year, BigDecimal.ZERO);
+            BigDecimal estimate = estimate(year, fullYears, soFar);
+            if (actual.signum() == 0 || estimate.signum() == 0) continue;
             double error = estimate.subtract(actual).doubleValue() / actual.doubleValue() * 100;
             errorSum += Math.abs(error);
             Map<String, Object> m = new LinkedHashMap<>();
@@ -176,6 +227,12 @@ public class MaintenanceForecastService {
         out.put("years", checked);
         out.put("averageErrorPercent", checked.isEmpty() ? null : Math.round(errorSum / checked.size() * 10) / 10.0);
         return out;
+    }
+
+    private static Object[] argsWith(LocalDate from, LocalDate to, String extra, AccessService.StaffScope scope) {
+        List<Object> a = new ArrayList<>(List.of(java.sql.Date.valueOf(from), java.sql.Date.valueOf(to), extra));
+        if (scope != null) a.addAll(java.util.Arrays.asList(scope.args()));
+        return a.toArray();
     }
 
     private static Object[] args(LocalDate from, LocalDate to, AccessService.StaffScope scope) {
